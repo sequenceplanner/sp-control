@@ -1,0 +1,39 @@
+target/
+bin/
+logs/
+project/boot/
+project/target
+project/project
+.worksheet/
+.settings/
+*.project
+*.classpath
+*.cache
+.project
+.classpath
+.cache
+*.DS_Store
+*~
+*.log
+.ensime*
+.ensime_cache/
+*.zip
+*~
+\#*\#
+
+# Intellij
+.idea/
+*.iml
+*.iws
+
+# eclipse
+.metadata/
+.metadata
+
+# journal
+journal/
+snapshots/
+servicesJournal/
+
+# output from tests
+testFiles/gitIgnore/
