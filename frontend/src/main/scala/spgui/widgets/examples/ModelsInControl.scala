@@ -27,38 +27,37 @@ object TestModelInControl {
     val sop1 = SOPSpec("sop1", List(Sequence(List(SOP(o1), SOP(o2), SOP(o3)))))
     val sop2 = SOPSpec("sop2", List(Parallel(List(SOP(o1), SOP(o2), SOP(o3)))))
 
-    // TODO: Fix a good struct DSL now!
+    val items = List(o1, o2, o3, o4, t1, t2, t3, t4, sop1, sop2)
+
+    val struct1 = Struct("struct1", makeStructNodes(
+      t1.children(
+        o1,
+        t3.children(
+          o3.children(
+            sop1
+          )
+        )
+      ),
+      t2.children(
+        o2
+      )
+    ))
+
+    val struct2 = Struct("struct2",makeStructNodes(
+      o1.children(t4.children(sop2)),
+      t1
+    ))
+
+    // impossible struct
+
     val o1S = StructNode(o1.id)
     val o2S = StructNode(o2.id)
-    val o3S = StructNode(o3.id)
-    val o4S = StructNode(o4.id)
-    val t1S = StructNode(t1.id)
-    val t2S = StructNode(t2.id)
-    val t3S = StructNode(t3.id)
-    val t4S = StructNode(t4.id)
-    val sop1S = StructNode(sop1.id)
-    val sop2S = StructNode(sop2.id)
-
-    val struct1 = Struct("struct1", List(
-      t1S,
-      t2S,
-      o1S.copy(parent = Some(t1S.nodeID)),
-      o2S.copy(parent = Some(t2S.nodeID)),
-      t3S.copy(parent = Some(t1S.nodeID)),
-      o3S.copy(parent = Some(t3S.nodeID)),
-      sop1S.copy(parent = Some(o3S.nodeID))
+    val impossible = Struct("impossible", List(
+      o1S.copy(parent = Some(o2S.nodeID)),
+      o2S.copy(parent = Some(o1S.nodeID))
     ))
 
-    // always unique node IDs in every struct!
-    val o1S2 = StructNode(o1.id)
-    val struct2 = Struct("struct2", List(
-      o1S2,
-      t4S.copy(parent = Some(o1S2.nodeID)),
-      o4S,
-      sop2S.copy(parent = Some(o4S.nodeID))
-    ))
-
-    List(o1, o2, o3, o4, t1, t2, t3, t4, sop1, sop2, struct1, struct2)
+    List(o1, o2, o3, o4, t1, t2, t3, t4, sop1, sop2, struct1, struct2, impossible)
   }
 }
 
