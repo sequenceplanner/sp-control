@@ -23,21 +23,24 @@ object Launch extends App {
     sp.SPCore.launch(system)
     system.actorOf(ExampleService.props, APIExampleService.service)
 
-//    val vdid = java.util.UUID.randomUUID()
-//    system.actorOf(sp.devicehandler.VirtualDevice.props("vd", vdid), "vd")
-//    val ahid = java.util.UUID.randomUUID()
-//    system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
-//
-//    val dh = system.actorOf(sp.opcua.DriverHandler.props, "OPCUA")
+    val vdid = java.util.UUID.randomUUID()
+    system.actorOf(sp.devicehandler.VirtualDevice.props("vd", vdid), "vd")
+    val ahid = java.util.UUID.randomUUID()
+    system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
 
+    val dh = system.actorOf(sp.opcua.DriverHandler.props, "OPCUA")
     cluster.registerOnMemberRemoved{
       println("spcontrol node has been removed from the cluster")
-      //dh ! "stop"
+      dh ! "stop"
     }
 
     // trucks test
-    //system.actorOf(sp.devicehandler.Trucks.props(ahid))
+    system.actorOf(sp.devicehandler.Trucks.props(ahid))
 
+    // labkit test
+    system.actorOf(sp.labkit.OPMakerLabKit.props, "opMakerLabKit")
+    system.actorOf(sp.labkit.ProductAggregator.props, "ProductAggregator")
+    system.actorOf(sp.labkit.ResourceAggregator.props, "ResourceAggregator")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
