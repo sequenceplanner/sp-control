@@ -10,6 +10,13 @@ object Launch extends App {
   val cluster = akka.cluster.Cluster(system)
 
 
+
+
+    val patrikmodel = sp.patrikmodel.modeledCases.GKNSmallcase()
+    val ids = sp.patrikmodel.CollectorModelImplicits.CollectorModelWorker(patrikmodel).parseToIDables
+    ids.foreach(println)
+
+
   println("Start**************************")
   println("Getting resources")
   println(this.getClass.getResource("/bundle.js"))
@@ -28,6 +35,10 @@ object Launch extends App {
     val ahid = java.util.UUID.randomUUID()
     system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
 
+    // match test
+    val omid = java.util.UUID.randomUUID()
+    val om = system.actorOf(sp.operationmatcher.OperationMatcher.props("operationmatcher", omid), "om")
+
     val dh = system.actorOf(sp.opcua.DriverHandler.props, "OPCUA")
     cluster.registerOnMemberRemoved{
       println("spcontrol node has been removed from the cluster")
@@ -35,8 +46,7 @@ object Launch extends App {
     }
 
     // trucks test
-    system.actorOf(sp.devicehandler.Trucks.props(ahid))
-
+    system.actorOf(sp.labkit.Trucks.props(ahid))
     // labkit test
     system.actorOf(sp.labkit.OPMakerLabKit.props, "opMakerLabKit")
     system.actorOf(sp.labkit.ProductAggregator.props, "ProductAggregator")
