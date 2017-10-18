@@ -51,24 +51,29 @@ object LabkitExperimentWidget {
 
     def pmHandlerCB(mess: SPMessage): Unit = {
       val header = mess.header.to[SPHeader].getOrElse(SPHeader())
-      mess.body.to[apipm.Response].map{
-        case apipm.AvailableModels(models) =>
-          $.modState(s => s.copy(manualModels = models)).runNow()
-        case apipm.ManualModel(ids) =>
-          $.modState{ s =>
-            if(s.pmRequests.contains(header.reqID))
-              s.copy(pmRequests = s.pmRequests - header.reqID,
-                s = "got idables: " + ids.toString :: s.s)
-            else
-              s
-          }.runNow()
-          ($.state >>= { s =>
-            s.selectedModel.foreach { m =>
-              sendToModel(m, apimodel.PutItems(ids))
+      mess.body.to[apipm.Response].map{ msg =>
+        val cb = msg match {
+          case apipm.AvailableModels(models) =>
+            $.modState(s => s.copy(manualModels = models))
+          case apipm.ManualModel(ids) =>
+            val stateChange = $.modState{ s =>
+              if(s.pmRequests.contains(header.reqID))
+                s.copy(pmRequests = s.pmRequests - header.reqID,
+                  s = "got idables: " + ids.toString :: s.s)
+              else
+                s
             }
+            val saveToModel = $.state >>= { s =>
+              s.selectedModel.foreach { m =>
+                sendToModel(m, apimodel.PutItems(ids))
+              }
+              Callback.empty
+            }
+            stateChange >> saveToModel
+          case x =>
             Callback.empty
-          }).runNow()
-        case x =>
+        }
+        cb.runNow()
       }
     }
 

@@ -28,25 +28,19 @@ object AvailableModels {
       Callback.empty
     }
 
-    def oc(models: Set[ID])(p: Props) = {
-      p.onChange(models)
-    }
-
     def handleMess(mess: SPMessage): Unit = {
       extractMMResponse(mess).map{ case (h, b) =>
-        val res = b match {
+        val stateChange = b match {
           case mmapi.ModelList(models) =>
-            ($.state >>= (s => $.props >>= oc(models.toSet))).runNow()
             $.modState(s => s.copy(models = models.toSet))
           case mmapi.ModelCreated(name, attr, modelid) =>
-            ($.state >>= (s => $.props >>= oc(s.models + modelid))).runNow()
             $.modState(s => s.copy(models = s.models + modelid))
           case mmapi.ModelDeleted(modelid) =>
-            ($.state >>= (s => $.props >>= oc(s.models - modelid))).runNow()
             $.modState(s => s.copy(models = s.models - modelid))
           case x => Callback.empty
         }
-        res.runNow()
+        val updateListenerCB = ($.state >>= (s => $.props >>= (p => p.onChange(s.models))))
+        (stateChange >> updateListenerCB).runNow()
       }
     }
     val topic = mmapi.topicResponse
