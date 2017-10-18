@@ -21,7 +21,8 @@ object LabkitExperimentWidget {
   case class State(s: List[String]=List(),
     abs: List[apiab.Ability]=List(),
     manualModels: List[String] = List(),
-    pmRequests: Map[ID, apipm.Request] = Map()
+    pmRequests: Map[ID, apipm.Request] = Map(),
+    models: Set[ID] = Set()
   )
   private class Backend($: BackendScope[Unit, State]) {
     val lp = Operation("lf1LoadPart", attributes = SPAttributes("pairs" -> Map("group"->"lf1", "type"->"addProduct", "trigger"->"x")))
@@ -106,8 +107,16 @@ object LabkitExperimentWidget {
       $.modState { s => s.copy(pmRequests = s.pmRequests + (header.reqID -> request)) }
     }
 
+    def mc(models: Set[ID]) = {
+      $.modState( s => s.copy(models = models))
+    }
+
     def render(s: State) = {
       <.div(
+        AvailableModels(mc),
+        <.table(
+          ^.className := "table table-striped",
+          <.tbody(s.models.map(m=> <.tr(<.td(m.toString))).toTagMod)),
         <.button(
           ^.className := "btn btn-default", <.i(^.className := "fa fa-bolt"),
           ^.onClick --> doTest(),
