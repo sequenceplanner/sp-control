@@ -9,19 +9,10 @@ object Launch extends App {
   implicit val system = ActorSystem("SP")
   val cluster = akka.cluster.Cluster(system)
 
-
-
-
-    val patrikmodel = sp.patrikmodel.modeledCases.GKNSmallcase()
-    val ids = sp.patrikmodel.CollectorModelImplicits.CollectorModelWorker(patrikmodel).parseToIDables
-    ids.foreach(println)
-
-
   println("Start**************************")
   println("Getting resources")
   println(this.getClass.getResource("/bundle.js"))
   println("End**************************")
-
 
   cluster.registerOnMemberUp {
 
@@ -51,6 +42,9 @@ object Launch extends App {
     system.actorOf(sp.labkit.OPMakerLabKit.props, "opMakerLabKit")
     system.actorOf(sp.labkit.ProductAggregator.props, "ProductAggregator")
     system.actorOf(sp.labkit.ResourceAggregator.props, "ResourceAggregator")
+
+    // patrik model dsl
+    system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
