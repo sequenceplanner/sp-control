@@ -3,7 +3,6 @@ package spgui.widgets.labkit
 import java.util.UUID
 import japgolly.scalajs.react._
 
-import japgolly.scalajs.react.vdom.all.{ a, h1, h2, href, div, className, onClick, br, key }
 import japgolly.scalajs.react.vdom.html_<^._
 
 import sp.domain._
@@ -12,17 +11,21 @@ import sp.domain.Logic._
 import monocle.macros._
 import monocle.Lens
 
+import spgui.components.{ SPWidgetElements }
+
 object LabkitExperimentWidget {
   import sp.abilityhandler.{APIAbilityHandler => apiab}
   import sp.operationmatcher.{API => apiom}
   import spgui.communication.{BackendCommunication => bc }
   import sp.patrikmodel.{API => apipm }
+  import sp.models.{APIModel => apimodel }
 
   case class State(s: List[String]=List(),
     abs: List[apiab.Ability]=List(),
     manualModels: List[String] = List(),
     pmRequests: Map[ID, apipm.Request] = Map(),
-    models: Set[ID] = Set()
+    models: Set[ID] = Set(),
+    selectedModel: Option[ID] = None
   )
   private class Backend($: BackendScope[Unit, State]) {
     val lp = Operation("lf1LoadPart", attributes = SPAttributes("pairs" -> Map("group"->"lf1", "type"->"addProduct", "trigger"->"x")))
@@ -38,6 +41,14 @@ object LabkitExperimentWidget {
     val pmHandler = bc.getMessageObserver(pmHandlerCB, apipm.topicResponse)
     val pmObs = bc.getWebSocketStatusObserver(up => if(up) sendToPM(apipm.GetAvailableModels), apipm.topicResponse)
 
+    def sendToModel(model: ID, mess: apimodel.Request): Callback = {
+      val h = SPHeader(from = "ModelWidget", to = model.toString,
+        reply = SPValue("ModelWidget"))
+      val json = SPMessage.make[SPHeader, apimodel.Request](h, mess)
+      bc.publish(json, apimodel.topicRequest)
+      Callback.empty
+    }
+
     def pmHandlerCB(mess: SPMessage): Unit = {
       val header = mess.header.to[SPHeader].getOrElse(SPHeader())
       mess.body.to[apipm.Response].map{
@@ -51,6 +62,12 @@ object LabkitExperimentWidget {
             else
               s
           }.runNow()
+          ($.state >>= { s =>
+            s.selectedModel.foreach { m =>
+              sendToModel(m, apimodel.PutItems(ids))
+            }
+            Callback.empty
+          }).runNow()
         case x =>
       }
     }
@@ -114,17 +131,14 @@ object LabkitExperimentWidget {
     def render(s: State) = {
       <.div(
         AvailableModels(mc),
-        <.table(
-          ^.className := "table table-striped",
-          <.tbody(s.models.map(m=> <.tr(<.td(m.toString))).toTagMod)),
         <.button(
           ^.className := "btn btn-default", <.i(^.className := "fa fa-bolt"),
           ^.onClick --> doTest(),
-          " Create test operations"
+          " Test matching"
         ),
-        <.table(
-          ^.className := "table table-striped",
-          <.tbody(s.s.map(m=> <.tr(<.td(m))).toTagMod)),
+        SPWidgetElements.dropdown(
+          s.selectedModel.map(_.toString).getOrElse("Select a model"),
+          s.models.toSeq.map(m => <.div(m.toString, ^.onClick --> $.modState(s => s.copy(selectedModel = Some(m)))))),
         <.table(
           ^.className := "table table-striped",
           <.tbody(s.manualModels.map(m=>
@@ -134,7 +148,10 @@ object LabkitExperimentWidget {
                 ^.className := "btn btn-default",
                 ^.onClick --> pmRequest(apipm.CreateManualModel(m)),
                 <.i(^.className := "fa fa-magic")
-              )))).toTagMod))
+              )))).toTagMod)),
+        <.table(
+          ^.className := "table table-striped",
+          <.tbody(s.s.map(m=> <.tr(<.td(m))).toTagMod))
       )
     }
 
