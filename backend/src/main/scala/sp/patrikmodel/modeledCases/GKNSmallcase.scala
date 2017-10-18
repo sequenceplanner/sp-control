@@ -7,7 +7,7 @@ import sp.patrikmodel.CollectorModel
 /**
  * GKN weld station
  */
-case class GKNSmallcase(modelName: String = "GKN - weld station") extends CollectorModel {
+case class GKNSmallcase(modelName: String = "GKN - weld station (small version)") extends CollectorModel {
 
   def hAtt(h: String) = SPAttributes("hierarchy" -> Set(h))
 

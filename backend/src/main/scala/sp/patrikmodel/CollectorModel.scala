@@ -7,12 +7,8 @@ import sp.domain.Logic._
  * To store operation models
  */
 
-trait CollectorModel {
+trait CollectorModel extends CollectorImplicits {
   val modelName: String
-  var variableSet: Set[Thing] = Set()
-  var operationSet: Set[Operation] = Set()
-  var forbiddenExpressionSet: Set[SOPSpec] = Set()
-  var robotMovementsSet: Set[SPSpec] = Set()
 
   def v(name: String, domain: Seq[String] = Seq(), init: Option[String] = None, marked: Set[String] = Set(), idleValue: Option[String] = None, attributes: SPAttributes = SPAttributes()) = {
     variableSet += Thing(name = name, attributes = attributes merge SPAttributes("markings" -> (if (marked.isEmpty) None: Option[Set[String]] else Some(marked)),
@@ -81,59 +77,55 @@ trait CollectorModel {
   implicit def stringToSeqOfStrings: String => Seq[String] = Seq(_)
 }
 
-/**
- * To work on a collector Model
- */
-object CollectorModelImplicits {
+trait CollectorImplicits extends ExtendIDables {
+  var variableSet: Set[Thing] = Set()
+  var operationSet: Set[Operation] = Set()
+  var forbiddenExpressionSet: Set[SOPSpec] = Set()
+  var robotMovementsSet: Set[SPSpec] = Set()
 
-  implicit class CollectorModelWorker(cm: CollectorModel) extends ExtendIDables {
-
-    def getIDablesFromSet[T <: IDAble](idableSet: Set[T], constructor: (String, SPAttributes) => T) = {
-      lazy val idables = idableSet.groupBy(_.name).map { case (k, objs) => k -> objs.foldLeft(SPAttributes()) { case (acc, obj) => acc merge obj.attributes } }
-      idables.map(kv => constructor(kv._1, kv._2)).toList
-    }
-
-    def fixDomain(attr: SPAttributes): play.api.libs.json.JsObject = {
-      play.api.libs.json.JsObject(attr.fields.map {
-        case ("domain", v) =>
-          val nd = v.to[List[String]].getOrElse(List()).distinct
-          ("domain", play.api.libs.json.JsArray(nd.map(play.api.libs.json.JsString(_))))
-        case (k, v) =>
-          if(v.to[SPAttributes].toOption.isEmpty)
-            (k, v)
-          else
-            (k, fixDomain(v.to[SPAttributes].toOption.get).to[play.api.libs.json.JsValue].get)
-      })
-    }
-
-    def parseToIDables() = {
-      //Variables-----------------------------------------------------------------------------------------------------
-      lazy val varsToAddWithNonDistinctDomains = getIDablesFromSet(cm.variableSet, (n, as) => Thing(name = n, attributes = as))
-      lazy val varsToAdd = varsToAddWithNonDistinctDomains.map { obj =>
-        obj.copy(attributes = fixDomain(obj.attributes))
-        // obj.attributes.transformField { case ("domain", JArray(vs)) => ("domain", JArray(vs.distinct)) }.to[SPAttributes].getOrElse(SPAttributes()))
-      }
-
-      //Operations------------------------------------------------------------------------------------
-      lazy val opsToAdd = getIDablesFromSet(cm.operationSet, (n, as) => Operation(name = n, attributes = as))
-      lazy val operationMap = opsToAdd.map(o => o.name -> o).toMap
-
-      //ForbiddenExpressions--------------------------------------------------------------------------------------
-      lazy val fesToAddWithNoVisableOperations = getIDablesFromSet(cm.forbiddenExpressionSet, (n, as) => SOPSpec(name = n, sop = List(), attributes = as))
-      lazy val fesToAdd = fesToAddWithNoVisableOperations.map { obj =>
-        val mutexOperations = obj.attributes.findAs[List[String]]("mutexOperations").flatten
-        obj.copy(sop = if (mutexOperations.isEmpty) List() else List(Arbitrary(mutexOperations.flatMap(o => operationMap.get(o)).map(o => OperationNode(o.id)))),
-          attributes = play.api.libs.json.JsObject(obj.attributes.fields.filter(_._1 != "mutexOperations")))
-      }
-
-      //RobotMovements---------------------------------------------------------------------------------------------
-      lazy val robotMovementsToAdd = getIDablesFromSet(cm.robotMovementsSet, (n, as) => SPSpec(name = n, attributes = as))
-
-      //Return--------------------------------------------------------------------------------------------
-      val ids = varsToAdd ++ opsToAdd ++ fesToAdd ++ robotMovementsToAdd
-      extendIDables(ids)
-    }
-
+  private def getIDablesFromSet[T <: IDAble](idableSet: Set[T], constructor: (String, SPAttributes) => T) = {
+    lazy val idables = idableSet.groupBy(_.name).map { case (k, objs) => k -> objs.foldLeft(SPAttributes()) { case (acc, obj) => acc merge obj.attributes } }
+    idables.map(kv => constructor(kv._1, kv._2)).toList
   }
 
+  private def fixDomain(attr: SPAttributes): play.api.libs.json.JsObject = {
+    play.api.libs.json.JsObject(attr.fields.map {
+      case ("domain", v) =>
+        val nd = v.to[List[String]].getOrElse(List()).distinct
+        ("domain", play.api.libs.json.JsArray(nd.map(play.api.libs.json.JsString(_))))
+      case (k, v) =>
+        if(v.to[SPAttributes].toOption.isEmpty)
+          (k, v)
+        else
+          (k, fixDomain(v.to[SPAttributes].toOption.get).to[play.api.libs.json.JsValue].get)
+    })
+  }
+
+  def parseToIDables() = {
+    //Variables-----------------------------------------------------------------------------------------------------
+    lazy val varsToAddWithNonDistinctDomains = getIDablesFromSet(variableSet, (n, as) => Thing(name = n, attributes = as))
+    lazy val varsToAdd = varsToAddWithNonDistinctDomains.map { obj =>
+      obj.copy(attributes = fixDomain(obj.attributes))
+      // obj.attributes.transformField { case ("domain", JArray(vs)) => ("domain", JArray(vs.distinct)) }.to[SPAttributes].getOrElse(SPAttributes()))
+    }
+
+    //Operations------------------------------------------------------------------------------------
+    lazy val opsToAdd = getIDablesFromSet(operationSet, (n, as) => Operation(name = n, attributes = as))
+    lazy val operationMap = opsToAdd.map(o => o.name -> o).toMap
+
+    //ForbiddenExpressions--------------------------------------------------------------------------------------
+    lazy val fesToAddWithNoVisableOperations = getIDablesFromSet(forbiddenExpressionSet, (n, as) => SOPSpec(name = n, sop = List(), attributes = as))
+    lazy val fesToAdd = fesToAddWithNoVisableOperations.map { obj =>
+      val mutexOperations = obj.attributes.findAs[List[String]]("mutexOperations").flatten
+      obj.copy(sop = if (mutexOperations.isEmpty) List() else List(Arbitrary(mutexOperations.flatMap(o => operationMap.get(o)).map(o => OperationNode(o.id)))),
+        attributes = play.api.libs.json.JsObject(obj.attributes.fields.filter(_._1 != "mutexOperations")))
+    }
+
+    //RobotMovements---------------------------------------------------------------------------------------------
+    lazy val robotMovementsToAdd = getIDablesFromSet(robotMovementsSet, (n, as) => SPSpec(name = n, attributes = as))
+
+    //Return--------------------------------------------------------------------------------------------
+    val ids = varsToAdd ++ opsToAdd ++ fesToAdd ++ robotMovementsToAdd
+    extendIDables(ids)
+  }
 }

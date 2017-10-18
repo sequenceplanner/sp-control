@@ -86,8 +86,7 @@ trait PatrikModelLogic {
       case API.CreateManualModel(name) =>
         models.find(_.modelName == name).headOption match {
           case Some(model) =>
-            val pm = sp.patrikmodel.modeledCases.GKNSmallcase()
-            val ids = sp.patrikmodel.CollectorModelImplicits.CollectorModelWorker(pm).parseToIDables
+            val ids = model.parseToIDables
             List(API.ManualModel(ids))
           case None =>
             List()
