@@ -51,7 +51,6 @@ class PatrikModelService extends Actor
         h <- mess.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == API.service
         b <- mess.getBodyAs[API.Request]
       } yield {
-        println("GOT REQUEST: " + x)
         val spHeader = h.swapToAndFrom
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
 

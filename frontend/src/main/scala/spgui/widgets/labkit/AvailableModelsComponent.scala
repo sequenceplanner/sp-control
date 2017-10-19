@@ -49,6 +49,10 @@ object AvailableModels {
     }, topic)
     val topicHandler = BackendCommunication.getMessageObserver(handleMess, topic)
 
+    def onUnmount() = {
+      topicHandler.kill()
+      Callback.empty
+    }
 
     def render(s: State) = div() // EmptyVdom does not compile
 
@@ -57,6 +61,7 @@ object AvailableModels {
   private val component = ScalaComponent.builder[Props]("SPTextBox")
     .initialState(State(models = Set()))
     .renderBackend[Backend]
+    .componentWillUnmount(_.backend.onUnmount())
     .build
 
   def apply(onChange: Set[ID] => Callback) =

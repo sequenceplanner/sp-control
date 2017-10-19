@@ -91,7 +91,6 @@ object ModelsInControlWidget {
     def uiL[T](lens: Lens[UIState, T]): Lens[State, T] = (State.uiState composeLens lens)
 
     def handleMess(mess: SPMessage): Unit = {
-      println("handlemess: " + mess)
       extractMMResponse(mess).map{ case (h, b) =>
         val res = b match {
           case mmapi.ModelList(models) =>

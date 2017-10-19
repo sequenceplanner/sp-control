@@ -1,5 +1,8 @@
 package spgui.widgets.labkit
 
+import scala.util.{Success, Failure}
+import scala.concurrent.Future
+
 import java.util.UUID
 import japgolly.scalajs.react._
 
@@ -17,17 +20,16 @@ object LabkitExperimentWidget {
   import sp.abilityhandler.{APIAbilityHandler => apiab}
   import sp.operationmatcher.{API => apiom}
   import spgui.communication.{BackendCommunication => bc }
-  import sp.patrikmodel.{API => apipm }
   import sp.models.{APIModel => apimodel }
 
   case class State(s: List[String]=List(),
     abs: List[apiab.Ability]=List(),
     manualModels: List[String] = List(),
-    pmRequests: Map[ID, apipm.Request] = Map(),
     models: Set[ID] = Set(),
     selectedModel: Option[ID] = None
   )
   private class Backend($: BackendScope[Unit, State]) {
+    import scala.concurrent.ExecutionContext.Implicits.global
     val lp = Operation("lf1LoadPart", attributes = SPAttributes("pairs" -> Map("group"->"lf1", "type"->"addProduct", "trigger"->"x")))
     val cc = Operation("lf1CloseClamps", attributes = SPAttributes("pairs" -> Map("group"->"lf1", "type"->"clamping")))
     val oc = Operation("lf1OpenClamps", attributes = SPAttributes("pairs" -> Map("group"->"lf1", "type"->"clamping")))
@@ -38,48 +40,20 @@ object LabkitExperimentWidget {
 
     val ops = List(lp,cc,oc, lp2, cc2, oc2)
 
-    val pmHandler = bc.getMessageObserver(pmHandlerCB, apipm.topicResponse)
-    val pmObs = bc.getWebSocketStatusObserver(up => if(up) sendToPM(apipm.GetAvailableModels), apipm.topicResponse)
+    def pmOnChannelUp(): Unit = {
+      pmcomm.ask(SPHeader(from = "labkitWidget"), pmcomm.api.GetAvailableModels).foreach {
+        case pmcomm.api.AvailableModels(models) =>
+          $.modState(s => s.copy(manualModels = models)).runNow()
+        case x =>
+      }
+    }
+    val pmcomm = new PMComm(Some(() => pmOnChannelUp()), None)
 
     def sendToModel(model: ID, mess: apimodel.Request): Callback = {
       val h = SPHeader(from = "ModelWidget", to = model.toString,
         reply = SPValue("ModelWidget"))
       val json = SPMessage.make[SPHeader, apimodel.Request](h, mess)
       bc.publish(json, apimodel.topicRequest)
-      Callback.empty
-    }
-
-    def pmHandlerCB(mess: SPMessage): Unit = {
-      val header = mess.header.to[SPHeader].getOrElse(SPHeader())
-      mess.body.to[apipm.Response].map{ msg =>
-        val cb = msg match {
-          case apipm.AvailableModels(models) =>
-            $.modState(s => s.copy(manualModels = models))
-          case apipm.ManualModel(ids) =>
-            val stateChange = $.modState{ s =>
-              if(s.pmRequests.contains(header.reqID))
-                s.copy(pmRequests = s.pmRequests - header.reqID,
-                  s = "got idables: " + ids.toString :: s.s)
-              else
-                s
-            }
-            val saveToModel = $.state >>= { s =>
-              s.selectedModel.foreach { m =>
-                sendToModel(m, apimodel.PutItems(ids))
-              }
-              Callback.empty
-            }
-            stateChange >> saveToModel
-          case x =>
-            Callback.empty
-        }
-        cb.runNow()
-      }
-    }
-
-    def sendToPM(body: apipm.Request) = {
-      val msg = SPMessage.make[SPHeader, apipm.Request](SPHeader(to = apipm.service, from = "hej"), body)
-      bc.publish(msg, apipm.topicRequest)
       Callback.empty
     }
 
@@ -122,16 +96,27 @@ object LabkitExperimentWidget {
       Callback.empty
     }
 
-    def pmRequest(request: apipm.Request) = {
-      val header = SPHeader(to = apipm.service, from = "frontend")
-      val msg = SPMessage.make[SPHeader, apipm.Request](header, request)
-      bc.publish(msg, apipm.topicRequest)
-      $.modState { s => s.copy(pmRequests = s.pmRequests + (header.reqID -> request)) }
-    }
-
     def mc(models: Set[ID]) = {
       $.modState( s => s.copy(models = models))
     }
+
+    def createPatrikModel(m: String) = {
+      pmcomm.ask(SPHeader(from = "labkitWidget"), pmcomm.api.CreateManualModel(m)).foreach {
+        case pmcomm.api.ManualModel(ids) =>
+          val stateChange = $.modState{ s =>
+            s.copy(s = "got idables: " + ids.toString :: s.s)
+          }
+          val saveToModel = $.state >>= { s =>
+            s.selectedModel.foreach { m =>
+              sendToModel(m, apimodel.PutItems(ids))
+            }
+            Callback.empty
+          }
+          (stateChange >> saveToModel).runNow()
+        case x =>
+      }
+    }
+
 
     def render(s: State) = {
       <.div(
@@ -151,7 +136,7 @@ object LabkitExperimentWidget {
               <.td(m),
               <.td(<.button(
                 ^.className := "btn btn-default",
-                ^.onClick --> pmRequest(apipm.CreateManualModel(m)),
+                ^.onClick --> Callback(createPatrikModel(m)),
                 <.i(^.className := "fa fa-magic")
               )))).toTagMod)),
         <.table(
@@ -162,7 +147,7 @@ object LabkitExperimentWidget {
 
     def onUnmount() = {
       abHandler.kill()
-      pmHandler.kill()
+      pmcomm.kill
       Callback.empty
     }
 
