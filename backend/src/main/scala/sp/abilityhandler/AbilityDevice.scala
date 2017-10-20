@@ -191,7 +191,7 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
 
   def matchRequests(mess: Option[SPMessage]) = {
     extractRequest(mess, handlerID, name) map { case (h, b) =>
-      val updH = h.copy(from = h.to, to = "")
+      val updH = h.swapToAndFrom
 
       // Message was to me so i send an SPACK
       publish(abapi.topicResponse, makeMess(updH, APISP.SPACK()))
@@ -276,7 +276,7 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
             pairs.forall{ case (k,_) => abkeys.contains(k) }
           }).diff(a)
 
-          val msg = makeMess(SPHeader(from = handlerID.toString), omapi.Matches(a.toList,an.toList))
+          val msg = makeMess(h.swapToAndFrom, omapi.Matches(a.toList,an.toList))
           publish(abapi.topicResponse, msg)
       }
     }
