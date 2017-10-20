@@ -5,6 +5,7 @@ import sp.example._
 import sp.modelImport._
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import sp.robotservices._
 
 object Launch extends App {
   implicit val system = ActorSystem("SP")
@@ -25,6 +26,12 @@ object Launch extends App {
 
     // patrik model dsl
     system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
+    system.actorOf(InstructionFiller.props, "InstructionFiller")
+    system.actorOf(RoutineExtractor.props, "RoutineExtractor")
+    system.actorOf(Writer.props, "Writer")
+
+
+
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
