@@ -19,8 +19,9 @@ import spgui.components.{ SPWidgetElements }
 object LabkitExperimentWidget {
   import sp.abilityhandler.{APIAbilityHandler => apiab}
   import sp.operationmatcher.{API => apiom}
-  import spgui.communication.{BackendCommunication => bc }
-  import sp.models.{APIModel => apimodel }
+  import spgui.communication.{BackendCommunication => bc}
+  import sp.models.{APIModel => apimodel}
+  import sp.patrikmodel.{API => apipm}
 
   case class State(s: List[String]=List(),
     abs: List[apiab.Ability]=List(),
@@ -40,75 +41,51 @@ object LabkitExperimentWidget {
 
     val ops = List(lp,cc,oc, lp2, cc2, oc2)
 
+    val widgetName = "labkitExperimentWidget"
+
+    // setup communication with backend APIs
+    val pmcomm = new APIComm[apipm.Request, apipm.Response](apipm.topicRequest,
+      apipm.topicResponse, widgetName, apipm.service, Some(() => pmOnChannelUp()), None)
+
+    val modelcomm = new APIComm[apimodel.Request, apimodel.Response](apimodel.topicRequest,
+      apimodel.topicResponse, widgetName, apimodel.service, None, None)
+
+    val omcomm = new APIComm[apiom.Request, apiom.Response](apiab.topicRequest,
+      apiab.topicResponse, widgetName, apiab.service, None, None)
+
     def pmOnChannelUp(): Unit = {
-      pmcomm.ask(SPHeader(from = "labkitWidget"), pmcomm.api.GetAvailableModels).foreach {
-        case pmcomm.api.AvailableModels(models) =>
+      pmcomm.ask(apipm.GetAvailableModels).foreach {
+        case (_,apipm.AvailableModels(models)) =>
           $.modState(s => s.copy(manualModels = models)).runNow()
         case x =>
       }
     }
-    val pmcomm = new PMComm(Some(() => pmOnChannelUp()), None)
 
-    def sendToModel(model: ID, mess: apimodel.Request): Callback = {
-      val h = SPHeader(from = "ModelWidget", to = model.toString,
-        reply = SPValue("ModelWidget"))
-      val json = SPMessage.make[SPHeader, apimodel.Request](h, mess)
-      bc.publish(json, apimodel.topicRequest)
-      Callback.empty
-    }
-
-    val abHandler = bc.getMessageObserver(abHandlerCB, apiab.topicResponse)
-    def abHandlerCB(mess: SPMessage): Unit = {
-      val header = mess.header.to[SPHeader].getOrElse(SPHeader())
-
-      mess.body.to[apiab.Response].map{
-        case apiab.Abilities(abs) =>
-          $.modState(s => s.copy(abs = abs)).runNow()
-        case x =>
-      }
-
-      mess.body.to[apiom.Response].map{
-        case apiom.Matches(matches, neighbors) =>
-          $.modState{s =>
-            val abnames = matches.map(_.name)
-            val neighbornames = neighbors.map(_.name)
-            s.copy(s = (header.reqID.toString + ": " + abnames.mkString(",") + " ~ " + neighbornames.mkString(",")) :: s.s)
-          }.runNow()
-        case x =>
-      }
-    }
-
-    def sendToAH(body: apiab.Request) = {
-      val msg = SPMessage.make[SPHeader, apiab.Request](SPHeader(to = apiab.service, from = "hej"), body)
-      bc.publish(msg, apiab.topicRequest)
-    }
-
-    def sendToOM(body: apiom.Request) = {
-      val msg = SPMessage.make[SPHeader, apiom.Request](SPHeader(to = apiab.service, from = "hej"), body)
-      bc.publish(msg, apiab.topicRequest)
-    }
-
-    def doTest() = {
+    def doOMTest() = {
       ops.foreach { op =>
         val pairs = op.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
-        sendToOM(apiom.Find(pairs))
+        omcomm.ask(apiom.Find(pairs)).foreach {
+          case (header,apiom.Matches(matches, neighbors)) =>
+            $.modState{s =>
+              val abnames = matches.map(_.name)
+              val neighbornames = neighbors.map(_.name)
+              s.copy(s = (header.reqID.toString + ": " + abnames.mkString(",") + " ~ " + neighbornames.mkString(",")) :: s.s)
+            }.runNow()
+          case x =>
+        }
       }
       Callback.empty
-    }
-
-    def mc(models: Set[ID]) = {
-      $.modState( s => s.copy(models = models))
     }
 
     def createPatrikModel(m: String) = {
-      pmcomm.ask(SPHeader(from = "labkitWidget"), pmcomm.api.CreateManualModel(m)).foreach {
-        case pmcomm.api.ManualModel(ids) =>
+      pmcomm.ask(apipm.CreateManualModel(m)).foreach {
+        case (_,apipm.ManualModel(ids)) =>
           val stateChange = $.modState{ s =>
             s.copy(s = "got idables: " + ids.toString :: s.s)
           }
           val saveToModel = $.state >>= { s =>
             s.selectedModel.foreach { m =>
-              sendToModel(m, apimodel.PutItems(ids))
+              modelcomm.tell(SPHeader(from = widgetName, to = m.toString), apimodel.PutItems(ids))
             }
             Callback.empty
           }
@@ -117,13 +94,16 @@ object LabkitExperimentWidget {
       }
     }
 
+    def mc(models: Set[ID]) = {
+      $.modState( s => s.copy(models = models))
+    }
 
     def render(s: State) = {
       <.div(
         AvailableModels(mc),
         <.button(
           ^.className := "btn btn-default", <.i(^.className := "fa fa-bolt"),
-          ^.onClick --> doTest(),
+          ^.onClick --> doOMTest(),
           " Test matching"
         ),
         SPWidgetElements.dropdown(
@@ -146,7 +126,8 @@ object LabkitExperimentWidget {
     }
 
     def onUnmount() = {
-      abHandler.kill()
+      modelcomm.kill
+      omcomm.kill
       pmcomm.kill
       Callback.empty
     }
