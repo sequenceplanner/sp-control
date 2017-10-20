@@ -4,6 +4,7 @@ import akka.actor._
 import sp.example._
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import sp.robotservices._
 
 object Launch extends App {
   implicit val system = ActorSystem("SP")
@@ -29,6 +30,11 @@ object Launch extends App {
 //    system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
 //
 //    val dh = system.actorOf(sp.opcua.DriverHandler.props, "OPCUA")
+
+
+    system.actorOf(InstructionFiller.props, "InstructionFiller")
+    system.actorOf(RoutineExtractor.props, "RoutineExtractor")
+    system.actorOf(Writer.props, "Writer")
 
     cluster.registerOnMemberRemoved{
       println("spcontrol node has been removed from the cluster")
