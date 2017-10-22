@@ -18,16 +18,37 @@ import scala.util.Try
 
 object ItemEditorInControl {
 
-  case class State(currentModel: Option[ID])
+  case class State(currentModel: Option[ID] = None, currentItem: Option[ID] = None)
 
   class Backend($: BackendScope[SPWidgetBase, State]) {
     import scala.concurrent.ExecutionContext.Implicits.global
     import sp.models.{APIModel => apimodel}
     // hjälpklass för apikommunikation, kommer nog ändras...
     val modelcomm = new spgui.widgets.labkit.APIComm[apimodel.Request, apimodel.Response](apimodel.topicRequest,
-      apimodel.topicResponse, "ItemEditor", apimodel.service, None, None)
+      apimodel.topicResponse, "ItemEditor", apimodel.service, None, Some(onModelUpdate))
 
     var jsonEditor: JSONEditor = null // initialized for real upon mounting, or receiving Item(item)
+
+    // TODO: handle deletion, diffing if mismatch from backend version, etc
+    def onModelUpdate(h: SPHeader,b: apimodel.Response): Unit = {
+      val cb = $.state >>= { s =>
+        for {
+          currentModel <- s.currentModel
+          currentItem <- s.currentItem
+        } yield {
+          b match {
+            case apimodel.ModelUpdate(cm, version, noOfItems, updatedItems, deletedItems, info)
+                if cm == currentModel =>
+              updatedItems.find(_.id == currentItem).foreach { item =>
+                jsonEditor.set(JSON.parse(SPValue(item).toJson))
+              }
+            case x =>
+          }
+        }
+        Callback.empty
+      }
+      cb.runNow()
+    }
 
     def saveItem(currentModel: ID) = {
       fromJsonAs[IDAble](JSON.stringify(jsonEditor.get())).toOption.foreach { idAble =>
@@ -39,11 +60,11 @@ object ItemEditorInControl {
     def requestItem(id: ID) = {
       modelcomm.ask(apimodel.GetItem(id)).foreach {
         case (header,apimodel.SPItem(item)) =>
-          val setCurrentModel = $.modState(s => s.copy(currentModel = ID.makeID(header.from)))
+          val updateState = $.modState(s => s.copy(currentModel = ID.makeID(header.from), currentItem = Some(id)))
           val makeJsonEditor = $.getDOMNode >>= { domNode => Callback {
             jsonEditor = JSONEditor($.getDOMNode.runNow(), ItemEditorOptions())
           }}
-          (setCurrentModel >> makeJsonEditor >> $.forceUpdate).runNow
+          (updateState >> makeJsonEditor >> $.forceUpdate).runNow
           jsonEditor.set(JSON.parse(SPValue(item).toJson))
         case x =>
       }
@@ -60,7 +81,7 @@ object ItemEditorInControl {
   }
 
   private val component = ScalaComponent.builder[SPWidgetBase]("ItemEditor")
-    .initialState(State(None))
+    .initialState(State())
     .renderBackend[Backend]
     /* // this will be used if itemeditor will know what item to edit before its opened
     .componentDidMount(dcb =>
