@@ -56,7 +56,7 @@ class PatrikModelService extends Actor
 
         val toSend = commands(b) // doing the logic
         toSend.foreach(msg => sendAnswer(SPMessage.makeJson(spHeader, msg)))
-        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPDone()))
       }
   }
 
