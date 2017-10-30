@@ -14,7 +14,7 @@ import sp.domain._
 import sp.domain.Logic._
 import java.util.UUID
 
-import scala.util.Try
+import scala.util.{Try,Success, Failure}
 
 object ItemEditorInControl {
 
@@ -53,20 +53,23 @@ object ItemEditorInControl {
     def saveItem(currentModel: ID) = {
       fromJsonAs[IDAble](JSON.stringify(jsonEditor.get())).toOption.foreach { idAble =>
         //val idAble2 = Operation("testSave", id = idAble.id) // för att få en ändring, kunde ej editera själv.
-        modelcomm.tell(SPHeader(to = currentModel.toString, from = "ItemEditor"), apimodel.PutItems(List(idAble)))
+          modelcomm.ask0(SPHeader(to = currentModel.toString, from = "ItemEditor"), apimodel.PutItems(List(idAble))).onComplete {
+            case Success(_) => println("yay")
+            case Failure(err) => println("nay: " + err.toString)
+          }
       }
     }
 
     def requestItem(id: ID) = {
-      modelcomm.ask(apimodel.GetItem(id)).foreach {
-        case (header,apimodel.SPItem(item)) =>
+      modelcomm.ask1(apimodel.GetItem(id)).onComplete {
+        case Success((header,apimodel.SPItem(item))) =>
           val updateState = $.modState(s => s.copy(currentModel = ID.makeID(header.from), currentItem = Some(id)))
           val makeJsonEditor = $.getDOMNode >>= { domNode => Callback {
             jsonEditor = JSONEditor($.getDOMNode.runNow(), ItemEditorOptions())
           }}
           (updateState >> makeJsonEditor >> $.forceUpdate).runNow
           jsonEditor.set(JSON.parse(SPValue(item).toJson))
-        case x =>
+        case x => println("nay :*" + x)
       }
     }
 

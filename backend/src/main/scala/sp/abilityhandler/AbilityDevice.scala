@@ -266,6 +266,8 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
     extractOMRequest(mess) map { case (h, b) =>
       b match {
         case omapi.Find(pairs: Map[String, SPValue]) =>
+          val updH = h.swapToAndFrom
+          publish(abapi.topicResponse, makeMess(updH, APISP.SPACK()))
           val abs = abilities.map(_._2.ability).toSet
           val a = abs.filter{ a =>
             val abkeys = a.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
@@ -276,8 +278,9 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
             pairs.forall{ case (k,_) => abkeys.contains(k) }
           }).diff(a)
 
-          val msg = makeMess(h.swapToAndFrom, omapi.Matches(a.toList,an.toList))
+          val msg = makeMess(updH, omapi.Matches(a.toList,an.toList))
           publish(abapi.topicResponse, msg)
+          publish(abapi.topicResponse, makeMess(updH, APISP.SPDone()))
       }
     }
   }

@@ -14,7 +14,14 @@ import sp.domain.Logic._
 import monocle.macros._
 import monocle.Lens
 
+
+
 import spgui.components.{ SPWidgetElements }
+
+import fs2._
+import fs2.async
+import fs2.async.mutable.Queue
+import cats.effect.{ Effect, IO }
 
 object LabkitExperimentWidget {
   import sp.abilityhandler.{APIAbilityHandler => apiab}
@@ -53,24 +60,46 @@ object LabkitExperimentWidget {
     val omcomm = new APIComm[apiom.Request, apiom.Response](apiab.topicRequest,
       apiab.topicResponse, widgetName, apiab.service, None, None)
 
+    def mapper: Sink[IO, apipm.Response] = _.evalMap(n => IO(println("got async: " + n.toString)))
+
     def pmOnChannelUp(): Unit = {
-      pmcomm.ask(apipm.GetAvailableModels).foreach {
+      // pmcomm.ask(apipm.GetAvailableModels).foreach {
+      //   case (_,apipm.AvailableModels(models)) =>
+      //     $.modState(s => s.copy(manualModels = models)).runNow()
+      //   case x =>
+      // }
+
+      // val msg = SPMessage.make[SPHeader, apipm.Request](SPHeader(), apipm.GetAvailableModels)
+      //val s = pmcomm.askStream(apipm.GetAvailableModels)
+//      s.observe(mapper).onFinalize(IO(println("TESTING FINAL 123"))).run.unsafeRunAsync(_ => ())
+//      val r = s.observe(mapper).run.unsafeRunAsync(logResult _)
+//      val rr: Future[Vector[SPMessage]] = s.runLog.unsafeToFuture()
+//      rr.foreach { r => println("GOT FUTURE RESULT: " + r.toString) }
+
+      val s = pmcomm.ask(apipm.GetAvailableModels).onError(err => {println(err.getMessage()); Stream.empty})
+      s.runLog.unsafeToFuture().foreach { v => v.foreach {
         case (_,apipm.AvailableModels(models)) =>
           $.modState(s => s.copy(manualModels = models)).runNow()
         case x =>
       }
+      }
+
+        // s.onError(err => {println("ERROR: " + err); Stream.empty}).observe(mapper).run.unsafeRunAsync(_ => ())
+
     }
 
     def doOMTest() = {
       ops.foreach { op =>
         val pairs = op.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
-        omcomm.ask(apiom.Find(pairs)).foreach {
-          case (header,apiom.Matches(matches, neighbors)) =>
+        omcomm.ask1(apiom.Find(pairs)).onComplete {
+          case Success((header,apiom.Matches(matches, neighbors))) =>
             $.modState{s =>
               val abnames = matches.map(_.name)
               val neighbornames = neighbors.map(_.name)
               s.copy(s = (header.reqID.toString + ": " + abnames.mkString(",") + " ~ " + neighbornames.mkString(",")) :: s.s)
             }.runNow()
+          case Failure(err) =>
+            $.modState(s => s.copy(s = err.toString :: s.s)).runNow()
           case x =>
         }
       }
@@ -78,7 +107,7 @@ object LabkitExperimentWidget {
     }
 
     def createPatrikModel(m: String) = {
-      pmcomm.ask(apipm.CreateManualModel(m)).foreach {
+      pmcomm.ask1(apipm.CreateManualModel(m)).foreach {
         case (_,apipm.ManualModel(ids)) =>
           val stateChange = $.modState{ s =>
             s.copy(s = "got idables: " + ids.toString :: s.s)
