@@ -23,6 +23,7 @@ object LoadingWidgets {
       ("ExampleServiceWidgetState",   widgets.examples.ExampleServiceWidgetState(),                   3, 3),
       ("OpcUAWidget",                 widgets.examples.OpcUAWidget(),                                 5, 4),
       ("Item explorer",               widgets.itemexplorer.ItemExplorer(),           3, 4),
+      ("Item explorer in control",    widgets.itemexplorerincontrol.ItemExplorer(),           3, 4),
       ("Item explorer tree", widgets.itemtree.ItemExplorer(), 2, 4),
       ("Live Gantt Example",          widgets.gantt.LiveGanttExample(), 10, 5),
       ("Ability Handler",             widgets.abilityhandler.AbilityHandlerWidget(), 3, 4),
