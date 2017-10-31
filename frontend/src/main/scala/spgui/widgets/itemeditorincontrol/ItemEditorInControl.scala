@@ -1,4 +1,4 @@
-package spgui.widgets.itemeditor
+package spgui.widgets.itemeditorincontrol
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
@@ -52,8 +52,8 @@ object ItemEditorInControl {
 
     def saveItem(currentModel: ID) = {
       fromJsonAs[IDAble](JSON.stringify(jsonEditor.get())).toOption.foreach { idAble =>
-        val idAble2 = Operation("testSave", id = idAble.id) // för att få en ändring, kunde ej editera själv.
-          modelcomm.ask0(SPHeader(to = currentModel.toString, from = "ItemEditor"), apimodel.PutItems(List(idAble2))).onComplete {
+        //val idAble2 = Operation("testSave", id = idAble.id) // för att få en ändring, kunde ej editera själv.
+          modelcomm.ask0(SPHeader(to = currentModel.toString, from = "ItemEditor"), apimodel.PutItems(List(idAble))).onComplete {
             case Success(_) => println("yay")
             case Failure(err) => println("nay: " + err.toString)
           }

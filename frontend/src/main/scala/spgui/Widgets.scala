@@ -11,7 +11,7 @@ object LoadingWidgets {
     List[Widget](
 //      ("Grid Test",                   spgui.dashboard.GridTest(),                    5, 5),
 //      ("Widget Injection",            widgets.injection.WidgetInjectionTest(),       3, 4),
-      ("Item Editor",                 widgets.itemeditor.ItemEditorInControl(),               3, 4),
+      ("Item Editor",                 widgets.itemeditorincontrol.ItemEditorInControl(),               3, 4),
 //      ("DragDrop Example",            widgets.examples.DragAndDrop(),                3, 4),
 //      ("Widget with json",            widgets.examples.WidgetWithJSON(),             3, 4),
 //      ("PlcHldrC",                    PlaceholderComp(),                             3, 4),
