@@ -14,6 +14,9 @@ import sp.domain._
 import sp.domain.Logic._
 import java.util.UUID
 
+import spgui.communication._
+import spgui.communication.APIComm._
+
 import scala.util.{Try,Success, Failure}
 
 object ItemEditorInControl {
@@ -24,7 +27,7 @@ object ItemEditorInControl {
     import scala.concurrent.ExecutionContext.Implicits.global
     import sp.models.{APIModel => apimodel}
     // hjälpklass för apikommunikation, kommer nog ändras...
-    val modelcomm = new spgui.widgets.labkit.APIComm[apimodel.Request, apimodel.Response](apimodel.topicRequest,
+    val modelcomm = new APIComm[apimodel.Request, apimodel.Response](apimodel.topicRequest,
       apimodel.topicResponse, "ItemEditor", apimodel.service, None, Some(onModelUpdate))
 
     var jsonEditor: JSONEditor = null // initialized for real upon mounting, or receiving Item(item)
@@ -52,25 +55,27 @@ object ItemEditorInControl {
 
     def saveItem(currentModel: ID) = {
       fromJsonAs[IDAble](JSON.stringify(jsonEditor.get())).toOption.foreach { idAble =>
-        //val idAble2 = Operation("testSave", id = idAble.id) // för att få en ändring, kunde ej editera själv.
-          modelcomm.ask0(SPHeader(to = currentModel.toString, from = "ItemEditor"), apimodel.PutItems(List(idAble))).onComplete {
-            case Success(_) => println("yay")
-            case Failure(err) => println("nay: " + err.toString)
-          }
+        modelcomm.request(SPHeader(to = currentModel.toString, from = "ItemEditor"),
+          apimodel.PutItems(List(idAble))).doit.onComplete {
+          case Success(_) => println("yay, saved!")
+          case Failure(err) => println("nay: " + err.toString)
+        }
       }
     }
 
     def requestItem(id: ID) = {
-      modelcomm.ask1(apimodel.GetItem(id)).onComplete {
+      modelcomm.request(apimodel.GetItem(id)).takeFirstResponse.onComplete {
         case Success((header,apimodel.SPItem(item))) =>
+          println("outer: itemeditor: got " + item)
           val updateState = $.modState(s => s.copy(currentModel = ID.makeID(header.from), currentItem = Some(id)))
           val makeJsonEditor = $.getDOMNode >>= { domNode => Callback {
             jsonEditor = JSONEditor($.getDOMNode.runNow(), ItemEditorOptions())
           }}
           (updateState >> makeJsonEditor >> $.forceUpdate).runNow
           jsonEditor.set(JSON.parse(SPValue(item).toJson))
-        case x => println("nay :*" + x)
+        case x => println("outer: itemeditor: fail: " + x)
       }
+
     }
 
     def render(spwb: SPWidgetBase, state: State) =

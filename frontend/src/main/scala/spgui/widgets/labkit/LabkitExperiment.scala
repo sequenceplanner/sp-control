@@ -17,16 +17,12 @@ import monocle.Lens
 
 
 import spgui.components.{ SPWidgetElements }
-
-import fs2._
-import fs2.async
-import fs2.async.mutable.Queue
-import cats.effect.{ Effect, IO }
+import spgui.communication.APIComm
+import spgui.communication.APIComm._
 
 object LabkitExperimentWidget {
   import sp.abilityhandler.{APIAbilityHandler => apiab}
   import sp.operationmatcher.{API => apiom}
-  import spgui.communication.{BackendCommunication => bc}
   import sp.models.{APIModel => apimodel}
   import sp.patrikmodel.{API => apipm}
 
@@ -60,38 +56,18 @@ object LabkitExperimentWidget {
     val omcomm = new APIComm[apiom.Request, apiom.Response](apiab.topicRequest,
       apiab.topicResponse, widgetName, apiab.service, None, None)
 
-    def mapper: Sink[IO, apipm.Response] = _.evalMap(n => IO(println("got async: " + n.toString)))
-
     def pmOnChannelUp(): Unit = {
-      // pmcomm.ask(apipm.GetAvailableModels).foreach {
-      //   case (_,apipm.AvailableModels(models)) =>
-      //     $.modState(s => s.copy(manualModels = models)).runNow()
-      //   case x =>
-      // }
-
-      // val msg = SPMessage.make[SPHeader, apipm.Request](SPHeader(), apipm.GetAvailableModels)
-      //val s = pmcomm.askStream(apipm.GetAvailableModels)
-//      s.observe(mapper).onFinalize(IO(println("TESTING FINAL 123"))).run.unsafeRunAsync(_ => ())
-//      val r = s.observe(mapper).run.unsafeRunAsync(logResult _)
-//      val rr: Future[Vector[SPMessage]] = s.runLog.unsafeToFuture()
-//      rr.foreach { r => println("GOT FUTURE RESULT: " + r.toString) }
-
-      val s = pmcomm.ask(apipm.GetAvailableModels).onError(err => {println(err.getMessage()); Stream.empty})
-      s.runLog.unsafeToFuture().foreach { v => v.foreach {
+      pmcomm.request(apipm.GetAvailableModels).takeFirstResponse.foreach {
         case (_,apipm.AvailableModels(models)) =>
           $.modState(s => s.copy(manualModels = models)).runNow()
         case x =>
       }
-      }
-
-        // s.onError(err => {println("ERROR: " + err); Stream.empty}).observe(mapper).run.unsafeRunAsync(_ => ())
-
     }
 
     def doOMTest() = {
       ops.foreach { op =>
         val pairs = op.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
-        omcomm.ask1(apiom.Find(pairs)).onComplete {
+        omcomm.request(apiom.Find(pairs)).takeFirstResponse.onComplete {
           case Success((header,apiom.Matches(matches, neighbors))) =>
             $.modState{s =>
               val abnames = matches.map(_.name)
@@ -107,14 +83,14 @@ object LabkitExperimentWidget {
     }
 
     def createPatrikModel(m: String) = {
-      pmcomm.ask1(apipm.CreateManualModel(m)).foreach {
+      pmcomm.request(apipm.CreateManualModel(m)).takeFirstResponse.foreach {
         case (_,apipm.ManualModel(ids)) =>
           val stateChange = $.modState{ s =>
             s.copy(s = "got idables: " + ids.toString :: s.s)
           }
           val saveToModel = $.state >>= { s =>
             s.selectedModel.foreach { m =>
-              modelcomm.tell(SPHeader(from = widgetName, to = m.toString), apimodel.PutItems(ids))
+              modelcomm.request(SPHeader(from = widgetName, to = m.toString), apimodel.PutItems(ids)).doit.foreach(x=>())
             }
             Callback.empty
           }
