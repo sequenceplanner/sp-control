@@ -30,6 +30,7 @@ class JSONEditor(
   json: js.UndefOr[js.Dynamic] = js.undefined
 ) extends js.Object {
   def set(json: js.Dynamic): Unit = js.native
+  def setMode(mode: String): Unit = js.native
   def resize(): Unit = js.native
   def get(): js.Dynamic = js.native
 }
