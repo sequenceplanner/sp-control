@@ -114,6 +114,7 @@ object ItemEditorInControl {
       $.getDOMNode >>= { domNode =>
         Callback {
           jsonEditor = JSONEditor(domNode, ItemEditorOptions())
+          jsonEditor.set(JSON.parse("[]"))
         }
       }
     }
