@@ -2,33 +2,26 @@ package spgui.widgets.itemeditorincontrol
 
 import scalajs.js
 import js.Dynamic.{ literal => l }
+import scala.util.Try
 
 object ItemEditorOptions {
   def apply() =
     JSONEditorOptions(
       mode = "code",
-      schema = itemEditorSchema
+      schema = itemEditorSchema,
+      onEditable = onItemNodeEditable
     )
 
-  def onItemNodeEditable(node: js.Dynamic) = {
-    // js-object in tree mode, boolean in code mode, see jsonEditor API
-    var editable: Any = null
-
+  def onItemNodeEditable(node: js.Dynamic): js.Dynamic = {
     // node is part of jsonEditor API and has members field, value and path
-    val field = node.selectDynamic("field")
-    // val value = node.selectDynamic("value") // works
-    // val path = node.selectDynamic("path") // prints nothing
-
-    if(field == js.undefined) { // this means we are in code mode, in our case, see API
-      editable = false
-    } else {
+    if(js.isUndefined(node) || js.isUndefined(node.selectDynamic("field"))) l("field" -> true, "value" -> true)
+    else {
       // field names never editable, values editable except the one for id
       val fieldNameEditable = false
-      val valueEditable = if(field == "id") false else true // compiler warns, but it works
-      editable = l("field" -> fieldNameEditable, "value" -> valueEditable)
+      val fieldisID = Try(node.selectDynamic("field").asInstanceOf[String]).map(_=="id").getOrElse(false)
+      val valueEditable = !fieldisID
+      l("field" -> fieldNameEditable, "value" -> valueEditable)
     }
-
-    editable
   }
 
   val itemEditorSchema = l(

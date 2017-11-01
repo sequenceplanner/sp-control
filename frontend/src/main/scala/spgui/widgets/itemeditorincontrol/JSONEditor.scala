@@ -38,8 +38,7 @@ class JSONEditor(
 // this is actually a facade, even tho no annotation is needed
 // TODO facade more of the options object
 case class JSONEditorOptions(
-  // return boolean or object e.g. {field: true, value: false}
-  //onEditable: js.Dynamic => Any = node => false, // TODO would be neat to have this work (e.g. so user cant edit ID) but for now it doesn't
+  onEditable: js.Dynamic => js.Dynamic,
   history: Boolean = true,
   mode: String = "code",
   modes: Seq[String] = Seq("code", "tree"),
@@ -48,7 +47,7 @@ case class JSONEditorOptions(
 ) {
   def toJS =
     l(
-      //"onEditable" -> onEditable,
+      "onEditable" -> onEditable,
       "history" -> history,
       "mode" -> mode,
       "modes" -> modes.toJSArray,
