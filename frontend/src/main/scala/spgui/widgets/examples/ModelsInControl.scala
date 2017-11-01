@@ -39,7 +39,7 @@ object TestModelInControl {
     val sop1S = StructNode(sop1.id)
     val sop2S = StructNode(sop2.id)
 
-    val struct1 = Struct("struct1", List(
+    val struct1 = Struct("struct1", Set(
       t1S,
       t2S,
       o1S.copy(parent = Some(t1S.nodeID)),
@@ -51,7 +51,7 @@ object TestModelInControl {
 
     // always unique node IDs in every struct!
     val o1S2 = StructNode(o1.id)
-    val struct2 = Struct("struct2", List(
+    val struct2 = Struct("struct2", Set(
       o1S2,
       t4S.copy(parent = Some(o1S2.nodeID)),
       o4S,
