@@ -98,7 +98,7 @@ object ModelsInControlWidget {
             models.foreach { m => sendToModel(m, mapi.GetModelHistory) }
             $.modState(s => mL(ModelState.models).set(models.toSet)(s))
           case mmapi.ModelCreated(name, attr, modelid) =>
-            sendToModel(modelid, mapi.PutItems(TestModelInControl.getTestModel))
+            //sendToModel(modelid, mapi.PutItems(TestModelInControl.getTestModel))
             $.modState(s => mL(ModelState.models).modify(_ + modelid)(s))
           case mmapi.ModelDeleted(modelid) =>
             $.modState(s => mL(ModelState.models).modify(_.filterNot(_ == modelid))(s))

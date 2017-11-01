@@ -1,15 +1,15 @@
 package sp.modelImport
 
 import sp.domain._
-import sp.models.APIModel
+import sp.modelImport.{APISPModelImport =>api}
 
 object SPModelImportInfo {
     import sp.domain.SchemaLogic._
-    case class ExampleServiceRequest(request: APIModel.Request)
-    case class ExampleServiceResponse(response: APIModel.Response)
+    case class SPModelImportRequest(request: api.Request)
+    case class SPModelImportResponse(response: api.Response)
 
-    lazy val req: com.sksamuel.avro4s.SchemaFor[ExampleServiceRequest] = com.sksamuel.avro4s.SchemaFor[ExampleServiceRequest]
-    lazy val resp: com.sksamuel.avro4s.SchemaFor[ExampleServiceResponse] = com.sksamuel.avro4s.SchemaFor[ExampleServiceResponse]
+    lazy val req: com.sksamuel.avro4s.SchemaFor[SPModelImportRequest] = com.sksamuel.avro4s.SchemaFor[SPModelImportRequest]
+    lazy val resp: com.sksamuel.avro4s.SchemaFor[SPModelImportResponse] = com.sksamuel.avro4s.SchemaFor[SPModelImportResponse]
 
     val apischema = makeMeASchema(
       req(),
@@ -17,12 +17,12 @@ object SPModelImportInfo {
     )
 
     val attributes: APISP.StatusResponse = APISP.StatusResponse(
-      service = APIModel.service,
-      tags = List("virtcom"),
+      service = api.service,
+      tags = List("modelImport"),
       api = apischema,
       version = 1,
-      topicRequest = APIModel.topicRequest,
-      topicResponse = APIModel.topicResponse,
+      topicRequest = api.topicRequest,
+      topicResponse = api.topicResponse,
       attributes = SPAttributes.empty
     )
   }

@@ -2,6 +2,7 @@ package sp
 
 import akka.actor._
 import sp.example._
+import sp.modelImport._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -20,6 +21,7 @@ object Launch extends App {
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
     system.actorOf(ExampleService.props, APIExampleService.service)
+    system.actorOf(SPModelImport.props, APISPModelImport.service)
 
     val vdid = java.util.UUID.randomUUID()
     system.actorOf(sp.devicehandler.VirtualDevice.props("vd", vdid), "vd")
