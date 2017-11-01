@@ -93,8 +93,8 @@ object SPSettings {
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
   object versions {
     val scala = "2.12.3"
-    val scalaDom = "0.9.2"
-    val scalajsReact = "1.1.0"
+    val scalaDom = "0.9.3"
+    val scalajsReact = "1.1.1"
     val scalaCSS = "0.5.3"
     val log4js = "1.4.10"
     val diode = "1.1.2"
@@ -154,6 +154,7 @@ object SPSettings {
 
   lazy val jsSettings = Seq(
     testFrameworks += new TestFramework("utest.runner.Framework"),
+    scalaJSUseMainModuleInitializer := true,
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
 }

@@ -11,6 +11,8 @@ import js.Dynamic.{ literal => l }
 import js.JSConverters._
 import org.scalajs.dom.raw
 
+import scala.scalajs.js.annotation._
+
 object JSONEditor {
   def apply(element: raw.Element, options: JSONEditorOptions): JSONEditor = {
     val optionsInJS = options.toJS
@@ -21,6 +23,7 @@ object JSONEditor {
 // TODO facade more stuff
 // TODO facading destroy() perhaps a good idea
 @js.native
+@JSGlobal
 class JSONEditor(
   element: raw.Element,
   options: js.UndefOr[js.Dynamic] = js.undefined,
