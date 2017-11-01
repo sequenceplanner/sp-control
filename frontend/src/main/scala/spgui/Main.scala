@@ -1,13 +1,14 @@
 package spgui
 
 import org.scalajs.dom.document
+import scala.scalajs.js.annotation.{JSExport,JSExportTopLevel}
 
-import scala.scalajs.js.JSApp
-import scala.scalajs.js.annotation.JSExport
+object Main extends App {
+  @JSExportTopLevel("spgui.Main")
+  protected def getInstance(): this.type = this
 
-object Main extends JSApp {
   @JSExport
-  override def main(): Unit = {
+  def main(): Unit = {
     LoadingWidgets.loadWidgets
     Layout().renderIntoDOM(document.getElementById("spgui-root"))
   }

@@ -11,7 +11,7 @@ object LoadingWidgets {
     List[Widget](
 //      ("Grid Test",                   spgui.dashboard.GridTest(),                    5, 5),
 //      ("Widget Injection",            widgets.injection.WidgetInjectionTest(),       3, 4),
-      ("Item Editor",                 widgets.itemeditor.ItemEditor(),               3, 4),
+      ("Item Editor",                 widgets.itemeditorincontrol.ItemEditorInControl(),               3, 4),
 //      ("DragDrop Example",            widgets.examples.DragAndDrop(),                3, 4),
 //      ("Widget with json",            widgets.examples.WidgetWithJSON(),             3, 4),
 //      ("PlcHldrC",                    PlaceholderComp(),                             3, 4),
@@ -28,7 +28,9 @@ object LoadingWidgets {
       ("Ability Handler",             widgets.abilityhandler.AbilityHandlerWidget(), 3, 4),
       ("ServiceList",                 widgets.services.ServiceListWidget(),          3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
-      ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4)
+      ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
+      ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
+      ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10)
     )
 
 

@@ -80,10 +80,12 @@ object SPSettings {
     "-deprecation",
     "-feature",
     "-language:implicitConversions",
-    "-language:postfixOps"
+    "-language:postfixOps",
+    "-Ypartial-unification"
   )
 
   lazy val projectResolvers: Seq[Resolver] = Seq(
+    Resolver.file("local", file(Path.userHome.absolutePath + "/.ivy2/local"))(Resolver.ivyStylePatterns),
     "Sonatype OSS Snapshots" at "https://oss.sonatype.org/Releases",
     "Typesafe Releases" at "http://repo.typesafe.com/typesafe/releases/",
     "sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/")
@@ -91,8 +93,8 @@ object SPSettings {
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
   object versions {
     val scala = "2.12.3"
-    val scalaDom = "0.9.2"
-    val scalajsReact = "1.1.0"
+    val scalaDom = "0.9.3"
+    val scalajsReact = "1.1.1"
     val scalaCSS = "0.5.3"
     val log4js = "1.4.10"
     val diode = "1.1.2"
@@ -144,13 +146,15 @@ object SPSettings {
     "org.scalatest" %%% "scalatest" % versions.scalaTest % "test",
     "com.lihaoyi" %%% "utest" % versions.uTest % Test,
     "com.github.julien-truffaut" %%%  "monocle-core"  % "1.4.0",
-    "com.github.julien-truffaut" %%%  "monocle-macro" % "1.4.0"
+    "com.github.julien-truffaut" %%%  "monocle-macro" % "1.4.0",
+    "co.fs2" %%% "fs2-core" % "0.10.0-M7"
   ))
 
 
 
   lazy val jsSettings = Seq(
     testFrameworks += new TestFramework("utest.runner.Framework"),
+    scalaJSUseMainModuleInitializer := true,
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
 }

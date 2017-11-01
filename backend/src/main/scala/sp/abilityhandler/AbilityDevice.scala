@@ -42,6 +42,7 @@ object AbilityHandler {
 
 import sp.abilityhandler.{APIAbilityHandler => abapi}
 import sp.devicehandler.{APIVirtualDevice => vdapi}
+import sp.operationmatcher.{API => omapi}
 
 trait AbilityComm {
 
@@ -65,10 +66,19 @@ trait AbilityComm {
     (h, b)
   }
 
+  def extractOMRequest(mess: Option[SPMessage]) = for {
+    m <- mess
+    h <- m.getHeaderAs[SPHeader]
+    b <- m.getBodyAs[omapi.Request] if h.to == abapi.service
+    } yield {
+    (h, b)
+  }
+
 
   def makeMess(h: SPHeader, b: abapi.Response) = SPMessage.makeJson[SPHeader, abapi.Response](h, b)
   def makeMess(h: SPHeader, b: vdapi.Request) = SPMessage.makeJson[SPHeader, vdapi.Request](h, b)
   def makeMess(h: SPHeader, b: APISP) = SPMessage.makeJson[SPHeader, APISP](h, b)
+  def makeMess(h: SPHeader, b: omapi.Response) = SPMessage.makeJson[SPHeader, omapi.Response](h, b)
 }
 // This actor will keep track of the abilities and parse all messages from the VD
 class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends PersistentActor
@@ -174,13 +184,14 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
 
     matchRequests(mess)
     matchVDMessages(mess)
+    matchOMRequest(mess)
 
   }
 
 
   def matchRequests(mess: Option[SPMessage]) = {
     extractRequest(mess, handlerID, name) map { case (h, b) =>
-      val updH = h.copy(from = h.to, to = "")
+      val updH = h.swapToAndFrom
 
       // Message was to me so i send an SPACK
       publish(abapi.topicResponse, makeMess(updH, APISP.SPACK()))
@@ -211,6 +222,8 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
           publish(abapi.topicResponse, makeMess(updH, APISP.SPDone()))
 
         case abapi.ExecuteCmd(cmd) =>
+          val things = abilities.map { case (id,a) =>
+          }
         // to be implemented
 
         case abapi.GetAbilities =>
@@ -248,6 +261,29 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
   }
 
   def filterState(ids: Set[ID], state: Map[ID, SPValue]) = state.filter(kv => ids.contains(kv._1))
+
+  def matchOMRequest(mess: Option[SPMessage]) = {
+    extractOMRequest(mess) map { case (h, b) =>
+      b match {
+        case omapi.Find(pairs: Map[String, SPValue]) =>
+          val updH = h.swapToAndFrom
+          publish(abapi.topicResponse, makeMess(updH, APISP.SPACK()))
+          val abs = abilities.map(_._2.ability).toSet
+          val a = abs.filter{ a =>
+            val abkeys = a.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
+            pairs.forall{ kv => abkeys.exists(_ == kv) }
+          }
+          val an = (abs.filter{ a =>
+            val abkeys = a.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
+            pairs.forall{ case (k,_) => abkeys.contains(k) }
+          }).diff(a)
+
+          val msg = makeMess(updH, omapi.Matches(a.toList,an.toList))
+          publish(abapi.topicResponse, msg)
+          publish(abapi.topicResponse, makeMess(updH, APISP.SPDone()))
+      }
+    }
+  }
 
   def matchVDMessages(mess: Option[SPMessage]) = {
     extractVDReply(mess, handlerID, vd.toString) map { case (h, b) =>

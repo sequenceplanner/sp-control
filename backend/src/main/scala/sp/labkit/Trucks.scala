@@ -1,4 +1,4 @@
-package sp.devicehandler
+package sp.labkit
 
 // VOLVO trucks abilities. TODO: Move to its own node s
 import akka.actor._
@@ -11,6 +11,8 @@ import scala.util.{Failure, Success, Try}
 import sp.domain.logic.{PropositionParser, ActionParser}
 
 import sp.abilityhandler.APIAbilityHandler
+import sp.devicehandler.APIVirtualDevice
+
 
 
 object Trucks {
@@ -118,34 +120,34 @@ class Trucks(ahid: ID) extends Actor with Helpers {
     a("lf1_startAddProduct",
       p("!lf1_startAddProduct && !lf1_productSensor", List("lf1_startAddProduct := true")),
       p("lf1_startAddProduct && !lf1_productSensor"),
-      p("lf1_productSensor", List("lf1_startAddProduct := false"))),
+      p("lf1_productSensor", List("lf1_startAddProduct := false")), Map("group"->"lf1", "type"->"addProduct", "trigger"->"y")),
 
     a("lf1_closeClamps",
       p("lf1_clampsOpened", List("lf1_closeClamps := true")),
       p("lf1_closeClamps && !lf1_clampsClosed && !lf1_clampsOpened"),
-      p("lf1_clampsClosed", List("lf1_closeClamps := false"))),
+      p("lf1_clampsClosed", List("lf1_closeClamps := false")), Map("group"->"lf1", "type"->"clamping")),
 
     a("lf1_openClamps",
       p("lf1_clampsClosed", List("lf1_openClamps := true")),
       p("lf1_openClamps && !lf1_clampsClosed && !lf1_clampsOpened"),
-      p("lf1_clampsOpened", List("lf1_openClamps := false")))
+      p("lf1_clampsOpened", List("lf1_openClamps := false")), Map("group"->"lf1", "type"->"clamping"))
   )
 
   val lf2abs = List(
     a("lf2_startAddProduct",
       p("!lf2_startAddProduct && !lf2_productSensor", List("lf2_startAddProduct := true")),
       p("lf2_startAddProduct && !lf2_productSensor"),
-      p("lf2_productSensor", List("lf2_startAddProduct := false"))),
+      p("lf2_productSensor", List("lf2_startAddProduct := false")), Map("group"->"lf2", "type"->"addProduct", "trigger"->"x")),
 
     a("lf2_closeClamps",
       p("lf2_clampsOpened", List("lf2_closeClamps := true")),
       p("lf2_closeClamps && !lf2_clampsClosed && !lf2_clampsOpened"),
-      p("lf2_clampsClosed", List("lf2_closeClamps := false"))),
+      p("lf2_clampsClosed", List("lf2_closeClamps := false")), Map("group"->"lf2", "type"->"clamping")),
 
     a("lf2_openClamps",
       p("lf2_clampsClosed", List("lf2_openClamps := true")),
       p("lf2_openClamps && !lf2_clampsClosed && !lf2_clampsOpened"),
-      p("lf2_clampsOpened", List("lf2_openClamps := false")))
+      p("lf2_clampsOpened", List("lf2_openClamps := false")), Map("group"->"lf2", "type"->"clamping"))
   )
 
   val ar31abs = List(
@@ -231,6 +233,10 @@ class Trucks(ahid: ID) extends Actor with Helpers {
     mediator ! Publish(APIAbilityHandler.topicRequest, msg)
   }
 
+  // operations test
+  def hAtt(h: String) = SPAttributes("hierarchy" -> Set(h))
+  def ab(name: String) = SPAttributes("ability" -> name)
+
   def receive = {
     case x => println(x)
   }
@@ -246,8 +252,10 @@ trait Helpers {
       p(s"${startvar} && !${endvar}", List()),
       p(s"${startvar} && ${endvar}", List(s"${startvar} := false")))
 
-  def a(n:String, pre:Condition, exec:Condition, post:Condition) =
-    Ability(n, UUID.randomUUID(), pre, exec, post)
+  def a(n:String, pre:Condition, exec:Condition, post:Condition, pairs: Map[String, SPValue] = Map()) = {
+    val p = pairs + ("name" -> SPValue(n))
+    Ability(n, UUID.randomUUID(), pre, exec, post, attributes = SPAttributes("pairs" -> p))
+  }
   def v(name: String, drivername: String) = Thing(name, SPAttributes("drivername" -> drivername))
   def prop(vars: List[IDAble])(cond: String,actions: List[String] = List()) = {
     def c(condition: String): Option[Proposition] = {

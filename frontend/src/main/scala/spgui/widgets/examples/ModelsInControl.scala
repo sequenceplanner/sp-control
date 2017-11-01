@@ -39,7 +39,7 @@ object TestModelInControl {
     val sop1S = StructNode(sop1.id)
     val sop2S = StructNode(sop2.id)
 
-    val struct1 = Struct("struct1", List(
+    val struct1 = Struct("struct1", Set(
       t1S,
       t2S,
       o1S.copy(parent = Some(t1S.nodeID)),
@@ -51,7 +51,7 @@ object TestModelInControl {
 
     // always unique node IDs in every struct!
     val o1S2 = StructNode(o1.id)
-    val struct2 = Struct("struct2", List(
+    val struct2 = Struct("struct2", Set(
       o1S2,
       t4S.copy(parent = Some(o1S2.nodeID)),
       o4S,
@@ -91,7 +91,6 @@ object ModelsInControlWidget {
     def uiL[T](lens: Lens[UIState, T]): Lens[State, T] = (State.uiState composeLens lens)
 
     def handleMess(mess: SPMessage): Unit = {
-      println("handlemess: " + mess)
       extractMMResponse(mess).map{ case (h, b) =>
         val res = b match {
           case mmapi.ModelList(models) =>
@@ -99,7 +98,7 @@ object ModelsInControlWidget {
             models.foreach { m => sendToModel(m, mapi.GetModelHistory) }
             $.modState(s => mL(ModelState.models).set(models.toSet)(s))
           case mmapi.ModelCreated(name, attr, modelid) =>
-            sendToModel(modelid, mapi.PutItems(TestModelInControl.getTestModel))
+            //sendToModel(modelid, mapi.PutItems(TestModelInControl.getTestModel))
             $.modState(s => mL(ModelState.models).modify(_ + modelid)(s))
           case mmapi.ModelDeleted(modelid) =>
             $.modState(s => mL(ModelState.models).modify(_.filterNot(_ == modelid))(s))
