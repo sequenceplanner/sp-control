@@ -1,8 +1,11 @@
 package sp.robotservices
 
-import org.joda.time.DateTime
+import java.time._
+
 import sp.domain.JSFormat
 import java.text.SimpleDateFormat
+
+import sp.domain.Logic.deriveCaseObject
 
 object APIRobotServices{
 
@@ -10,6 +13,7 @@ object APIRobotServices{
   sealed trait Message
   val vdService = "VDservice"
   val instructionFillerService = "Instruction Filler"
+  val logPlayer = "Log Player"
   val topic = "Lisa"
   val topicRequest = "LisaRequest"
 
@@ -21,30 +25,33 @@ object APIRobotServices{
   val routinesToIgnore: List[String] = List("testRout1", "testRout2")
   val homePosSignals: List[String] = List("O_Homepos", "R2UT_HomeAboveBP", "R4UT_HomePosLeft", "R5UT_HomePos")
 
-
+//frontend
+  case class LoadLog(path:String = "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/log-13_12_35") extends Request
+  case class LoadRobotModules(folderPath: String = "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/robotProgs/w1741060") extends Request
+  case object PlayLogs extends Request
 
 
   case class requestModules(robotId: String) extends Request
-  //case object requestWorkCellList extends Request
-
+  case object requestWorkCellList extends Request
+  case object EmptyMessage extends Message
 
   case class RobotDataAddress(domain: String,
                               kind: String,
-                              path: List[String]) extends Message
+                              path: List[String])
 
 
   // Activities
   case class Activity(id: String,
-                      from: DateTime,
+                      from: ZonedDateTime,
                       name: String,
-                      to: DateTime,
+                      to: ZonedDateTime,
                       `type`: String) extends Message
 
   case class ActivityEvent(activityId: String,
                            isStart: Boolean,
                            name: String,
                            robotId: String,
-                           time: DateTime,
+                           time: ZonedDateTime,
                            `type`: String,
                            workCellId: String) extends Message
 
@@ -53,7 +60,7 @@ object APIRobotServices{
                            isStart: Boolean,
                            name: String,
                            robotId: String,
-                           time: DateTime,
+                           time: ZonedDateTime,
                            `type`: String,
                            workCellId: String) extends Message
 
@@ -62,42 +69,42 @@ object APIRobotServices{
   case class IncomingCycleEvent(address: SignalAddress,
                                 newSignalState: NewSignalState,
                                 robotId: String,
-                                time: DateTime,
+                                time: ZonedDateTime,
                                 workCellId: String) extends Message
 
   case class OutgoingCycleEvent(cycleId: String,
                                 isStart: Boolean,
-                                time: DateTime,
+                                time: ZonedDateTime,
                                 workCellId: String) extends Message
 
   // Get work cells from endpoint
   case class WorkCell(id: String,
                       description: String,
-                      robots: List[Robot]) extends Message
+                      robots: List[Robot])
 
   case class Robot(id: String,
-                   name: String) extends Message
+                   name: String)
 
   // Cycle Fold, Store and Search
   case class WorkCellCycle(workCellId: String,
                            id: String,
-                           from: DateTime,
-                           to: DateTime,
+                           from: ZonedDateTime,
+                           to: ZonedDateTime,
                            activities: Map[String, Map[String, List[Activity]]]) extends Message
 
   case class WorkCellActivity(workCellId: String,
                               cycleId: String,
-                              cycleStart: DateTime,
-                              cycleEnd: DateTime,
+                              cycleStart: ZonedDateTime,
+                              cycleEnd: ZonedDateTime,
                               resource: String,
                               activityId: String,
-                              activityStart: DateTime,
-                              activityEnd: DateTime,
+                              activityStart: ZonedDateTime,
+                              activityEnd: ZonedDateTime,
                               name: String,
                               `type`: String) extends Message
 
-  case class TimeSpan(from: DateTime,
-                      to: DateTime) extends Message
+  case class TimeSpan(from: ZonedDateTime,
+                      to: ZonedDateTime)
 
   case class RobotCyclesResponse(workCellId: String,
                                  error: Option[String],
@@ -106,15 +113,15 @@ object APIRobotServices{
   // Robot Endpoint
   case class RapidAddress(domain: String,
                           kind: String,
-                          path: List[String])  extends Message
+                          path: List[String])
 
   case class SignalAddress(domain: String,
-                           signal: String) extends Message
+                           signal: String)
 
   // IO Signals
   case class NewSignalState(value: Float,
                             simulated: Boolean,
-                            quality: Map[String, Int]) extends Message
+                            quality: Map[String, Int])
 
   // Program Pointer
   case class PointerChangedEvent(robotId: String,
@@ -124,17 +131,17 @@ object APIRobotServices{
 
   case class PointerPosition(position: Position,
                              task: String,
-                             time: DateTime) extends Message
+                             time: ZonedDateTime)
 
   case class Position(module: String,
                       routine: String,
-                      range: Range) extends Message
+                      range: Range)
 
   case class Range(begin: Location,
-                   end: Location) extends Message
+                   end: Location)
 
   case class Location(column: Int,
-                      row: Int) extends Message
+                      row: Int)
 
   // RAPID Modules
   case class ModulesReadEvent(robotId: String,
@@ -143,10 +150,10 @@ object APIRobotServices{
                               readValue: List[TaskWithModules]) extends Message
 
   case class TaskWithModules(name: String,
-                             modules: List[Module]) extends Message
+                             modules: List[Module])
 
   case class Module(name: String,
-                    file: List[String]) extends Message
+                    file: List[String])
 
 
   // Instruction Fill
@@ -167,8 +174,23 @@ object APIRobotServices{
 
   object Formats {
     import play.api.libs.json._
-    implicit val yourJodaDateReads = Reads.jodaDateReads("yyyy-MM-dd'T'HH:mm:ss'Z'")
-    implicit val yourJodaDateWrites = Writes.jodaDateWrites("yyyy-MM-dd'T'HH:mm:ss'Z")
+    import sp.domain._
+    //implicit val yourJodaDateReads = Reads.jodaDateReads("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    //implicit val yourJodaDateWrites = Writes.jodaDateWrites("yyyy-MM-dd'T'HH:mm:ss'Z")
+
+    lazy val dateF = format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+    implicit lazy val javatimeF = new Format[ZonedDateTime] {
+      override def reads(json: JsValue): JsResult[ZonedDateTime] = {
+        json.validate[String].map(ZonedDateTime.parse(_, dateF))
+      }
+
+      override def writes(o: ZonedDateTime): JsValue = {
+        Json.toJson(o.format(dateF))
+      }
+
+    }
+
+
 
     implicit lazy val fActivity: JSFormat[Activity] = Json.format[Activity]
     implicit lazy val fActivityEvent: JSFormat[ActivityEvent] = Json.format[ActivityEvent]
@@ -194,13 +216,15 @@ object APIRobotServices{
     implicit lazy val fPointerWithInstruction: JSFormat[PointerWithInstruction] = Json.format[PointerWithInstruction]
     implicit lazy val fPointerWithIsWaiting: JSFormat[PointerWithIsWaiting] = Json.format[PointerWithIsWaiting]
 
-    //implicit val fDateTime: JSFormat[DateTime] = Json.format[DateTime]
     implicit lazy val fRapidAddress: JSFormat[RapidAddress] = Json.format[RapidAddress]
     implicit lazy val fRobotDataAddress: JSFormat[RobotDataAddress] = Json.format[RobotDataAddress]
     implicit lazy val frequestModules: JSFormat[requestModules] = Json.format[requestModules]
 
-    //implicit lazy val frequestWorkCellList: JSFormat[requestWorkCellList] = Json.format[requestWorkCellList]
-
+    implicit lazy val frequestWorkCellList: JSFormat[requestWorkCellList.type ] = deriveCaseObject[requestWorkCellList.type]
+    implicit lazy val fLoadLog: JSFormat[LoadLog] = Json.format[LoadLog]
+    implicit lazy val fLoadRobotModules: JSFormat[LoadRobotModules] = Json.format[LoadRobotModules]
+    implicit lazy val fEmptyMessage: JSFormat[EmptyMessage.type] = deriveCaseObject[EmptyMessage.type]
+    implicit lazy val fPlayLogs: JSFormat[PlayLogs.type] = deriveCaseObject[PlayLogs.type]
 
     def fRequest: JSFormat[Request] = Json.format[Request]
     def fMessage: JSFormat[Message] = Json.format[Message]
