@@ -7,6 +7,7 @@ import sp.domain.{APISP, ID, SPHeader, SPMessage}
 import com.codemettle.reactivemq._
 import com.codemettle.reactivemq.ReActiveMQMessages._
 import com.codemettle.reactivemq.model._
+import play.api.libs.json._
 
 
 
@@ -40,24 +41,50 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
       theBus = Some(c)
     case ConnectionFailed(request, reason) =>
       log.error("Connection failed: " + reason)
-    case mess @ AMQMessage(body, prop, headers) =>
-      publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(),body.toString))
+    case mess@AMQMessage(body, prop, headers) =>
+      constructMessage(body.toString)
+      publish(APIRobotServices.topic, SPMessage.makeJson(SPHeader(), body.toString))
 
     case x: String =>
       // extract the body if it is a case class from my api as well as the header.to has my name
       // act on the messages from the API. Always add the logic in a trait to enable testing
       val bodyAPI = for {
         mess <- SPMessage.fromJson(x)
-        h <- mess.getHeaderAs[SPHeader] if  h.to == APIRobotServices.vdService // only extract body if it is to me
+        h <- mess.getHeaderAs[SPHeader] if h.to == APIRobotServices.vdService // only extract body if it is to me
         b <- mess.getBodyAs[APIRobotServices.Request]
       } yield {
+        //Requests for workcell list
+
         //val spHeader = h.swapToAndFrom
         //sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
         //theBus !
-        }
+      }
 
   }
 
+
+  def constructMessage(msg: String): APIRobotServices.Message ={
+    def has(json:JsValue,childString: String): Boolean = {
+      if ((json \ childString) != JsUndefined)
+        true
+      else
+        false
+    }
+
+    val js = Json.parse(msg)
+    if (has(js,"readValue"))
+      js.asInstanceOf[APIRobotServices.ModulesReadEvent]
+    else if (has(js,"PointerChangedEvent") && !has(js,"instruction"))
+      js.asInstanceOf[APIRobotServices.PointerChangedEvent]
+    else if (has(js,"newSignalState"))
+      js.asInstanceOf[APIRobotServices.IncomingCycleEvent]
+    else
+      APIRobotServices.EmptyMessage
+
+
+
+
+  }
 
   def sendToBusWithTopic(topic: String, json: String) = {
     theBus.foreach{bus => bus ! SendMessage(Topic(topic), AMQMessage(json))}

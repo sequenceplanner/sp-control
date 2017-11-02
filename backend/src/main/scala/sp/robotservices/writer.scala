@@ -15,7 +15,7 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
   triggerServiceRequestComm(statusResponse)
 
   subscribe(APIRobotServices.topicRequest)
-  val csvFile = CSVWriter.open("events.csv")
+  val csvFile = CSVWriter.open("../testFiles/events.csv")
 
 
   type RobotId = String
