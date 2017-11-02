@@ -65,23 +65,23 @@ object ItemEditorInControl {
         idsToSave.groupBy(_._1).foreach { case (model, items) =>
           modelcomm.request(SPHeader(to = model.toString, from = "ItemEditor"),
             apimodel.PutItems(items.map(_._2))).doit.onComplete {
-            case Success(_) => println("yay, saved!")
-            case Failure(err) => println("nay: " + err.toString)
+            case Success(_) => println("itemeditor: yay, saved item(s)!")
+            case Failure(err) => println("itemeditor: could not save item(s): " + err.toString)
           }
         }
       }
     }
 
     def requestItem(id: ID) = {
-      modelcomm.request(apimodel.GetItem(id)).takeFirstResponse.onComplete {
-        case Success((header,apimodel.SPItem(item))) =>
+      modelcomm.request(apimodel.GetItem(id)).takeFirstResponse.foreach {
+        case (header,apimodel.SPItem(item)) =>
           val updateState = $.modState(s => {
             if(s.currentItems.exists(p=>p._2.id == item.id)) s
             else s.copy(currentItems = s.currentItems :+ (ID.makeID(header.from).get, item))
           })
           val updateJsonEditor = $.state >>= (s => Callback(jsonEditor.set(JSON.parse(SPValue(s.currentItems.map(_._2)).toJson))))
           (updateState >> updateJsonEditor).runNow
-        case x => println("itemeditor: failed to save: " + x)
+        case _ =>
       }
     }
 

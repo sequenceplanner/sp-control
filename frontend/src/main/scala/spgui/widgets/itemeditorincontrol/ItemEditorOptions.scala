@@ -30,7 +30,7 @@ object ItemEditorOptions {
     "items" -> l(
       "type" -> "object",
       "properties" -> l(
-        "isa" -> l("enum" -> js.Array("Struct", "Operation", "Thing", "SOPSpec")),
+        "isa" -> l("enum" -> js.Array("Struct", "Operation", "Thing", "SOPSpec", "SPSpec", "SPResult", "SPState")),
         "name" -> l("type" -> "string"),
         "id" -> l("description" -> "UUID as string","type" -> "string")
       ),
