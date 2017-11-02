@@ -56,7 +56,7 @@ object ItemExplorer {
 
     def handleMess(mess: SPMessage): Unit = {
       println("handlemess: " + mess)
-      extractMResponse(mess).map{ case (h, b) =>
+      extractMResponse(mess).map { case (h, b) =>
         val res = b match {
           case tm@mapi.SPItems(items) => {
             val structs = items.filter(_.isInstanceOf[Struct]).asInstanceOf[List[Struct]]
@@ -84,24 +84,41 @@ object ItemExplorer {
     }
 
     val topic = mapi.topicResponse
-    val wsObs = BackendCommunication.getWebSocketStatusObserver(  mess => {
+    val wsObs = BackendCommunication.getWebSocketStatusObserver(mess => {
       if (mess) $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetStructures))).runNow()
     }, topic)
     val topicHandler = BackendCommunication.getMessageObserver(handleMess, topic)
+
+
+    def toggleStruct(id: ID) = $.modState { state =>
+      val theStruct = state.structs.find(_.id == id).get
+      val childIDs = theStruct.items.map(_.item)
+      val retrieveStructNodes = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetItems(childIDs))))
+      retrieveStructNodes.runNow()
+      if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
+      else state.copy(expandedIDs = state.expandedIDs + id)
+    }
+
+    def toggleStructNode(id: ID, struct: Struct) = $.modState { state =>
+      val theStructNode = struct.items.find(_.nodeID == id).get
+      val childIDs = getChildren(theStructNode, struct).map(_.item)
+      val retrieveItems = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetItems(childIDs))))
+      retrieveItems.runNow()
+      if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
+      else state.copy(expandedIDs = state.expandedIDs + id)
+    }
+
+    // TODO stole this from StructLogics in spdomain, use that later
+    def getChildren(node: StructNode, struct: Struct): List[StructNode] = {
+      struct.items.filter(_.parent.contains(node.nodeID))
+    }
+
 
     def render(p: SPWidgetBase, s: ItemExplorerState) =
       <.div(
         if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel,
         OnDataDrop(str => Callback.log("dropped " + str + " on item explorer tree"))
       )
-
-
-    def toggleID(id : ID, childIDs: List[ID]) = $.modState{ state =>
-      val retrieveItem = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetItems(childIDs))))
-      retrieveItem.runNow()
-      if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
-      else state.copy(expandedIDs = state.expandedIDs + id)
-    }
 
     def renderIfNoModel =
       <.div(
@@ -116,8 +133,7 @@ object ItemExplorer {
       <.div(
         <.div(
           struct.name + " ---",
-          //^.onClick --> $.modState(state => state.copy(expandedIDs = expandedIDs + struct.id))
-          ^.onClick --> toggleID(struct.id, struct.items.map(_.item))
+          ^.onClick --> toggleStruct(struct.id)
         ),
         <.ul(
           struct.items.filter(_.parent.isEmpty).toTagMod(structNode => <.li(renderStructNode(structNode, struct, state)))
@@ -128,15 +144,16 @@ object ItemExplorer {
     def renderStructNode(structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
       val shownName = state.retrievedItems.get(structNode.item).map(_.name).getOrElse(structNode.item.toString)
       <.div(
-        shownName,
-        <.ul(getChildren(structNode, struct).toTagMod(sn => <.li(renderStructNode(sn, struct, state))))
+        <.div(
+          shownName,
+          ^.onClick --> toggleStructNode(structNode.nodeID, struct)
+        ),
+        <.ul(
+          getChildren(structNode, struct).toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
+        ).when(state.expandedIDs.contains(structNode.nodeID))
       )
     }
-
-    // TODO stole this from StructLogics in spdomain, use that later
-    def getChildren(node: StructNode, struct: Struct): List[StructNode] = {
-      struct.items.filter(_.parent.contains(node.nodeID))
-    }
+  }
 
   val itemExplorerComponent = ScalaComponent.builder[SPWidgetBase]("ItemExplorer")
     .initialState(ItemExplorerState(Nil))
