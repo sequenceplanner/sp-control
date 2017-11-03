@@ -10,6 +10,7 @@ import spgui.communication.BackendCommunication
 import spgui.widgets.itemeditor.{API_ItemServiceDummy => api}
 import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
 import sp.domain._
+import StuffToMoveToStructLogic._
 
 import scalajs.js
 import js.Dynamic.{literal => l}
@@ -108,17 +109,23 @@ object ItemExplorer {
       else state.copy(expandedIDs = state.expandedIDs + id)
     }
 
-    // TODO stole this from StructLogics in spdomain, use that later
-    def getChildren(node: StructNode, struct: Struct): List[StructNode] = {
-      struct.items.filter(_.parent.contains(node.nodeID))
+    def printDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = $.state.flatMap { state =>
+      val draggedItemID = struct.items.find(_.nodeID == draggedItemNodeID).get.item
+      val draggedItemName = state.retrievedItems(draggedItemID).name
+      val receivingItemID = struct.items.find(_.nodeID == receivingItemNodeID).map(_.item)
+      val receivingItemName = receivingItemID.flatMap(id => state.retrievedItems.get(id).map(_.name))
+        .getOrElse(state.structs.find(_.id == receivingItemNodeID).get.name)
+      Callback.log("dropped " + draggedItemName + " on " + receivingItemName)
     }
 
+    // TODO no validation of move anywhere yet
+    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = $.modState { state =>
+      val newStruct = moveNode(draggedItemNodeID, receivingItemNodeID, struct)
+      state.copy(structs = newStruct :: state.structs.filterNot(_ == struct))
+    }
 
     def render(p: SPWidgetBase, s: ItemExplorerState) =
-      <.div(
-        if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel,
-        OnDataDrop(str => Callback.log("dropped " + str + " on item explorer tree"))
-      )
+      if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel
 
     def renderIfNoModel =
       <.div(
@@ -133,7 +140,8 @@ object ItemExplorer {
       <.div(
         <.div(
           struct.name + " ---",
-          ^.onClick --> toggleStruct(struct.id)
+          ^.onClick --> toggleStruct(struct.id),
+          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, struct.id, struct))
         ),
         <.ul(
           struct.items.filter(_.parent.isEmpty).toTagMod(structNode => <.li(renderStructNode(structNode, struct, state)))
@@ -146,7 +154,9 @@ object ItemExplorer {
       <.div(
         <.div(
           shownName,
-          ^.onClick --> toggleStructNode(structNode.nodeID, struct)
+          ^.onClick --> toggleStructNode(structNode.nodeID, struct),
+          DataOnDrag(structNode.nodeID.toString),
+          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID, struct))
         ),
         <.ul(
           getChildren(structNode, struct).toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
