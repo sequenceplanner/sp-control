@@ -119,9 +119,11 @@ object ItemExplorer {
     }
 
     // TODO no validation of move anywhere yet
-    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = $.modState { state =>
+    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = {
       val newStruct = moveNode(draggedItemNodeID, receivingItemNodeID, struct)
-      state.copy(structs = newStruct :: state.structs.filterNot(_ == struct))
+      val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
+      val notifyBackend = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.PutItems(List(newStruct)))))
+      modifyState >> notifyBackend
     }
 
     def render(p: SPWidgetBase, s: ItemExplorerState) =
