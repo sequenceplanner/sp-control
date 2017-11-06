@@ -24,28 +24,34 @@ println("Instruction Filler ")
 
   def receive = {
     // enable the line below for troubleshooting
-    //case mess @ _ if {println(s"ExampleService MESSAGE: $mess from $sender"); false} => Unit
+    //case mess @ _ if {println(s"instructionfiller MESSAGE: $mess from $sender"); false} => Unit
 
     case x: String =>
+      //log.info(s"Instrution filler got ${x}")
       // extract the body if it is a case class from my api as well as the header.to has my name
       // act on the messages from the API. Always add the logic in a trait to enable testing
-       for {
+      for {
         mess <- SPMessage.fromJson(x)
-        h <- mess.getHeaderAs[SPHeader] if h.from == APIRobotServices.vdService  // only extract body if it is to me
+        h <- mess.getHeaderAs[SPHeader] if (h.from == APIRobotServices.vdService || h.from == APIRobotServices.logPlayer)  // only extract body if it is to me
         b <- mess.getBodyAs[APIRobotServices.Message]
       } yield {
-         b match {
-           case event: APIRobotServices.ModulesReadEvent => event.readValue.foreach(task => {
-             task.modules.foreach(module => moduleMap += (module.name -> module))
-             taskMap += (task.name -> moduleMap)
-             moduleMap = Map.empty[ModuleName, APIRobotServices.Module]
-           })
-           case event: APIRobotServices.PointerChangedEvent => fill(event)
-           case _ => println("Instruction filler: nothing to do")
-             0
+        log.info(s"instruction filler $h")
+        b match {
+          case event: APIRobotServices.ModulesReadEvent => event.readValue.foreach(task => {
+            task.modules.foreach(module => moduleMap += (module.name -> module))
+            taskMap += (task.name -> moduleMap)
+            moduleMap = Map.empty[ModuleName, APIRobotServices.Module]
+            log.info(s"${moduleMap.keys.toList.mkString}")
+          })
+          case event:
+            APIRobotServices.PointerChangedEvent =>
+            log.info(s"instruction filling event $event")
+            fill(event)
+          case _ => println("Instruction filler: nothing to do")
+            0
 
-         }
-       }
+        }
+      }
 
   }
 
@@ -114,9 +120,9 @@ trait InstructionFillerLogic extends Actor with ActorLogging with sp.service.Ser
           val range: APIRobotServices.Range = eventPPPos.position.range
 
           val instruction: Option[Instruction] = range.begin.row == range.end.row match{
-            case true => Option(module.file(range.begin.row - 1).
+            case true => Option(module.file.get(range.begin.row - 1).
               slice(range.begin.column - 1, range.end.column + 1))
-            case false => module.file.slice(range.begin.row - 1, range.end.row - 1).headOption
+            case false => module.file.get.slice(range.begin.row - 1, range.end.row - 1).headOption
           }
           val filledEvent: APIRobotServices.PointerWithInstruction =
             APIRobotServices.PointerWithInstruction(event.robotId, event.workCellId, event.address, instruction.getOrElse("None"), eventPPPos)

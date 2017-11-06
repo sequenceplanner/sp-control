@@ -80,7 +80,7 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
             }
 
             writeToCSV(List(event.activityId, cycleId, event.isStart, event.name, event.robotId, event.time, event.`type`, event.workCellId, robotIdToCurrentPos(event.robotId)))
-
+          case _ => 0
         }
       }
 

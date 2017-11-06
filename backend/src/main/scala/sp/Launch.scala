@@ -35,6 +35,10 @@ object Launch extends App {
     system.actorOf(InstructionFiller.props, "InstructionFiller")
     system.actorOf(RoutineExtractor.props, "RoutineExtractor")
     system.actorOf(Writer.props, "Writer")
+    system.actorOf(LogPlayer.props, "LogPlayer")
+    system.actorOf(VDAdaptor.props, "VDAdaptor")
+    system.actorOf(CycleChange.props, "cyclechange")
+
 
     cluster.registerOnMemberRemoved{
       println("spcontrol node has been removed from the cluster")

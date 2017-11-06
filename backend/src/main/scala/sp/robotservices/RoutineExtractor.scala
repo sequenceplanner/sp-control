@@ -32,6 +32,7 @@ class RoutineExtractor extends Actor with ActorLogging with RoutineExtractorLogi
         case event: APIRobotServices.PointerChangedEvent =>
           activityIdMap = handleActivityIdMap(activityIdMap, event)
           handleEvent(event)
+        case _ => 0
       }
       }
 
