@@ -2,7 +2,7 @@ package sp.robotservices
 
 import java.text.SimpleDateFormat
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import sp.domain.{APISP, ID, SPHeader, SPMessage}
 import com.codemettle.reactivemq._
 import com.codemettle.reactivemq.ReActiveMQMessages._
@@ -29,7 +29,6 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
 
   // State
   var theBus: Option[ActorRef] = None
-  ReActiveMQExtension(context.system).manager ! GetConnection(s"nio://${APIRobotServices.activeMQUrl}:${APIRobotServices.activeMQPort}")
 
 
   def receive = {
@@ -42,17 +41,24 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
     case ConnectionFailed(request, reason) =>
       log.error("Connection failed: " + reason)
     case mess@AMQMessage(body, prop, headers) =>
-      constructMessage(body.toString)
-      publish(APIRobotServices.topic, SPMessage.makeJson(SPHeader(), body.toString))
+      val msg = constructMessage(body.toString)
+      log.info(s"Constructed msg ${msg}")
+      publish(APIRobotServices.topic, SPMessage.makeJson(SPHeader(), msg))
 
     case x: String =>
       // extract the body if it is a case class from my api as well as the header.to has my name
       // act on the messages from the API. Always add the logic in a trait to enable testing
       val bodyAPI = for {
         mess <- SPMessage.fromJson(x)
-        h <- mess.getHeaderAs[SPHeader] if h.to == APIRobotServices.vdService // only extract body if it is to me
+        h <- mess.getHeaderAs[SPHeader] // only extract body if it is to me
         b <- mess.getBodyAs[APIRobotServices.Request]
       } yield {
+        b match {
+          case APIRobotServices.Connect =>
+            log.info("connecting to amq")
+            ReActiveMQExtension(context.system).manager ! GetConnection(s"nio://${APIRobotServices.activeMQUrl}:${APIRobotServices.activeMQPort}")
+          case _ => 0
+        }
         //Requests for workcell list
 
         //val spHeader = h.swapToAndFrom
@@ -64,20 +70,21 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
 
 
   def constructMessage(msg: String): APIRobotServices.Message ={
+log.info(s"vdAdaptor constructing messge for $msg")
     def has(json:JsValue,childString: String): Boolean = {
-      if ((json \ childString) != JsUndefined)
-        true
-      else
+      if ((json \ childString).isInstanceOf[JsUndefined])
         false
+      else
+        true
     }
 
     val js = Json.parse(msg)
     if (has(js,"readValue"))
-      js.asInstanceOf[APIRobotServices.ModulesReadEvent]
-    else if (has(js,"PointerChangedEvent") && !has(js,"instruction"))
-      js.asInstanceOf[APIRobotServices.PointerChangedEvent]
+      js.as[APIRobotServices.ModulesReadEvent]
+    else if (has(js,"programPointerPosition"))
+      js.as[APIRobotServices.PointerChangedEvent]
     else if (has(js,"newSignalState"))
-      js.asInstanceOf[APIRobotServices.IncomingCycleEvent]
+      js.as[APIRobotServices.IncomingCycleEvent]
     else
       APIRobotServices.EmptyMessage
 
@@ -98,7 +105,9 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
     theBus.foreach(_ ! CloseConnection)
   }
 }
-
+object VDAdaptor {
+  def props = Props[VDAdaptor]
+}
 
 object VDAdaptorInfo {
   import sp.domain.SchemaLogic._

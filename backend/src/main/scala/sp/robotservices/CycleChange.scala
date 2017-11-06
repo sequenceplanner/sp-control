@@ -94,7 +94,7 @@ trait CycleChangeLogic extends Actor with ActorLogging with sp.service.ServiceSu
       }
         initializeRobotStartFlagMap()
         getWorkCellsFlag = !getWorkCellsFlag
-
+      case _ => 0
     }
 
 
