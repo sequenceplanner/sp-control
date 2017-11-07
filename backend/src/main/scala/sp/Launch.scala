@@ -33,9 +33,6 @@ object Launch extends App {
     system.actorOf(VDAdaptor.props, "VDAdaptor")
     system.actorOf(CycleChange.props, "cyclechange")
 
-
-
-
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
