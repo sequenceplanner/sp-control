@@ -2,7 +2,7 @@ package sp.robotservices
 
 import java.io.File
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
 import com.codemettle.reactivemq.ReActiveMQExtension
 import com.codemettle.reactivemq.model.{AMQMessage, Topic}
 import play.api.libs.json._
@@ -12,11 +12,15 @@ import com.codemettle.reactivemq.ReActiveMQMessages._
 import com.codemettle.reactivemq.model._
 import sp.robotservices.APIRobotServices._
 import sp.robotservices.APIRobotServices.ModulesReadEvent._
+import akka.actor.Timers
 
 import scala.io.Source
 
+case object Tick
+case object TickKey
+
 class LogPlayer extends  Actor with ActorLogging with
-  sp.service.ServiceSupport{
+  sp.service.ServiceSupport with Timers{
   println("Logplayer started")
   val instanceID = ID.newID
 
@@ -29,6 +33,12 @@ class LogPlayer extends  Actor with ActorLogging with
   subscribe(APIRobotServices.topicRequest)
   // State
   var theBus: Option[ActorRef] = None
+
+
+  import scala.concurrent.duration._
+ // import context.dispatcher
+//  def ticker = context.system.scheduler.schedule(0 seconds, 0.1 seconds, self, Tick)
+
 
   var jsonFile: JsValue = JsNull
   var wcellfile: List[JsValue] = List.empty
@@ -46,7 +56,8 @@ class LogPlayer extends  Actor with ActorLogging with
     case ConnectionFailed(request, reason) =>
       log.error("Connection failed: " + reason)
     //case mess@AMQMessage(body, prop, headers) =>
-
+    case Tick =>
+      playFirstEvent(evts)
 
     case x: String =>
       println(s"Got ${x} from frontend")
@@ -83,25 +94,13 @@ class LogPlayer extends  Actor with ActorLogging with
             log.info("loading robot modules done")
           case  APIRobotServices.PlayLogs =>
             def playLog ={
-              publish(APIRobotServices.topicResponse,SPMessage.makeJson(SPHeader(to = h.from), APIRobotServices.Started))
-
-              def playFirstEvent(e: List[JsValue]): Unit ={
-                e match {
-                  case Nil =>
-                    log.info("Finished playing log")
-                  case x::xs =>
-                    //log.info(s"${x.toString}")
-                    sendToBusWithTopic(APIRobotServices.activeMQTopic, x.toString () )
-                   Thread.sleep(500)
-                    playFirstEvent(xs)
-
-                }
-                publish(APIRobotServices.topicResponse,SPMessage.makeJson(SPHeader(to = h.from), APIRobotServices.Finished))
-              }
-              playFirstEvent(evts)
-
+              publish(APIRobotServices.topicResponse,SPMessage.makeJson(SPHeader(), APIRobotServices.Started))
+              timers.startPeriodicTimer(TickKey,Tick,0.1 seconds)
             }
             playLog
+          case APIRobotServices.StopPlayingLogs =>
+            publish(APIRobotServices.topicResponse,SPMessage.makeJson(SPHeader(), APIRobotServices.Finished))
+            timers.cancel(TickKey)
           case _ =>
         }
 
@@ -132,6 +131,19 @@ class LogPlayer extends  Actor with ActorLogging with
       //publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(from = APIRobotServices.logPlayer),jProg))}
       val prog = Source.fromFile(f).getLines().mkString
       sendToBusWithTopic(APIRobotServices.activeMQTopic,prog)}
+  }
+  def playFirstEvent(e: List[JsValue]): Unit = {
+    e match {
+      case Nil =>
+        log.info("Finished playing log")
+        publish(APIRobotServices.topicResponse,SPMessage.makeJson(SPHeader(), APIRobotServices.Finished))
+        timers.cancel(TickKey)
+      case x :: xs =>
+        //log.info(s"${x.toString}")
+        sendToBusWithTopic(APIRobotServices.activeMQTopic, x.toString())
+        evts = xs
+      //Thread.sleep(500)
+    }
   }
   def sendToBusWithTopic(topic: String, json: String) = {
     theBus.foreach{bus => bus ! SendMessage(Topic(topic), AMQMessage(json))}

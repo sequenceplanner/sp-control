@@ -64,12 +64,15 @@ import sp.robotservices.{APIRobotServices => api}
             ^.className := "btn btn-default",
             ^.onClick --> send(api.LoadRobotModules(s.pathModules)), "Load robot modules"
           ),
-
+          <.br(),
           <.button(
             ^.className := "btn btn-default",
-            ^.onClick --> send(api.PlayLogs), "play log"
+            ^.onClick --> send(api.PlayLogs), "Play log"
           ),
-
+          <.button(
+            ^.className := "btn btn-default",
+            ^.onClick --> send(api.StopPlayingLogs), "Stop log"
+          ),
           <.button(
           ^.className := "btn btn-default",
           ^.onClick --> send(api.Connect), "Connect"

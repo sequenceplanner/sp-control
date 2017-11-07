@@ -31,6 +31,7 @@ object APIRobotServices{
   case class LoadRobotModules(folderPath: String = "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/robotProgs/w1741060") extends Request
   case object PlayLogs extends Request
   case object Connect extends Request
+  case object StopPlayingLogs extends Request
 
   case object Finished extends Response
   case object Started extends Response
@@ -256,7 +257,7 @@ object APIRobotServices{
     implicit lazy val fFinished: JSFormat[Finished.type] = deriveCaseObject[Finished.type]
     implicit lazy val fStarted: JSFormat[Started.type] = deriveCaseObject[Started.type]
     implicit lazy val fConnect: JSFormat[Connect.type] = deriveCaseObject[Connect.type]
-
+    implicit lazy val fStopPlayingLogs: JSFormat[StopPlayingLogs.type] = deriveCaseObject[StopPlayingLogs.type]
 
     def fRequest: JSFormat[Request] = Json.format[Request]
     def fMessage: JSFormat[Message] = Json.format[Message]
