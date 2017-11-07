@@ -14,7 +14,7 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
   )
   triggerServiceRequestComm(statusResponse)
 
-  subscribe(APIRobotServices.topicRequest)
+  subscribe(APIRobotServices.topic)
   val csvFile = CSVWriter.open("../testFiles/events.csv")
 
 
@@ -79,7 +79,7 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
 
             }
 
-            writeToCSV(List(event.activityId, cycleId, event.isStart, event.name, event.robotId, event.time, event.`type`, event.workCellId, robotIdToCurrentPos(event.robotId)))
+            writeToCSV(List(event.activityId, cycleId, event.isStart, event.name, event.robotId, event.time, event.`type`, event.workCellId))
           case _ => 0
         }
       }

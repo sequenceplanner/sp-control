@@ -127,9 +127,11 @@ class LogPlayer extends  Actor with ActorLogging with
 
     log.info(s"Loading list of files: ${getListOfFiles(path)}")
     getListOfFiles(path).foreach{f =>
-      val prog = Json.parse(Source.fromFile(f).getLines.mkString)
-      val jProg= prog.as[APIRobotServices.ModulesReadEvent]
-      publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(from = APIRobotServices.logPlayer),jProg))}
+      //val prog = Json.parse(Source.fromFile(f).getLines.mkString)
+      //val jProg= prog.as[APIRobotServices.ModulesReadEvent]
+      //publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(from = APIRobotServices.logPlayer),jProg))}
+      val prog = Source.fromFile(f).getLines().mkString
+      sendToBusWithTopic(APIRobotServices.activeMQTopic,prog)}
   }
   def sendToBusWithTopic(topic: String, json: String) = {
     theBus.foreach{bus => bus ! SendMessage(Topic(topic), AMQMessage(json))}

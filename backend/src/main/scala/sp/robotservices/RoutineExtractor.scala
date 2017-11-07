@@ -30,6 +30,8 @@ class RoutineExtractor extends Actor with ActorLogging with RoutineExtractorLogi
         b <- mess.getBodyAs[APIRobotServices.Message]
       } yield {b match {
         case event: APIRobotServices.PointerChangedEvent =>
+         // log.info(s"Routine extractor handling $event")
+
           activityIdMap = handleActivityIdMap(activityIdMap, event)
           handleEvent(event)
         case _ => 0
@@ -61,7 +63,7 @@ object RoutineExtractorInfo {
 }
 
 
-trait RoutineExtractorLogic extends sp.service.ServiceSupport{
+trait RoutineExtractorLogic extends sp.service.ServiceSupport with Actor with ActorLogging{
   // Type aliases
   type RobotName = String
   type Id = String
@@ -105,6 +107,7 @@ trait RoutineExtractorLogic extends sp.service.ServiceSupport{
           //val json = write(routineStopEvent)
           // log.info("Previous routine: " + json)
           //sendToBus(json)
+          log.info(s"Routine extracto ${routineStopEvent}")
           publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(),routineStopEvent))
         }
         if (!isWaitingRoutine(currentRoutine)) {
@@ -114,6 +117,8 @@ trait RoutineExtractorLogic extends sp.service.ServiceSupport{
           //val json = write(routineStartEvent)
           // log.info("Current routine: " + json)
           //sendToBus(json)
+          log.info(s"Routine extracto ${routineStartEvent}")
+
           publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(),routineStartEvent))
 
         }
