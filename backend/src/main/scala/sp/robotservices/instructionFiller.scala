@@ -35,17 +35,22 @@ println("Instruction Filler ")
         h <- mess.getHeaderAs[SPHeader] if (h.from == APIRobotServices.vdService || h.from == APIRobotServices.logPlayer)  // only extract body if it is to me
         b <- mess.getBodyAs[APIRobotServices.Message]
       } yield {
-        log.info(s"instruction filler $h")
         b match {
-          case event: APIRobotServices.ModulesReadEvent => event.readValue.foreach(task => {
+          case event: APIRobotServices.ModulesReadEvent =>
+            log.info(s"instruction filler modules ${event.robotId}")
+            event.readValue.foreach(task => {
             task.modules.foreach(module => moduleMap += (module.name -> module))
             taskMap += (task.name -> moduleMap)
             moduleMap = Map.empty[ModuleName, APIRobotServices.Module]
-            log.info(s"${moduleMap.keys.toList.mkString}")
+
           })
+            robotMap += (event.robotId -> taskMap)
+            taskMap = Map.empty[TaskName, Map[ModuleName, APIRobotServices.Module]]
+
+            log.info(s"${moduleMap.keys.toList.mkString}")
           case event:
             APIRobotServices.PointerChangedEvent =>
-            log.info(s"instruction filling event $event")
+           // log.info(s"instruction filling event $event")
             fill(event)
           case _ => println("Instruction filler: nothing to do")
             0
@@ -138,10 +143,13 @@ trait InstructionFillerLogic extends Actor with ActorLogging with sp.service.Ser
       if (timerMap.contains(event.robotId)) {
         if ((timerMap(event.robotId) to DateTime.now).millis < 60000) {
           timerMap += (event.robotId -> DateTime.now)
+          log.info("Requesting modules")
           requestModules(event.robotId)
         }
       } else {
         timerMap += (event.robotId -> DateTime.now)
+        log.info("Requesting modules again")
+
         requestModules(event.robotId)
       }
     }

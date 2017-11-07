@@ -42,8 +42,8 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
       log.error("Connection failed: " + reason)
     case mess@AMQMessage(body, prop, headers) =>
       val msg = constructMessage(body.toString)
-      log.info(s"Constructed msg ${msg}")
-      publish(APIRobotServices.topic, SPMessage.makeJson(SPHeader(), msg))
+      //log.info(s"Constructed msg ${msg}")
+      publish(APIRobotServices.topic, SPMessage.makeJson(SPHeader(from = APIRobotServices.vdService), msg))
 
     case x: String =>
       // extract the body if it is a case class from my api as well as the header.to has my name
@@ -70,7 +70,7 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
 
 
   def constructMessage(msg: String): APIRobotServices.Message ={
-log.info(s"vdAdaptor constructing messge for $msg")
+//log.info(s"vdAdaptor constructing messge for $msg")
     def has(json:JsValue,childString: String): Boolean = {
       if ((json \ childString).isInstanceOf[JsUndefined])
         false
@@ -79,8 +79,11 @@ log.info(s"vdAdaptor constructing messge for $msg")
     }
 
     val js = Json.parse(msg)
-    if (has(js,"readValue"))
+    if (has(js,"readValue")){
+      log.info("With readvalu")
+
       js.as[APIRobotServices.ModulesReadEvent]
+    }
     else if (has(js,"programPointerPosition"))
       js.as[APIRobotServices.PointerChangedEvent]
     else if (has(js,"newSignalState"))
