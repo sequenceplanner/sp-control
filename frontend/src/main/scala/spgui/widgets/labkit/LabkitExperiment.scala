@@ -29,7 +29,7 @@ object LabkitExperimentWidget {
   case class State(s: List[String]=List(),
     abs: List[apiab.Ability]=List(),
     manualModels: List[String] = List(),
-    models: Set[ID] = Set(),
+    models: Map[ID,String] = Map(),
     selectedModel: Option[ID] = None
   )
   private class Backend($: BackendScope[Unit, State]) {
@@ -99,13 +99,10 @@ object LabkitExperimentWidget {
       }
     }
 
-    def mc(models: Set[ID]) = {
-      $.modState( s => s.copy(models = models))
-    }
+    spgui.communication.AvailableModelsHelper.addCB(models => $.modState(s => s.copy(models = models)))
 
     def render(s: State) = {
       <.div(
-        AvailableModels(mc),
         <.button(
           ^.className := "btn btn-default", <.i(^.className := "fa fa-bolt"),
           ^.onClick --> doOMTest(),
@@ -113,7 +110,7 @@ object LabkitExperimentWidget {
         ),
         SPWidgetElements.dropdown(
           s.selectedModel.map(_.toString).getOrElse("Select a model"),
-          s.models.toSeq.map(m => <.div(m.toString, ^.onClick --> $.modState(s => s.copy(selectedModel = Some(m)))))),
+          s.models.toSeq.map{ case(id,name) => <.div(s"${name} (${id.toString})", ^.onClick --> $.modState(s => s.copy(selectedModel = Some(id))))}),
         <.table(
           ^.className := "table table-striped",
           <.tbody(s.manualModels.map(m=>

@@ -2,14 +2,18 @@ package spgui.widgets.itemeditorincontrol
 
 import scalajs.js
 import js.Dynamic.{ literal => l }
+import japgolly.scalajs.react.Callback
 import scala.util.Try
 
 object ItemEditorOptions {
-  def apply() =
+  def apply(onChangeCB: Callback) =
     JSONEditorOptions(
       mode = "code",
       schema = itemEditorSchema,
-      onEditable = onItemNodeEditable
+      onEditable = onItemNodeEditable,
+      onChange = { _ =>
+        onChangeCB.runNow()
+      }
     )
 
   def onItemNodeEditable(node: js.Dynamic): js.Dynamic = {
