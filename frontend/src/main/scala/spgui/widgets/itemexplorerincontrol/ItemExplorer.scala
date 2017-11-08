@@ -6,6 +6,7 @@ import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.DragAndDrop.{ DataOnDrag, OnDataDrop }
+import spgui.components.Icon
 import spgui.communication.BackendCommunication
 import spgui.widgets.itemeditor.{API_ItemServiceDummy => api}
 import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
@@ -141,7 +142,8 @@ object ItemExplorer {
       val nodeMap = struct.nodeMap
       <.div(
         <.div(
-          struct.name + " ---",
+          Icon.folder,
+          struct.name,
           ^.onClick --> toggleStruct(struct.id),
           OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, struct.id, struct))
         ),
@@ -152,10 +154,10 @@ object ItemExplorer {
     }
 
     def renderStructNode(structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
-      val shownName = state.retrievedItems.get(structNode.item).map(_.name).getOrElse(structNode.item.toString)
+      val renderedItemOp = state.retrievedItems.get(structNode.item).map(renderItem)
       <.div(
         <.div(
-          shownName,
+          renderedItemOp.getOrElse(structNode.item.toString),
           ^.onClick --> toggleStructNode(structNode.nodeID, struct),
           DataOnDrag(structNode.nodeID.toString),
           OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID, struct))
@@ -164,6 +166,15 @@ object ItemExplorer {
           getChildren(structNode, struct).toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
         ).when(state.expandedIDs.contains(structNode.nodeID))
       )
+    }
+
+    def renderItem(item: IDAble): TagMod = {
+      val icon: TagMod = item match {
+        case _: Operation => Icon.arrowCircleRight
+        case _: SOPSpec => Icon.sitemap
+        case _ => "design not chosen (TODO) "
+      }
+      <.div(icon, item.name)
     }
   }
 
