@@ -93,7 +93,7 @@ object ItemExplorer {
 
     def toggleStruct(id: ID) = $.modState { state =>
       val theStruct = state.structs.find(_.id == id).get
-      val childIDs = theStruct.items.map(_.item)
+      val childIDs = theStruct.items.map(_.item).toList
       val retrieveStructNodes = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetItems(childIDs))))
       retrieveStructNodes.runNow()
       if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
