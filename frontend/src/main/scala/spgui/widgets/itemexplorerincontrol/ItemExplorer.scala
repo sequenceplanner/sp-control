@@ -6,7 +6,7 @@ import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.DragAndDrop.{ DataOnDrag, OnDataDrop }
-import spgui.components.Icon
+import spgui.components.{ Icon, SPWidgetElements }
 import spgui.communication.BackendCommunication
 import spgui.widgets.itemeditor.{API_ItemServiceDummy => api}
 import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
@@ -91,6 +91,18 @@ object ItemExplorer {
     }, topic)
     val topicHandler = BackendCommunication.getMessageObserver(handleMess, topic)
 
+    def createItem(kind: String, struct: Struct) = {
+      val item = kind match {
+        case "Thing" => Thing("New Thing")
+        case _ => throw new RuntimeException("Itemexplorer case error. Should never happen.")
+      }
+
+      val newStruct = addItem(item.id, struct)
+      val modifyStateStruct = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
+      val modifyStateItem = $.modState(s => s.copy(retrievedItems = s.retrievedItems + (item.id -> item)))
+      val notifyBackend = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.PutItems(List(item, newStruct)))))
+      modifyStateStruct >> modifyStateItem >> notifyBackend
+    }
 
     def toggleStruct(id: ID) = $.modState { state =>
       val theStruct = state.structs.find(_.id == id).get
@@ -128,7 +140,23 @@ object ItemExplorer {
     }
 
     def render(p: SPWidgetBase, s: ItemExplorerState) =
-      if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel
+      <.div(
+        renderOptionPane(s),
+        if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel
+      )
+
+    def renderOptionPane(state: ItemExplorerState) =
+      <.div(
+        Style.optionPane,
+        Icon.plus,
+        SPWidgetElements.dropdown(
+          "Add Item", // TODO need to change SPWidgetElements to be able to use icon here
+          List(
+            ("Thing", ^.onClick --> createItem("Thing", state.structs(0)))
+          ).map(x => <.div(x._1, x._2))
+        )
+      )
+
 
     def renderIfNoModel =
       <.div(
