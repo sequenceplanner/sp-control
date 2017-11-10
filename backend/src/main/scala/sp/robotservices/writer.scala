@@ -78,6 +78,7 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
                 robotIdToCurrentRobotCycle(event.robotId)
 
             }
+            log.info(s"writing ${event}")
 
             writeToCSV(List(event.activityId, cycleId, event.isStart, event.name, event.robotId, event.time, event.`type`, event.workCellId,robotIdToCurrentPos.getOrElse(event.robotId,false)))
           case event: APIRobotServices.IncomingCycleEvent =>

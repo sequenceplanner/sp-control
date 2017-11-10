@@ -143,7 +143,7 @@ trait InstructionFillerLogic extends Actor with ActorLogging with sp.service.Ser
       if (timerMap.contains(event.robotId)) {
         if ((timerMap(event.robotId) to DateTime.now).millis < 60000) {
           timerMap += (event.robotId -> DateTime.now)
-          log.info("Requesting modules")
+          log.info(s"Requesting modules ${event.robotId}")
           requestModules(event.robotId)
         }
       } else {
@@ -155,7 +155,8 @@ trait InstructionFillerLogic extends Actor with ActorLogging with sp.service.Ser
     }
   }
 
-  def requestModules(robotId: RobotId) = APIRobotServices.requestModules(robotId)
+  def requestModules(robotId: RobotId) = publish(APIRobotServices.topicRequest,SPMessage.makeJson(SPHeader(to = APIRobotServices.vdService),APIRobotServices.requestModules(robotId)))
+
 
   //is waiting
   def fillWithIsWaiting(event: APIRobotServices.PointerWithInstruction) = {
@@ -194,7 +195,7 @@ trait InstructionFillerLogic extends Actor with ActorLogging with sp.service.Ser
       }
       val activityEvent = APIRobotServices.ActivityEvent(activityId.toString, event.isWaiting, waitInstruction, event.robotId,
         event.programPointerPosition.time, "wait", event.workCellId)
-      println("From waitChange: " + activityEvent)
+      //println("From waitChange: " + activityEvent)
       val header = SPHeader(from = APIRobotServices.instructionFillerService )
       publish(APIRobotServices.topic,SPMessage.makeJson(header,activityEvent))
     }

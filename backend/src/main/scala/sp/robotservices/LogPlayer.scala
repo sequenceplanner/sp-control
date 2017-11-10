@@ -39,7 +39,7 @@ class LogPlayer extends  Actor with ActorLogging with
  // import context.dispatcher
 //  def ticker = context.system.scheduler.schedule(0 seconds, 0.1 seconds, self, Tick)
 
-
+  var progLocation: String = ""
   var jsonFile: JsValue = JsNull
   var wcellfile: List[JsValue] = List.empty
   var rcdProgs: List[JsValue] = List.empty
@@ -51,16 +51,19 @@ class LogPlayer extends  Actor with ActorLogging with
   def receive = {
     case ConnectionEstablished(request, c) =>
       log.info("Connected: " + request)
-      c ! ConsumeFromTopic(APIRobotServices.activeMQTopic)
+      c ! ConsumeFromTopic(APIRobotServices.activeMQRequestTopic)
       theBus = Some(c)
     case ConnectionFailed(request, reason) =>
       log.error("Connection failed: " + reason)
-    //case mess@AMQMessage(body, prop, headers) =>
+    case mess@AMQMessage(body, prop, headers) =>
+      //val req = Json.parse(body.toString).as[APIRobotServices.requestModules]
+      log.info(s"Got request $body")
+      publish(APIRobotServices.topicRequest,SPMessage.makeJson(SPHeader(to = APIRobotServices.logPlayer, from = APIRobotServices.logPlayer),APIRobotServices.LoadRobotModules(progLocation)))
     case Tick =>
       playFirstEvent(evts)
 
     case x: String =>
-      println(s"Got ${x} from frontend")
+      //println(s"Got ${x} from frontend")
       // extract the body if it is a case class from my api as well as the header.to has my name
       // act on the messages from the API. Always add the logic in a trait to enable testing
       val bodyAPI = for {
@@ -89,13 +92,14 @@ class LogPlayer extends  Actor with ActorLogging with
             log.info(s" done loading logs of size ${evts.length}")
 
           case l: APIRobotServices.LoadRobotModules =>
+            progLocation = l.folderPath
             log.info("loading robot modules")
             loadRobotModules(l.folderPath)
             log.info("loading robot modules done")
           case  APIRobotServices.PlayLogs =>
             def playLog ={
               publish(APIRobotServices.topicResponse,SPMessage.makeJson(SPHeader(), APIRobotServices.Started))
-              timers.startPeriodicTimer(TickKey,Tick,0.1 seconds)
+              timers.startPeriodicTimer(TickKey,Tick,0.0001 seconds)
             }
             playLog
           case APIRobotServices.StopPlayingLogs =>

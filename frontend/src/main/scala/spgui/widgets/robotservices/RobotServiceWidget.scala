@@ -99,7 +99,7 @@ import sp.robotservices.{APIRobotServices => api}
 
 
     private val component = ScalaComponent.builder[Unit]("RobotLogServiceWidget")
-      .initialState(State( pathLogs= "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/logs/log-1741010_10_19_14_53", pathModules = "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/RobotPrograms/1741010", running = false))
+      .initialState(State( pathLogs= "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/logs/log-1736070_10_18_15_55", pathModules = "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/RobotPrograms/1736070", running = false))
       .renderBackend[Backend]
       .componentWillUnmount(_.backend.onUnmount())
       .build

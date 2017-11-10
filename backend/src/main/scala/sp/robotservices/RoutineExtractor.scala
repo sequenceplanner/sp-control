@@ -94,8 +94,8 @@ trait RoutineExtractorLogic extends sp.service.ServiceSupport with Actor with Ac
       val priorEvent = priorEventMap(event.robotId)
       val priorModule: String = priorEvent.programPointerPosition.position.module
       val currentModule: String = event.programPointerPosition.position.module
-      val priorRoutine: String = robID + "_" + priorEvent.programPointerPosition.position.routine
-      val currentRoutine: String = robID + "_" + event.programPointerPosition.position.routine
+      val priorRoutine: String =  priorEvent.programPointerPosition.position.routine
+      val currentRoutine: String = event.programPointerPosition.position.routine
       if (!(priorRoutine == currentRoutine)) {
         activityIdMap = updateActivityIdMap(activityIdMap, event.robotId)
         val priorId = activityIdMap(event.robotId)("prior")
@@ -104,20 +104,14 @@ trait RoutineExtractorLogic extends sp.service.ServiceSupport with Actor with Ac
           val routineStopEvent =
             APIRobotServices.ActivityEvent(priorId, !isStart,priorRoutine, event.robotId, event.programPointerPosition.time,
               "routines", event.workCellId)
-          //val json = write(routineStopEvent)
-          // log.info("Previous routine: " + json)
-          //sendToBus(json)
-          log.info(s"Routine extracto ${routineStopEvent}")
+          //log.info(s"Routine extracto ${routineStopEvent}")
           publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(),routineStopEvent))
         }
         if (!isWaitingRoutine(currentRoutine)) {
           val routineStartEvent =
             APIRobotServices.ActivityEvent(currentId, isStart, currentRoutine, event.robotId, event.programPointerPosition.time,
               "routines", event.workCellId)
-          //val json = write(routineStartEvent)
-          // log.info("Current routine: " + json)
-          //sendToBus(json)
-          log.info(s"Routine extracto ${routineStartEvent}")
+          //log.info(s"Routine extracto ${routineStartEvent}")
 
           publish(APIRobotServices.topic,SPMessage.makeJson(SPHeader(),routineStartEvent))
 

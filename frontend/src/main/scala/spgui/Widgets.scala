@@ -30,7 +30,7 @@ object LoadingWidgets {
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
       ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
-      ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10)
+      ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
       ("robotLogServiceWidget",       widgets.robotservices.RobotLogServiceWidget(), 3,4)
     )
 

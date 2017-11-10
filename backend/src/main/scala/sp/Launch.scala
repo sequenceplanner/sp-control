@@ -26,6 +26,8 @@ object Launch extends App {
 
     // patrik model dsl
     system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
+
+    //RobotServices
     system.actorOf(InstructionFiller.props, "InstructionFiller")
     system.actorOf(RoutineExtractor.props, "RoutineExtractor")
     system.actorOf(Writer.props, "Writer")

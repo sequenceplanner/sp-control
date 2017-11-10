@@ -54,6 +54,9 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
         b <- mess.getBodyAs[APIRobotServices.Request]
       } yield {
         b match {
+          case req: APIRobotServices.requestModules=>
+            log.info("Sending request to bus")
+            sendToBusWithTopic(APIRobotServices.activeMQRequestTopic,req.toString)
           case APIRobotServices.Connect =>
             log.info("connecting to amq")
             ReActiveMQExtension(context.system).manager ! GetConnection(s"nio://${APIRobotServices.activeMQUrl}:${APIRobotServices.activeMQPort}")

@@ -22,7 +22,7 @@ object APIRobotServices{
   val activeMQUrl = "localhost"
   val activeMQPort = 61616
   val activeMQTopic = "LISA"
-  val activeMQRequestTopic = " request"
+  val activeMQRequestTopic = "LISArequest"
   val routinesToIgnore: List[String] = List("testRout1", "testRout2")
   val homePosSignals: List[String] = List("O_Homepos", "R2UT_HomeAboveBP", "R4UT_HomePosLeft", "R5UT_HomePos")
 
