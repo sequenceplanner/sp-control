@@ -44,6 +44,7 @@ object ItemExplorer {
   case class ItemExplorerState(
                                 structs: List[Struct],
                                 expandedIDs: Set[ID] = Set(),
+                                hiddenIDs: Set[ID] = Set(),
                                 retrievedItems: Map[ID, IDAble] = Map(),
                                 modelIDFieldString: String = "modelID"
                               )
@@ -104,6 +105,23 @@ object ItemExplorer {
       modifyStateStruct >> modifyStateItem >> notifyBackend
     }
 
+    def filterItems(filterString: String, struct: Struct) = {
+      def filteredNodeIDs(filterString: String, struct: Struct) = { // TODO move to backend, where it has access to items and is faster
+        val matchingNodes = struct.items.filter(_.nodeID.toString.contains(filterString.toLowerCase)).map(_.nodeID)
+        def getParents(id: ID): Set[ID] = {
+          val parentOp = struct.nodeMap(id).parent
+          if (parentOp.isDefined) getParents(parentOp.get) + parentOp.get
+          else Set[ID]()
+        }
+        val parentsOfMatchingNodes: Set[ID] = matchingNodes.flatMap(getParents)
+        struct.items.map(_.nodeID) -- matchingNodes -- parentsOfMatchingNodes
+      }
+      val hiddenIDs = filteredNodeIDs(filterString, struct)
+      val log = Callback.log("in filterItems... string: " + filterString)
+      val modifyState = $.modState(s => s.copy(hiddenIDs = hiddenIDs))
+      modifyState >> log
+    }
+
     def toggleStruct(id: ID) = $.modState { state =>
       val theStruct = state.structs.find(_.id == id).get
       val childIDs = theStruct.items.map(_.item).toList
@@ -154,7 +172,8 @@ object ItemExplorer {
           List(
             ("Thing", ^.onClick --> createItem("Thing", state.structs(0)))
           ).map(x => <.div(x._1, x._2))
-        )
+        ),
+        SPWidgetElements.TextBox("Filter...", str => filterItems(str, state.structs(0)))
       )
 
 
@@ -168,6 +187,7 @@ object ItemExplorer {
 
     def renderStruct(struct: Struct, state: ItemExplorerState) = {
       val nodeMap = struct.nodeMap
+      val rootItemsToRender = struct.items.filter(sn => sn.parent.isEmpty && !state.hiddenIDs.contains(sn.nodeID))
       <.div(
         <.div(
           Icon.folder,
@@ -176,13 +196,14 @@ object ItemExplorer {
           OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, struct.id, struct))
         ),
         <.ul(
-          struct.items.filter(_.parent.isEmpty).toTagMod(structNode => <.li(renderStructNode(structNode, struct, state)))
+          rootItemsToRender.toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
         ).when(state.expandedIDs.contains(struct.id))
       )
     }
 
     def renderStructNode(structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
       val renderedItemOp = state.retrievedItems.get(structNode.item).map(renderItem)
+      val childrenToRender = getChildren(structNode, struct).filterNot(sn => state.hiddenIDs.contains(sn.nodeID))
       <.div(
         <.div(
           renderedItemOp.getOrElse(structNode.item.toString),
@@ -191,7 +212,7 @@ object ItemExplorer {
           OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID, struct))
         ),
         <.ul(
-          getChildren(structNode, struct).toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
+          childrenToRender.toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
         ).when(state.expandedIDs.contains(structNode.nodeID))
       )
     }
