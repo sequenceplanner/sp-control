@@ -38,7 +38,7 @@ class LogPlayer extends  Actor with ActorLogging with
   import scala.concurrent.duration._
  // import context.dispatcher
 //  def ticker = context.system.scheduler.schedule(0 seconds, 0.1 seconds, self, Tick)
-
+  var workCellLoc: String = ""
   var progLocation: String = ""
   var jsonFile: JsValue = JsNull
   var wcellfile: List[JsValue] = List.empty
@@ -56,12 +56,16 @@ class LogPlayer extends  Actor with ActorLogging with
     case ConnectionFailed(request, reason) =>
       log.error("Connection failed: " + reason)
     case mess@AMQMessage(body, prop, headers) =>
-      //val req = Json.parse(body.toString).as[APIRobotServices.requestModules]
-      log.info(s"Got request $body")
-      publish(APIRobotServices.topicRequest,SPMessage.makeJson(SPHeader(to = APIRobotServices.logPlayer, from = APIRobotServices.logPlayer),APIRobotServices.LoadRobotModules(progLocation)))
+      val req = Json.parse(body.toString)
+      log.info(s"Got request $req")
+        if(has(req,"requestModules"))
+          publish(APIRobotServices.topicRequest,SPMessage.makeJson(SPHeader(to = APIRobotServices.logPlayer, from = APIRobotServices.logPlayer),APIRobotServices.LoadRobotModules(progLocation) ))
+        else if ((req \ "event").as[String] == "newWorkCellEncountered")
+          publish(APIRobotServices.topicRequest,SPMessage.makeJson(SPHeader(to = APIRobotServices.logPlayer, from = APIRobotServices.logPlayer),APIRobotServices.LoadWorkCells(workCellLoc) ))
+
+
     case Tick =>
       playFirstEvent(evts)
-
     case x: String =>
       //println(s"Got ${x} from frontend")
       // extract the body if it is a case class from my api as well as the header.to has my name
@@ -102,6 +106,10 @@ class LogPlayer extends  Actor with ActorLogging with
               timers.startPeriodicTimer(TickKey,Tick,0.0001 seconds)
             }
             playLog
+          case w :APIRobotServices.LoadWorkCells => log.info("Loading Workcells")
+            workCellLoc = w.path
+            val source: String = Source.fromFile(workCellLoc).getLines.mkString
+            sendToBusWithTopic(APIRobotServices.activeMQTopic, source)
           case APIRobotServices.StopPlayingLogs =>
             publish(APIRobotServices.topicResponse,SPMessage.makeJson(SPHeader(), APIRobotServices.Finished))
             timers.cancel(TickKey)
@@ -117,7 +125,6 @@ class LogPlayer extends  Actor with ActorLogging with
     else
       true
   }
-
   def loadRobotModules(path: String): Unit ={
     def getListOfFiles(dir: String):List[File] = {
       val d = new File(dir)

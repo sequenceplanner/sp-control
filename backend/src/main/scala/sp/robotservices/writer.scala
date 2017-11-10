@@ -16,6 +16,8 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
 
   subscribe(APIRobotServices.topic)
   val csvFile = CSVWriter.open("../testFiles/events.csv")
+  
+  val csvFileCycles = CSVWriter.open("../testFiles/cycles.csv")
 
 
   type RobotId = String
@@ -49,6 +51,7 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
 
   override def postStop()={
     csvFile.close()
+    csvFileCycles.close()
     super.postStop()
   }
 
@@ -80,10 +83,12 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
             }
             log.info(s"writing ${event}")
 
-            writeToCSV(List(event.activityId, cycleId, event.isStart, event.name, event.robotId, event.time, event.`type`, event.workCellId,robotIdToCurrentPos.getOrElse(event.robotId,false)))
+            writeToCSV(csvFile, List(event.activityId, cycleId, event.isStart, event.name, event.robotId, event.time, event.`type`, event.workCellId,robotIdToCurrentPos.getOrElse(event.robotId,false)))
           case event: APIRobotServices.IncomingCycleEvent =>
             log.info(s"GOt incoming cycle event ${event}")
             robotIdToCurrentPos += (event.robotId -> (event.newSignalState.value > 0))
+          case event: APIRobotServices.OutgoingCycleEvent =>
+            writeToCSV(csvFileCycles,List(event.cycleId,event.isStart,event.time,event.workCellId))
 
           case _ => 0
         }
@@ -92,8 +97,8 @@ class Writer extends Actor with ActorLogging with sp.service.ServiceSupport {
   }
   def uuid: String = ID.newID.toString
 
-  def writeToCSV(row:List[Any]):Unit={
-    csvFile.writeRow(row)
+  def writeToCSV(file: CSVWriter,row:List[Any]):Unit={
+    file.writeRow(row)
   }
 
 

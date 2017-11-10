@@ -76,7 +76,6 @@ trait CycleChangeLogic extends Actor with ActorLogging with sp.service.ServiceSu
   var workCellMap: Map[WorkCellId, List[RobotId]] = Map.empty
   var workCellStopFlagMap: Map[WorkCellId, Boolean] = Map.empty
   var robotStartFlagMap: Map[WorkCellId, Map[RobotId, Boolean]] = Map.empty
-  var workCells: List[APIRobotServices.WorkCell] = List.empty
 
   def handleMessage(event: APIRobotServices.Message)=
   {
@@ -85,16 +84,15 @@ trait CycleChangeLogic extends Actor with ActorLogging with sp.service.ServiceSu
         requestWorkCells()
       else
         convert(event)
-      case workCell: APIRobotServices.WorkCell =>
-        workCells = workCells :+ workCell
-        workCells.foreach{workCell =>
+      case workCellList: APIRobotServices.WorkCellList =>
+        workCellList.workcells.foreach{workCell =>
         workCellMap += (workCell.id -> workCell.robots.map(r => r.id))
         cycleIdMap = handleCycleIdMap(cycleIdMap, workCell.id)
         workCellStopFlagMap += (workCell.id -> true)
       }
         initializeRobotStartFlagMap()
         getWorkCellsFlag = !getWorkCellsFlag
-      case _ => 0
+          case _ => 0
     }
 
 
@@ -154,11 +152,11 @@ trait CycleChangeLogic extends Actor with ActorLogging with sp.service.ServiceSu
   def requestWorkCells() = {
     //import org.json4s.JsonDSL._
     getWorkCellsFlag = !getWorkCellsFlag
-    //val reqWorkCellList = APIRobotServices.requestWorkCellList
+    val reqWorkCellList = APIRobotServices.requestWorkCellList
    // val json = ("event" -> "newWorkCellEncountered") ~ ("service" -> "cycleChange")
     log.info("CYCLE CHANGE REQUESTING WORK CELL LIST: ")
     //sendToBusWithTopic(settings.activeMQRequestTopic, write(json))
-    //publish(APIRobotServices.topicRequest,SPMessage.makeJson(SPHeader(),reqWorkCellList))
+    publish(APIRobotServices.topicRequest,SPMessage.makeJson(SPHeader(),reqWorkCellList))
   }
 
   def uuid: String = java.util.UUID.randomUUID.toString

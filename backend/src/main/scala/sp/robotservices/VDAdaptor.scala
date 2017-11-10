@@ -54,6 +54,11 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
         b <- mess.getBodyAs[APIRobotServices.Request]
       } yield {
         b match {
+          case APIRobotServices.requestWorkCellList=>
+
+            val json = Json.parse("""{"event" : "newWorkCellEncountered","service" : "cycleChange"}""")
+
+            sendToBusWithTopic(APIRobotServices.activeMQRequestTopic, json.toString())
           case req: APIRobotServices.requestModules=>
             log.info("Sending request to bus")
             sendToBusWithTopic(APIRobotServices.activeMQRequestTopic,req.toString)
@@ -82,15 +87,16 @@ class VDAdaptor extends Actor with ActorLogging with RoutineExtractorLogic with
     }
 
     val js = Json.parse(msg)
-    if (has(js,"readValue")){
-      log.info("With readvalu")
-
+    if (has(js,"readValue"))
       js.as[APIRobotServices.ModulesReadEvent]
-    }
     else if (has(js,"programPointerPosition"))
       js.as[APIRobotServices.PointerChangedEvent]
     else if (has(js,"newSignalState"))
       js.as[APIRobotServices.IncomingCycleEvent]
+    else if (!(js \\ "description").isEmpty){
+      log.info("got workcell")
+      APIRobotServices.WorkCellList(js.as[List[APIRobotServices.WorkCell]])
+    }
     else
       APIRobotServices.EmptyMessage
 

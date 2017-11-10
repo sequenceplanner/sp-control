@@ -32,7 +32,8 @@ object APIRobotServices{
   case object PlayLogs extends Request
   case object Connect extends Request
   case object StopPlayingLogs extends Request
-
+  case class LoadWorkCells(path:String) extends Request
+  
   case object Finished extends Response
   case object Started extends Response
 
@@ -86,6 +87,8 @@ object APIRobotServices{
   case class WorkCell(id: String,
                       description: String,
                       robots: List[Robot])
+
+  case class WorkCellList(workcells: List[WorkCell]) extends Message
 
   case class Robot(id: String,
                    name: String)
@@ -226,6 +229,7 @@ object APIRobotServices{
     implicit lazy val fPointerWithInstruction: JSFormat[PointerWithInstruction] = Json.format[PointerWithInstruction]
     implicit lazy val fPointerWithIsWaiting: JSFormat[PointerWithIsWaiting] = Json.format[PointerWithIsWaiting]
 
+    implicit lazy val fLoadWorkCells: JSFormat[LoadWorkCells] = Json.format[LoadWorkCells]
     /*implicit  val rRapidAddress : Reads[RapidAddress]= (
       (__ \ 'domain).read[String] and
         (__ \ 'kind).read[String] and
@@ -248,7 +252,7 @@ object APIRobotServices{
 */
     implicit lazy val fRobotDataAddress: JSFormat[RobotDataAddress] = Json.format[RobotDataAddress]
     implicit lazy val frequestModules: JSFormat[requestModules] = Json.format[requestModules]
-
+    implicit lazy val fWorkCellList : JSFormat[WorkCellList] = Json.format[WorkCellList]
     implicit lazy val frequestWorkCellList: JSFormat[requestWorkCellList.type ] = deriveCaseObject[requestWorkCellList.type]
     implicit lazy val fLoadLog: JSFormat[LoadLog] = Json.format[LoadLog]
     implicit lazy val fLoadRobotModules: JSFormat[LoadRobotModules] = Json.format[LoadRobotModules]
@@ -264,7 +268,12 @@ object APIRobotServices{
     def fResponse: JSFormat[Response] = Json.format[Response]
 
   }
-
+  object WorkCell {
+    implicit lazy val fWorkCell: JSFormat[WorkCell] = Formats.fWorkCell
+  }
+  object WorkCellList {
+    implicit lazy val fWorkCell: JSFormat[WorkCellList] = Formats.fWorkCellList
+  }
   object IncomingCycleEvent{
     implicit lazy val fIncomingCycleEvent: JSFormat[IncomingCycleEvent] = Formats.fIncomingCycleEvent
 

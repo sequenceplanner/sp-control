@@ -16,7 +16,7 @@ import sp.robotservices.{APIRobotServices => api}
 
   object RobotLogServiceWidget {
 
-    case class State(pathModules: String, pathLogs: String, running:Boolean)
+    case class State(pathModules: String, pathLogs: String, pathWorkCells: String, running:Boolean)
 
     private class Backend($: BackendScope[Unit, State]) {
 
@@ -43,6 +43,10 @@ import sp.robotservices.{APIRobotServices => api}
         $.modState(s=>s.copy(pathModules = e.target.value)).runNow()
         Callback.empty
       }
+      def pathWorkChange(s: State)(e: ReactEventFromInput) = {
+        $.modState(s=>s.copy(pathWorkCells = e.target.value)).runNow()
+        Callback.empty
+      }
       def render(s: State) = {
         <.div(
           <.h2("Running? " + (if(s.running) "yes" else "no")),
@@ -55,14 +59,23 @@ import sp.robotservices.{APIRobotServices => api}
             ^.className := "btn btn-default",
             ^.onClick --> send(api.LoadLog(s.pathLogs)), "Load robot Logs"
           ),
-            <.br(),
-            <.input(
-              ^.value     := s.pathModules,
-              ^.onChange ==> pathModChange(s)
-            ),
+          <.br(),
+          <.input(
+            ^.value     := s.pathModules,
+            ^.onChange ==> pathModChange(s)
+          ),
           <.button(
             ^.className := "btn btn-default",
             ^.onClick --> send(api.LoadRobotModules(s.pathModules)), "Load robot modules"
+          ),
+          <.br(),
+          <.input(
+            ^.value     := s.pathWorkCells,
+            ^.onChange ==> pathWorkChange(s)
+          ),
+          <.button(
+            ^.className := "btn btn-default",
+            ^.onClick --> send(api.LoadWorkCells(s.pathWorkCells)), "Load workcells"
           ),
           <.br(),
           <.button(
@@ -74,9 +87,9 @@ import sp.robotservices.{APIRobotServices => api}
             ^.onClick --> send(api.StopPlayingLogs), "Stop log"
           ),
           <.button(
-          ^.className := "btn btn-default",
-          ^.onClick --> send(api.Connect), "Connect"
-        )
+            ^.className := "btn btn-default",
+            ^.onClick --> send(api.Connect), "Connect"
+          )
         )
       }
 
@@ -90,7 +103,7 @@ import sp.robotservices.{APIRobotServices => api}
       def send(mess: api.Request): Callback = {
         val h = SPHeader(from = "robotLogServiceWidget", to = api.logPlayer, reply = SPValue("robotLogServiceWidget"))
         val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
-        BackendCommunication.publish(json, api.topicRequest)
+          BackendCommunication.publish(json, api.topicRequest)
         Callback.empty
       }
 
@@ -99,7 +112,7 @@ import sp.robotservices.{APIRobotServices => api}
 
 
     private val component = ScalaComponent.builder[Unit]("RobotLogServiceWidget")
-      .initialState(State( pathLogs= "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/logs/log-1736070_10_18_15_55", pathModules = "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/RobotPrograms/1736070", running = false))
+      .initialState(State( pathLogs= "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/logs/log-1754060_10_18_15_55", pathModules = "/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/RobotPrograms/1754000", pathWorkCells ="/home/ashfaqf/Projects/Lisa files/from_volvo/logs/20-10-2017/workCells", running = false))
       .renderBackend[Backend]
       .componentWillUnmount(_.backend.onUnmount())
       .build
