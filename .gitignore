@@ -37,4 +37,4 @@ servicesJournal/
 
 # output from tests
 testFiles/gitIgnore/
-testFiles/events.csv
+testFiles/*
