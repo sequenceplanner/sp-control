@@ -159,16 +159,16 @@ object ItemExplorer {
 
     def render(p: SPWidgetBase, s: ItemExplorerState) =
       <.div(
+        ^.className := Style.outerDiv.htmlClass,
         renderOptionPane(s),
         if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel
       )
 
     def renderOptionPane(state: ItemExplorerState) =
       <.div(
-        Style.optionPane,
-        Icon.plus,
+        ^.className := Style.optionPane.htmlClass,
         SPWidgetElements.dropdown(
-          "Add Item", // TODO need to change SPWidgetElements to be able to use icon here
+          Icon.plus,
           List(
             ("Thing", ^.onClick --> createItem("Thing", state.structs(0)))
           ).map(x => <.div(x._1, x._2))
@@ -183,7 +183,13 @@ object ItemExplorer {
       )
 
     def renderStructs(s: ItemExplorerState) =
-      <.div(<.ul(s.structs.toTagMod(struct => <.li(renderStruct(struct, s)))))
+      <.div(
+        ^.className := Style.structsView.htmlClass,
+        <.ul(
+          ^.className := Style.ul.htmlClass,
+          s.structs.toTagMod(struct => <.li(renderStruct(struct, s)))
+        )
+      )
 
     def renderStruct(struct: Struct, state: ItemExplorerState) = {
       val nodeMap = struct.nodeMap
@@ -196,34 +202,43 @@ object ItemExplorer {
           OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, struct.id, struct))
         ),
         <.ul(
+          ^.className := Style.ul.htmlClass,
           rootItemsToRender.toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
         ).when(state.expandedIDs.contains(struct.id))
       )
     }
 
     def renderStructNode(structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
-      val renderedItemOp = state.retrievedItems.get(structNode.item).map(renderItem)
+      val renderedItemOp = state.retrievedItems.get(structNode.item).map(renderItem(_, structNode, struct, state))
       val childrenToRender = getChildren(structNode, struct).filterNot(sn => state.hiddenIDs.contains(sn.nodeID))
       <.div(
         <.div(
           renderedItemOp.getOrElse(structNode.item.toString),
-          ^.onClick --> toggleStructNode(structNode.nodeID, struct),
+          //^.onClick --> toggleStructNode(structNode.nodeID, struct),
           DataOnDrag(structNode.nodeID.toString),
           OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID, struct))
         ),
         <.ul(
+          ^.className := Style.ul.htmlClass,
           childrenToRender.toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
         ).when(state.expandedIDs.contains(structNode.nodeID))
       )
     }
 
-    def renderItem(item: IDAble): TagMod = {
-      val icon: TagMod = item match {
+    def renderItem(item: IDAble, structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
+      val itemIcon: TagMod = item match {
         case _: Operation => Icon.arrowCircleRight
         case _: SOPSpec => Icon.sitemap
         case _ => "design not chosen (TODO) "
       }
-      <.div(icon, item.name)
+      <.div(
+        <.span(
+          if (state.expandedIDs.contains(structNode.nodeID)) Icon.toggleRight else Icon.toggleDown,
+          ^.onClick --> (toggleStructNode(structNode.nodeID, struct) >> Callback.log("cliceked"))
+        ),
+        itemIcon,
+        item.name
+      )
     }
   }
 
