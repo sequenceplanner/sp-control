@@ -3,6 +3,7 @@ package sp
 import akka.actor._
 import sp.example._
 import sp.modelImport._
+import sp.virtcom._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -22,6 +23,7 @@ object Launch extends App {
     sp.SPCore.launch(system)
     system.actorOf(ExampleService.props, APIExampleService.service)
     system.actorOf(SPModelImport.props, APISPModelImport.service)
+    system.actorOf(VolvoScheduler.props, APIVolvoScheduler.service)
 
     // patrik model dsl
     system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
