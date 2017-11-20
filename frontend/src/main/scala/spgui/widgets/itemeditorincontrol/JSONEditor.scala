@@ -33,12 +33,14 @@ class JSONEditor(
   def setMode(mode: String): Unit = js.native
   def resize(): Unit = js.native
   def get(): js.Dynamic = js.native
+  def getMode(): String = js.native
 }
 
 // this is actually a facade, even tho no annotation is needed
 // TODO facade more of the options object
 case class JSONEditorOptions(
   onEditable: js.Dynamic => js.Dynamic,
+  onChange: Unit => Unit,
   history: Boolean = true,
   mode: String = "code",
   modes: Seq[String] = Seq("code", "tree"),
@@ -48,6 +50,7 @@ case class JSONEditorOptions(
   def toJS =
     l(
       "onEditable" -> onEditable,
+      "onChange" -> onChange,
       "history" -> history,
       "mode" -> mode,
       "modes" -> modes.toJSArray,

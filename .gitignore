@@ -37,3 +37,6 @@ servicesJournal/
 
 # output from tests
 testFiles/gitIgnore/
+
+# hydra-mode
+.sbt-hydra-history
