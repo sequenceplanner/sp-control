@@ -8,6 +8,8 @@ import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.DragAndDrop.{ DataOnDrag, OnDataDrop }
 import spgui.components.{ Icon, SPWidgetElements }
 import spgui.communication.BackendCommunication
+import diode.react.ModelProxy
+import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
 import spgui.widgets.itemeditor.{API_ItemServiceDummy => api}
 import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
 import sp.domain._
@@ -21,6 +23,19 @@ import java.util.UUID
 
 
 object ItemExplorer {
+
+  object ModelChoiceDropdown {
+    case class Props(proxy: ModelProxy[AvailableModels], cb: ID => Callback)
+
+    val component = ScalaComponent.builder[Props]("ModelChoiceDropdown")
+      .render_P { p =>
+        val contents = p.proxy().models.toList.map(kv => <.div(kv._1.toString, ^.onClick --> p.cb(kv._1)))
+        SPWidgetElements.dropdown("Choose Model", contents)
+      }
+      .build
+
+    def apply(proxy: ModelProxy[AvailableModels], cb: ID => Callback) = component(Props(proxy, cb))
+  }
 
   // TODO temporary way of setting currentModel, currentModel-field will be moved to global state attributes
   /* sp-gui's itemtree already exports this, hence commented out
@@ -42,7 +57,8 @@ object ItemExplorer {
   def makeMess(h: SPHeader, b: mapi.Request) = SPMessage.make[SPHeader, mapi.Request](h, b)
 
   case class ItemExplorerState(
-                                structs: List[Struct],
+                                currentModel: Option[ID] = None,
+                                structs: List[Struct] = Nil,
                                 expandedIDs: Set[ID] = Set(),
                                 hiddenIDs: Set[ID] = Set(),
                                 retrievedItems: Map[ID, IDAble] = Map(),
@@ -105,6 +121,12 @@ object ItemExplorer {
       modifyStateStruct >> modifyStateItem >> notifyBackend
     }
 
+    def setCurrentModel(id: ID) = { // TODO dont do anything if already active
+      val modifyState = $.setState(ItemExplorerState(currentModel = Some(id)))
+      val requestStructs = sendToModel(id, mapi.GetStructures)
+      modifyState >> requestStructs
+    }
+
     def filterItems(filterString: String, struct: Struct) = {
       def filteredNodeIDs(filterString: String, struct: Struct) = { // TODO move to backend, where it has access to items and is faster
         val matchingNodes = struct.items.filter(_.nodeID.toString.contains(filterString.toLowerCase)).map(_.nodeID)
@@ -125,7 +147,7 @@ object ItemExplorer {
     def toggleStruct(id: ID) = $.modState { state =>
       val theStruct = state.structs.find(_.id == id).get
       val childIDs = theStruct.items.map(_.item).toList
-      val retrieveStructNodes = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetItems(childIDs))))
+      val retrieveStructNodes = state.currentModel.map(sendToModel(_, mapi.GetItems(childIDs))).getOrElse(Callback.empty)
       retrieveStructNodes.runNow()
       if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
       else state.copy(expandedIDs = state.expandedIDs + id)
@@ -134,7 +156,7 @@ object ItemExplorer {
     def toggleStructNode(id: ID, struct: Struct) = $.modState { state =>
       val theStructNode = struct.items.find(_.nodeID == id).get
       val childIDs = getChildren(theStructNode, struct).map(_.item)
-      val retrieveItems = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetItems(childIDs))))
+      val retrieveItems = state.currentModel.map(sendToModel(_, mapi.GetItems(childIDs))).getOrElse(Callback.empty)
       retrieveItems.runNow()
       if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
       else state.copy(expandedIDs = state.expandedIDs + id)
@@ -164,6 +186,8 @@ object ItemExplorer {
         if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel
       )
 
+    val avmcConnection = AvailableModelsCircuit.connect(x => x)
+
     def renderOptionPane(state: ItemExplorerState) =
       <.div(
         ^.className := Style.optionPane.htmlClass,
@@ -173,9 +197,9 @@ object ItemExplorer {
             ("Thing", ^.onClick --> createItem("Thing", state.structs(0)))
           ).map(x => <.div(x._1, x._2))
         ),
+        avmcConnection(proxy => ModelChoiceDropdown(proxy, id => setCurrentModel(id))),
         SPWidgetElements.TextBox("Filter...", str => filterItems(str, state.structs(0)))
       )
-
 
     def renderIfNoModel =
       <.div(
@@ -243,7 +267,7 @@ object ItemExplorer {
   }
 
   val itemExplorerComponent = ScalaComponent.builder[SPWidgetBase]("ItemExplorer")
-    .initialState(ItemExplorerState(Nil))
+    .initialState(ItemExplorerState())
     .renderBackend[ItemExplorerBackend]
     .build
 
