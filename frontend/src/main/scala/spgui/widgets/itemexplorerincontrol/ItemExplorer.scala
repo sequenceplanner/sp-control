@@ -2,52 +2,21 @@ package spgui.widgets.itemexplorerincontrol
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import diode.react.ModelProxy
 
-import scalacss.ScalaCssReact._
-import spgui.{SPWidget, SPWidgetBase}
+import sp.domain._
+import spgui.{ SPWidget, SPWidgetBase }
 import spgui.components.DragAndDrop.{ DataOnDrag, OnDataDrop }
 import spgui.components.{ Icon, SPWidgetElements }
 import spgui.communication.BackendCommunication
-import diode.react.ModelProxy
 import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
-import spgui.widgets.itemeditor.{API_ItemServiceDummy => api}
-import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
-import sp.domain._
-import StuffToMoveToStructLogic._
 
-import scalajs.js
-import js.Dynamic.{literal => l}
-import js.JSON
-import js.annotation.JSExportTopLevel
-import java.util.UUID
+import StuffToMoveToStructLogic._
 
 
 object ItemExplorer {
 
-  object ModelChoiceDropdown {
-    case class Props(proxy: ModelProxy[AvailableModels], cb: ID => Callback)
-
-    val component = ScalaComponent.builder[Props]("ModelChoiceDropdown")
-      .render_P { p =>
-        val contents = p.proxy().models.toList.map(kv => <.div(kv._1.toString, ^.onClick --> p.cb(kv._1)))
-        SPWidgetElements.dropdown("Choose Model", contents)
-      }
-      .build
-
-    def apply(proxy: ModelProxy[AvailableModels], cb: ID => Callback) = component(Props(proxy, cb))
-  }
-
-  // TODO temporary way of setting currentModel, currentModel-field will be moved to global state attributes
-  /* sp-gui's itemtree already exports this, hence commented out
-  @JSExportTopLevel("setCurrentModel")
-  def setCurrentModel(modelIDString: String) = {
-    val id = UUID.fromString(modelIDString)
-    val action = UpdateGlobalState(GlobalState(currentModel = Some(id)))
-    SPGUICircuit.dispatch(action)
-  }
-  */
-
-  import sp.models.{APIModel => mapi}
+ import sp.models.{APIModel => mapi}
 
   def extractMResponse(m: SPMessage) = for {
     h <- m.getHeaderAs[SPHeader]
@@ -67,23 +36,14 @@ object ItemExplorer {
 
   class ItemExplorerBackend($: BackendScope[SPWidgetBase, ItemExplorerState]) {
 
-    def prettyPrintStruct(struct: Struct): Unit = {
-      println("***********")
-      println("Struct " + struct.name)
-      struct.items.foreach(sn => println("    Structnode " + sn.nodeID + " has parent " + sn.parent.getOrElse("None")))
-    }
+    val topicHandler = BackendCommunication.getMessageObserver(handleMess, mapi.topicResponse)
 
     def handleMess(mess: SPMessage): Unit = {
-      println("handlemess: " + mess)
       extractMResponse(mess).map { case (h, b) =>
         val res = b match {
           case tm@mapi.SPItems(items) => {
             val structs = items.filter(_.isInstanceOf[Struct]).asInstanceOf[List[Struct]]
             val notStructs = items.filterNot(_.isInstanceOf[Struct]).map(s => s.id -> s).toMap
-            println("******************")
-            println("items received: " + structs)
-            structs.foreach(prettyPrintStruct)
-            $.modState(s => s.copy(structs = structs, retrievedItems = s.retrievedItems ++ notStructs))
             if (structs.nonEmpty) $.modState(_.copy(structs = structs))
             else if (notStructs.nonEmpty) $.modState(s => s.copy(retrievedItems = s.retrievedItems ++ notStructs))
             else Callback.empty
@@ -94,19 +54,16 @@ object ItemExplorer {
       }
     }
 
-    def sendToModel(model: ID, mess: mapi.Request): Callback = {
-      val h = SPHeader(from = "ItemExplorer", to = model.toString,
-        reply = SPValue("ItemExplorer"))
-      val json = makeMess(h, mess)
-      BackendCommunication.publish(json, mapi.topicRequest)
-      Callback.empty
+    def sendToModel(mess: mapi.Request): Callback = {
+      val currentModel = $.state.map(_.currentModel)
+      currentModel.flatMap(op => op.map(id => sendToModel(id, mess)).getOrElse(Callback.empty))
     }
 
-    val topic = mapi.topicResponse
-    val wsObs = BackendCommunication.getWebSocketStatusObserver(mess => {
-      if (mess) $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.GetStructures))).runNow()
-    }, topic)
-    val topicHandler = BackendCommunication.getMessageObserver(handleMess, topic)
+    def sendToModel(id: ID, mess: mapi.Request): Callback = Callback {
+      val h = SPHeader(from = "ItemExplorer", to = id.toString, reply = SPValue("ItemExplorer"))
+      val json = makeMess(h, mess)
+      BackendCommunication.publish(json, mapi.topicRequest)
+    }
 
     def createItem(kind: String, struct: Struct) = {
       val item = kind match {
@@ -117,13 +74,13 @@ object ItemExplorer {
       val newStruct = addItem(item.id, struct)
       val modifyStateStruct = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
       val modifyStateItem = $.modState(s => s.copy(retrievedItems = s.retrievedItems + (item.id -> item)))
-      val notifyBackend = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.PutItems(List(item, newStruct)))))
+      val notifyBackend = sendToModel(mapi.PutItems(List(item, newStruct)))
       modifyStateStruct >> modifyStateItem >> notifyBackend
     }
 
     def setCurrentModel(id: ID) = { // TODO dont do anything if already active
       val modifyState = $.setState(ItemExplorerState(currentModel = Some(id)))
-      val requestStructs = sendToModel(id, mapi.GetStructures)
+      val requestStructs = sendToModel(id, mapi.GetStructures) // modifyState doesnt finish before this is called hence the id in
       modifyState >> requestStructs
     }
 
@@ -139,43 +96,28 @@ object ItemExplorer {
         struct.items.map(_.nodeID) -- matchingNodes -- parentsOfMatchingNodes
       }
       val hiddenIDs = filteredNodeIDs(filterString, struct)
-      val log = Callback.log("in filterItems... string: " + filterString)
-      val modifyState = $.modState(s => s.copy(hiddenIDs = hiddenIDs))
-      modifyState >> log
+      $.modState(s => s.copy(hiddenIDs = hiddenIDs))
     }
 
-    def toggleStruct(id: ID) = $.modState { state =>
-      val theStruct = state.structs.find(_.id == id).get
-      val childIDs = theStruct.items.map(_.item).toList
-      val retrieveStructNodes = state.currentModel.map(sendToModel(_, mapi.GetItems(childIDs))).getOrElse(Callback.empty)
-      retrieveStructNodes.runNow()
-      if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
-      else state.copy(expandedIDs = state.expandedIDs + id)
+    def toggleID(id: ID) = $.modState(s => s.copy(expandedIDs = s.expandedIDs + id -- s.expandedIDs.intersect(Set(id))))
+
+    def toggleStruct(id: ID) = {
+      val childIDs = $.state.map(_.structs.find(_.id == id).get.items.map(_.item).toList)
+      val askForStructNodes = childIDs.flatMap(ids => sendToModel(mapi.GetItems(ids)))
+      toggleID(id) >> askForStructNodes
     }
 
-    def toggleStructNode(id: ID, struct: Struct) = $.modState { state =>
+    def toggleStructNode(id: ID, struct: Struct) = {
       val theStructNode = struct.items.find(_.nodeID == id).get
       val childIDs = getChildren(theStructNode, struct).map(_.item)
-      val retrieveItems = state.currentModel.map(sendToModel(_, mapi.GetItems(childIDs))).getOrElse(Callback.empty)
-      retrieveItems.runNow()
-      if (state.expandedIDs.contains(id)) state.copy(expandedIDs = state.expandedIDs - id)
-      else state.copy(expandedIDs = state.expandedIDs + id)
+      val askForItems = sendToModel(mapi.GetItems(childIDs))
+      toggleID(id) >> askForItems
     }
 
-    def printDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = $.state.flatMap { state =>
-      val draggedItemID = struct.items.find(_.nodeID == draggedItemNodeID).get.item
-      val draggedItemName = state.retrievedItems(draggedItemID).name
-      val receivingItemID = struct.items.find(_.nodeID == receivingItemNodeID).map(_.item)
-      val receivingItemName = receivingItemID.flatMap(id => state.retrievedItems.get(id).map(_.name))
-        .getOrElse(state.structs.find(_.id == receivingItemNodeID).get.name)
-      Callback.log("dropped " + draggedItemName + " on " + receivingItemName)
-    }
-
-    // TODO no validation of move anywhere yet
-    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = {
+    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = { // TODO no validation of move anywhere yet
       val newStruct = moveNode(draggedItemNodeID, receivingItemNodeID, struct)
       val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
-      val notifyBackend = $.props.map(p => p.frontEndState.currentModel.foreach(m => sendToModel(m, mapi.PutItems(List(newStruct)))))
+      val notifyBackend = sendToModel(mapi.PutItems(List(newStruct)))
       modifyState >> notifyBackend
     }
 
@@ -183,7 +125,7 @@ object ItemExplorer {
       <.div(
         ^.className := Style.outerDiv.htmlClass,
         renderOptionPane(s),
-        if (p.frontEndState.currentModel.isDefined) renderStructs(s) else renderIfNoModel
+        renderStructs(s)
       )
 
     val avmcConnection = AvailableModelsCircuit.connect(x => x)
@@ -201,11 +143,6 @@ object ItemExplorer {
         SPWidgetElements.TextBox("Filter...", str => filterItems(str, state.structs(0)))
       )
 
-    def renderIfNoModel =
-      <.div(
-        "No model selected. Create a model with som items in ModelsWidget and call setCurrentModel(idString) in console to select one, then open this widget again"
-      )
-
     def renderStructs(s: ItemExplorerState) =
       <.div(
         ^.className := Style.structsView.htmlClass,
@@ -216,7 +153,6 @@ object ItemExplorer {
       )
 
     def renderStruct(struct: Struct, state: ItemExplorerState) = {
-      val nodeMap = struct.nodeMap
       val rootItemsToRender = struct.items.filter(sn => sn.parent.isEmpty && !state.hiddenIDs.contains(sn.nodeID))
       <.div(
         <.div(
@@ -238,7 +174,6 @@ object ItemExplorer {
       <.div(
         <.div(
           renderedItemOp.getOrElse(structNode.item.toString),
-          //^.onClick --> toggleStructNode(structNode.nodeID, struct),
           DataOnDrag(structNode.nodeID.toString),
           OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID, struct))
         ),
@@ -258,7 +193,7 @@ object ItemExplorer {
       <.div(
         <.span(
           if (state.expandedIDs.contains(structNode.nodeID)) Icon.toggleRight else Icon.toggleDown,
-          ^.onClick --> (toggleStructNode(structNode.nodeID, struct) >> Callback.log("cliceked"))
+          ^.onClick --> toggleStructNode(structNode.nodeID, struct)
         ),
         itemIcon,
         item.name
@@ -271,8 +206,18 @@ object ItemExplorer {
     .renderBackend[ItemExplorerBackend]
     .build
 
-  def apply() = SPWidget { spwb =>
-    //println(spwb.frontEndState)
-    itemExplorerComponent(spwb)
-  }
+  def apply() = SPWidget(spwb => itemExplorerComponent(spwb))
+}
+
+object ModelChoiceDropdown {
+  case class Props(proxy: ModelProxy[AvailableModels], cb: ID => Callback)
+
+  val component = ScalaComponent.builder[Props]("ModelChoiceDropdown")
+    .render_P { p =>
+      val contents = p.proxy().models.toList.map(kv => <.div(kv._1.toString, ^.onClick --> p.cb(kv._1)))
+      SPWidgetElements.dropdown("Choose Model", contents)
+    }
+    .build
+
+  def apply(proxy: ModelProxy[AvailableModels], cb: ID => Callback) = component(Props(proxy, cb))
 }
