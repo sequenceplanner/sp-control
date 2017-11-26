@@ -117,9 +117,33 @@ object ItemExplorer {
       toggleID(id) >> askForItems
     }
 
-    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = { // TODO no validation of move anywhere yet
-      val newStruct = moveNode(draggedItemNodeID, receivingItemNodeID, struct)
-      val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
+    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = {
+      $.state.map(_.newItems.find(_.id == draggedItemNodeID)).flatMap { newItemOp =>
+        newItemOp.map( newItem => moveNewItem(newItem, receivingItemNodeID)).getOrElse {
+          val newStruct = moveNode(draggedItemNodeID, receivingItemNodeID, struct)
+          val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
+          val notifyBackend = sendToModel(mapi.PutItems(List(newStruct)))
+          modifyState >> notifyBackend
+        }
+      }
+    }
+
+    def moveNewItem(newItem: IDAble, receivingNodeID: ID) = {
+      val struct = $.state.map(_.structs.find(struct => containsNode(receivingNodeID, struct)).get)
+      val newStruct = struct.map(s => addNode(StructNode(newItem.id, Some(receivingNodeID)), s))
+      val itemToBackend = sendToModel(mapi.PutItems(List(newItem)))
+      val moveItemInState = $.modState { s =>
+        s.copy(
+          newItems = s.newItems.filterNot(_.id == newItem.id),
+          retrievedItems = s.retrievedItems + (newItem.id -> newItem)
+        )
+      }
+      newStruct.flatMap(replaceStruct) >> moveItemInState
+    }
+
+    // replaces the Struct with same ID as newStruct with newStruct
+    def replaceStruct(newStruct: Struct) = {
+      val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_.id == newStruct.id)))
       val notifyBackend = sendToModel(mapi.PutItems(List(newStruct)))
       modifyState >> notifyBackend
     }
@@ -140,7 +164,6 @@ object ItemExplorer {
         SPWidgetElements.dropdown(
           Icon.plus,
           ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind)))
-          //ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind, state.structs(0))))
         ),
         avmcConnection(proxy => ModelChoiceDropdown(proxy, id => setCurrentModel(id))),
         SPWidgetElements.TextBox("Filter...", str => filterItems(str, state.structs(0)))
@@ -151,7 +174,7 @@ object ItemExplorer {
         ^.className := Style.newItems.htmlClass,
         <.ul(
           <.li("New Items: "),
-          s.newItems.toTagMod(idAble => <.li(ItemKinds.icon(idAble), idAble.name))
+          s.newItems.toTagMod(idAble => <.li(DataOnDrag(idAble.id.toString), ItemKinds.icon(idAble), idAble.name))
         )
       ).when(!s.newItems.isEmpty)
 
