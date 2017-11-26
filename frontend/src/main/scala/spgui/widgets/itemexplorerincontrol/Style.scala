@@ -20,6 +20,16 @@ object Style extends StyleSheet.Inline {
     flexDirection.row
   )
 
+  val newItems = style(
+    backgroundColor.white,
+    unsafeChild("ul")(
+      listStyleType := none,
+      unsafeChild("li")(
+        float.left
+      )
+    )
+  )
+
   val structsView = style(
     backgroundColor.white,
     height(100 %%)

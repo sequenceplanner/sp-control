@@ -27,6 +27,7 @@ object ItemExplorer {
 
   case class ItemExplorerState(
                                 currentModel: Option[ID] = None,
+                                newItems: List[IDAble] = Nil,
                                 structs: List[Struct] = Nil,
                                 expandedIDs: Set[ID] = Set(),
                                 hiddenIDs: Set[ID] = Set(),
@@ -65,6 +66,7 @@ object ItemExplorer {
       BackendCommunication.publish(json, mapi.topicRequest)
     }
 
+    /*
     def createItem(kind: String, struct: Struct) = {
       val item = ItemKinds.create(kind)
       val newStruct = addItem(item.id, struct)
@@ -72,6 +74,11 @@ object ItemExplorer {
       val modifyStateItem = $.modState(s => s.copy(retrievedItems = s.retrievedItems + (item.id -> item)))
       val notifyBackend = sendToModel(mapi.PutItems(List(item, newStruct)))
       modifyStateStruct >> modifyStateItem >> notifyBackend
+    }
+    */
+    def createItem(kind: String) = {
+      val item = ItemKinds.create(kind)
+      $.modState(s => s.copy(newItems = item :: s.newItems))
     }
 
     def setCurrentModel(id: ID) = { // TODO dont do anything if already active
@@ -121,6 +128,7 @@ object ItemExplorer {
       <.div(
         ^.className := Style.outerDiv.htmlClass,
         renderOptionPane(s),
+        renderNewItems(s),
         renderStructs(s)
       )
 
@@ -131,11 +139,21 @@ object ItemExplorer {
         ^.className := Style.optionPane.htmlClass,
         SPWidgetElements.dropdown(
           Icon.plus,
-          ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind, state.structs(0))))
+          ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind)))
+          //ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind, state.structs(0))))
         ),
         avmcConnection(proxy => ModelChoiceDropdown(proxy, id => setCurrentModel(id))),
         SPWidgetElements.TextBox("Filter...", str => filterItems(str, state.structs(0)))
       )
+
+    def renderNewItems(s: ItemExplorerState) =
+      <.div(
+        ^.className := Style.newItems.htmlClass,
+        <.ul(
+          <.li("New Items: "),
+          s.newItems.toTagMod(idAble => <.li(ItemKinds.icon(idAble), idAble.name))
+        )
+      ).when(!s.newItems.isEmpty)
 
     def renderStructs(s: ItemExplorerState) =
       <.div(
