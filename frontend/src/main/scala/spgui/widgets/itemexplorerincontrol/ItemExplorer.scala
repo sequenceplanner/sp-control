@@ -117,13 +117,15 @@ object ItemExplorer {
       toggleID(id) >> askForItems
     }
 
-    def handleDrop(draggedItemNodeID: ID, receivingItemNodeID: ID, struct: Struct) = {
-      $.state.map(_.newItems.find(_.id == draggedItemNodeID)).flatMap { newItemOp =>
-        newItemOp.map( newItem => moveNewItem(newItem, receivingItemNodeID)).getOrElse {
-          val newStruct = moveNode(draggedItemNodeID, receivingItemNodeID, struct)
-          val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
-          val notifyBackend = sendToModel(mapi.PutItems(List(newStruct)))
-          modifyState >> notifyBackend
+    def handleDrop(draggedNodeID: ID, receivingNodeID: ID) = {
+      $.state.map(_.newItems.find(_.id == draggedNodeID)).flatMap { newItemOp =>
+        newItemOp.map(moveNewItem(_, receivingNodeID)).getOrElse {
+          val previousStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == draggedNodeID)).get)
+          val targetStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == receivingNodeID)).get)
+          previousStruct.zip(targetStruct).flatMap { case (ps, ts) =>
+            if (ps.id == ts.id) moveItemWithinStruct(ps.id, ts.id, ps)
+            else Callback.log("moveItemBetweenStructs not implemented yet")
+          }
         }
       }
     }
@@ -139,6 +141,13 @@ object ItemExplorer {
         )
       }
       newStruct.flatMap(replaceStruct) >> moveItemInState >> itemToBackend
+    }
+
+    def moveItemWithinStruct(draggedNodeID: ID, receivingNodeID: ID, struct: Struct) = {
+      val newStruct = moveNode(draggedNodeID, receivingNodeID, struct)
+      val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
+      val notifyBackend = sendToModel(mapi.PutItems(List(newStruct)))
+      modifyState >> notifyBackend
     }
 
     // replaces the Struct with same ID as newStruct with newStruct
@@ -194,7 +203,7 @@ object ItemExplorer {
           Icon.folder,
           struct.name,
           ^.onClick --> toggleStruct(struct.id),
-          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, struct.id, struct))
+          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, struct.id))
         ),
         <.ul(
           ^.className := Style.ul.htmlClass,
@@ -210,7 +219,7 @@ object ItemExplorer {
         <.div(
           renderedItemOp.getOrElse(structNode.item.toString),
           DataOnDrag(structNode.nodeID.toString),
-          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID, struct))
+          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID))
         ),
         <.ul(
           ^.className := Style.ul.htmlClass,
