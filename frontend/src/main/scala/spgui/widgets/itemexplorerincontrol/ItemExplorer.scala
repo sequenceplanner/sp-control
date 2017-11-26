@@ -66,11 +66,7 @@ object ItemExplorer {
     }
 
     def createItem(kind: String, struct: Struct) = {
-      val item = kind match {
-        case "Thing" => Thing("New Thing")
-        case _ => throw new RuntimeException("Itemexplorer case error. Should never happen.")
-      }
-
+      val item = ItemKinds.create(kind)
       val newStruct = addItem(item.id, struct)
       val modifyStateStruct = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
       val modifyStateItem = $.modState(s => s.copy(retrievedItems = s.retrievedItems + (item.id -> item)))
@@ -135,9 +131,7 @@ object ItemExplorer {
         ^.className := Style.optionPane.htmlClass,
         SPWidgetElements.dropdown(
           Icon.plus,
-          List(
-            ("Thing", ^.onClick --> createItem("Thing", state.structs(0)))
-          ).map(x => <.div(x._1, x._2))
+          ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind, state.structs(0))))
         ),
         avmcConnection(proxy => ModelChoiceDropdown(proxy, id => setCurrentModel(id))),
         SPWidgetElements.TextBox("Filter...", str => filterItems(str, state.structs(0)))
@@ -184,21 +178,15 @@ object ItemExplorer {
       )
     }
 
-    def renderItem(item: IDAble, structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
-      val itemIcon: TagMod = item match {
-        case _: Operation => Icon.arrowCircleRight
-        case _: SOPSpec => Icon.sitemap
-        case _ => "design not chosen (TODO) "
-      }
+    def renderItem(item: IDAble, structNode: StructNode, struct: Struct, state: ItemExplorerState) =
       <.div(
         <.span(
           if (state.expandedIDs.contains(structNode.nodeID)) Icon.toggleRight else Icon.toggleDown,
           ^.onClick --> toggleStructNode(structNode.nodeID, struct)
         ),
-        itemIcon,
+        ItemKinds.icon(item),
         item.name
       )
-    }
   }
 
   val itemExplorerComponent = ScalaComponent.builder[SPWidgetBase]("ItemExplorer")
@@ -220,4 +208,25 @@ object ModelChoiceDropdown {
     .build
 
   def apply(proxy: ModelProxy[AvailableModels], cb: ID => Callback) = component(Props(proxy, cb))
+}
+
+object ItemKinds {
+  val list = List("Thing", "Operation", "SOPSpec")
+
+  def icon(item: IDAble): TagMod = item match {
+    case _: Thing => Icon.puzzlePiece
+    case _: Operation => Icon.arrowCircleRight
+    case _: SOPSpec => Icon.sitemap
+    case _ => "UNKNOWN KIND OF ITEM"
+  }
+
+  def create(kind: String) = {
+    val name = "New " + kind
+    kind match {
+      case "Thing" => Thing(name)
+      case "Operation" => Operation(name)
+      case "SOPSpec" => SOPSpec(name, sop = List())
+      case _ => throw new RuntimeException("ItemKinds case error. This should never happen.")
+    }
+  }
 }
