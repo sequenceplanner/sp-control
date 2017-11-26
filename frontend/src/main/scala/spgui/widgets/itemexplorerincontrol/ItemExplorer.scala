@@ -138,7 +138,7 @@ object ItemExplorer {
           retrievedItems = s.retrievedItems + (newItem.id -> newItem)
         )
       }
-      newStruct.flatMap(replaceStruct) >> moveItemInState
+      newStruct.flatMap(replaceStruct) >> moveItemInState >> itemToBackend
     }
 
     // replaces the Struct with same ID as newStruct with newStruct
