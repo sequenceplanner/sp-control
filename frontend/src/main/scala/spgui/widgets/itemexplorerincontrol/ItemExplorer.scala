@@ -123,7 +123,7 @@ object ItemExplorer {
           val previousStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == draggedNodeID)).get)
           val targetStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == receivingNodeID)).get)
           previousStruct.zip(targetStruct).flatMap { case (ps, ts) =>
-            if (ps.id == ts.id) moveItemWithinStruct(ps.id, ts.id, ps)
+            if (ps.id == ts.id) moveItemWithinStruct(draggedNodeID, receivingNodeID, ps)
             else Callback.log("moveItemBetweenStructs not implemented yet")
           }
         }
