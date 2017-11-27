@@ -1,7 +1,8 @@
 package sp.virtcom
 
 import akka.actor._
-import sp.domain.logic.{PropositionParser, ActionParser}
+import play.api.libs.json.Json
+import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.domain.logic.AttributeLogic.SPValueLogic
 import sp.domain._
 import sp.supremicaStuff.base._
@@ -12,6 +13,7 @@ import sp.domain.Logic._
 import scala.concurrent._
 import akka.pattern.ask
 import sp.patrikmodel._
+import sp.patrikmodel.ExtendIDablesWrapper
 
 
 /**
@@ -45,13 +47,15 @@ trait SynthesizeModel {
         val infoF = askForModelInfo(id, modelHandler)
         infoF.map(info => info.name)
     } */
-
+/*
     val moduleNameF = {
       val p = Promise[String]()
       p.success("dummy")
       p.future
-    }
-    moduleNameF.foreach { moduleName =>
+    } */
+    val moduleName = "dummy"
+    import scala.concurrent.ExecutionContext.Implicits.global
+    //moduleNameF.foreach { moduleName =>
       //Create Supremica Module and synthesize guards.
       val ptmw = ParseToModuleWrapper(moduleName, vars, ops, sopSpecs)
       val ptmwModule = {
@@ -91,7 +95,7 @@ trait SynthesizeModel {
       lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
       lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
 
-      (updatedOps, spAttributes)
+      (List(updatedOps.asInstanceOf[IDAble]), spAttributes)
       // hack: add bdd to bdd-keeper
       //serviceHandler ! RegisterBDD(moduleName, (x => ptmwModule.containsState(x)), "BDDVerifier")
 
@@ -99,7 +103,7 @@ trait SynthesizeModel {
       //  progress ! PoisonPill
       // self ! PoisonPill
       //   }
-    }
+   // }
   }
 }
 
@@ -119,6 +123,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
     Set("carrierTrans", "resourceTrans").flatMap { key =>
       o.attributes.getAs[SPAttributes](key).map {
         _.value.flatMap { case (variable, toTpia) =>
+          implicit val fT: JSFormat[TransformationPatternInAttributes] = Json.format[TransformationPatternInAttributes]
           lazy val tpia = toTpia.to[TransformationPatternInAttributes].get
           nestedAttr.flatMap(_(tpia)).map(value => {
             val conditionList = value.split(" OR ")

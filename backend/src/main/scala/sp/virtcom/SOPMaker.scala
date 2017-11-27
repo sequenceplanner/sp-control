@@ -118,7 +118,7 @@ trait MakeASop {
   def groupify(sopsToGroup: List[SOP],
                relations: Map[Set[ID], SOP],
                relationToGroup: SOP => Boolean,
-               createSOP: (List[SOP],ID) => SOP): List[SOP] = {
+               createSOP: (List[SOP], ID) => SOP): List[SOP] = {
 
     val sops = sopsToGroup map { sop => if (sop.sop.isEmpty) sop else sop.modifySOP(groupify(sop.sop.toList, relations, relationToGroup, createSOP))}
 
@@ -144,7 +144,7 @@ trait MakeASop {
     val sopsAddedToGroup = relatedPairs.foldLeft(Set[SOP]())((a, b) => a ++ b)
     val sopsNotAddedToGroup = sops filter (!sopsAddedToGroup.contains(_))
 
-    val newGroups = mergeIntoGroups.map(set => createSOP(set.toList)).toList
+    val newGroups = mergeIntoGroups.map(set => createSOP(set.toList, ID.newID)).toList
 
     newGroups ++ sopsNotAddedToGroup
 

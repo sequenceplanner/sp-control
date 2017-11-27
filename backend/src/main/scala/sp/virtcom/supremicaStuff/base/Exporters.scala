@@ -1,12 +1,17 @@
 package sp.supremicaStuff.base
 
 import net.sourceforge.waters.subject.module.ModuleSubject
+
 import scala.collection.JavaConverters._
 import java.io.File
+
 import net.sourceforge.waters.model.marshaller.JAXBModuleMarshaller
 import java.util.Calendar
+
 import net.sourceforge.waters.model.module.VariableComponentProxy
 import net.sourceforge.waters.model.module.BinaryExpressionProxy
+import play.api.libs.json._
+
 import scala.util.parsing.combinator.RegexParsers
 import sp.supremicaStuff.auxiliary.MySupport
 
@@ -26,16 +31,15 @@ trait Exporters extends BaseFunctionality with RegexParsers with StateTransExplo
   }
 
   def saveToJSON(iFilePath: String, iModule: ModuleSubject = mModule): Boolean = {
-    import org.json4s.JsonDSL._
-    import org.json4s.native.JsonMethods._
+
 
     //VARIABLES------------------------------------------------------------------------------------------------
     def variableToJSON(v: VariableComponentProxy) = {
       val name = v.getName
       val domain = v.getType.asInstanceOf[BinaryExpressionProxy]
 
-      ("isa" -> "Thing") ~
-        ("name" -> name) ~
+   /*   ("isa" -> "Thing")
+        ("name" -> name)
         ("attributes" ->
           ("low" -> Integer.parseInt(s"${domain.getLeft}")) ~
           ("high" -> Integer.parseInt(s"${domain.getRight}")) ~
@@ -54,7 +58,35 @@ trait Exporters extends BaseFunctionality with RegexParsers with StateTransExplo
                 }
                 case _ => (None: Option[Int])
               }
-            })))
+            }))) */
+
+
+      Json.obj(
+        ("isa" -> "Thing"),
+        ("name" -> name),
+        "conditions" -> (Seq(): Seq[String]),
+        ("attributes" -> {
+          ("low" -> Integer.parseInt(s"${domain.getLeft}"))
+          ("high" -> Integer.parseInt(s"${domain.getRight}"))
+          ("markings" -> s"${v.getVariableMarkings.asScala.map(m => s"(${m.getPredicate})").mkString("&")}")
+          ("stateVariable" ->{
+            ("domain" -> getTextForVariableValuesFromModuleComments.getOrElse(name, Seq()))
+              ("init" -> Integer.parseInt(s"${v.getInitialStatePredicate.asInstanceOf[BinaryExpressionProxy].getRight}"))
+              ("goal" -> {
+                v.getVariableMarkings().asScala match {
+                  case ms if (ms.length == 1) => {
+                    val bep = ms.head.getPredicate().asInstanceOf[BinaryExpressionProxy]
+                    bep.getOperator().getName() match {
+                      case "==" => Some(Integer.parseInt(bep.getRight().toString()))
+                      case _ => (None: Option[Int])
+                    }
+                  }
+                  case _ => (None: Option[Int])
+                }
+              })})
+        })
+      ).as[JsValue]
+
     }
 
     //OPERATIONS--------------------------------------------------------------------------------------------------
@@ -62,20 +94,41 @@ trait Exporters extends BaseFunctionality with RegexParsers with StateTransExplo
     val compTransions = getTs.filterKeys(_.startsWith(TextFilePrefix.UNCONTROLLABLE_PREFIX))
 
     def operationToJSON(event: String) = {
+
       val pre = startTransions(event)
       val post = compTransions(s"${TextFilePrefix.UNCONTROLLABLE_PREFIX}$event")
 
-      ("isa" -> "Operation") ~
-        ("name" -> event) ~
-        ("conditions" -> (Seq(): Seq[String])) ~
-        ("attributes" ->
-          ("preGuard" -> s"${pre.guard.get}") ~
-          ("preAction" -> pre.action.get.map(_.toString)) ~
-          ("postGuard" -> s"${post.guard.get}") ~
-          ("postAction" -> post.action.get.map(_.toString)))
+/*
+      JsObject({
+          "isa" -> "Operation"
+          "name" -> event
+          "conditions" -> (Seq(): Seq[String])
+          "attributes" -> {
+            "preGuard" -> s"${pre.guard.get}"
+            "preAction" -> pre.action.get.map(_.toString)
+            "postGuard" -> s"${post.guard.get}"
+            "postAction" -> post.action.get.map(_.toString)
+          }
+        }
+      )
+*/
+       Json.obj(
+         "isa" -> "Operation",
+         "name" -> event,
+         "conditions" -> (Seq(): Seq[String]),
+         "attributes" -> {
+             "preGuard" -> s"${pre.guard.get}"
+             "preAction" -> pre.action.get.map(_.toString)
+             "postGuard" -> s"${post.guard.get}"
+             "postAction" -> post.action.get.map(_.toString)
+        }
+      ).as[JsValue]
     }
 
+
+    val prettyseqs =(getVariables.map(v => variableToJSON(v)).toSeq ++ startTransions.keys.map(t => operationToJSON(t))).map(s => Json prettyPrint(s))
     //PRINT TO FILE-------------------------------------------------------------------------------------------------
-    MySupport.saveToFile(iFilePath, Seq(pretty(render(getVariables.map(v => variableToJSON(v)).toSeq ++ startTransions.keys.map(t => operationToJSON(t))))))
+    MySupport.saveToFile(iFilePath, prettyseqs)//Seq(Json prettyPrint ( (getVariables.map(v => variableToJSON(v)).toSeq ++ startTransions.keys.map(t => operationToJSON(t))))))
   }
 }
+

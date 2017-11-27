@@ -8,7 +8,7 @@ import sp.domain.Logic._
 trait DESModelingSupport {
   def getIdleState(vars: Set[Thing]) = {
     val state = vars.foldLeft(Map(): Map[ID, SPValue]) { case (acc, v) =>
-      lazy val optDomain = v.attributes.findField(f => f._1 == "domain").flatMap(_._2.to[List[String]])
+      lazy val optDomain = v.attributes.fields.find(f => f._1 == "domain").map(a =>a._2.asInstanceOf[List[String]])
       v.attributes.getAs[Int]("idleValue") match {
         //Do nothing if idleValue is an int
         case Some(value) => acc + (v.id -> SPValue(value))
@@ -23,12 +23,12 @@ trait DESModelingSupport {
         }
       }
     }
-    State(state)
+    (state)
   }
 
-  def stateIsMarked(vars: Set[Thing]): State => Boolean = { thatState =>
+  def stateIsMarked(vars: Set[Thing]): Map[ID, SPValue] => Boolean = { thatState =>
     lazy val goalState = getIdleState(vars)
-    def checkState(stateToCheck: Seq[(ID, SPValue)] = thatState.state.toSeq): Boolean = stateToCheck match {
+    def checkState(stateToCheck: Seq[(ID, SPValue)] = thatState.toSeq): Boolean = stateToCheck match {
       case kv +: rest => goalState.get(kv._1) match {
         case Some(v) => if (v.equals(kv._2)) checkState(rest) else false
         case _ => false //"stateToCheck" contains variables that is not in "goalState". This should although not happen...

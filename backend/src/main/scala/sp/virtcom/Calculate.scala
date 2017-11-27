@@ -4,9 +4,107 @@ import akka.stream.actor.ActorPublisherMessage.Request
 import sp.domain._
 import sp.domain.Logic._
 import sp.domain.logic.SOPLogic._
-import sp.patrikmodel.{CollectorModel}
-import oscar.cp._
+import sp.patrikmodel.CollectorModel
+import oscar.cp.{_}
+
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
+// Constraint programming (CP):
+class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
+                        mutexes: List[(ID,ID)], forceEndTimes: List[(ID,ID)]) extends CPModel with MakeASop {
+  println("\n ------RobotOpt! !--------\n ")
+  val timeFactor = 100.0
+  def test = {
+    println("\n ------test! !--------\n ")
+    val duration = ops.map(o=>(o.attributes.getAs[Double]("duration").getOrElse(0.0) * timeFactor).round.toInt).toArray
+    val indexMap = ops.map(_.id).zipWithIndex.toMap
+    val numOps = ops.size
+    val totalDuration = duration.sum
+    println("\n ------durr! !--------\n ")
+    // start times, end times, makespan
+    var s = Array.fill(numOps)(CPIntVar(0, totalDuration))
+    var e = Array.fill(numOps)(CPIntVar(0, totalDuration))
+    var m = CPIntVar(0 to totalDuration)
+
+    var extra = Array.fill(mutexes.size)(CPBoolVar())
+
+    forceEndTimes.foreach { case (t1,t2) => add(e(indexMap(t1)) == s(indexMap(t2))) }
+
+    precedences.foreach { case (t1,t2) => add(e(indexMap(t1)) <= s(indexMap(t2))) }
+    mutexes.zip(extra).foreach { case ((t1,t2),ext) =>
+      val leq1 = e(indexMap(t1)) <== s(indexMap(t2))
+      val leq2 = e(indexMap(t2)) <== s(indexMap(t1))
+      add(leq1 || leq2)
+
+      // extra
+      add(!ext ==> leq1)
+      add(leq1 ==> !ext)
+      add(ext ==> leq2)
+      add(leq2 ==> ext)
+    }
+    ops.foreach { op =>
+      // except for time 0, operations can only start when something finishes
+      // must exist a better way to write this
+      add(e(indexMap(op.id)) == s(indexMap(op.id)) + duration(indexMap(op.id)))
+      val c = CPIntVar(0, numOps)
+      add(countEq(c, e, s(indexMap(op.id))))
+      // NOTE: only works when all tasks have a duration>0
+      add(s(indexMap(op.id)) === 0 || (c >>= 0))
+    }
+    add(maximum(e, m))
+    minimize(m)
+    search(binaryFirstFail(extra++s++Array(m)))
+
+    var sols = Map[Int, Int]()
+    var ss = Map[Int,List[(ID,Int,Int)]]()
+    onSolution {
+      sols += m.value -> (sols.get(m.value).getOrElse(0) + 1)
+      /*
+            ops.foreach { op =>
+              println(op.name + ": " + s(indexMap(op.id)).value + " - " +
+               duration(indexMap(op.id)) + " --> " + e(indexMap(op.id)).value)
+            } */
+      // sols.foreach { case (k,v) => println(k + ": " + v + " solutions") }
+      val ns = ops.map { op => (op.id, s(indexMap(op.id)).value,e(indexMap(op.id)).value) }
+      ss += m.value->ns
+    }
+
+    val stats = start(timeLimit = 120) // (nSols =1, timeLimit = 60)
+
+    val sops = ss.map { case (makespan, xs) =>
+      val start = xs.map(x=>(x._1,x._2)).toMap
+      val finish = xs.map(x=>(x._1,x._3)).toMap
+
+      def rel(op1: ID,op2: ID): SOP = {
+        if(finish(op1) <= start(op2))
+          Sequence(List(SOP(op1),SOP(op2)))
+        else if(finish(op2) <= start(op1))
+          Sequence(List(SOP(op2),SOP(op1)))
+        else
+          Parallel(List(SOP(op1),SOP(op2)))
+      }
+
+      val pairs = (for {
+        op1 <- ops
+        op2 <- ops if(op1 != op2)
+      } yield Set(op1.id,op2.id)).toSet
+
+      val rels = pairs.map { x => (x -> rel(x.toList(0),x.toList(1))) }.toMap
+
+      val opsPerRob = ops.groupBy(_.attributes.getAs[String]("robotSchedule")).collect {
+        case (Some(s), op) => s -> op
+      }.map { case (k,v) => //println("schedule " + k + " contains " + v.map(x=>x.name+" "+x.id).mkString(", "))
+        v.map(_.id) }.toList
+
+      val sop = opsPerRob.map(l=>makeTheSop(l, rels, EmptySOP)).flatten
+
+      (makespan/timeFactor, sop, xs.map(x=>(x._1,x._2/timeFactor,x._3/timeFactor)))
+    }
+    (stats.completed, stats.time, sops.toList)
+  }
+}
+
 
 
 object Calculate extends cal
@@ -17,15 +115,11 @@ trait cal {
 
     val activeStruct = ids.filter(_.isInstanceOf[Struct]).map(_.asInstanceOf[Struct]).find(struct => struct.items.map(sn => sn.item).contains(SopID)).get
     val idsInStruct = ids.filter(i => activeStruct.items.map(_.item).contains(i.id))
-
     var sopSpec = idsInStruct.find(idable => idable.id == SopID).get.asInstanceOf[SOPSpec]
-    var plcSOP = idsInStruct.find(idable => idable.name == "PLC_SOP").get.asInstanceOf[SOPSpec]
-    var zonespecs = idsInStruct.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec]).diff(List(sopSpec)).diff(List(plcSOP)).toIterable
-
     val h = sopSpec.attributes//.getAs[sp.domain.SPAttributes]("hierarchy").getOrElse("")
-
+    var plcSOP = idsInStruct.find(idable => idable.name == "PLC_SOP").getOrElse(SOPSpec("PLC_SOP", List[SOP](), h)).asInstanceOf[SOPSpec]
+    var zonespecs = idsInStruct.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec]).diff(List(sopSpec)).diff(List(plcSOP)).toIterable
     val ops = idsInStruct.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
-
    //-------------------------------------------------------------------------------------
 
     case class VolvoRobotScheduleCollector(val modelName: String = "VolvoRobotSchedule") extends CollectorModel
@@ -36,7 +130,6 @@ trait cal {
     ops.map{op => op.attributes.getAs[String]("robotSchedule").getOrElse("error")}.distinct.foreach{s => collector.v(s, idleValue = Some(idle), attributes = h)}
 
     //-------------------------------------------------------------------------------------
-
 
     // Go through the SOPs for each resource, one by one and create straight operation sequences for the optimization.
     // Create new IDs for the operations, and new SOPs for those IDs
@@ -61,7 +154,6 @@ trait cal {
     })
 
     //-------------------------------------------------------------------------------------
-
     var zoneMapping = Map[Operation,Set[String]]() // Create op zone Map
     operations.foreach(op => zoneMapping += (op -> Set())) // fill the map with all operations
 
@@ -104,7 +196,6 @@ trait cal {
 
 
     //-------------------------------------------------------------------------------------
-
     val zones = zoneMapping.map { case (o, zones) => zones }.flatten.toSet // All the zone names as a set of strings
     var mutexes: List[(ID,ID)] = List() // Should contain all a list for all operations in zones (that should not execute at the same time) ex: Zone 1: op1, op2, op3 -> mutexes: (op1,op2),(op1,op3),(op2,op3)
 
@@ -170,7 +261,6 @@ trait cal {
         }
         zoneMap = newZoneMap
 
-
         // For the CP solver-----------
         if (operations.size > 1) {
           val np = operations zip operations.tail
@@ -197,12 +287,14 @@ trait cal {
     mutexes = mutexes.filter(m => (approvedIds.contains(m._1) && approvedIds.contains(m._2)))
     // When all of the operation sequences have been processed and the precedences + forceEndTimes have been created.
     // The mutexes which are just given by the great zonemap and all operations + precedences & forceEndTimes are sent to the robot optimization.
+    println("6 ")
 
     val ro = new RobotOptimization(approvedOps, precedences, mutexes, forceEndTimes) // Create CP variables and (op index -> op duration maps), solve the problem and create SOPs & gantt charts.
+    println("\n ro next! \n")
     val roFuture = Future {
       ro.test
     }
-
+    println("7 ")
     // For the synthesis:
     var nids = List(sopSpec) ++ zonespecs ++ uids
     var hids = nids //++ addHierarchies(nids, "hierarchy") // Todo: make and add Struct with nids
@@ -215,7 +307,7 @@ trait cal {
     val numstates =synthAttr.getAs[Int]("nbrOfStatesInSupervisor").getOrElse(-1)
     val bddName = synthAttr.getAs[String]("moduleName").getOrElse("")
     val ids_merged = hids.filter(x => !ids2.exists(y => y.id == x.id)) ++ ids2
-
+    println("8 ")
     for {
       //Get info about the CP solution
       (cpCompl, cpTime, cpSols) <- roFuture
@@ -225,12 +317,12 @@ trait cal {
 
     } yield {
       val resAttr = SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
-     /* println("\n numstates:    " +numstates)
+      println("\n numstates:    " +numstates)
       println("\n cpCompl:    " +cpCompl)
       println("\n cpTime:    " +cpTime)
       println("\n bddName:    " +bddName)
       println("\n ids_merged:    " +ids_merged)
-      println("\n sops.map(_._2):    " +sops.map(_._2)) */
+      println("\n sops.map(_._2):    " +sops.map(_._2))
       // Todo: return results
       //replyTo ! Response(ids_merged2 ++ sops.map(_._2), resAttr, rnr.req.service, rnr.req.reqID)
       //terminate(progress)
@@ -359,99 +451,7 @@ trait cal {
   }
 
 
-  // Constraint programming (CP):
-  class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
-                          mutexes: List[(ID,ID)], forceEndTimes: List[(ID,ID)]) extends CPModel with MakeASop {
 
-    val timeFactor = 100.0
-    def test = {
-      val duration = ops.map(o=>(o.attributes.getAs[Double]("duration").getOrElse(0.0) * timeFactor).round.toInt).toArray
-      val indexMap = ops.map(_.id).zipWithIndex.toMap
-      val numOps = ops.size
-      val totalDuration = duration.sum
-
-      // start times, end times, makespan
-      var s = Array.fill(numOps)(CPIntVar(0, totalDuration))
-      var e = Array.fill(numOps)(CPIntVar(0, totalDuration))
-      var m = CPIntVar(0 to totalDuration)
-
-      var extra = Array.fill(mutexes.size)(CPBoolVar())
-
-      forceEndTimes.foreach { case (t1,t2) => add(e(indexMap(t1)) == s(indexMap(t2))) }
-
-      precedences.foreach { case (t1,t2) => add(e(indexMap(t1)) <= s(indexMap(t2))) }
-      mutexes.zip(extra).foreach { case ((t1,t2),ext) =>
-        val leq1 = e(indexMap(t1)) <== s(indexMap(t2))
-        val leq2 = e(indexMap(t2)) <== s(indexMap(t1))
-        add(leq1 || leq2)
-
-        // extra
-        add(!ext ==> leq1)
-        add(leq1 ==> !ext)
-        add(ext ==> leq2)
-        add(leq2 ==> ext)
-      }
-      ops.foreach { op =>
-        // except for time 0, operations can only start when something finishes
-        // must exist a better way to write this
-        add(e(indexMap(op.id)) == s(indexMap(op.id)) + duration(indexMap(op.id)))
-        val c = CPIntVar(0, numOps)
-        add(countEq(c, e, s(indexMap(op.id))))
-        // NOTE: only works when all tasks have a duration>0
-        add(s(indexMap(op.id)) === 0 || (c >>= 0))
-      }
-      add(maximum(e, m))
-      minimize(m)
-      search(binaryFirstFail(extra++s++Array(m)))
-
-      var sols = Map[Int, Int]()
-      var ss = Map[Int,List[(ID,Int,Int)]]()
-      onSolution {
-        sols += m.value -> (sols.get(m.value).getOrElse(0) + 1)
-        /*
-              ops.foreach { op =>
-                println(op.name + ": " + s(indexMap(op.id)).value + " - " +
-                 duration(indexMap(op.id)) + " --> " + e(indexMap(op.id)).value)
-              } */
-        // sols.foreach { case (k,v) => println(k + ": " + v + " solutions") }
-        val ns = ops.map { op => (op.id, s(indexMap(op.id)).value,e(indexMap(op.id)).value) }
-        ss += m.value->ns
-      }
-
-      val stats = start(timeLimit = 120) // (nSols =1, timeLimit = 60)
-
-      val sops = ss.map { case (makespan, xs) =>
-        val start = xs.map(x=>(x._1,x._2)).toMap
-        val finish = xs.map(x=>(x._1,x._3)).toMap
-
-        def rel(op1: ID,op2: ID): SOP = {
-          if(finish(op1) <= start(op2))
-            Sequence(List(SOP(op1),SOP(op2)))
-          else if(finish(op2) <= start(op1))
-            Sequence(List(SOP(op2),SOP(op1)))
-          else
-            Parallel(List(SOP(op1),SOP(op2)))
-        }
-
-        val pairs = (for {
-          op1 <- ops
-          op2 <- ops if(op1 != op2)
-        } yield Set(op1.id,op2.id)).toSet
-
-        val rels = pairs.map { x => (x -> rel(x.toList(0),x.toList(1))) }.toMap
-
-        val opsPerRob = ops.groupBy(_.attributes.getAs[String]("robotSchedule")).collect {
-          case (Some(s), op) => s -> op
-        }.map { case (k,v) => //println("schedule " + k + " contains " + v.map(x=>x.name+" "+x.id).mkString(", "))
-          v.map(_.id) }.toList
-
-        val sop = opsPerRob.map(l=>makeTheSop(l, rels, EmptySOP)).flatten
-
-        (makespan/timeFactor, sop, xs.map(x=>(x._1,x._2/timeFactor,x._3/timeFactor)))
-      }
-      (stats.completed, stats.time, sops.toList)
-    }
-  }
 
 
 }
