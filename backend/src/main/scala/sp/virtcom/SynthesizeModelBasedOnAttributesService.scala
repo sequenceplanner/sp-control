@@ -35,6 +35,8 @@ trait SynthesizeModel {
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
 
 
+//println("\n ops    :   "   +  ops + "\n ")
+    println("\n vars Synth   :   "   +  vars + "\n ")
     // Only set the name if there is a model
     /*
     val core = r.attributes.getAs[ServiceHandlerAttributes]("core").get

@@ -40,7 +40,7 @@ trait SOPGen {
         (Map[String, List[List[Operation]]](),Set[String](), List(rSOP), Map[String, Seq[SOP]]()) // Just so that the result will conform with the addRobot function
       }
     }
-    val operations = collector.operationSet // Get all operations from the collector
+    val operations = collector.operations // Get all operations from the collector
 
     val sops = zoneMapsAndOps.map { x => x._3 }.flatten // extract SOPS
     val sopspec = SOPSpec(schedules.map(_.name).toSet.mkString("_") + "_Original_SOP", sops, h) // Create a Sop Spec with (name, sops, belonging to hierarchy)
@@ -54,6 +54,7 @@ trait SOPGen {
     val plcSOP = List(SOPSpec("PLC_SOP", List[SOP](), h)) // Create an empty sopSpec, that the user can fill in to model the PLC and connections between different operations from different resources.
 
     val nids = List(sopspec) ++ zonespecs ++ plcSOP ++ operations // new ids, i.e everything that we want to return
+
     var snids =List(StructNode(sopspec.id))
     snids ++= operations.map(o => StructNode(o.id)).toList// ++ zonespecs.map(z => StructNode(z.id)).toList ++ List(StructNode(plcSOP.id))
 
@@ -136,12 +137,12 @@ trait SOPGen {
           availableOperations.find(caseOp => caseOp.name == caseString) // find an operation with the same name as the robot command's case
           match {
             case Some(caseOp) => // If there is an operation that matches the case
+
               val opNode = activeStruct.items.find(sn =>sn.item == caseOp.id).get
               val operationChildOps = activeStruct.getChildren(opNode).map(sn => ops.find(o => o.id == sn.item).get) // Get the kids of the Case operation
             var robotCommandsInChild = List[String]() // Init a new robot command list, to use in recursion of this function
             var newOp = caseOp // Init a new Operation, could be anything just needs the correct type here.
             var zMaptmp = Map[String, List[List[Operation]]]() // This is the place zones and operations will be mapped for each new case.
-
               operationChildOps.foreach(opChild => {
                 if (opChild.name == caseString) { // The first operation within the case has the same name as the actual Case, and may contain a robot schedule, at least for the PS model in this project
                   robotCommandsInChild = opChild.attributes.getAs[List[String]]("robotcommands").getOrElse(List()) // Get the robot commands as a list of strings, if there are none, then empty list.
@@ -153,6 +154,7 @@ trait SOPGen {
                     zMaptmp += z -> List(List(newOp))
                   }) // Add the operation to the Zone map, checking which zones are active
                   collector.opWithID(newOp.name, Seq(newOp.attributes merge h),newId) // Save the operation in the collector
+                  println("\n adding op to collector \n    "   + newOp.name +", " + newOp.id + "\n")
 
                   if (robotCommandsInChild.isEmpty) {
                     zMapTmpList :+= zMaptmp
@@ -207,6 +209,7 @@ trait SOPGen {
 
             activeZoneSet.foreach(z => {if(zMap.contains(z)) zMap += z -> (zMap(z).map(opList => opList :+ newOp) ) else zMap += z ->  List(List(newOp)) } ) // adds the operation to the end of all existing operation lists mapped to the active zones
             collector.opWithID(newOp.name, Seq(newOp.attributes merge h),newId) // adds the operation to the collector
+            println("\n adding op to collector \n    "   + newOp.name +", " + newOp.id + "\n")
 
             ss = List(if (!ss.isEmpty) Sequence((ss(0).sop :+ SOP(newOp))) else Sequence(List(SOP(newOp))) ) // Adds the operation to the SOP that will later be sent back from the function
           case none =>

@@ -28,6 +28,7 @@ trait ExtendIDables {
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
     val spSpecs = ids.filter(_.isInstanceOf[SPSpec]).map(_.asInstanceOf[SPSpec])
 
+    println("\n vars    extend   "    + vars + "\n")
     //Extend Operations and Variables (TODO extend based on product sequences)
     val eiw = ExtendIDablesWrapper(ops, vars, sopSpecs, spSpecs)
     val updatedIDables = {

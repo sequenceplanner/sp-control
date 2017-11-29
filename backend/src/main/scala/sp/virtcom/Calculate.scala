@@ -4,8 +4,8 @@ import akka.stream.actor.ActorPublisherMessage.Request
 import sp.domain._
 import sp.domain.Logic._
 import sp.domain.logic.SOPLogic._
-import sp.patrikmodel.CollectorModel
-import oscar.cp.{_}
+import sp.patrikmodel.{CollectorModel, ExtendIDables}
+import oscar.cp._
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -108,7 +108,7 @@ class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
 
 
 object Calculate extends cal
-trait cal {
+trait cal  extends  ExtendIDables{
 
   def synthOpt(SopID : ID, ids : List[IDAble], neglectedCases : Set[ID]) ={
     val checkedTime = true
@@ -127,7 +127,7 @@ trait cal {
     val idle = "idle" // This is a value for the variables created in the collector, and it should later also be assigned to the first operation(s) in a schedule (SOP)
 
     // Go through the list of (operations) get their schedule names and create Collector variables.
-    ops.map{op => op.attributes.getAs[String]("robotSchedule").getOrElse("error")}.distinct.foreach{s => collector.v(s, idleValue = Some(idle), attributes = h)}
+    ops.map{op => op.attributes.getAs[String]("robotSchedule").getOrElse("error")}.distinct.foreach{s => {collector.v(s, idleValue = Some(idle), attributes = h)}}
 
     //-------------------------------------------------------------------------------------
 
@@ -144,7 +144,6 @@ trait cal {
     sopSpec = SOPSpec(sopSpec.name + "_Synth", ss,h)
 
     var operations = collector.operations // Get all operations from the collector
-
     var uids = collector.parseToIDablesWithIDs
 
     plcSOP.sop.foreach(individualSop => {
@@ -288,16 +287,17 @@ trait cal {
     // When all of the operation sequences have been processed and the precedences + forceEndTimes have been created.
     // The mutexes which are just given by the great zonemap and all operations + precedences & forceEndTimes are sent to the robot optimization.
     println("6 ")
-
+/*
     val ro = new RobotOptimization(approvedOps, precedences, mutexes, forceEndTimes) // Create CP variables and (op index -> op duration maps), solve the problem and create SOPs & gantt charts.
     println("\n ro next! \n")
     val roFuture = Future {
       ro.test
-    }
+    } */
     println("7 ")
     // For the synthesis:
     var nids = List(sopSpec) ++ zonespecs ++ uids
     var hids = nids //++ addHierarchies(nids, "hierarchy") // Todo: make and add Struct with nids
+
 
     //--------------------------------------------------------------------------------------------------------------------------
     //  run synthesis and get the optimization results
@@ -308,25 +308,25 @@ trait cal {
     val bddName = synthAttr.getAs[String]("moduleName").getOrElse("")
     val ids_merged = hids.filter(x => !ids2.exists(y => y.id == x.id)) ++ ids2
     println("8 ")
-    for {
+   /* for {
       //Get info about the CP solution
       (cpCompl, cpTime, cpSols) <- roFuture
       sops = cpSols.map { case (makespan, sop, gantt) =>
         (makespan, SOPSpec(s"path_${makespan}", sop), gantt)
       }.sortBy(_._1)
 
-    } yield {
-      val resAttr = SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
+    } yield { */
+    //  val resAttr = SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
       println("\n numstates:    " +numstates)
-      println("\n cpCompl:    " +cpCompl)
-      println("\n cpTime:    " +cpTime)
+   //   println("\n cpCompl:    " +cpCompl)
+    //  println("\n cpTime:    " +cpTime)
       println("\n bddName:    " +bddName)
       println("\n ids_merged:    " +ids_merged)
-      println("\n sops.map(_._2):    " +sops.map(_._2))
+   //   println("\n sops.map(_._2):    " +sops.map(_._2))
       // Todo: return results
       //replyTo ! Response(ids_merged2 ++ sops.map(_._2), resAttr, rnr.req.service, rnr.req.reqID)
       //terminate(progress)
-    } // Create a response message and send it on the bus "back to the GUI"
+   // } // Create a response message and send it on the bus "back to the GUI"
   }
 
 
@@ -359,12 +359,11 @@ trait cal {
 
 
     else if(individualSop.isInstanceOf[OperationNode]){
-      var op = ops.filter(op => op.id == individualSop.asInstanceOf[OperationNode].operation).head // get the ID from the node, find the corresponding operation
-
+      var op = ops.find(_.id ==individualSop.asInstanceOf[OperationNode].operation).get // get the ID from the node, find the corresponding operation
       var newId = ID.newID // Create a new ID for the op.
       val robotSchedule = op.attributes.getAs[String]("robotSchedule").getOrElse("error")
       op = op.copy(name = op.name, attributes = op.attributes merge
-        SPAttributes("robotSchedule" -> robotSchedule, "original" -> op.id, "newID" -> newId),id = newId)
+        SPAttributes("robotSchedule" -> robotSchedule, "original" -> op.id),id = newId)
 
       startCondition = addOpToCollector (op, startCondition,reallyLast, collector,h,checkedTime) // add the operation to the collector and get the new startCondition as that ops endCond
 
