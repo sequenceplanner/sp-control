@@ -41,7 +41,6 @@ trait SOPGen {
       }
     }
     val operations = collector.operations // Get all operations from the collector
-
     val sops = zoneMapsAndOps.map { x => x._3 }.flatten // extract SOPS
     val sopspec = SOPSpec(schedules.map(_.name).toSet.mkString("_") + "_Original_SOP", sops, h) // Create a Sop Spec with (name, sops, belonging to hierarchy)
 

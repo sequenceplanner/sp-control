@@ -162,6 +162,7 @@ trait CollectorImplicits extends ExtendIDables {
 
     //Return--------------------------------------------------------------------------------------------
     val ids = varsToAdd ++ opsToAdd ++ fesToAdd ++ robotMovementsToAdd
+    println(" \n varsToAdd   \n "+ varsToAdd)
     extendIDables(ids)
   }
 

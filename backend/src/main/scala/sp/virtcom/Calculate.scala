@@ -146,6 +146,9 @@ trait cal  extends  ExtendIDables{
     var operations = collector.operations // Get all operations from the collector
     var uids = collector.parseToIDablesWithIDs
 
+    //println("\n uids     \n"   + uids)
+    println("\n uids things     \n"   + uids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing]))
+
     plcSOP.sop.foreach(individualSop => {
       var exOps =  extractFromPLCSOP(individualSop :SOP, operations) // Changed to List[op] from set, Todo: check that the order of the operations do not mess anything up
       exOps.foreach(oplist => {oplist.foreach(op => println("op :" + op.name + ", ID :" + op.id)); println("\n")})

@@ -140,7 +140,7 @@ private case class ExtendIDablesWrapper(var ops: List[Operation], var vars: List
   def addVariablesAndUpdateDomainsForExistingVariables() = {
     lazy val variableMap = vars.map(o => o.name -> o).toMap
 
-    lazy val variableValueFromOpsMap = ops.flatMap { o =>
+    lazy val variableValueFromOpsMapOld = ops.flatMap { o =>
       Set("carrierTrans", "resourceTrans").flatMap { transType =>
         o.attributes.getAs[SPAttributes](transType).map {
           _.fields.flatMap { case (variable, toTpia) =>
@@ -150,7 +150,29 @@ private case class ExtendIDablesWrapper(var ops: List[Operation], var vars: List
           }
         }
       }
-    }.flatten.groupBy(kv => kv._1).map(kv => kv._1 -> kv._2.unzip._2.foldLeft(SPAttributes()) { case (acc, attr) => acc merge attr })
+    }.flatten.groupBy(kv => kv._1).map(kv => kv._1 -> kv._2.unzip._2.foldLeft(SPAttributes()) { case (acc, attr) => acc merge attr }) // This only contains the last value from the mapping
+
+
+    // New try
+    lazy val variableValueFromOpsMap= ops.flatMap { o =>
+      Set("carrierTrans", "resourceTrans").flatMap { transType =>
+        o.attributes.getAs[SPAttributes](transType).map {
+          _.fields.flatMap { case (variable, toTpia) =>
+            println("\n operation resourceTrans stuff\n" + o.name + "  " + variable + "  " + toTpia) // This displays all values that should be there
+            toTpia.to[TransformationPatternInAttributes].toOption.map { tpia =>
+              variable -> SPAttributes("stateVariable" -> SPAttributes("domain" -> tpia.valuesForDomain())) // <-- This is probably the problem!!
+            }
+          }
+        }
+      }
+    }.flatten.groupBy(kv => kv._1).map(kv => kv._1 -> kv._2.unzip._2  .foldLeft (SPAttributes()) { case (acc, attr) => {
+     val accDomain =acc.getAs[SPAttributes]("stateVariable").getOrElse(SPAttributes()).getAs[Seq[String]]("domain").getOrElse(Seq())
+     val attrDomain =attr.getAs[SPAttributes]("stateVariable").getOrElse(SPAttributes()).getAs[Seq[String]]("domain").getOrElse(Seq())
+     val newAttr = SPAttributes( "stateVariable" -> SPAttributes(
+       "domain" -> (accDomain ++attrDomain).distinct
+       ))
+      newAttr} } ) // This merges the values correctly, but a bit ugly
+    println("\n cropped   \n" + variableValueFromOpsMap)
 
     vars = variableValueFromOpsMap.map {
       case (variable, attr) => variableMap.get(variable) match {
