@@ -28,7 +28,7 @@ import sp.patrikmodel.ExtendIDablesWrapper
 
 object Synthesize extends SynthesizeModel
 trait SynthesizeModel {
-  def synthesizeModel(ids: List[IDAble]): (List[IDAble], SPAttributes) = {
+  def synthesizeModel(ids: List[IDAble]): (List[Operation], SPAttributes) = {
 
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
     val vars = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
@@ -36,7 +36,6 @@ trait SynthesizeModel {
 
 
 //println("\n ops    :   "   +  ops + "\n ")
-    println("\n vars Synth   :   "   +  vars + "\n ")
     // Only set the name if there is a model
     /*
     val core = r.attributes.getAs[ServiceHandlerAttributes]("core").get
@@ -77,18 +76,15 @@ trait SynthesizeModel {
       // error here, bad guard!
       val updatedOps = ops.map(o => ptmw.addSPConditionFromAttributes(ptmw.addSynthesizedGuardsToAttributes(o, optSupervisorGuards), optSupervisorGuards))
 
-
       lazy val synthesizedGuards = optSupervisorGuards.getOrElse(Map()).foldLeft(SPAttributes()) { case (acc, (event, guard)) =>
         acc merge SPAttributes("synthesizedGuards" -> SPAttributes(event -> guard))
       }
-
       lazy val nbrOfStates = SPAttributes("nbrOfStatesInSupervisor" -> ptmwModule.nbrOfStates())
 
       println(s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
       if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
 
       //  progress ! SPAttributes("progress" -> s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
-
 
       ptmw.addSupervisorGuardsToFreshFlower(optSupervisorGuards)
       ptmw.saveToWMODFile("./testFiles/gitIgnore/")
@@ -97,7 +93,8 @@ trait SynthesizeModel {
       lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
       lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
 
-      (List(updatedOps.asInstanceOf[IDAble]), spAttributes)
+
+    (updatedOps, spAttributes)
       // hack: add bdd to bdd-keeper
       //serviceHandler ! RegisterBDD(moduleName, (x => ptmwModule.containsState(x)), "BDDVerifier")
 
