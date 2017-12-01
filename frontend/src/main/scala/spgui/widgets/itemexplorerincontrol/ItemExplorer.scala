@@ -5,6 +5,7 @@ import japgolly.scalajs.react.vdom.html_<^._
 import diode.react.ModelProxy
 
 import sp.domain._
+import sp.domain.logic.StructLogic._
 import spgui.{ SPWidget, SPWidgetBase }
 import spgui.components.DragAndDrop.{ DataOnDrag, OnDataDrop }
 import spgui.components.{ Icon, SPWidgetElements }
@@ -124,7 +125,7 @@ object ItemExplorer {
           val targetStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == receivingNodeID)).get)
           previousStruct.zip(targetStruct).flatMap { case (ps, ts) =>
             if (ps.id == ts.id) moveItemWithinStruct(draggedNodeID, receivingNodeID, ps)
-            else Callback.log("moveItemBetweenStructs not implemented yet")
+            else moveItemBetweenStructs(draggedNodeID, receivingNodeID, ps, ts)
           }
         }
       }
@@ -143,11 +144,19 @@ object ItemExplorer {
       newStruct.flatMap(replaceStruct) >> moveItemInState >> itemToBackend
     }
 
-    def moveItemWithinStruct(draggedNodeID: ID, receivingNodeID: ID, struct: Struct) = {
-      val newStruct = moveNode(draggedNodeID, receivingNodeID, struct)
-      val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_ == struct)))
-      val notifyBackend = sendToModel(mapi.PutItems(List(newStruct)))
-      modifyState >> notifyBackend
+    def moveItemWithinStruct(draggedNodeID: ID, receivingNodeID: ID, struct: Struct) =
+      replaceStruct(moveNode(draggedNodeID, receivingNodeID, struct))
+
+    def moveItemBetweenStructs(draggedNodeID: ID, receivingNodeID: ID, fromStruct: Struct, targetStruct: Struct) = {
+      // TODO put more of this in StructLogic perhaps
+      val nodesToMove = getAllChildren(draggedNodeID, fromStruct)
+      val newFromStruct = removeNodes(nodesToMove.map(_.nodeID), fromStruct)
+      val nodesToPutInTarget = nodesToMove.map { n =>
+        if (n.nodeID == draggedNodeID) n.copy(nodeID = ID.newID, parent = Some(receivingNodeID))
+        else n.copy(nodeID = ID.newID)
+      }
+      val newTargetStruct = addNodes(nodesToPutInTarget, targetStruct)
+      replaceStruct(newFromStruct) >> replaceStruct(newTargetStruct)
     }
 
     // replaces the Struct with same ID as newStruct with newStruct
