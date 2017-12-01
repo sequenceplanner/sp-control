@@ -12,8 +12,6 @@ import spgui.components.{ Icon, SPWidgetElements }
 import spgui.communication.BackendCommunication
 import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
 
-import StuffToMoveToStructLogic._
-
 
 object ItemExplorer {
 
@@ -112,28 +110,28 @@ object ItemExplorer {
     }
 
     def toggleStructNode(id: ID, struct: Struct) = {
-      val theStructNode = struct.items.find(_.nodeID == id).get
-      val childIDs = getChildren(theStructNode, struct).map(_.item)
-      val askForItems = sendToModel(mapi.GetItems(childIDs))
+      val childIDs = struct.getChildren(id).map(_.item)
+      val askForItems = sendToModel(mapi.GetItems(childIDs.toList))
       toggleID(id) >> askForItems
     }
 
     def handleDrop(draggedNodeID: ID, receivingNodeID: ID) = {
-      $.state.map(_.newItems.find(_.id == draggedNodeID)).flatMap { newItemOp =>
-        newItemOp.map(moveNewItem(_, receivingNodeID)).getOrElse {
-          val previousStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == draggedNodeID)).get)
-          val targetStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == receivingNodeID)).get)
-          previousStruct.zip(targetStruct).flatMap { case (ps, ts) =>
-            if (ps.id == ts.id) moveItemWithinStruct(draggedNodeID, receivingNodeID, ps)
-            else moveItemBetweenStructs(draggedNodeID, receivingNodeID, ps, ts)
+      $.state.map(_.newItems.find(_.id == draggedNodeID)).flatMap { newItemOp => // if item among new items
+        newItemOp.map(moveNewItem(_, receivingNodeID))
+          .getOrElse { // else move node within struct or between structs
+            val previousStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == draggedNodeID)).get)
+            val targetStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == receivingNodeID)).get)
+            previousStruct.zip(targetStruct).flatMap { case (ps, ts) =>
+              if (ps.id == ts.id) replaceStruct(ps.moveNode(draggedNodeID, receivingNodeID))
+              else moveItemBetweenStructs(draggedNodeID, receivingNodeID, ps, ts)
+            }
           }
-        }
       }
     }
 
     def moveNewItem(newItem: IDAble, receivingNodeID: ID) = {
-      val struct = $.state.map(_.structs.find(struct => containsNode(receivingNodeID, struct)).get)
-      val newStruct = struct.map(s => addNode(StructNode(newItem.id, Some(receivingNodeID)), s))
+      val struct = $.state.map(_.structs.find(struct => struct.items.exists(_.nodeID == receivingNodeID)).get)
+      val newStruct = struct.map(_.addTo(receivingNodeID, Set(StructNode(newItem.id))))
       val itemToBackend = sendToModel(mapi.PutItems(List(newItem)))
       val moveItemInState = $.modState { s =>
         s.copy(
@@ -144,18 +142,17 @@ object ItemExplorer {
       newStruct.flatMap(replaceStruct) >> moveItemInState >> itemToBackend
     }
 
-    def moveItemWithinStruct(draggedNodeID: ID, receivingNodeID: ID, struct: Struct) =
-      replaceStruct(moveNode(draggedNodeID, receivingNodeID, struct))
+    //def moveItemWithinStruct(draggedNodeID: ID, receivingNodeID: ID, struct: Struct) =
+      //replaceStruct(moveNode(draggedNodeID, receivingNodeID, struct))
 
-    def moveItemBetweenStructs(draggedNodeID: ID, receivingNodeID: ID, fromStruct: Struct, targetStruct: Struct) = {
-      // TODO put more of this in StructLogic perhaps
-      val nodesToMove = getAllChildren(draggedNodeID, fromStruct)
-      val newFromStruct = removeNodes(nodesToMove.map(_.nodeID), fromStruct)
-      val nodesToPutInTarget = nodesToMove.map { n =>
-        if (n.nodeID == draggedNodeID) n.copy(nodeID = ID.newID, parent = Some(receivingNodeID))
-        else n.copy(nodeID = ID.newID)
-      }
-      val newTargetStruct = addNodes(nodesToPutInTarget, targetStruct)
+    // subtle parent-ID stuff going on here.. should perhaps be moved to StructLogic
+    def moveItemBetweenStructs(draggedID: ID, receivingID: ID, fromStruct: Struct, targetStruct: Struct) = {
+      val draggedNode = fromStruct.items.find(_.nodeID == draggedID)
+      val nodesToMove = draggedNode.map(fromStruct.getAllChildren(draggedID) + _.copy(parent = None))
+      val newFromStructOp = nodesToMove.map(fromStruct -- _.map(_.nodeID))
+      val newTargetStructOp = nodesToMove.map(targetStruct.addTo(receivingID, _))
+      val zipOp = newFromStructOp.zip(newTargetStructOp).headOption
+      val (newFromStruct, newTargetStruct) = zipOp.getOrElse((fromStruct, targetStruct))
       replaceStruct(newFromStruct) >> replaceStruct(newTargetStruct)
     }
 
@@ -223,7 +220,7 @@ object ItemExplorer {
 
     def renderStructNode(structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
       val renderedItemOp = state.retrievedItems.get(structNode.item).map(renderItem(_, structNode, struct, state))
-      val childrenToRender = getChildren(structNode, struct).filterNot(sn => state.hiddenIDs.contains(sn.nodeID))
+      val childrenToRender = struct.getChildren(structNode.nodeID).filterNot(sn => state.hiddenIDs.contains(sn.nodeID))
       <.div(
         <.div(
           renderedItemOp.getOrElse(structNode.item.toString),
