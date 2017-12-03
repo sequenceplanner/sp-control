@@ -20,7 +20,7 @@ object ItemExplorer {
 
   def makeMess(h: SPHeader, b: mapi.Request) = SPMessage.make[SPHeader, mapi.Request](h, b)
 
-  class ModelComm(modelID: ID, onMessage: (SPHeader, mapi.Response) => Unit) extends
+  class ModelComm(val modelID: ID, onMessage: (SPHeader, mapi.Response) => Unit) extends
     APIComm[mapi.Request, mapi.Response](
       requestTopic = mapi.topicRequest,
       responseTopic = mapi.topicResponse,
@@ -58,14 +58,8 @@ object ItemExplorer {
     }
 
     def sendToModel(mess: mapi.Request): Callback = {
-      val currentModel = $.state.map(_.currentModel)
-      currentModel.flatMap(op => op.map(id => sendToModel(id, mess)).getOrElse(Callback.empty))
-    }
-
-    def sendToModel(id: ID, mess: mapi.Request): Callback = Callback {
-      val h = SPHeader(from = "ItemExplorer", to = id.toString, reply = SPValue("ItemExplorer"))
-      val json = makeMess(h, mess)
-      BackendCommunication.publish(json, mapi.topicRequest)
+      val currentMComm = $.state.map(_.currentMComm)
+      currentMComm.flatMap(op => op.map(comm => Callback(comm.request(mess))).getOrElse(Callback.empty))
     }
 
     /*
@@ -84,13 +78,14 @@ object ItemExplorer {
     }
 
     def setCurrentModel(id: ID) = { // TODO dont do anything if already active
+      val mcomm = new ModelComm(id, handleMess)
       val modifyState = $.setState(
         ItemExplorerState(
           currentModel = Some(id),
-          currentMComm = Some(new ModelComm(id, handleMess))
+          currentMComm = Some(mcomm)
         )
       )
-      val requestStructs = sendToModel(id, mapi.GetStructures) // modifyState doesnt finish before this is called hence the id in
+      val requestStructs = Callback(mcomm.request(mapi.GetStructures))
       modifyState >> requestStructs
     }
 
