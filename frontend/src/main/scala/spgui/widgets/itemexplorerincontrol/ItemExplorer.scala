@@ -10,22 +10,29 @@ import spgui.{ SPWidget, SPWidgetBase }
 import spgui.components.DragAndDrop.{ DataOnDrag, OnDataDrop }
 import spgui.components.{ Icon, SPWidgetElements }
 import spgui.communication.BackendCommunication
+import spgui.communication.APIComm
 import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
 
 
 object ItemExplorer {
 
- import sp.models.{APIModel => mapi}
-
-  def extractMResponse(m: SPMessage) = for {
-    h <- m.getHeaderAs[SPHeader]
-    b <- m.getBodyAs[mapi.Response]
-  } yield (h, b)
+  import sp.models.{ APIModel => mapi }
 
   def makeMess(h: SPHeader, b: mapi.Request) = SPMessage.make[SPHeader, mapi.Request](h, b)
 
+  class ModelComm(modelID: ID, onMessage: (SPHeader, mapi.Response) => Unit) extends
+    APIComm[mapi.Request, mapi.Response](
+      requestTopic = mapi.topicRequest,
+      responseTopic = mapi.topicResponse,
+      from = "ItemExplorer",
+      to = modelID.toString,
+      onChannelUp = None,
+      onMessage = Some(onMessage)
+    )
+
   case class ItemExplorerState(
                                 currentModel: Option[ID] = None,
+                                currentMComm: Option[ModelComm] = None,
                                 newItems: List[IDAble] = Nil,
                                 structs: List[Struct] = Nil,
                                 expandedIDs: Set[ID] = Set(),
@@ -36,22 +43,18 @@ object ItemExplorer {
 
   class ItemExplorerBackend($: BackendScope[SPWidgetBase, ItemExplorerState]) {
 
-    val topicHandler = BackendCommunication.getMessageObserver(handleMess, mapi.topicResponse)
-
-    def handleMess(mess: SPMessage): Unit = {
-      extractMResponse(mess).map { case (h, b) =>
-        val res = b match {
-          case tm@mapi.SPItems(items) => {
-            val structs = items.filter(_.isInstanceOf[Struct]).asInstanceOf[List[Struct]]
-            val notStructs = items.filterNot(_.isInstanceOf[Struct]).map(s => s.id -> s).toMap
-            if (structs.nonEmpty) $.modState(_.copy(structs = structs))
-            else if (notStructs.nonEmpty) $.modState(s => s.copy(retrievedItems = s.retrievedItems ++ notStructs))
-            else Callback.empty
-          }
-          case x => Callback.empty
+    def handleMess(h: SPHeader, b: mapi.Response): Unit = {
+      val res = b match {
+        case tm@mapi.SPItems(items) => {
+          val structs = items.filter(_.isInstanceOf[Struct]).asInstanceOf[List[Struct]]
+          val notStructs = items.filterNot(_.isInstanceOf[Struct]).map(s => s.id -> s).toMap
+          if (structs.nonEmpty) $.modState(_.copy(structs = structs))
+          else if (notStructs.nonEmpty) $.modState(s => s.copy(retrievedItems = s.retrievedItems ++ notStructs))
+          else Callback.empty
         }
-        res.runNow()
+        case x => Callback.empty
       }
+      res.runNow()
     }
 
     def sendToModel(mess: mapi.Request): Callback = {
@@ -81,7 +84,12 @@ object ItemExplorer {
     }
 
     def setCurrentModel(id: ID) = { // TODO dont do anything if already active
-      val modifyState = $.setState(ItemExplorerState(currentModel = Some(id)))
+      val modifyState = $.setState(
+        ItemExplorerState(
+          currentModel = Some(id),
+          currentMComm = Some(new ModelComm(id, handleMess))
+        )
+      )
       val requestStructs = sendToModel(id, mapi.GetStructures) // modifyState doesnt finish before this is called hence the id in
       modifyState >> requestStructs
     }
