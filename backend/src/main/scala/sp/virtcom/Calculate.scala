@@ -29,12 +29,12 @@ class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
 
     var extra = Array.fill(mutexes.size)(CPBoolVar())
 
-    forceEndTimes.foreach { case (t1,t2) => add(e(indexMap(t1)) == s(indexMap(t2))) }
+    forceEndTimes.foreach { case (t1,t2) => add(e(indexMap(t1)) === s(indexMap(t2))) }
 
     precedences.foreach { case (t1,t2) => add(e(indexMap(t1)) <= s(indexMap(t2))) }
     mutexes.zip(extra).foreach { case ((t1,t2),ext) =>
-      val leq1 = e(indexMap(t1)) <== s(indexMap(t2))
-      val leq2 = e(indexMap(t2)) <== s(indexMap(t1))
+      val leq1 = e(indexMap(t1)) ?<= s(indexMap(t2))
+      val leq2 = e(indexMap(t2)) ?<= s(indexMap(t1))
       add(leq1 || leq2)
 
       // extra
@@ -46,11 +46,13 @@ class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
     ops.foreach { op =>
       // except for time 0, operations can only start when something finishes
       // must exist a better way to write this
-      add(e(indexMap(op.id)) == s(indexMap(op.id)) + duration(indexMap(op.id)))
+      add(e(indexMap(op.id)) === s(indexMap(op.id)) + duration(indexMap(op.id)))
       val c = CPIntVar(0, numOps)
       add(countEq(c, e, s(indexMap(op.id))))
       // NOTE: only works when all tasks have a duration>0
-      add(s(indexMap(op.id)) === 0 || (c >>= 0))
+      val first = s(indexMap(op.id)) ?=== 0
+      val countOK = c ?> 0
+      add(first || countOK)
     }
     add(maximum(e, m))
     minimize(m)
