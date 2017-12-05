@@ -81,8 +81,8 @@ trait SynthesizeModel {
       }
       lazy val nbrOfStates = SPAttributes("nbrOfStatesInSupervisor" -> ptmwModule.nbrOfStates())
 
-      println(s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
-      if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
+    println(s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
+    if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
 
       //  progress ! SPAttributes("progress" -> s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
 

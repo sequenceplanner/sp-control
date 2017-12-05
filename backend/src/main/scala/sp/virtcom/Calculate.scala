@@ -13,15 +13,12 @@ import scala.concurrent.ExecutionContext.Implicits.global
 // Constraint programming (CP):
 class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
                         mutexes: List[(ID,ID)], forceEndTimes: List[(ID,ID)]) extends CPModel with MakeASop {
-  println("\n ------RobotOpt! !--------\n ")
   val timeFactor = 100.0
   def test = {
-    println("\n ------test! !--------\n ")
     val duration = ops.map(o=>(o.attributes.getAs[Double]("duration").getOrElse(0.0) * timeFactor).round.toInt).toArray
     val indexMap = ops.map(_.id).zipWithIndex.toMap
     val numOps = ops.size
     val totalDuration = duration.sum
-    println("\n ------durr! !--------\n ")
     // start times, end times, makespan
     var s = Array.fill(numOps)(CPIntVar(0, totalDuration))
     var e = Array.fill(numOps)(CPIntVar(0, totalDuration))
@@ -62,12 +59,11 @@ class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
     var ss = Map[Int,List[(ID,Int,Int)]]()
     onSolution {
       sols += m.value -> (sols.get(m.value).getOrElse(0) + 1)
-      /*
             ops.foreach { op =>
               println(op.name + ": " + s(indexMap(op.id)).value + " - " +
                duration(indexMap(op.id)) + " --> " + e(indexMap(op.id)).value)
-            } */
-      // sols.foreach { case (k,v) => println(k + ": " + v + " solutions") }
+            }
+       sols.foreach { case (k,v) => println(k + ": " + v + " solutions") }
       val ns = ops.map { op => (op.id, s(indexMap(op.id)).value,e(indexMap(op.id)).value) }
       ss += m.value->ns
     }
@@ -96,7 +92,7 @@ class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
 
       val opsPerRob = ops.groupBy(_.attributes.getAs[String]("robotSchedule")).collect {
         case (Some(s), op) => s -> op
-      }.map { case (k,v) => //println("schedule " + k + " contains " + v.map(x=>x.name+" "+x.id).mkString(", "))
+      }.map { case (k,v) => println("schedule " + k + " contains " + v.map(x=>x.name+" "+x.id).mkString(", "))
         v.map(_.id) }.toList
 
       val sop = opsPerRob.map(l=>makeTheSop(l, rels, EmptySOP)).flatten
@@ -148,12 +144,9 @@ trait cal  extends  ExtendIDables{
     var operations = collector.operations // Get all operations from the collector
     var uids = collector.parseToIDablesWithIDs
 
-    //println("\n uids     \n"   + uids)
-    println("\n uids things     \n"   + uids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing]))
-
     plcSOP.sop.foreach(individualSop => {
-      var exOps =  extractFromPLCSOP(individualSop :SOP, operations) // Changed to List[op] from set, Todo: check that the order of the operations do not mess anything up
-      exOps.foreach(oplist => {oplist.foreach(op => println("op :" + op.name + ", ID :" + op.id)); println("\n")})
+      var exOps =  extractFromPLCSOP(individualSop :SOP, operations) // Changed to List[op] from set,
+      //exOps.foreach(oplist => {oplist.foreach(op => println("op :" + op.name + ", ID :" + op.id)); println("\n")})
       opSequences ++= exOps
     })
 
@@ -198,10 +191,10 @@ trait cal  extends  ExtendIDables{
       (newSop, zoneMappingNew)
     } // Create a zonemap and a new zonespec with the new operation ids.
 
-
     //-------------------------------------------------------------------------------------
     val zones = zoneMapping.map { case (o, zones) => zones }.flatten.toSet // All the zone names as a set of strings
     var mutexes: List[(ID,ID)] = List() // Should contain all a list for all operations in zones (that should not execute at the same time) ex: Zone 1: op1, op2, op3 -> mutexes: (op1,op2),(op1,op3),(op2,op3)
+
 
     // Creates the mutexes
     val zoneSeqs = zones.map { zone =>
@@ -291,14 +284,16 @@ trait cal  extends  ExtendIDables{
     mutexes = mutexes.filter(m => (approvedIds.contains(m._1) && approvedIds.contains(m._2)))
     // When all of the operation sequences have been processed and the precedences + forceEndTimes have been created.
     // The mutexes which are just given by the great zonemap and all operations + precedences & forceEndTimes are sent to the robot optimization.
-    println("6 ")
-/*
+
+   // println("\n mutexes \n " + mutexes.map(IDs => (approvedOps.find(_.id == IDs._1).get.name, approvedOps.find(_.id == IDs._2).get.name)).mkString("\n"))
+    //println("\n precedences \n " + precedences.map(IDs => (approvedOps.find(_.id == IDs._1).get.name, approvedOps.find(_.id == IDs._2).get.name)).mkString("\n"))
+    //println("\n forceEndTimes \n " + forceEndTimes.map(IDs => (approvedOps.find(_.id == IDs._1).get.name, approvedOps.find(_.id == IDs._2).get.name)).mkString("\n"))
+   // println("\n approvedOps \n " + approvedOps.map(o => (o.name + ",  " + o.id.toString) ).mkString("\n"))
+
     val ro = new RobotOptimization(approvedOps, precedences, mutexes, forceEndTimes) // Create CP variables and (op index -> op duration maps), solve the problem and create SOPs & gantt charts.
-    println("\n ro next! \n")
     val roFuture = Future {
       ro.test
-    } */
-    println("7 ")
+    }
     // For the synthesis:
     var nids = List(sopSpec) ++ zonespecs ++ uids
     var hids = nids //++ addHierarchies(nids, "hierarchy") // Todo: make and add Struct with nids
@@ -312,26 +307,28 @@ trait cal  extends  ExtendIDables{
     val numstates =synthAttr.getAs[Int]("nbrOfStatesInSupervisor").getOrElse(-1)
     val bddName = synthAttr.getAs[String]("moduleName").getOrElse("")
     val ids_merged = hids.filter(x => !ids2.exists(y => y.id == x.id)) ++ ids2
-    println("8 ")
-   /* for {
+    for {
       //Get info about the CP solution
       (cpCompl, cpTime, cpSols) <- roFuture
       sops = cpSols.map { case (makespan, sop, gantt) =>
         (makespan, SOPSpec(s"path_${makespan}", sop), gantt)
       }.sortBy(_._1)
 
-    } yield { */
-    //  val resAttr = SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
-      println("\n numstates:    " +numstates)
-   //   println("\n cpCompl:    " +cpCompl)
-    //  println("\n cpTime:    " +cpTime)
-      println("\n bddName:    " +bddName)
-      println("\n ids_merged:    " +ids_merged)
-   //   println("\n sops.map(_._2):    " +sops.map(_._2))
+    } yield {
+      val resAttr = ""//SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
+      //println("\n numstates:    " +numstates)
+      //println("\n cpCompl:    " +cpCompl)
+      //println("\n cpTime:    " +cpTime)
+
+      //println("\n ids_merged:    " +ids_merged)
+      //println("\n sops:    " +sops)
+      //println("\n bddName:    " +bddName)
+      //println("\n ids_merged:    " +ids_merged)
+      //println("\n sops.map(_._2):    " +sops.map(_._2))
       // Todo: return results
       //replyTo ! Response(ids_merged2 ++ sops.map(_._2), resAttr, rnr.req.service, rnr.req.reqID)
       //terminate(progress)
-   // } // Create a response message and send it on the bus "back to the GUI"
+    } // Create a response message and send it on the bus "back to the GUI"
   }
 
 

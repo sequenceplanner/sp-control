@@ -28,7 +28,6 @@ trait ExtendIDables {
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
     val spSpecs = ids.filter(_.isInstanceOf[SPSpec]).map(_.asInstanceOf[SPSpec])
 
-    println("\n vars    extend   "    + vars + "\n")
     //Extend Operations and Variables (TODO extend based on product sequences)
     val eiw = ExtendIDablesWrapper(ops, vars, sopSpecs, spSpecs)
     val updatedIDables = {
@@ -158,7 +157,6 @@ private case class ExtendIDablesWrapper(var ops: List[Operation], var vars: List
       Set("carrierTrans", "resourceTrans").flatMap { transType =>
         o.attributes.getAs[SPAttributes](transType).map {
           _.fields.flatMap { case (variable, toTpia) =>
-            println("\n operation resourceTrans stuff\n" + o.name + "  " + variable + "  " + toTpia) // This displays all values that should be there
             toTpia.to[TransformationPatternInAttributes].toOption.map { tpia =>
               variable -> SPAttributes("stateVariable" -> SPAttributes("domain" -> tpia.valuesForDomain())) // <-- This is probably the problem!!
             }
@@ -172,7 +170,6 @@ private case class ExtendIDablesWrapper(var ops: List[Operation], var vars: List
        "domain" -> (accDomain ++attrDomain).distinct
        ))
       newAttr} } ) // This merges the values correctly, but a bit ugly
-    println("\n cropped   \n" + variableValueFromOpsMap)
 
     vars = variableValueFromOpsMap.map {
       case (variable, attr) => variableMap.get(variable) match {

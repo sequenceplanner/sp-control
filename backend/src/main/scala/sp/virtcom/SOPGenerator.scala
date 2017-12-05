@@ -12,11 +12,20 @@ trait SOPGen {
 
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation]) // filter out the operations from the ids
     val schedules = ops.filter(op => selectedSchedules.contains(op.id)) // Get the selected operations as a list
-    val scheduleNames = schedules.map(op => op.name).toSet.mkString("_") // Create Schedule names, for robots schedules and other resources.
-    val h = SPAttributes("hierarchy" -> Set("VRS_"+ scheduleNames ))  // This will be the name of the new hierarchy...
 
     val structs = ids.filter(_.isInstanceOf[Struct]).map(_.asInstanceOf[Struct])
     val activeStruct = structs.find(struct => struct.items.map(sn => sn.item).contains(schedules.head.id)).get // Get the struct which the first schedule is a part of. I assume here that the other schedules are in the same Struct for now
+
+    val scheduleNames = schedules.map(op =>
+      if(op.attributes.getAs[List[String]]("robotcommands").getOrElse(List()).nonEmpty){
+        op.name
+        //ops.find(o => o.id ==activeStruct.items.find(sn => sn.item == op.id).get.parent.get).get.name // find the parent operation of the robot schedule, (the actual schedule name is not unique, could just add something else instead)
+      }
+      else op.name
+    ).toSet.mkString("_") // Create Schedule names, for robots schedules and other resources.
+
+    val h = SPAttributes("hierarchy" -> Set("VRS_"+ scheduleNames ))  // This will be the name of the new hierarchy...
+
 
     case class VolvoRobotScheduleCollector(val modelName: String = "VolvoRobotSchedule") extends CollectorModel
     val collector = VolvoRobotScheduleCollector() // This can collect all of the operations and create transition variables between them
@@ -24,13 +33,13 @@ trait SOPGen {
 
     val zoneMapsAndOps = schedules.map { schedule => // go through each schedule ( selected op)
       val robcmds = schedule.attributes.getAs[List[String]]("robotcommands").getOrElse(List()) // Gets all of the robotcommands for the selected operation/schedule
-    var rs = if(robcmds.isEmpty){"LD"} else {""} + schedule.name   // The name of the Selected operation/schedule
 
-      val scheduleOps = { // Get all operations that are relevant for this schedule
-        val opNode = activeStruct.items.find(sn =>sn.item == schedule.id).get // Get opNode of schedule
-      val Node = if(robcmds.isEmpty) opNode else activeStruct.items.find(sn => sn.nodeID == opNode.parent.get).get // get parent of opNode
-        activeStruct.getAllChildren(Node) // Get children of node
-      }.map(sn => ops.find(o => o.id == sn.item).get) // Find the children operations
+
+    val opNode = activeStruct.items.find(sn =>sn.item == schedule.id).get // Get opNode of schedule
+    val Node = if(robcmds.isEmpty) opNode else activeStruct.items.find(sn => sn.nodeID == opNode.parent.get).get // get parent of opNode
+    val scheduleOps = activeStruct.getAllChildren(Node).map(sn => ops.find(o => o.id == sn.item).get) // Get all operations that are relevant for this schedule
+
+      var rs = if(robcmds.isEmpty){"LD" + schedule.name} else {ops.find(_.id == Node.item).get.name}    // The name of the Selected operation/schedule
       collector.v(robotScheduleVariable(rs), idleValue = Some(idle), attributes = h) //  Update the collector to gather all of the variables and operations from the functions below
 
       if(robcmds.nonEmpty)
@@ -54,8 +63,7 @@ trait SOPGen {
 
     val nids = List(sopspec) ++ zonespecs ++ plcSOP ++ operations // new ids, i.e everything that we want to return
 
-    var snids =List(StructNode(sopspec.id))
-    snids ++= operations.map(o => StructNode(o.id)).toList// ++ zonespecs.map(z => StructNode(z.id)).toList ++ List(StructNode(plcSOP.id))
+    var snids =List(StructNode(sopspec.id)) ++ zonespecs.map( z => StructNode(z.id)).toList ++ plcSOP.map(p => StructNode(p.id))  ++ operations.map(o => StructNode(o.id))
 
     nids :+ Struct("VRS_"+ scheduleNames, snids.toSet)
   }
@@ -153,8 +161,6 @@ trait SOPGen {
                     zMaptmp += z -> List(List(newOp))
                   }) // Add the operation to the Zone map, checking which zones are active
                   collector.opWithID(newOp.name, Seq(newOp.attributes merge h),newId) // Save the operation in the collector
-                  println("\n adding op to collector \n    "   + newOp.name +", " + newOp.id + "\n")
-
                   if (robotCommandsInChild.isEmpty) {
                     zMapTmpList :+= zMaptmp
                     activeZoneSetNew = activeZoneSetNew.union(activeZoneSet) // If there is a case with no operations following, then all the zones that were active before can be active afterwards too.
@@ -208,7 +214,6 @@ trait SOPGen {
 
             activeZoneSet.foreach(z => {if(zMap.contains(z)) zMap += z -> (zMap(z).map(opList => opList :+ newOp) ) else zMap += z ->  List(List(newOp)) } ) // adds the operation to the end of all existing operation lists mapped to the active zones
             collector.opWithID(newOp.name, Seq(newOp.attributes merge h),newId) // adds the operation to the collector
-            println("\n adding op to collector \n    "   + newOp.name +", " + newOp.id + "\n")
 
             ss = List(if (!ss.isEmpty) Sequence((ss(0).sop :+ SOP(newOp))) else Sequence(List(SOP(newOp))) ) // Adds the operation to the SOP that will later be sent back from the function
           case none =>
