@@ -13,6 +13,8 @@ import sp.domain.Logic._
 import monocle.macros._
 import monocle.Lens
 
+import org.scalajs.dom.window
+
 
 object TestModelInControl {
   def getTestModel: List[IDAble] = {
@@ -143,6 +145,7 @@ object ModelsInControlWidget {
           <.th("name"),
           <.th("version"),
           <.th("number of items"),
+          <.th("rename"),
           <.th("put dummy items"),
           <.th("preview"),
           <.th("delete")
@@ -168,6 +171,17 @@ object ModelsInControlWidget {
                 <.td(s.modelState.modelInfo.get(m).map(_.name).getOrElse("").toString),
                 <.td(s.modelState.modelInfo.get(m).map(_.version).getOrElse(-1).toString),
                 <.td(s.modelState.modelInfo.get(m).map(_.noOfItems).getOrElse(-1).toString),
+                <.td(
+                  <.button(
+                    ^.className := "btn btn-sm",
+                    ^.title := "Change name of model",
+                    ^.onClick --> Callback {
+                      val newName = window.prompt("Name your model", "My Model")
+                      sendToModel(m, mapi.UpdateModelAttributes(Some(newName), None)).runNow()
+                    },
+                    <.i(^.className := "fa fa-pencil")
+                  )
+                ),
                 <.td(
                   <.button(
                     ^.className := "btn btn-sm",

@@ -265,7 +265,7 @@ object ModelChoiceDropdown {
 
   val component = ScalaComponent.builder[Props]("ModelChoiceDropdown")
     .render_P { p =>
-      val contents = p.proxy().models.toList.map(kv => <.div(kv._1.toString, ^.onClick --> p.cb(kv._1)))
+      val contents = p.proxy().models.toList.map(kv => <.div(kv._2, ^.onClick --> p.cb(kv._1)))
       SPWidgetElements.dropdown("Choose Model", contents)
     }
     .build
