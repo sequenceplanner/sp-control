@@ -9,9 +9,13 @@ import sp.domain.logic.StructLogic._
 import spgui.{ SPWidget, SPWidgetBase }
 import spgui.components.DragAndDrop.{ DataOnDrag, OnDataDrop }
 import spgui.components.{ Icon, SPWidgetElements }
-import spgui.communication.BackendCommunication
 import spgui.communication.APIComm
+import spgui.communication.APIComm.StreamHelper
 import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import japgolly.scalajs.react.CallbackTo.ReactExt_CallbackToFuture
 
 
 object ItemExplorer {
@@ -20,18 +24,17 @@ object ItemExplorer {
 
   def makeMess(h: SPHeader, b: mapi.Request) = SPMessage.make[SPHeader, mapi.Request](h, b)
 
-  class ModelComm(val modelID: ID, onMessage: (SPHeader, mapi.Response) => Unit) extends
+  class ModelComm(val modelID: ID) extends
     APIComm[mapi.Request, mapi.Response](
       requestTopic = mapi.topicRequest,
       responseTopic = mapi.topicResponse,
       from = "ItemExplorer",
       to = modelID.toString,
       onChannelUp = None,
-      onMessage = Some(onMessage)
+      onMessage = None
     )
 
   case class ItemExplorerState(
-                                currentModel: Option[ID] = None,
                                 currentMComm: Option[ModelComm] = None,
                                 newItems: List[IDAble] = Nil,
                                 structs: List[Struct] = Nil,
@@ -43,23 +46,24 @@ object ItemExplorer {
 
   class ItemExplorerBackend($: BackendScope[SPWidgetBase, ItemExplorerState]) {
 
-    def handleMess(h: SPHeader, b: mapi.Response): Unit = {
-      val res = b match {
-        case tm@mapi.SPItems(items) => {
-          val structs = items.filter(_.isInstanceOf[Struct]).asInstanceOf[List[Struct]]
-          val notStructs = items.filterNot(_.isInstanceOf[Struct]).map(s => s.id -> s).toMap
-          if (structs.nonEmpty) $.modState(_.copy(structs = structs))
-          else if (notStructs.nonEmpty) $.modState(s => s.copy(retrievedItems = s.retrievedItems ++ notStructs))
-          else Callback.empty
-        }
-        case x => Callback.empty
-      }
-      res.runNow()
-    }
-
     def sendToModel(mess: mapi.Request): Callback = {
       val currentMComm = $.state.map(_.currentMComm)
       currentMComm.flatMap(op => op.map(comm => Callback(comm.request(mess))).getOrElse(Callback.empty))
+    }
+
+    def request(req: mapi.Request): Future[mapi.Response] = {
+      val mcomm = $.state.map(_.currentMComm.get).toFuture
+      mcomm.flatMap(_.request(req).takeFirstResponse.map(_._2))
+    }
+
+    def retrieveItems(ids: List[ID]) = Callback.future {
+      val future = request(mapi.GetItems(ids))
+      future.map {
+        case x: mapi.SPItems =>
+          $.modState(s => s.copy(retrievedItems = s.retrievedItems ++ x.items.map(it => it.id -> it).toMap))
+        case _ =>
+          Callback.empty
+      }
     }
 
     /*
@@ -78,14 +82,15 @@ object ItemExplorer {
     }
 
     def setCurrentModel(id: ID) = { // TODO dont do anything if already active
-      val mcomm = new ModelComm(id, handleMess)
-      val modifyState = $.setState(
-        ItemExplorerState(
-          currentModel = Some(id),
-          currentMComm = Some(mcomm)
-        )
-      )
-      val requestStructs = Callback(mcomm.request(mapi.GetStructures))
+      val mcomm = new ModelComm(id)
+      val modifyState = $.setState(ItemExplorerState(currentMComm = Some(mcomm)))
+      val requestStructs = Callback.future {
+        val f = mcomm.request(mapi.GetStructures).takeFirstResponse
+        f.map(_._2).map {
+          case b: mapi.SPItems => $.modState(s => s.copy(structs = b.items.asInstanceOf[List[Struct]]))
+          case _ => Callback.empty
+        }
+      }
       modifyState >> requestStructs
     }
 
@@ -108,14 +113,13 @@ object ItemExplorer {
 
     def toggleStruct(id: ID) = {
       val childIDs = $.state.map(_.structs.find(_.id == id).get.items.map(_.item).toList)
-      val askForStructNodes = childIDs.flatMap(ids => sendToModel(mapi.GetItems(ids)))
-      toggleID(id) >> askForStructNodes
+      val fetchItems = childIDs.flatMap(retrieveItems(_))
+      toggleID(id) >> fetchItems
     }
 
     def toggleStructNode(id: ID, struct: Struct) = {
-      val childIDs = struct.getChildren(id).map(_.item)
-      val askForItems = sendToModel(mapi.GetItems(childIDs.toList))
-      toggleID(id) >> askForItems
+      val childIDs = struct.getChildren(id).map(_.item).toList
+      toggleID(id) >> retrieveItems(childIDs)
     }
 
     def handleDrop(draggedNodeID: ID, receivingNodeID: ID) = {
