@@ -115,6 +115,13 @@ object ItemExplorer {
 
     def toggleID(id: ID) = $.modState(s => s.copy(expandedIDs = s.expandedIDs + id -- s.expandedIDs.intersect(Set(id))))
 
+    def toggleAll = {
+      val toggleStructs = $.state.map(_.structs).flatMap(list => Callback.sequence(list.map(s => toggleStruct(s.id))))
+      val allNodeIDs = $.state.map(_.structs.flatMap(_.items.map(_.nodeID)))
+      val toggleNodes = allNodeIDs.flatMap(ids => $.modState(s => s.copy(expandedIDs = s.expandedIDs ++ ids.toSet)))
+      toggleStructs >> toggleNodes
+    }
+
     def toggleStruct(id: ID) = {
       val childIDs = $.state.map(_.structs.find(_.id == id).get.items.map(_.item).toList)
       val fetchItems = childIDs.flatMap(retrieveItems(_))
@@ -187,6 +194,7 @@ object ItemExplorer {
     def renderOptionPane(state: ItemExplorerState) =
       <.div(
         ^.className := Style.optionPane.htmlClass,
+        SPWidgetElements.button(Icon.expand, toggleAll),
         SPWidgetElements.dropdown(
           Icon.plus,
           ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind)))
