@@ -15,7 +15,6 @@ import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import japgolly.scalajs.react.CallbackTo.ReactExt_CallbackToFuture
 
 
 object ItemExplorer {
@@ -39,7 +38,7 @@ object ItemExplorer {
                                 newItems: List[IDAble] = Nil,
                                 structs: List[Struct] = Nil,
                                 expandedIDs: Set[ID] = Set(),
-                                hiddenIDs: Set[ID] = Set(),
+                                hiddenIDs: Map[ID, Set[ID]] = Map(), // structID -> structNodeIDs
                                 retrievedItems: Map[ID, IDAble] = Map(),
                                 modelIDFieldString: String = "modelID"
                               )
@@ -87,26 +86,31 @@ object ItemExplorer {
       val requestStructs = Callback.future {
         val f = mcomm.request(mapi.GetStructures).takeFirstResponse
         f.map(_._2).map {
-          case b: mapi.SPItems => $.modState(s => s.copy(structs = b.items.asInstanceOf[List[Struct]]))
+          case b: mapi.SPItems =>
+            $.modState { s =>
+              s.copy(
+                structs = b.items.asInstanceOf[List[Struct]],
+                hiddenIDs = s.hiddenIDs ++ b.items.map(_.id -> Set[ID]()).toMap
+              )
+            }
           case _ => Callback.empty
         }
       }
       modifyState >> requestStructs
     }
 
-    def filterItems(filterString: String, struct: Struct) = {
-      def filteredNodeIDs(filterString: String, struct: Struct) = { // TODO move to backend, where it has access to items and is faster
-        val matchingNodes = struct.items.filter(_.nodeID.toString.contains(filterString.toLowerCase)).map(_.nodeID)
-        def getParents(id: ID): Set[ID] = {
-          val parentOp = struct.nodeMap(id).parent
-          if (parentOp.isDefined) getParents(parentOp.get) + parentOp.get
-          else Set[ID]()
-        }
-        val parentsOfMatchingNodes: Set[ID] = matchingNodes.flatMap(getParents)
-        struct.items.map(_.nodeID) -- matchingNodes -- parentsOfMatchingNodes
+    def filterAllStructs(query: String) = {
+      $.state.map(_.structs).flatMap(list => Callback.sequence(list.map(struct => filterItems(query, struct))))
+    }
+
+    def filterItems(query: String, struct: Struct) = Callback.future {
+      val future = request(mapi.StructFilter(struct.id, query))
+      future.map {
+        case mapi.FilteredStruct(hiddenNodes) =>
+          $.modState(s => s.copy(hiddenIDs = s.hiddenIDs + (struct.id -> hiddenNodes)))
+        case _ =>
+          Callback.empty
       }
-      val hiddenIDs = filteredNodeIDs(filterString, struct)
-      $.modState(s => s.copy(hiddenIDs = hiddenIDs))
     }
 
     def toggleID(id: ID) = $.modState(s => s.copy(expandedIDs = s.expandedIDs + id -- s.expandedIDs.intersect(Set(id))))
@@ -188,7 +192,7 @@ object ItemExplorer {
           ItemKinds.list.map(kind => <.div(kind, ^.onClick --> createItem(kind)))
         ),
         avmcConnection(proxy => ModelChoiceDropdown(proxy, id => setCurrentModel(id))),
-        SPWidgetElements.TextBox("Filter...", str => filterItems(str, state.structs(0)))
+        SPWidgetElements.TextBox("Filter...", str => filterAllStructs(str))
       )
 
     def renderNewItems(s: ItemExplorerState) =
@@ -210,7 +214,7 @@ object ItemExplorer {
       )
 
     def renderStruct(struct: Struct, state: ItemExplorerState) = {
-      val rootItemsToRender = struct.items.filter(sn => sn.parent.isEmpty && !state.hiddenIDs.contains(sn.nodeID))
+      val rootItemsToRender = struct.items.filter(sn => sn.parent.isEmpty && !state.hiddenIDs(struct.id).contains(sn.nodeID))
       <.div(
         <.div(
           Icon.folder,
@@ -227,7 +231,7 @@ object ItemExplorer {
 
     def renderStructNode(structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
       val renderedItemOp = state.retrievedItems.get(structNode.item).map(renderItem(_, structNode, struct, state))
-      val childrenToRender = struct.getChildren(structNode.nodeID).filterNot(sn => state.hiddenIDs.contains(sn.nodeID))
+      val childrenToRender = struct.getChildren(structNode.nodeID).filterNot(sn => state.hiddenIDs(struct.id).contains(sn.nodeID))
       <.div(
         <.div(
           renderedItemOp.getOrElse(structNode.item.toString),
