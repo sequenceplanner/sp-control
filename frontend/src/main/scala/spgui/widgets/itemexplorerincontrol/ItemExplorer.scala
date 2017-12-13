@@ -123,7 +123,7 @@ object ItemExplorer {
     }
 
     def toggleStruct(id: ID) = {
-      val childIDs = $.state.map(_.structs.find(_.id == id).get.items.map(_.item).toList)
+      val childIDs = $.state.map(_.structs.find(_.id == id).get.items.collect{case x if x.parent.isEmpty => x.item}.toList)
       val fetchItems = childIDs.flatMap(retrieveItems(_))
       toggleID(id) >> fetchItems
     }
