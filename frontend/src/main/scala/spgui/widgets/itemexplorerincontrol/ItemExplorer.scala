@@ -272,6 +272,71 @@ object ItemExplorer {
   def apply() = SPWidget(spwb => itemExplorerComponent(spwb))
 }
 
+object StructView {
+  case class Props(
+                    struct: Struct,
+                    items: Map[ID, IDAble],
+                    filteredNodes: Set[ID],
+                    handleDrop: Option[(ID, ID) => Callback],
+                    retrieveItem: ID => Future[IDAble],
+                    expanded: Boolean
+                  )
+  case class State(
+                    items: Map[ID, IDAble],
+                    expandedNodes: Set[ID]
+                  )
+
+  class Backend($: BackendScope[Props, State]) {
+
+    def toggle(id: ID) = Callback.log("tried to toggle something, not implemented yet")
+
+    def render(p: Props, s: State) = {
+      val dragHandling = p.handleDrop.map { handleDropFunction =>
+        OnDataDrop(draggedStr => handleDropFunction(ID.makeID(draggedStr).get, p.struct.id))
+      }.getOrElse(EmptyVdom)
+      val rootItemsToRender = p.struct.items.filter(sn => sn.parent.isEmpty && !p.filteredNodes.contains(sn.nodeID))
+
+      <.div(
+        <.div(^.onClick --> toggle(p.struct.id), dragHandling, Icon.folder, p.struct.name),
+        <.ul(
+          ^.className := Style.ul.htmlClass,
+          rootItemsToRender.toTagMod(node => <.li(renderNode(node, p, s)))
+        ).when(s.expandedNodes.contains(p.struct.id))
+      )
+    }
+
+    def renderNode(node: StructNode, p: Props, s: State): TagMod = {
+      //val renderedItemOp = s.items.get(node.item).map(renderItem(_, node, p.struct, s))
+      val dragHandling = p.handleDrop.map { handleDropFunction =>
+        List(
+          DataOnDrag(node.nodeID.toString),
+          OnDataDrop(draggedStr => handleDropFunction(ID.makeID(draggedStr).get, node.nodeID))
+        ).toTagMod
+      }.getOrElse(EmptyVdom)
+      val childrenToRender = p.struct.getChildren(node.nodeID).filterNot(sn => p.filteredNodes.contains(sn.nodeID))
+
+      <.div(
+        //<.div(renderedItemOp.getOrElse(node.item.toString), dragHandling),
+        <.div(renderNodeItem(node, p, s), dragHandling),
+        <.ul(
+          ^.className := Style.ul.htmlClass,
+          childrenToRender.toTagMod(sn => <.li(renderNode(sn, p, s)))
+        ).when(s.expandedNodes.contains(node.nodeID))
+      )
+    }
+
+    def renderNodeItem(node: StructNode, p: Props, s: State) = {
+      val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleRight else Icon.toggleDown
+      val itemOp = s.items.get(node.nodeID)
+      val itemIcon = itemOp.map(ItemKinds.icon(_)).getOrElse(Icon.question)
+      val shownName = itemOp.map(_.name).getOrElse(node.item.toString)
+
+      <.div(<.span(arrowIcon, ^.onClick --> toggle(node.nodeID)), itemIcon, shownName)
+    }
+  }
+
+}
+
 object ModelChoiceDropdown {
   case class Props(proxy: ModelProxy[AvailableModels], cb: ID => Callback)
 
