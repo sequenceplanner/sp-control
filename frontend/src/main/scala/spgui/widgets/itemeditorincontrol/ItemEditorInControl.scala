@@ -3,6 +3,8 @@ package spgui.widgets.itemeditorincontrol
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 
+import diode.react.ModelProxy
+
 import scalacss.ScalaCssReact._
 import scalajs.js
 import js.Dynamic.{literal => l}
@@ -10,21 +12,21 @@ import js.JSON
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.DragAndDrop.OnDataDrop
 import spgui.components.SPWidgetElements
-import spgui.communication._
+import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
+import spgui.communication.APIComm
+import spgui.communication.APIComm._
 import sp.domain._
 import sp.domain.Logic._
 import java.util.UUID
 
-import spgui.communication._
-import spgui.communication.APIComm._
-
 import scala.util.{Try,Success, Failure}
 
 object ItemEditorInControl {
-  case class State(currentItems: List[(ID,IDAble)] = List(), mode: String = "code",
-    availableModels: Map[ID,String] = Map())
 
-  class Backend($: BackendScope[SPWidgetBase, State]) {
+  case class Props(proxy: ModelProxy[AvailableModels])
+  case class State(currentItems: List[(ID,IDAble)] = List(), mode: String = "code")
+
+  class Backend($: BackendScope[Props, State]) {
     import scala.concurrent.ExecutionContext.Implicits.global
     import sp.models.{APIModel => apimodel}
     val modelcomm = new APIComm[apimodel.Request, apimodel.Response](apimodel.topicRequest,
@@ -52,8 +54,6 @@ object ItemEditorInControl {
         case x =>
       }
     }
-
-    spgui.communication.AvailableModelsHelper.addCB(models => $.modState(s => s.copy(availableModels = models)))
 
     def saveItems(s: State) = {
       for {
@@ -122,16 +122,16 @@ object ItemEditorInControl {
       }
     }
 
-    def getOneModel(s: State): Option[ID] = {
+    def getOneModel(p: Props, s: State): Option[ID] = {
       // if we only have items loaded from one model, use that model id
       // if there only exist one available model, use that id
       // otherwise, user needs to input
       if(s.currentItems.nonEmpty && s.currentItems.tail.forall(_._1 == s.currentItems.head._1)) s.currentItems.headOption.map(_._1)
-      else if(s.availableModels.size == 1) s.availableModels.headOption.map(_._1)
+      else if(p.proxy().models.size == 1) p.proxy().models.headOption.map(_._1)
       else None
     }
 
-    def render(spwb: SPWidgetBase, state: State) =
+    def render(props: Props, state: State) =
       <.div(^.height := "100%", // TODO: this is ugly
         OnDataDrop(idAsStr => Callback(ID.makeID(idAsStr).foreach(requestItem))),
 
@@ -150,10 +150,10 @@ object ItemEditorInControl {
         SPWidgetElements.dropdown(
           <.i(^.className := "fa fa-plus"),
           newItems.map{m =>
-            getOneModel(state) match {
+            getOneModel(props, state) match {
               case Some(id) => <.div(m, ^.onClick --> addNewItem(id, m))
               case None =>
-                <.div(s"Create ${m} in ", state.availableModels.toSeq.map {
+                <.div(s"Create ${m} in ", props.proxy().models.toSeq.map {
                   case (id, name) => <.a(s"${name} (${id.toString.take(5)}...)", ^.onClick --> addNewItem(id, m))
                 }.mkTagMod(", "))
             }
@@ -201,12 +201,14 @@ object ItemEditorInControl {
     }
   }
 
-  private val component = ScalaComponent.builder[SPWidgetBase]("ItemEditor")
+  val avmcConnection = AvailableModelsCircuit.connect(x => x)
+
+  private val component = ScalaComponent.builder[Props]("ItemEditor")
     .initialState(State())
     .renderBackend[Backend]
     .componentDidMount(_.backend.onMount)
     .componentDidUpdate(_.backend.onUpdate)
     .build
 
-  def apply() = SPWidget(spwb => component(spwb))
+  def apply() = SPWidget(spwb => avmcConnection(proxy => component(Props(proxy))))
 }
