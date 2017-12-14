@@ -5,8 +5,7 @@ import japgolly.scalajs.react.vdom.html_<^._
 import sp.domain._
 import sp.domain.logic.StructLogic._
 import sp.models.{APIModel => mapi}
-import spgui.{SPWidget, SPWidgetBase}
-import spgui.components.DragAndDrop.DataOnDrag
+import spgui.SPWidget
 import spgui.components.{Icon, SPWidgetElements}
 import spgui.communication.APIComm.StreamHelper
 
@@ -158,9 +157,11 @@ object ItemExplorer {
         ^.className := Style.newItems.htmlClass,
         <.ul(
           <.li("New Items: "),
-          s.newItems.toTagMod(idAble => <.li(DataOnDrag(idAble.id.toString), ItemKinds.icon(idAble), idAble.name))
+          s.newItems.toTagMod(idAble => <.li(DraggingTagMod.onDrag(idAble.id, None), ItemKinds.icon(idAble), idAble.name))
         )
       ).when(!s.newItems.isEmpty)
+
+    def handleDropz(msg: DragNDropMessage) = Callback.log(msg.toString)
 
     def renderStructs(s: State) =
       <.div(
@@ -172,7 +173,7 @@ object ItemExplorer {
               StructView(
                 struct,
                 retrieveItems = Some(itemRequest),
-                handleDrop = Some(handleDrop),
+                handleDrop = Some(handleDropz),
                 filteredNodes = s.hiddenIDs(struct.id),
                 expanded = s.expanded
               )
