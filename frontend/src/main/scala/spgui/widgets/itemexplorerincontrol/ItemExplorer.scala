@@ -40,7 +40,8 @@ object ItemExplorer {
                                 expandedIDs: Set[ID] = Set(),
                                 hiddenIDs: Map[ID, Set[ID]] = Map(), // structID -> structNodeIDs
                                 retrievedItems: Map[ID, IDAble] = Map(),
-                                modelIDFieldString: String = "modelID"
+                                modelIDFieldString: String = "modelID",
+                                expanded: Boolean = false
                               )
 
   class ItemExplorerBackend($: BackendScope[SPWidgetBase, ItemExplorerState]) {
@@ -53,6 +54,15 @@ object ItemExplorer {
     def request(req: mapi.Request): Future[mapi.Response] = {
       val mcomm = $.state.map(_.currentMComm.get).toFuture
       mcomm.flatMap(_.request(req).takeFirstResponse.map(_._2))
+    }
+
+    def itemRequest(ids: Set[ID]): Future[Set[IDAble]] = {
+      val mcomm = $.state.map(_.currentMComm.get).toFuture
+      val futureToRes = mcomm.flatMap(_.request(mapi.GetItems(ids.toList)).takeFirstResponse.map(_._2))
+      futureToRes.map {
+        case mapi.SPItems(items) => items.toSet
+        case _ => Set[IDAble]()
+      }
     }
 
     def retrieveItems(ids: List[ID]) = Callback.future {
@@ -115,12 +125,15 @@ object ItemExplorer {
 
     def toggleID(id: ID) = $.modState(s => s.copy(expandedIDs = s.expandedIDs + id -- s.expandedIDs.intersect(Set(id))))
 
+    /*
     def toggleAll = {
       val toggleStructs = $.state.map(_.structs).flatMap(list => Callback.sequence(list.map(s => toggleStruct(s.id))))
       val allNodeIDs = $.state.map(_.structs.flatMap(_.items.map(_.nodeID)))
       val toggleNodes = allNodeIDs.flatMap(ids => $.modState(s => s.copy(expandedIDs = s.expandedIDs ++ ids.toSet)))
       toggleStructs >> toggleNodes
     }
+    */
+    def toggleAll = $.modState(s => s.copy(expanded = !s.expanded))
 
     def toggleStruct(id: ID) = {
       val childIDs = $.state.map(_.structs.find(_.id == id).get.items.collect{case x if x.parent.isEmpty => x.item}.toList)
@@ -134,6 +147,7 @@ object ItemExplorer {
     }
 
     def handleDrop(draggedNodeID: ID, receivingNodeID: ID) = {
+      // TODO implement moving of node to root level of struct
       $.state.map(_.newItems.find(_.id == draggedNodeID)).flatMap { newItemOp => // if item among new items
         newItemOp.map(moveNewItem(_, receivingNodeID))
           .getOrElse { // else move node within struct or between structs
@@ -217,50 +231,18 @@ object ItemExplorer {
         ^.className := Style.structsView.htmlClass,
         <.ul(
           ^.className := Style.ul.htmlClass,
-          s.structs.toTagMod(struct => <.li(renderStruct(struct, s)))
+          s.structs.toTagMod { struct =>
+            <.li(
+              StructView(
+                struct,
+                retrieveItems = Some(itemRequest),
+                handleDrop = Some(handleDrop),
+                filteredNodes = s.hiddenIDs(struct.id),
+                expanded = s.expanded
+              )
+            )
+          }
         )
-      )
-
-    def renderStruct(struct: Struct, state: ItemExplorerState) = {
-      val rootItemsToRender = struct.items.filter(sn => sn.parent.isEmpty && !state.hiddenIDs(struct.id).contains(sn.nodeID))
-      <.div(
-        <.div(
-          Icon.folder,
-          struct.name,
-          ^.onClick --> toggleStruct(struct.id),
-          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, struct.id))
-        ),
-        <.ul(
-          ^.className := Style.ul.htmlClass,
-          rootItemsToRender.toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
-        ).when(state.expandedIDs.contains(struct.id))
-      )
-    }
-
-    def renderStructNode(structNode: StructNode, struct: Struct, state: ItemExplorerState): TagMod = {
-      val renderedItemOp = state.retrievedItems.get(structNode.item).map(renderItem(_, structNode, struct, state))
-      val childrenToRender = struct.getChildren(structNode.nodeID).filterNot(sn => state.hiddenIDs(struct.id).contains(sn.nodeID))
-      <.div(
-        <.div(
-          renderedItemOp.getOrElse(structNode.item.toString),
-          DataOnDrag(structNode.nodeID.toString),
-          OnDataDrop(draggedStr => handleDrop(ID.makeID(draggedStr).get, structNode.nodeID))
-        ),
-        <.ul(
-          ^.className := Style.ul.htmlClass,
-          childrenToRender.toTagMod(sn => <.li(renderStructNode(sn, struct, state)))
-        ).when(state.expandedIDs.contains(structNode.nodeID))
-      )
-    }
-
-    def renderItem(item: IDAble, structNode: StructNode, struct: Struct, state: ItemExplorerState) =
-      <.div(
-        <.span(
-          if (state.expandedIDs.contains(structNode.nodeID)) Icon.toggleRight else Icon.toggleDown,
-          ^.onClick --> toggleStructNode(structNode.nodeID, struct)
-        ),
-        ItemKinds.icon(item),
-        item.name
       )
   }
 
@@ -276,28 +258,39 @@ object StructView {
   case class Props(
                     struct: Struct,
                     items: Map[ID, IDAble],
-                    filteredNodes: Set[ID],
+                    retrieveItems: Option[Set[ID] => Future[Set[IDAble]]],
                     handleDrop: Option[(ID, ID) => Callback],
-                    retrieveItem: ID => Future[IDAble],
+                    filteredNodes: Set[ID],
                     expanded: Boolean
                   )
   case class State(
                     items: Map[ID, IDAble],
-                    expandedNodes: Set[ID]
+                    expandedNodes: Set[ID] = Set()
                   )
 
   class Backend($: BackendScope[Props, State]) {
 
-    def toggle(id: ID) = Callback.log("tried to toggle something, not implemented yet")
+    def toggle(id: ID, childrenIDs: Set[ID]) = {
+      val modNodes = $.modState(s => s.copy(expandedNodes = s.expandedNodes + id -- s.expandedNodes.intersect(Set(id))))
+      retrieveItems(childrenIDs) >> modNodes
+    }
+
+    def retrieveItems(ids: Set[ID]) = {
+      def addToState(items: Set[IDAble]) =
+        $.modState(s => s.copy(items = s.items ++ items.map(item => item.id -> item)))
+      val future = $.props.map(_.retrieveItems.map(_(ids).map(addToState)).getOrElse(Future(Callback.empty)))
+      future.flatMap(Callback.future(_))
+    }
 
     def render(p: Props, s: State) = {
       val dragHandling = p.handleDrop.map { handleDropFunction =>
         OnDataDrop(draggedStr => handleDropFunction(ID.makeID(draggedStr).get, p.struct.id))
       }.getOrElse(EmptyVdom)
       val rootItemsToRender = p.struct.items.filter(sn => sn.parent.isEmpty && !p.filteredNodes.contains(sn.nodeID))
+      lazy val directChildren = p.struct.items.filter(_.parent == None).map(_.item)
 
       <.div(
-        <.div(^.onClick --> toggle(p.struct.id), dragHandling, Icon.folder, p.struct.name),
+        <.div(^.onClick --> toggle(p.struct.id, directChildren), dragHandling, Icon.folder, p.struct.name),
         <.ul(
           ^.className := Style.ul.htmlClass,
           rootItemsToRender.toTagMod(node => <.li(renderNode(node, p, s)))
@@ -306,7 +299,6 @@ object StructView {
     }
 
     def renderNode(node: StructNode, p: Props, s: State): TagMod = {
-      //val renderedItemOp = s.items.get(node.item).map(renderItem(_, node, p.struct, s))
       val dragHandling = p.handleDrop.map { handleDropFunction =>
         List(
           DataOnDrag(node.nodeID.toString),
@@ -316,7 +308,6 @@ object StructView {
       val childrenToRender = p.struct.getChildren(node.nodeID).filterNot(sn => p.filteredNodes.contains(sn.nodeID))
 
       <.div(
-        //<.div(renderedItemOp.getOrElse(node.item.toString), dragHandling),
         <.div(renderNodeItem(node, p, s), dragHandling),
         <.ul(
           ^.className := Style.ul.htmlClass,
@@ -327,14 +318,44 @@ object StructView {
 
     def renderNodeItem(node: StructNode, p: Props, s: State) = {
       val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleRight else Icon.toggleDown
-      val itemOp = s.items.get(node.nodeID)
+      val itemOp = s.items.get(node.item)
       val itemIcon = itemOp.map(ItemKinds.icon(_)).getOrElse(Icon.question)
       val shownName = itemOp.map(_.name).getOrElse(node.item.toString)
+      lazy val directChildren = p.struct.getChildren(node.nodeID).map(_.item)
 
-      <.div(<.span(arrowIcon, ^.onClick --> toggle(node.nodeID)), itemIcon, shownName)
+      <.div(<.span(arrowIcon, ^.onClick --> toggle(node.nodeID, directChildren)), itemIcon, shownName)
     }
   }
 
+  val component = ScalaComponent.builder[Props]("StructView")
+    .initialStateFromProps(p => State(p.items))
+    .renderBackend[Backend]
+    .componentWillReceiveProps { scope => // TODO retrieve all items
+      val nextExpanded = scope.nextProps.expanded
+      val expandedChanged = scope.currentProps.expanded != nextExpanded
+      if (expandedChanged) {
+        if (nextExpanded) {
+          val allNodeIDs = scope.currentProps.struct.items.map(_.nodeID)
+          val structID = scope.currentProps.struct.id
+          scope.modState(_.copy(expandedNodes = allNodeIDs + structID))
+        } else {
+          scope.modState(_.copy(expandedNodes = Set()))
+        }
+      }
+      else {
+        Callback.empty
+      }
+    }
+    .build
+
+  def apply(
+             struct: Struct,
+             items: Map[ID, IDAble] = Map(),
+             retrieveItems: Option[Set[ID] => Future[Set[IDAble]]] = None,
+             handleDrop: Option[(ID, ID) => Callback] = None,
+             filteredNodes: Set[ID] = Set(),
+             expanded: Boolean = false
+           ) = component(Props(struct, items, retrieveItems, handleDrop, filteredNodes, expanded))
 }
 
 object ModelChoiceDropdown {
