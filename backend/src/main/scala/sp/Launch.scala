@@ -24,6 +24,7 @@ object Launch extends App {
     system.actorOf(ExampleService.props, APIExampleService.service)
     system.actorOf(SPModelImport.props, APISPModelImport.service)
     system.actorOf(VolvoScheduler.props, APIVolvoScheduler.service)
+    system.actorOf(BDDVerifier.props, APIBDDVerifier.service)
 
     // patrik model dsl
     system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")

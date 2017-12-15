@@ -41,9 +41,13 @@ class VolvoScheduler extends Actor
           case APIVolvoScheduler.getCases(sopID, ids) =>
             spHeader = SPHeader(from = "VolvoScheduler", to = "VolvoSchedulerWidget", reply = SPValue("VolvoScheduler"))
             sendAnswer(SPMessage.makeJson(spHeader, gotCases(GetCases.cases(sopID, ids))))
-          case APIVolvoScheduler.calculate(sopID, ids, neglectedCases) =>
-            synthOpt(sopID : ID, ids : List[IDAble], neglectedCases : Set[ID])
-            spHeader = SPHeader(from = "VolvoScheduler", to = "VolvoSchedulerWidget", reply = SPValue("VolvoScheduler"))
+          case APIVolvoScheduler.calculate(modelID, sopID, ids, neglectedCases) =>
+            import scala.concurrent.ExecutionContext.Implicits.global
+            for{res <- synthOpt(sopID : ID, ids : List[IDAble], neglectedCases : Set[ID])}
+            yield {
+              spHeader = SPHeader(from = "VolvoScheduler", to = modelID, reply = SPValue("VolvoScheduler"))
+              sendUpdatedModel(SPMessage.makeJson(spHeader, mapi.PutItems(res._1)))
+            }
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
       }

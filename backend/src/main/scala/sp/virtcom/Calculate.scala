@@ -106,7 +106,7 @@ class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
 
 
 object Calculate extends cal
-trait cal  extends  ExtendIDables{
+trait cal  extends ExtendIDables{
 
   def synthOpt(SopID : ID, ids : List[IDAble], neglectedCases : Set[ID]) ={
     val checkedTime = true
@@ -315,17 +315,12 @@ trait cal  extends  ExtendIDables{
       }.sortBy(_._1)
 
     } yield {
-      val resAttr = ""//SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
-      //println("\n numstates:    " +numstates)
-      //println("\n cpCompl:    " +cpCompl)
-      //println("\n cpTime:    " +cpTime)
-
-      //println("\n ids_merged:    " +ids_merged)
-      //println("\n sops:    " +sops)
-      //println("\n bddName:    " +bddName)
-      //println("\n ids_merged:    " +ids_merged)
-      //println("\n sops.map(_._2):    " +sops.map(_._2))
+      val resAttr = SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
       // Todo: return results
+
+      val snids = ids_merged.map(i => StructNode(i.id)) ++ sops.map(_._2).map(s => StructNode(s.id))
+
+      (ids_merged ++ sops.map(_._2) :+ Struct("VRS_"+ "Solved" , snids.toSet), resAttr)
       //replyTo ! Response(ids_merged2 ++ sops.map(_._2), resAttr, rnr.req.service, rnr.req.reqID)
       //terminate(progress)
     } // Create a response message and send it on the bus "back to the GUI"

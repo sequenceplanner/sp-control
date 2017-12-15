@@ -15,7 +15,7 @@ object APIVolvoScheduler {
   case class generateSOPs(modelID : String, schedules : Set[ID], ids : List[IDAble] ) extends Request
   case class getCases(SopID : ID, ids : List[IDAble]) extends  Request
   case class gotCases(map: Map[String, List[Operation]]) extends Response
-  case class calculate(SopID : ID, ids : List[IDAble], neglectedCases : Set[ID]) extends Request
+  case class calculate(modelID : String, SopID : ID, ids : List[IDAble], neglectedCases : Set[ID]) extends Request
 
   object Formats {
     implicit val fgenerateSOPs: JSFormat[generateSOPs] = Json.format[generateSOPs]

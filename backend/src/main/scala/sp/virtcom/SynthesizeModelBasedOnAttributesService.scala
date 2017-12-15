@@ -24,7 +24,6 @@ import sp.patrikmodel.ExtendIDablesWrapper
   */
 
 // Todo: add BDD
-//case class RegisterBDD(name: String, bdd: Map[String, Int] => Option[Boolean], service: String) //extends ServiceCommand
 
 object Synthesize extends SynthesizeModel
 trait SynthesizeModel {
@@ -80,7 +79,7 @@ trait SynthesizeModel {
         acc merge SPAttributes("synthesizedGuards" -> SPAttributes(event -> guard))
       }
       lazy val nbrOfStates = SPAttributes("nbrOfStatesInSupervisor" -> ptmwModule.nbrOfStates())
-
+    println("nbrOfStates   : " + nbrOfStates)
     println(s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
     if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
 
@@ -93,7 +92,7 @@ trait SynthesizeModel {
       lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
       lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
 
-
+    APIBDDVerifier.RegisterBDD(moduleName, (x => ptmwModule.containsState(x)))
     (updatedOps, spAttributes)
       // hack: add bdd to bdd-keeper
       //serviceHandler ! RegisterBDD(moduleName, (x => ptmwModule.containsState(x)), "BDDVerifier")

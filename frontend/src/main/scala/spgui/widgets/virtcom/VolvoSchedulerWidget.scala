@@ -8,15 +8,16 @@ import org.scalajs.dom
 import org.scalajs.dom.html
 import play.api.libs.json.Json
 import sp.domain._
+import sp.domain.Logic._
 import sp.virtcom.{APIVolvoScheduler => api}
 import sp.virtcom.APIVolvoScheduler.{calculate, generateSOPs, getCases}
 import sp.models.{APIModel => mapi, APIModelMaker => mmapi}
 import spgui.communication._
 import spgui.components.{Icon, SPWidgetElements}
 
-object VolvoSchedulerWidget {
+object VolvoSchedulerWidget{
 
-   case class State(modelID : String, selectedIDs : Set[ID], idables : List[IDAble], selectedIdables : List[IDAble], sopId : ID, cases : Map[String, List[Operation]], neglectedCases : Set[ID])
+   case class State(modelID : String, selectedIDs : Set[ID], idables : List[IDAble], selectedIdables : List[IDAble], sopId : ID, cases : Map[String, List[Operation]], neglectedCases : Set[ID], selectedThingDs: Map[String,(String,Int)])
   var modelId =""
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -63,11 +64,14 @@ object VolvoSchedulerWidget {
         ),
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick  --> sendToVolvoScheduler(calculate(s.sopId , s.idables, s.neglectedCases)),
+          ^.onClick  --> sendToVolvoScheduler(calculate(s.modelID, s.sopId , s.idables, s.neglectedCases)),
           "Synthesize & solve"
         )
       ,
-        renderCases(s)
+        <.br(),
+        renderCases(s),
+        <.br(),
+        renderThings(s)
       )
     }
 
@@ -118,6 +122,7 @@ object VolvoSchedulerWidget {
       )
     }
 
+
     def renderCases(s: State) = {
       s.cases.map(c=>
         SPWidgetElements.dropdown(
@@ -133,11 +138,39 @@ object VolvoSchedulerWidget {
       ).toTagMod
     }
 
+    def renderThings(s : State) = {
+      s.idables.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
+        .map(thing =>
+          SPWidgetElements.dropdown(
+            thing.name,
+            thing.attributes.getAs[SPAttributes]("stateVariable").getOrElse(SPAttributes()).getAs[List[String]]("domain").getOrElse(List(""))
+              .zipWithIndex.map( di =>
+              SPWidgetElements.dropdownElement(
+                di._1,
+                {if(s.selectedThingDs.get(thing.name).getOrElse(("",0))._1.matches(di._1)) Icon.checkSquare else Icon.square},
+                onThingCheck(s, thing.name,di)
+              )
+            )
+          )
+        ).toTagMod
+    }
+
     def onCaseCheck(opId :ID, s : State) = {
       if(s.neglectedCases.contains(opId))
         $.modState(_.copy(neglectedCases = s.neglectedCases - opId))
       else
         $.modState(_.copy(neglectedCases = s.neglectedCases + opId))
+    }
+
+    def onThingCheck(s : State, tName : String, di : (String,Int)) = {
+      if(s.selectedThingDs.get(tName).getOrElse(("",0))._1.matches(di._1))
+        $.modState(_.copy(selectedThingDs = (s.selectedThingDs ++ Map(tName -> ("",0)))))
+      else
+        $.modState(_.copy(selectedThingDs = (s.selectedThingDs ++ Map(tName -> di))))
+
+      sp.virtcom.APIBDDVerifier.VerifyBDD("dummy",$.state.runNow.selectedThingDs.map(m => (m._1, m._2._2)))
+
+      $.modState(_.copy(selectedThingDs = s.selectedThingDs ))
     }
 
     def onModelChange(e: ReactEventFromInput) = {
@@ -151,6 +184,8 @@ object VolvoSchedulerWidget {
       val newSelectedIdables = s.idables.filter(idable => newIDset.contains(idable.id))
       $.modState(_.copy( selectedIdables = newSelectedIdables, selectedIDs = newIDset ))
     }
+
+
 
     def removeItem(idable: IDAble, s : State) = {
       val newIDset = s.selectedIDs - idable.id
@@ -194,7 +229,7 @@ object VolvoSchedulerWidget {
 
 
   private val component = ScalaComponent.builder[Unit]("VolvoSchedulerWidget")
-    .initialState(State("", Set(), List(),List(), ID.newID, Map(), Set()))
+    .initialState(State("", Set(), List(),List(), ID.newID, Map(), Set(), Map()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build

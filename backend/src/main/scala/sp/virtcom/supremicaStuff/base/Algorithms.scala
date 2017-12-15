@@ -102,14 +102,22 @@ trait Algorithms extends BaseFunctionality with RegexParsers {
      * @return None if no supervisor exits, otherwise true (false) if the supervisor contains (not contains) the state
      */
     def containsState(state: Map[String, Int]): Option[Boolean] = {
-      if (!supervisorExists) None
+      println("\n Contains State?")
+      if (!supervisorExists) {
+        println("\n There is no Supervisor!")
+        None}
       else {
         val expAsString = state.map { case (k, v) => s"$k==$v" }.mkString("&")
+        println("\n expAsString: " + expAsString )
         try {
           val exp = mParser.parse(expAsString, Operator.TYPE_BOOLEAN)
+          println("\n exp: " + exp )
           val resultAsBDD = bddSynthesizer.getResult.and(manager.guard2BDD(exp))
+          println("\n resultAsBDD: " + resultAsBDD )
           val containsState = !resultAsBDD.toStringWithDomains.equals("F")
-//          println(s"Supervisor contains state: ${state.map { case (k, v) => s"$k:$v" }.mkString("[", ",", "]")} is $containsState")
+          println(s"Supervisor contains state: ${state.map { case (k, v) => s"$k:$v" }.mkString("[", ",", "]")} is $containsState")
+          println("\n containsState: " + containsState )
+//        //println(s"Supervisor contains state: ${state.map { case (k, v) => s"$k:$v" }.mkString("[", ",", "]")} is $containsState")
           return Some(containsState)
         } catch {
           case _: Throwable => println(s"Problem to parse state to expression: $expAsString."); None
