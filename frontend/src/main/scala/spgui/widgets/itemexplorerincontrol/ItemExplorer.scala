@@ -118,7 +118,9 @@ object ItemExplorer {
 
     // replaces the Struct with same ID as newStruct with newStruct
     def replaceStruct(newStruct: Struct) = {
-      val modifyState = $.modState(s => s.copy(structs = newStruct :: s.structs.filterNot(_.id == newStruct.id)))
+      val modifyState = $.modState { s =>
+        s.copy(structs = s.structs.map(st => if (st.id == newStruct.id) newStruct else st))
+      }
       val notifyBackend = sendToModel(mapi.PutItems(List(newStruct)))
       modifyState >> notifyBackend
     }
@@ -127,7 +129,7 @@ object ItemExplorer {
       <.div(
         ^.className := Style.outerDiv.htmlClass,
         renderOptionPane,
-        renderNewItems(s),
+        renderNewItems(s.newItems),
         renderStructs(s)
       )
 
@@ -143,16 +145,16 @@ object ItemExplorer {
         SPWidgetElements.TextBox("Filter...", str => filterAllStructs(str))
       )
 
-    def renderNewItems(s: State) =
+    def renderNewItems(newItems: List[(StructNode, IDAble)]) =
       <.div(
         ^.className := Style.newItems.htmlClass,
         <.ul(
-          <.li("New Items: "),
-          s.newItems.toTagMod { case (sn, idAble) =>
+          <.li("New Items: ").when(!newItems.isEmpty),
+          newItems.toTagMod { case (sn, idAble) =>
             <.li(DraggingTagMod.onDrag(sn.nodeID, None), ItemKinds.icon(idAble), idAble.name)
           }
         )
-      ).when(!s.newItems.isEmpty)
+      )//.when(!newItems.isEmpty) this somehow causes StructViews to be rerendered upon newItems-change
 
     def renderStructs(s: State) =
       <.div(
