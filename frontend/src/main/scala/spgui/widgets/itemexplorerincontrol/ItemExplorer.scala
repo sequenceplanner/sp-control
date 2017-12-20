@@ -15,10 +15,9 @@ import scala.concurrent.Future
 object ItemExplorer {
   case class State(
                     currentMComm: Option[ModelAPIComm] = None,
-                    newItems: List[IDAble] = Nil,
+                    newItems: List[(StructNode, IDAble)] = Nil,
                     structs: List[Struct] = Nil,
                     hiddenIDs: Map[ID, Set[ID]] = Map(), // structID -> structNodeIDs
-                    retrievedItems: Map[ID, IDAble] = Map(),
                     expanded: Boolean = false
                   )
 
@@ -45,7 +44,7 @@ object ItemExplorer {
 
     def createItem(kind: String) = {
       val item = ItemKinds.create(kind)
-      val modifyState = $.modState(s => s.copy(newItems = item :: s.newItems))
+      val modifyState = $.modState(s => s.copy(newItems = (StructNode(item.id), item) :: s.newItems))
       val notifyBackend = Callback(request(mapi.PutItems(List(item))))
       modifyState >> notifyBackend
     }
@@ -88,14 +87,16 @@ object ItemExplorer {
     // Option(...).get fine to use in here, since DragNDropMessage knows they are not empty
     def handleDrop(msg: DragNDropMessage) = (msg.drag, msg.drop) match {
       case (DragMessage(idNodeA, None), DropMessage(None, idStructB)) => // new item to struct
+        val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
         val structB = $.state.map(_.structs.find(_.id == idStructB).get)
-        val changeStruct = structB.flatMap(st => replaceStruct(st + StructNode(idNodeA))) // TODO make newItems to be StructNodes?
-        val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_.id == idNodeA)))
+        val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s + n) }
+        val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
         changeStruct >> changeNewItems
       case (DragMessage(idNodeA, None), DropMessage(Some(idNodeB), idStructB)) => // new item to node
+        val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
         val structB = $.state.map(_.structs.find(_.id == idStructB).get)
-        val changeStruct = structB.flatMap(st => replaceStruct(st.addTo(idNodeB, Set(StructNode(idNodeA)))))
-        val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_.id == idNodeA)))
+        val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s.addTo(idNodeB, Set(n))) }
+        val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
         changeStruct >> changeNewItems
       case (DragMessage(idNodeA, Some(idStructA)), DropMessage(None, idStructB)) => // old item to struct
         val structA = $.state.map(_.structs.find(_.id == idStructA).get)
@@ -147,7 +148,9 @@ object ItemExplorer {
         ^.className := Style.newItems.htmlClass,
         <.ul(
           <.li("New Items: "),
-          s.newItems.toTagMod(idAble => <.li(DraggingTagMod.onDrag(idAble.id, None), ItemKinds.icon(idAble), idAble.name))
+          s.newItems.toTagMod { case (sn, idAble) =>
+            <.li(DraggingTagMod.onDrag(sn.nodeID, None), ItemKinds.icon(idAble), idAble.name)
+          }
         )
       ).when(!s.newItems.isEmpty)
 
