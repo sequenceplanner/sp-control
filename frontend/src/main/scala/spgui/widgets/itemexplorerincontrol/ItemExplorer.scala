@@ -45,7 +45,9 @@ object ItemExplorer {
 
     def createItem(kind: String) = {
       val item = ItemKinds.create(kind)
-      $.modState(s => s.copy(newItems = item :: s.newItems))
+      val modifyState = $.modState(s => s.copy(newItems = item :: s.newItems))
+      val notifyBackend = Callback(request(mapi.PutItems(List(item))))
+      modifyState >> notifyBackend
     }
 
     def setCurrentModel(id: ID) = { // TODO dont do anything if already active
@@ -83,46 +85,34 @@ object ItemExplorer {
 
     def toggleAll = $.modState(s => s.copy(expanded = !s.expanded))
 
-    def handleDrop(draggedNodeID: ID, receivingNodeID: ID) = {
-      // TODO implement moving of node to root level of struct
-      $.state.map(_.newItems.find(_.id == draggedNodeID)).flatMap { newItemOp => // if item among new items
-        newItemOp.map(moveNewItem(_, receivingNodeID))
-          .getOrElse { // else move node within struct or between structs
-            val previousStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == draggedNodeID)).get)
-            val targetStruct = $.state.map(_.structs.find(_.items.exists(_.nodeID == receivingNodeID)).get)
-            previousStruct.zip(targetStruct).flatMap { case (ps, ts) =>
-              if (ps.id == ts.id) replaceStruct(ps.moveNode(draggedNodeID, receivingNodeID))
-              else moveItemBetweenStructs(draggedNodeID, receivingNodeID, ps, ts)
-            }
-          }
-      }
-    }
-
-    def moveNewItem(newItem: IDAble, receivingNodeID: ID) = {
-      val struct = $.state.map(_.structs.find(struct => struct.items.exists(_.nodeID == receivingNodeID)).get)
-      val newStruct = struct.map(_.addTo(receivingNodeID, Set(StructNode(newItem.id))))
-      val itemToBackend = sendToModel(mapi.PutItems(List(newItem)))
-      val moveItemInState = $.modState { s =>
-        s.copy(
-          newItems = s.newItems.filterNot(_.id == newItem.id),
-          retrievedItems = s.retrievedItems + (newItem.id -> newItem)
-        )
-      }
-      newStruct.flatMap(replaceStruct) >> moveItemInState >> itemToBackend
-    }
-
-    //def moveItemWithinStruct(draggedNodeID: ID, receivingNodeID: ID, struct: Struct) =
-      //replaceStruct(moveNode(draggedNodeID, receivingNodeID, struct))
-
-    // subtle parent-ID stuff going on here.. should perhaps be moved to StructLogic
-    def moveItemBetweenStructs(draggedID: ID, receivingID: ID, fromStruct: Struct, targetStruct: Struct) = {
-      val draggedNode = fromStruct.items.find(_.nodeID == draggedID)
-      val nodesToMove = draggedNode.map(fromStruct.getAllChildren(draggedID) + _.copy(parent = None))
-      val newFromStructOp = nodesToMove.map(fromStruct -- _.map(_.nodeID))
-      val newTargetStructOp = nodesToMove.map(targetStruct.addTo(receivingID, _))
-      val zipOp = newFromStructOp.zip(newTargetStructOp).headOption
-      val (newFromStruct, newTargetStruct) = zipOp.getOrElse((fromStruct, targetStruct))
-      replaceStruct(newFromStruct) >> replaceStruct(newTargetStruct)
+    // Option(...).get fine to use in here, since DragNDropMessage knows they are not empty
+    def handleDrop(msg: DragNDropMessage) = (msg.drag, msg.drop) match {
+      case (DragMessage(idNodeA, None), DropMessage(None, idStructB)) => // new item to struct
+        val structB = $.state.map(_.structs.find(_.id == idStructB).get)
+        val changeStruct = structB.flatMap(st => replaceStruct(st + StructNode(idNodeA))) // TODO make newItems to be StructNodes?
+        val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_.id == idNodeA)))
+        changeStruct >> changeNewItems
+      case (DragMessage(idNodeA, None), DropMessage(Some(idNodeB), idStructB)) => // new item to node
+        val structB = $.state.map(_.structs.find(_.id == idStructB).get)
+        val changeStruct = structB.flatMap(st => replaceStruct(st.addTo(idNodeB, Set(StructNode(idNodeA)))))
+        val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_.id == idNodeA)))
+        changeStruct >> changeNewItems
+      case (DragMessage(idNodeA, Some(idStructA)), DropMessage(None, idStructB)) => // old item to struct
+        val structA = $.state.map(_.structs.find(_.id == idStructA).get)
+        val structB = $.state.map(_.structs.find(_.id == idStructB).get)
+        val nodeA = structA.map(_.items.find(_.nodeID == idNodeA).get)
+        val nodesToMove = structA.zip(nodeA).map { case (s, sn) => s.getAllChildren(idNodeA) + sn.copy(parent = None) }
+        val newStructA = structA.zip(nodesToMove).map { case (s, nodes) => s -- nodes.map(_.nodeID) }
+        val newStructB = structB.zip(nodesToMove).map { case (s, nodes) => s ++ nodes }
+        newStructA.flatMap(replaceStruct) >> newStructB.flatMap(replaceStruct)
+      case (DragMessage(idNodeA, Some(idStructA)), DropMessage(Some(idNodeB), idStructB)) => // old item to node
+        val structA = $.state.map(_.structs.find(_.id == idStructA).get)
+        val structB = $.state.map(_.structs.find(_.id == idStructB).get)
+        val nodeA = structA.map(_.items.find(_.nodeID == idNodeA).get)
+        val nodesToMove = structA.zip(nodeA).map { case (s, sn) => s.getAllChildren(idNodeA) + sn.copy(parent = None) }
+        val newStructA = structA.zip(nodesToMove).map { case (s, nodes) => s -- nodes.map(_.nodeID) }
+        val newStructB = structB.zip(nodesToMove).map { case (s, nodes) => s.addTo(idNodeB, nodes) }
+        newStructA.flatMap(replaceStruct) >> newStructB.flatMap(replaceStruct)
     }
 
     // replaces the Struct with same ID as newStruct with newStruct
@@ -161,8 +151,6 @@ object ItemExplorer {
         )
       ).when(!s.newItems.isEmpty)
 
-    def handleDropz(msg: DragNDropMessage) = Callback.log(msg.toString)
-
     def renderStructs(s: State) =
       <.div(
         ^.className := Style.structsView.htmlClass,
@@ -173,7 +161,7 @@ object ItemExplorer {
               StructView(
                 struct,
                 retrieveItems = Some(itemRequest),
-                handleDrop = Some(handleDropz),
+                handleDrop = Some(handleDrop),
                 filteredNodes = s.hiddenIDs(struct.id),
                 expanded = s.expanded
               )
