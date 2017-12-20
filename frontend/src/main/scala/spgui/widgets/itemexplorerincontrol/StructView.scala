@@ -60,7 +60,7 @@ object StructView {
         DraggingTagMod.onDrop(None, p.struct.id, handleDropFunction)
       }.getOrElse(EmptyVdom)
       val rootItemsToRender = p.struct.items.filter(sn => sn.parent.isEmpty && !p.filteredNodes.contains(sn.nodeID))
-      lazy val directChildren = p.struct.items.filter(_.parent == None).map(_.item)
+      lazy val directChildren = p.struct.items.filter(_.parent.isEmpty).map(_.item)
 
       <.div(
         <.div(^.onClick --> toggle(p.struct.id, directChildren), dragHandling, Icon.folder, p.struct.name),
@@ -92,7 +92,7 @@ object StructView {
     def renderNodeItem(node: StructNode, p: Props, s: State) = {
       val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleRight else Icon.toggleDown
       val itemOp = s.items.get(node.item)
-      val itemIcon = itemOp.map(ItemKinds.icon(_)).getOrElse(Icon.question)
+      val itemIcon = itemOp.map(ItemKinds.icon).getOrElse(Icon.question)
       val shownName = itemOp.map(_.name).getOrElse(node.item.toString)
       lazy val directChildren = p.struct.getChildren(node.nodeID).map(_.item)
 
@@ -103,14 +103,17 @@ object StructView {
   val component = ScalaComponent.builder[Props]("StructView")
     .initialStateFromProps(p => State(p.items))
     .renderBackend[Backend]
-    .componentWillReceiveProps { scope => // TODO retrieve all items
+    .componentWillReceiveProps { scope =>
       val nextExpanded = scope.nextProps.expanded
       val expandedChanged = scope.currentProps.expanded != nextExpanded
       if (expandedChanged) {
         if (nextExpanded) {
-          val allNodeIDs = scope.currentProps.struct.items.map(_.nodeID)
-          val structID = scope.currentProps.struct.id
-          scope.modState(_.copy(expandedNodes = allNodeIDs + structID))
+          val allNodeIDs = scope.nextProps.struct.items.map(_.nodeID)
+          val struct = scope.nextProps.struct
+          val unretrievedItems = struct.items.map(_.item) -- scope.state.items.keySet
+          val retrieveItems = scope.backend.retrieveItems(unretrievedItems)
+          val modifyState = scope.modState(_.copy(expandedNodes = allNodeIDs + struct.id))
+          modifyState >> retrieveItems
         } else {
           scope.modState(_.copy(expandedNodes = Set()))
         }
