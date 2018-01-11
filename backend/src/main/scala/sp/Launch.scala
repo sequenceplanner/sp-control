@@ -16,12 +16,29 @@ object Launch extends App {
   println("End**************************")
 
   cluster.registerOnMemberUp {
-
     // Start all you actors here.
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
     system.actorOf(ExampleService.props, APIExampleService.service)
     system.actorOf(SPModelImport.props, APISPModelImport.service)
+
+    val vdid = java.util.UUID.randomUUID()
+    system.actorOf(sp.devicehandler.VirtualDevice.props("vd", vdid), "vd")
+    val ahid = java.util.UUID.randomUUID()
+    system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
+
+    // match test
+    val omid = java.util.UUID.randomUUID()
+    val om = system.actorOf(sp.operationmatcher.OperationMatcher.props("operationmatcher", omid), "om")
+
+    val dh = system.actorOf(sp.opcua.DriverHandler.props, "OPCUA")
+    cluster.registerOnMemberRemoved{
+      println("spcontrol node has been removed from the cluster")
+      dh ! "stop"
+    }
+
+    // trucks test
+    system.actorOf(sp.labkit.Festo.props(ahid))
 
     // patrik model dsl
     system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
