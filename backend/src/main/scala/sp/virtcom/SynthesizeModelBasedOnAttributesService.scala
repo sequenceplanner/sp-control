@@ -1,6 +1,7 @@
 package sp.virtcom
 
 import akka.actor._
+import akka.io.Tcp.Register
 import play.api.libs.json.Json
 import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.domain.logic.AttributeLogic.SPValueLogic
@@ -23,43 +24,23 @@ import sp.patrikmodel.ExtendIDablesWrapper
   * Creates a Condition for each operation based on its attributes
   */
 
-// Todo: add BDD
 
 object Synthesize extends SynthesizeModel
-trait SynthesizeModel {
+trait SynthesizeModel extends RegBDD{
   def synthesizeModel(ids: List[IDAble]): (List[Operation], SPAttributes) = {
 
+    // Extract from IDAbles
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
     val vars = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
 
 
-//println("\n ops    :   "   +  ops + "\n ")
-    // Only set the name if there is a model
-    /*
-    val core = r.attributes.getAs[ServiceHandlerAttributes]("core").get
-    val moduleNameF = core.model match {
-      case None =>
-        val p = Promise[String]()
-        p.success("dummy")
-        p.future
-      case Some(id) =>
-        val infoF = askForModelInfo(id, modelHandler)
-        infoF.map(info => info.name)
-    } */
-/*
-    val moduleNameF = {
-      val p = Promise[String]()
-      p.success("dummy")
-      p.future
-    } */
-    val moduleName = "dummy"
-    import scala.concurrent.ExecutionContext.Implicits.global
+    val moduleName = "dummy" // I just hardcoded this for now, to make things work.. Todo: Maybe improve on this, see old version
+    //import scala.concurrent.ExecutionContext.Implicits.global
     //moduleNameF.foreach { moduleName =>
       //Create Supremica Module and synthesize guards.
       val ptmw = ParseToModuleWrapper(moduleName, vars, ops, sopSpecs)
       val ptmwModule = {
-        //      progress ! SPAttributes("progress" -> "creating wmod file")
         ptmw.addVariables()
         ptmw.saveToWMODFile("./testFiles/gitIgnore/")
         ptmw.addOperations()
@@ -67,41 +48,28 @@ trait SynthesizeModel {
         ptmw.addForbiddenExpressions()
         ptmw.saveToWMODFile("./testFiles/gitIgnore/")
         ptmw.saveToWMODFile("./testFiles/gitIgnore/raw/")
-        //      progress ! SPAttributes("progress" -> "Synthesizing supervisor")
         ptmw.SupervisorAsBDD()
       }
 
       val optSupervisorGuards = ptmwModule.getSupervisorGuards.map(_.filter(og => !og._2.equals("1")))
-      // error here, bad guard!
       val updatedOps = ops.map(o => ptmw.addSPConditionFromAttributes(ptmw.addSynthesizedGuardsToAttributes(o, optSupervisorGuards), optSupervisorGuards))
 
       lazy val synthesizedGuards = optSupervisorGuards.getOrElse(Map()).foldLeft(SPAttributes()) { case (acc, (event, guard)) =>
         acc merge SPAttributes("synthesizedGuards" -> SPAttributes(event -> guard))
       }
       lazy val nbrOfStates = SPAttributes("nbrOfStatesInSupervisor" -> ptmwModule.nbrOfStates())
-    println("nbrOfStates   : " + nbrOfStates)
-    println(s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
-    if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
-
-      //  progress ! SPAttributes("progress" -> s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
+      println(s"Nbr of states in supervisor: ${nbrOfStates.getAs[String]("nbrOfStatesInSupervisor").getOrElse("-")}")
+      if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
 
       ptmw.addSupervisorGuardsToFreshFlower(optSupervisorGuards)
       ptmw.saveToWMODFile("./testFiles/gitIgnore/")
-      //  progress ! SPAttributes("progress" -> "saved to wmod file in ./testFiles/gitIgnore/")
 
       lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
       lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
 
-    APIBDDVerifier.RegisterBDD(moduleName, (x => ptmwModule.containsState(x)))
-    (updatedOps, spAttributes)
-      // hack: add bdd to bdd-keeper
-      //serviceHandler ! RegisterBDD(moduleName, (x => ptmwModule.containsState(x)), "BDDVerifier")
+    RegisterBDD(moduleName, (x => ptmwModule.containsState(x)))
 
-      // replyTo ! Response(updatedOps, spAttributes, service, reqID)
-      //  progress ! PoisonPill
-      // self ! PoisonPill
-      //   }
-   // }
+    (updatedOps, spAttributes)
   }
 }
 

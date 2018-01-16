@@ -8,7 +8,7 @@ import sp.patrikmodel.CollectorModel
 object SOPGenerator extends SOPGen
 trait SOPGen {
 
-  def generateSOPs(selectedSchedules : Set[ID], ids : List[IDAble]): List[IDAble with Product with Serializable] ={
+  def generateSOPs(selectedSchedules : Set[ID], ids : List[IDAble]): (List[IDAble with Product with Serializable], ID) ={
 
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation]) // filter out the operations from the ids
     val schedules = ops.filter(op => selectedSchedules.contains(op.id)) // Get the selected operations as a list
@@ -24,14 +24,14 @@ trait SOPGen {
       else op.name
     ).toSet.mkString("_") // Create Schedule names, for robots schedules and other resources.
 
-    val h = SPAttributes("hierarchy" -> Set("VRS_"+ scheduleNames ))  // This will be the name of the new hierarchy...
+    val h = SPAttributes("hierarchy" -> Set("VRS_"+ scheduleNames ))  // This will be the name of the new hierarchy... // Todo: They are called Structs now
 
 
     case class VolvoRobotScheduleCollector(val modelName: String = "VolvoRobotSchedule") extends CollectorModel
     val collector = VolvoRobotScheduleCollector() // This can collect all of the operations and create transition variables between them
     val idle = "idle" // This is a value for the variables created in the collector, and it should later also be assigned to the first operation(s) in a schedule (SOP)
 
-    val zoneMapsAndOps = schedules.map { schedule => // go through each schedule ( selected op)
+    val zoneMapsSopsAndOps = schedules.map { schedule => // go through each schedule ( selected op)
       val robcmds = schedule.attributes.getAs[List[String]]("robotcommands").getOrElse(List()) // Gets all of the robotcommands for the selected operation/schedule
 
 
@@ -50,12 +50,12 @@ trait SOPGen {
       }
     }
     val operations = collector.operations // Get all operations from the collector
-    val sops = zoneMapsAndOps.map { x => x._3 }.flatten // extract SOPS
-    val sopspec = SOPSpec(schedules.map(_.name).toSet.mkString("_") + "_Original_SOP", sops, h) // Create a Sop Spec with (name, sops, belonging to hierarchy)
+    val sop = zoneMapsSopsAndOps.map { x => x._3 }.flatten // extract SOPS
+    val sopspec = SOPSpec(schedules.map(_.name).toSet.mkString("_") + "_Original_SOP", sop, h) // Create a Sop Spec with (name, sop, belonging to hierarchy)
 
 
     var allZoneSopMapsMerged =  Map[String, Seq[SOP]]() // Merges all of the key values in the zone sop maps
-    zoneMapsAndOps.map { zoneSopMap => zoneSopMap._4.map { case (z, sopSeq) =>  if(allZoneSopMapsMerged.contains(z)) allZoneSopMapsMerged += z-> (allZoneSopMapsMerged(z) ++  sopSeq )   else allZoneSopMapsMerged += z-> sopSeq }}
+    zoneMapsSopsAndOps.map { zoneSopMap => zoneSopMap._4.map { case (z, sopSeq) =>  if(allZoneSopMapsMerged.contains(z)) allZoneSopMapsMerged += z-> (allZoneSopMapsMerged(z) ++  sopSeq )   else allZoneSopMapsMerged += z-> sopSeq }}
     val zonespecs = allZoneSopMapsMerged.map { case (z, l) => SOPSpec(z, List((Arbitrary(l.toList))), h) } // Creates arbitrary SOPs for each Zone and SopSpecs for them
 
 
@@ -65,7 +65,7 @@ trait SOPGen {
 
     var snids =List(StructNode(sopspec.id)) ++ zonespecs.map( z => StructNode(z.id)).toList ++ plcSOP.map(p => StructNode(p.id))  ++ operations.map(o => StructNode(o.id))
 
-    nids :+ Struct("VRS_"+ scheduleNames, snids.toSet)
+    (nids :+ Struct("VRS_"+ scheduleNames, snids.toSet), sopspec.id)
   }
 
   def robotScheduleVariable(rs: String) = "v"+rs+"_pos"

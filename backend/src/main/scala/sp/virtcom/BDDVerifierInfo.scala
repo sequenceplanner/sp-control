@@ -3,7 +3,7 @@ package sp.virtcom
 import sp.domain._
 import sp.virtcom.{APIBDDVerifier => api}
 
-object BDDVerifierInfo {
+object BDDVerifierInfo { // Todo: fix this
     import sp.domain.SchemaLogic._
     case class BDDVerifierRequest(request: api.Request)
     case class BDDVerifierResponse(response: api.Response)

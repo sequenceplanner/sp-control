@@ -12,13 +12,12 @@ object APIBDDVerifier {
   val topicRequest = "BDDVerifierRequests"
   val topicResponse = "BDDVerifierResponse"
 
-  case class RegisterBDD(name : String, bdd : Map[String, Int] => Option[Boolean]) extends Request
   case class VerifyBDD(bddName :String, partialState : Map[String, Int]) extends  Request
+  case class VerificationResult(res : Boolean) extends Response
 
   object Formats {
-
-    implicit val fRegisterBDD: JSFormat[RegisterBDD] = Json.format[RegisterBDD]
     implicit val fVerifyBDD: JSFormat[VerifyBDD] = Json.format[VerifyBDD]
+    implicit val fVerificationResult: JSFormat[VerificationResult] = Json.format[VerificationResult]
 
     def fExampleServiceRequest: JSFormat[Request] = Json.format[Request]
     def fExampleServiceResponse: JSFormat[Response] = Json.format[Response]

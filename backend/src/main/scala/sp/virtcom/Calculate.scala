@@ -9,7 +9,7 @@ import oscar.cp._
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-
+// Todo: Split program into separate files
 // Constraint programming (CP):
 class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
                         mutexes: List[(ID,ID)], forceEndTimes: List[(ID,ID)]) extends CPModel with MakeASop {
@@ -285,19 +285,13 @@ trait cal  extends ExtendIDables{
     // When all of the operation sequences have been processed and the precedences + forceEndTimes have been created.
     // The mutexes which are just given by the great zonemap and all operations + precedences & forceEndTimes are sent to the robot optimization.
 
-   // println("\n mutexes \n " + mutexes.map(IDs => (approvedOps.find(_.id == IDs._1).get.name, approvedOps.find(_.id == IDs._2).get.name)).mkString("\n"))
-    //println("\n precedences \n " + precedences.map(IDs => (approvedOps.find(_.id == IDs._1).get.name, approvedOps.find(_.id == IDs._2).get.name)).mkString("\n"))
-    //println("\n forceEndTimes \n " + forceEndTimes.map(IDs => (approvedOps.find(_.id == IDs._1).get.name, approvedOps.find(_.id == IDs._2).get.name)).mkString("\n"))
-   // println("\n approvedOps \n " + approvedOps.map(o => (o.name + ",  " + o.id.toString) ).mkString("\n"))
-
     val ro = new RobotOptimization(approvedOps, precedences, mutexes, forceEndTimes) // Create CP variables and (op index -> op duration maps), solve the problem and create SOPs & gantt charts.
     val roFuture = Future {
       ro.test
     }
     // For the synthesis:
     var nids = List(sopSpec) ++ zonespecs ++ uids
-    var hids = nids //++ addHierarchies(nids, "hierarchy") // Todo: make and add Struct with nids
-
+    var hids = nids
 
     //--------------------------------------------------------------------------------------------------------------------------
     //  run synthesis and get the optimization results
@@ -319,11 +313,10 @@ trait cal  extends ExtendIDables{
       // Todo: return results
 
       val snids = ids_merged.map(i => StructNode(i.id)) ++ sops.map(_._2).map(s => StructNode(s.id))
+      val newStruct = Struct("VRS_"+ "Solved" , snids.toSet)
 
-      (ids_merged ++ sops.map(_._2) :+ Struct("VRS_"+ "Solved" , snids.toSet), resAttr)
-      //replyTo ! Response(ids_merged2 ++ sops.map(_._2), resAttr, rnr.req.service, rnr.req.reqID)
-      //terminate(progress)
-    } // Create a response message and send it on the bus "back to the GUI"
+      (ids_merged ++ sops.map(_._2) :+ newStruct, resAttr, newStruct.id)
+    }
   }
 
 
