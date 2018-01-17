@@ -1,7 +1,9 @@
 package sp.patrikmodel
 
-import sp.domain._
+import sp.domain.{ID, _}
 import sp.domain.Logic._
+
+import scala.collection.mutable.LinkedHashMap
 
 /**
  * To store operation models
@@ -25,6 +27,10 @@ trait CollectorModel extends CollectorImplicits {
 
   def op(name: String, attributes: Seq[SPAttributes] = Seq(SPAttributes())) = {
     operationSet += Operation(name = name, attributes = attributes.foldLeft(SPAttributes()) { case (acc, c) => acc merge c })
+  }
+  def opWithID(name: String, attributes: Seq[SPAttributes] = Seq(SPAttributes()), iD: ID) = {
+    operationSetWithID += iD -> Operation(name = name, List(), attributes = attributes.foldLeft(SPAttributes()) { case (acc, c) => acc merge c }, id = iD)
+    operations = operationSetWithID.map(_._2).toList
   }
 
   def c(variable: String, fromValue: String, toValue: String): SPAttributes = {
@@ -80,6 +86,8 @@ trait CollectorModel extends CollectorImplicits {
 trait CollectorImplicits extends ExtendIDables {
   var variableSet: Set[Thing] = Set()
   var operationSet: Set[Operation] = Set()
+  var operations : List[Operation] = List()
+  var operationSetWithID  = LinkedHashMap[ID,Operation]()
   var forbiddenExpressionSet: Set[SOPSpec] = Set()
   var robotMovementsSet: Set[SPSpec] = Set()
 
@@ -128,4 +136,33 @@ trait CollectorImplicits extends ExtendIDables {
     val ids = varsToAdd ++ opsToAdd ++ fesToAdd ++ robotMovementsToAdd
     extendIDables(ids)
   }
+
+  def parseToIDablesWithIDs() = {
+    //Variables-----------------------------------------------------------------------------------------------------
+    lazy val varsToAddWithNonDistinctDomains = getIDablesFromSet(variableSet, (n, as) => Thing(name = n, attributes = as))
+    lazy val varsToAdd = varsToAddWithNonDistinctDomains.map { obj =>
+      obj.copy(attributes = fixDomain(obj.attributes))
+      // obj.attributes.transformField { case ("domain", JArray(vs)) => ("domain", JArray(vs.distinct)) }.to[SPAttributes].getOrElse(SPAttributes()))
+    }
+
+    //Operations------------------------------------------------------------------------------------
+    lazy val opsToAdd = operations
+    lazy val operationMap = opsToAdd.map(o => o.name -> o).toMap
+
+    //ForbiddenExpressions--------------------------------------------------------------------------------------
+    lazy val fesToAddWithNoVisableOperations = getIDablesFromSet(forbiddenExpressionSet, (n, as) => SOPSpec(name = n, sop = List(), attributes = as))
+    lazy val fesToAdd = fesToAddWithNoVisableOperations.map { obj =>
+      val mutexOperations = obj.attributes.findAs[List[String]]("mutexOperations").flatten
+      obj.copy(sop = if (mutexOperations.isEmpty) List() else List(Arbitrary(mutexOperations.flatMap(o => operationMap.get(o)).map(o => OperationNode(o.id)))),
+        attributes = play.api.libs.json.JsObject(obj.attributes.fields.filter(_._1 != "mutexOperations")))
+    }
+
+    //RobotMovements---------------------------------------------------------------------------------------------
+    lazy val robotMovementsToAdd = getIDablesFromSet(robotMovementsSet, (n, as) => SPSpec(name = n, attributes = as))
+
+    //Return--------------------------------------------------------------------------------------------
+    val ids = varsToAdd ++ opsToAdd ++ fesToAdd ++ robotMovementsToAdd
+    extendIDables(ids)
+  }
+
 }

@@ -31,7 +31,8 @@ object LoadingWidgets {
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
       ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
-      ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10)
+      ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
+      ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4)
     )
 
 

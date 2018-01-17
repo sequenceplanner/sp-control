@@ -9,8 +9,6 @@ import play.api.libs.json.Json
 import spgui.communication._
 
 import sp.domain._
-import Logic._
-
 import sp.modelImport.{APISPModelImport => api} //Create short API names
 import sp.models.{APIModelMaker => mmapi}
 import sp.models.{APIModel => mapi}
@@ -43,7 +41,11 @@ object SPModelImportWidget {
         ),
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick  --> prettify(s), "Prettify text"
+          ^.onClick  --> prettify(s), "Expand"
+        ),
+        <.button(
+          ^.className := "btn btn-default",
+          ^.onClick  --> stringify(s), "Compact"
         ),
         <.br(),
         <.textarea(
@@ -62,6 +64,13 @@ object SPModelImportWidget {
       dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
       $.modState(_.copy(Text = newValue)) // Update the state of the text, might be redundant. since the textarea should update on change..
     }
+
+    def stringify(s: ImportText) ={
+      val newValue = Json stringify (Json parse s.Text) // formats the text to be more appealing
+      dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
+      $.modState(_.copy(Text = newValue)) // Update the state of the text, might be redundant. since the textarea should update on change..
+    }
+
     def onTextChange(e: ReactEventFromTextArea) = {
       val newValue = e.target.value // Get the modified value from the text area
       $.modState(_.copy(Text = newValue))// Update the state of the text

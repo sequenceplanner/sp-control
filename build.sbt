@@ -54,7 +54,8 @@ lazy val spcontrol_backend = project.in(file("backend"))
     libraryDependencies ++= Seq(comm.value, core.value, gui.value),
     defaultBuildSettings,
     buildSettings,
-    serviceSettings
+    serviceSettings,
+    mainClass in (Compile, run) := Some("sp.Launch")
   )
   .dependsOn(spcontrol_api_jvm)
 
