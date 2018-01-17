@@ -37,7 +37,7 @@ trait SOPGen {
 
     val opNode = activeStruct.items.find(sn =>sn.item == schedule.id).get // Get opNode of schedule
     val Node = if(robcmds.isEmpty) opNode else activeStruct.items.find(sn => sn.nodeID == opNode.parent.get).get // get parent of opNode
-    val scheduleOps = activeStruct.getAllChildren(Node).map(sn => ops.find(o => o.id == sn.item).get) // Get all operations that are relevant for this schedule
+    val scheduleOps = activeStruct.getChildren(Node.nodeID).map(sn => ops.find(o => o.id == sn.item).get).toList // Get all operations that are relevant for this schedule
 
       var rs = if(robcmds.isEmpty){"LD" + schedule.name} else {ops.find(_.id == Node.item).get.name}    // The name of the Selected operation/schedule
       collector.v(robotScheduleVariable(rs), idleValue = Some(idle), attributes = h) //  Update the collector to gather all of the variables and operations from the functions below
@@ -146,7 +146,7 @@ trait SOPGen {
             case Some(caseOp) => // If there is an operation that matches the case
 
               val opNode = activeStruct.items.find(sn =>sn.item == caseOp.id).get
-              val operationChildOps = activeStruct.getChildren(opNode).map(sn => ops.find(o => o.id == sn.item).get) // Get the kids of the Case operation
+              val operationChildOps = activeStruct.getChildren(opNode.nodeID).map(sn => ops.find(o => o.id == sn.item).get).toList // Get the kids of the Case operation
             var robotCommandsInChild = List[String]() // Init a new robot command list, to use in recursion of this function
             var newOp = caseOp // Init a new Operation, could be anything just needs the correct type here.
             var zMaptmp = Map[String, List[List[Operation]]]() // This is the place zones and operations will be mapped for each new case.
