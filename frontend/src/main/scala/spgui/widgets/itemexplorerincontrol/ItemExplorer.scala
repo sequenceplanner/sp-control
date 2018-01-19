@@ -86,19 +86,19 @@ object ItemExplorer {
 
     // Option(...).get fine to use in here, since DragNDropMessage knows they are not empty
     def handleDrop(msg: DragNDropMessage) = (msg.drag, msg.drop) match {
-      case (DragMessage(idNodeA, None), DropMessage(None, idStructB)) => // new item to struct
+      case (DragMessage(idNodeA, None, _), DropMessage(None, idStructB)) => // new item to struct
         val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
         val structB = $.state.map(_.structs.find(_.id == idStructB).get)
         val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s + n) }
         val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
         changeStruct >> changeNewItems
-      case (DragMessage(idNodeA, None), DropMessage(Some(idNodeB), idStructB)) => // new item to node
+      case (DragMessage(idNodeA, None, _), DropMessage(Some(idNodeB), idStructB)) => // new item to node
         val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
         val structB = $.state.map(_.structs.find(_.id == idStructB).get)
         val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s.addTo(idNodeB, Set(n))) }
         val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
         changeStruct >> changeNewItems
-      case (DragMessage(idNodeA, Some(idStructA)), DropMessage(None, idStructB)) => // old item to struct
+      case (DragMessage(idNodeA, Some(idStructA), _), DropMessage(None, idStructB)) => // old item to struct
         val structA = $.state.map(_.structs.find(_.id == idStructA).get)
         val structB = $.state.map(_.structs.find(_.id == idStructB).get)
         val nodeA = structA.map(_.items.find(_.nodeID == idNodeA).get)
@@ -106,7 +106,7 @@ object ItemExplorer {
         val newStructA = structA.zip(nodesToMove).map { case (s, nodes) => s -- nodes.map(_.nodeID) }
         val newStructB = structB.zip(nodesToMove).map { case (s, nodes) => s ++ nodes }
         newStructA.flatMap(replaceStruct) >> newStructB.flatMap(replaceStruct)
-      case (DragMessage(idNodeA, Some(idStructA)), DropMessage(Some(idNodeB), idStructB)) => // old item to node
+      case (DragMessage(idNodeA, Some(idStructA), _), DropMessage(Some(idNodeB), idStructB)) => // old item to node
         val structA = $.state.map(_.structs.find(_.id == idStructA).get)
         val structB = $.state.map(_.structs.find(_.id == idStructB).get)
         val nodeA = structA.map(_.items.find(_.nodeID == idNodeA).get)
@@ -151,7 +151,7 @@ object ItemExplorer {
         <.ul(
           <.li("New Items: ").when(!newItems.isEmpty),
           newItems.toTagMod { case (sn, idAble) =>
-            <.li(DraggingTagMod.onDrag(sn.nodeID, None), ItemKinds.icon(idAble), idAble.name)
+            <.li(DraggingTagMod.onDrag(sn.nodeID, None, idAble.id), ItemKinds.icon(idAble), idAble.name)
           }
         )
       )//.when(!newItems.isEmpty) this somehow causes StructViews to be rerendered upon newItems-change

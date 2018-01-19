@@ -11,13 +11,13 @@ import spgui.components.Icon
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class DragMessage(node: ID, struct: Option[ID])
+case class DragMessage(node: ID, struct: Option[ID], idable: ID)
 case class DropMessage(node: Option[ID], struct: ID)
 case class DragNDropMessage(drag: DragMessage, drop: DropMessage)
 
 object DraggingTagMod {
   implicit val fDragMessage: JSFormat[DragMessage] = play.api.libs.json.Json.format[DragMessage]
-  def onDrag(node: ID, struct: Option[ID]) = DataOnDrag(SPValue(DragMessage(node, struct)).toJson)
+  def onDrag(node: ID, struct: Option[ID], idable: ID) = DataOnDrag(SPValue(DragMessage(node, struct, idable)).toJson)
   def onDrop(node: Option[ID], struct: ID, handleDrop: DragNDropMessage => Callback) =
     OnDataDrop { str =>
       val dragMsg = fromJsonAs[DragMessage](str)
@@ -74,7 +74,7 @@ object StructView {
     def renderNode(node: StructNode, p: Props, s: State): TagMod = {
       val dragHandling = p.handleDrop.map { handleDropFunction =>
         List(
-          DraggingTagMod.onDrag(node.nodeID, Some(p.struct.id)),
+          DraggingTagMod.onDrag(node.nodeID, Some(p.struct.id), node.item),
           DraggingTagMod.onDrop(Some(node.nodeID), p.struct.id, handleDropFunction)
         ).toTagMod
       }.getOrElse(EmptyVdom)
