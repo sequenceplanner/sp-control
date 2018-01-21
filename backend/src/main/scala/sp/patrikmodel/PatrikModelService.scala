@@ -3,6 +3,7 @@ package sp.patrikmodel
 import akka.actor._
 import sp.domain._
 import sp.domain.Logic._
+import sp.domain.logic.StructLogic._
 import sp.service._
 
 object PatrikModelServiceInfo {
@@ -67,7 +68,7 @@ object PatrikModelService {
   def props = Props(classOf[PatrikModelService])
 }
 
-trait PatrikModelLogic {
+trait PatrikModelLogic extends SynthesizeModel {
   import modeledCases._
   val models = List(
     VolvoWeldConveyerCase(),
@@ -78,6 +79,23 @@ trait PatrikModelLogic {
     TrucksCase()
   )
 
+  def addHierarchies(ids: List[IDAble]): List[IDAble] = {
+    val h = ids.groupBy(_.attributes.getAs[Set[String]]("hierarchy").getOrElse(Set()).toList)
+    val all = h.map {
+      case (Nil,items) => items
+      case (x :: Nil, items) =>
+        val sns = items.map(i=>StructNode(i.id)).toSet
+        val s = Struct(x, sns)
+        s::items
+      case (x :: xs, items) =>
+        // todo
+        val sns = items.map(i=>StructNode(i.id)).toSet
+        val s = Struct(x, sns)
+        s::items
+    }
+    all.toList.flatten
+  }
+
   def commands(body: API.Request) = {
     body match {
       case API.GetAvailableModels =>
@@ -86,7 +104,12 @@ trait PatrikModelLogic {
         models.find(_.modelName == name).headOption match {
           case Some(model) =>
             val ids = model.parseToIDables
-            List(API.ManualModel(ids))
+            val (ops,_,_) = synthesizeModel(ids)
+            val upd = ids.filterNot(old=>ops.exists(_.id==old.id)) ++ ops
+            // "hierarchies" are now structs
+            val withH = addHierarchies(upd)
+
+            List(API.ManualModel(withH))
           case None =>
             List()
         }
