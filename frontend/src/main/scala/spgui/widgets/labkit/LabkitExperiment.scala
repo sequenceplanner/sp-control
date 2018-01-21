@@ -14,8 +14,8 @@ import sp.domain.Logic._
 import monocle.macros._
 import monocle.Lens
 
-
-
+import diode.react.ModelProxy
+import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
 import spgui.components.{ SPWidgetElements }
 import spgui.communication.APIComm
 import spgui.communication.APIComm._
@@ -26,13 +26,13 @@ object LabkitExperimentWidget {
   import sp.models.{APIModel => apimodel}
   import sp.patrikmodel.{API => apipm}
 
+  case class Props(mp: ModelProxy[AvailableModels])
   case class State(s: List[String]=List(),
     abs: List[apiab.Ability]=List(),
     manualModels: List[String] = List(),
-    models: Map[ID,String] = Map(),
     selectedModel: Option[ID] = None
   )
-  private class Backend($: BackendScope[Unit, State]) {
+  private class Backend($: BackendScope[Props, State]) {
     import scala.concurrent.ExecutionContext.Implicits.global
     val lp = Operation("lf1LoadPart", attributes = SPAttributes("pairs" -> Map("group"->"lf1", "type"->"addProduct", "trigger"->"x")))
     val cc = Operation("lf1CloseClamps", attributes = SPAttributes("pairs" -> Map("group"->"lf1", "type"->"clamping")))
@@ -99,9 +99,7 @@ object LabkitExperimentWidget {
       }
     }
 
-    spgui.communication.AvailableModelsHelper.addCB(models => $.modState(s => s.copy(models = models)))
-
-    def render(s: State) = {
+    def render(p: Props, s: State) = {
       <.div(
         <.button(
           ^.className := "btn btn-default", <.i(^.className := "fa fa-bolt"),
@@ -110,7 +108,7 @@ object LabkitExperimentWidget {
         ),
         SPWidgetElements.dropdown(
           s.selectedModel.map(_.toString).getOrElse("Select a model"),
-          s.models.toSeq.map{ case(id,name) => <.div(s"${name} (${id.toString})", ^.onClick --> $.modState(s => s.copy(selectedModel = Some(id))))}),
+          p.mp().models.toSeq.map{ case(id,name) => <.div(s"${name} (${id.toString})", ^.onClick --> $.modState(s => s.copy(selectedModel = Some(id))))}),
         <.table(
           ^.className := "table table-striped",
           <.tbody(s.manualModels.map(m=>
@@ -140,12 +138,14 @@ object LabkitExperimentWidget {
 
   }
 
-  private val component = ScalaComponent.builder[Unit]("LabkitExperiment")
+  val avmcConnection = AvailableModelsCircuit.connect(x => x)
+
+  private val component = ScalaComponent.builder[Props]("LabkitExperiment")
     .initialState(State())
     .renderBackend[Backend]
     .componentDidMount(_.backend.onMount())
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
-  def apply() = spgui.SPWidget(spwb => component())
+  def apply() = spgui.SPWidget(spwb => avmcConnection(proxy => component(Props(proxy))))
 }
