@@ -33,6 +33,12 @@ trait CollectorModel extends CollectorImplicits {
     operations = operationSetWithID.map(_._2).toList
   }
 
+  def obs(name: String, variable: String, attributes: Seq[SPAttributes] = Seq(SPAttributes())) = {
+    val obsAttr = attributes.foldLeft(SPAttributes()) { case (acc, c) => acc merge c } merge SPAttributes("observer" -> "yes")
+    val attrs = obsAttr merge c(variable, "0", "1", "0")
+    operationSet += Operation(name = name, attributes = attrs)
+  }
+
   def c(variable: String, fromValue: String, toValue: String): SPAttributes = {
     SPAttributes("preGuard" -> Set(s"$variable == $fromValue"), "preAction" -> Set(s"$variable = $toValue"))
   }

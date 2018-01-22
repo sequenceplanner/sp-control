@@ -40,8 +40,11 @@ object Launch extends App {
       dh ! "stop"
     }
 
-    // trucks test
     system.actorOf(sp.labkit.Festo.props(ahid))
+    // labkit test
+    system.actorOf(sp.labkit.OPMakerLabKit.props, "opMakerLabKit")
+    system.actorOf(sp.labkit.ProductAggregator.props, "ProductAggregator")
+    system.actorOf(sp.labkit.ResourceAggregator.props, "ResourceAggregator")
 
     // patrik model dsl
     system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
@@ -54,4 +57,12 @@ object Launch extends App {
   system.terminate()
 
   Await.ready(system.whenTerminated, Duration(30, SECONDS))
+  try {
+    // cleanup milo crap
+    import sp.milowrapper.MiloOPCUAClient
+    MiloOPCUAClient.destroy()
+  } catch {
+    case e: Exception =>
+      println("OPCUA crash - " + e.getMessage())
+  }
 }

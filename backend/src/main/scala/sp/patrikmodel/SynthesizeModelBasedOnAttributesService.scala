@@ -113,18 +113,48 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
   def addOperations() = {
     ops.foreach { o =>
-      //pre
-      val startEvent = o.name
-      addEventIfNeededElseReturnExistingEvent(startEvent, unControllable = false)
-      addTransition(o, startEvent, Set("preGuard"), Set(_.atStart), Set("preAction"), Set(_.atExecute))
+      if(o.attributes.getAs[String]("observer").getOrElse("") == "") {
+        //pre
+        val startEvent = o.name
+        addEventIfNeededElseReturnExistingEvent(startEvent, unControllable = false)
+        addTransition(o, startEvent, Set("preGuard"), Set(_.atStart), Set("preAction"), Set(_.atExecute))
 
-      //post
-      val compEvent = s"$UNCONTROLLABLE_PREFIX$startEvent"
-      addEventIfNeededElseReturnExistingEvent(compEvent, unControllable = true)
-      addTransition(o, compEvent, Set("postGuard"), Set(_.atExecute), Set("postAction"), Set(_.atComplete))
+        //post
+        val compEvent = s"$UNCONTROLLABLE_PREFIX$startEvent"
+        addEventIfNeededElseReturnExistingEvent(compEvent, unControllable = true)
+        addTransition(o, compEvent, Set("postGuard"), Set(_.atExecute), Set("postAction"), Set(_.atComplete))
 
-      //Add operation events  to module comment
-      mModule.setComment(s"$getComment$OPERATION_PREFIX${o.name} $TRANSITION_PREFIX$startEvent,$compEvent")
+        //Add operation events  to module comment
+        mModule.setComment(s"$getComment$OPERATION_PREFIX${o.name} $TRANSITION_PREFIX$startEvent,$compEvent")
+      }
+      else {
+        //pre
+        val startEvent = s"$UNCONTROLLABLE_PREFIX${o.name}startObs"
+        addEventIfNeededElseReturnExistingEvent(startEvent, unControllable = true)
+        addTransition(o, startEvent, Set("preGuard"), Set(_.atStart), Set("preAction"), Set(_.atExecute))
+
+        //post
+        val compEvent = s"$UNCONTROLLABLE_PREFIX${o.name}finishObs"
+        addEventIfNeededElseReturnExistingEvent(compEvent, unControllable = true)
+        addTransition(o, compEvent, Set("postGuard"), Set(_.atExecute), Set("postAction"), Set(_.atComplete))
+
+        //Add operation events  to module comment
+        mModule.setComment(s"$getComment$OPERATION_PREFIX${o.name} $TRANSITION_PREFIX$startEvent,$compEvent")
+      }
+      if(o.attributes.getAs[String]("observer").getOrElse("") == "") {
+        //pre
+        val startEvent = o.name
+        addEventIfNeededElseReturnExistingEvent(startEvent, unControllable = false)
+        addTransition(o, startEvent, Set("preGuard"), Set(_.atStart), Set("preAction"), Set(_.atExecute))
+
+        //post
+        val compEvent = s"$UNCONTROLLABLE_PREFIX$startEvent"
+        addEventIfNeededElseReturnExistingEvent(compEvent, unControllable = true)
+        addTransition(o, compEvent, Set("postGuard"), Set(_.atExecute), Set("postAction"), Set(_.atComplete))
+
+        //Add operation events  to module comment
+        mModule.setComment(s"$getComment$OPERATION_PREFIX${o.name} $TRANSITION_PREFIX$startEvent,$compEvent")
+      }
     }
   }
 

@@ -25,6 +25,7 @@ case class SimpleTest(modelName: String = "Simple test") extends CollectorModel 
   op("third", thirdattr merge hatt)
 
   v(name = "vOther", idleValue = "0", domain = Seq("0", "1"), attributes = hatt)
+  obs("testObs", "vOther", attributes = hatt)
 
   x("forbidden1", "vCounter == 1 && vOther == 1", attributes = hatt)
 }
