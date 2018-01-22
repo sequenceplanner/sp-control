@@ -27,7 +27,7 @@ class VolvoScheduler extends Actor  with ActorLogging with  sp.service.ServiceSu
 
         b match { // Check if the body is any of the following classes, and execute program
           case APIVolvoScheduler.generateSOPs(modelID, selectedSchedules, ids) => // Create SOPs and Structs from IDAbles
-            spHeader = SPHeader(from = "VolvoScheduler", to = modelID, reply = SPValue("VolvoScheduler"))
+            spHeader = SPHeader(from = "VolvoScheduler", to = modelID.toString, reply = SPValue("VolvoScheduler"))
             val res = generateSOPs(selectedSchedules,ids) // generate SOPs and new struct
             sendUpdatedModel(SPMessage.makeJson(spHeader, mapi.PutItems(res._1))) // Update model with the new SOPs and Structs
             spHeader = SPHeader(from = "VolvoScheduler", to = "VolvoSchedulerWidget", reply = SPValue("VolvoScheduler"))
@@ -41,7 +41,7 @@ class VolvoScheduler extends Actor  with ActorLogging with  sp.service.ServiceSu
             import scala.concurrent.ExecutionContext.Implicits.global
             for{res <- synthOpt(sopID : ID, ids : List[IDAble], neglectedCases : Set[ID])}
             yield {
-              spHeader = SPHeader(from = "VolvoScheduler", to = modelID, reply = SPValue("VolvoScheduler"))
+              spHeader = SPHeader(from = "VolvoScheduler", to = modelID.toString, reply = SPValue("VolvoScheduler"))
               sendUpdatedModel(SPMessage.makeJson(spHeader, mapi.PutItems(res._1))) // Update Model with new IDAbles
               spHeader = SPHeader(from = "VolvoScheduler", to = "VolvoSchedulerWidget", reply = SPValue("VolvoScheduler"))
               sendAnswer(SPMessage.makeJson(spHeader, calculateStructID(res._3))) // Send the ID of the struct - to GUI - where the new IDAbles are contained

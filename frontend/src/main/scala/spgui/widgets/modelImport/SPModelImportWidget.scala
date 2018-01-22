@@ -4,27 +4,29 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
 import org.scalajs.dom.html
-
 import play.api.libs.json.Json
 import spgui.communication._
-
 import sp.domain._
-import sp.modelImport.{APISPModelImport => api} //Create short API names
+import sp.modelImport.{APISPModelImport => api}
 import sp.models.{APIModelMaker => mmapi}
 import sp.models.{APIModel => mapi}
 import api.{ImportText, ModelInfo}
+import spgui.components.Icon
 
 object SPModelImportWidget {
 
-  private class Backend($: BackendScope[Unit, ImportText]) {
+  case class State(Text : String, randID : Boolean)
+
+  private class Backend($: BackendScope[Unit, State]) {
 
     val messObs = BackendCommunication.getMessageObserver(
       mess => {
         import api.Formats._
         val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[api.Model].map {
               case api.Model(modelID: ID, info: ModelInfo, ids: List[IDAble]) =>
-                sendToHandler(mmapi.CreateModel(info.name, info.attributes, modelID)) // Create model
-                sendToModel(modelID, mapi.PutItems(ids)) // Populate model with IDAbles
+                val mID = if($.state.runNow().randID) ID.newID else modelID
+                sendToHandler(mmapi.CreateModel(info.name, info.attributes, mID)) // Create model
+                sendToModel(mID, mapi.PutItems(ids)) // Populate model with IDAbles
                 sendToHandler(mmapi.GetModels) // Refresh model
               case x => Callback.empty
         }
@@ -33,7 +35,7 @@ object SPModelImportWidget {
       api.topicResponse // Listen to Model Import API
     )
 
-    def render(s: ImportText) = {
+    def render(s: State) = {
       <.div(
         <.button(
           ^.className := "btn btn-default",
@@ -47,27 +49,26 @@ object SPModelImportWidget {
           ^.className := "btn btn-default",
           ^.onClick  --> stringify(s), "Compact"
         ),
+        <.div(if(s.randID) Icon.checkSquare else Icon.square , "Randomize the model ID",^.onClick --> $.modState(_.copy(randID = !s.randID))),
         <.br(),
         <.textarea(
-          ^.id := "txtarea",
-          ^.tpe := "text",
-          ^.rows := 20, // initial size of textarea
-          ^.cols := 75,
-          ^.defaultValue := s.Text,
+          ^.tpe := "text", ^.rows := 20, ^.cols := 75,
+          ^.value := s.Text,
+          ^.onClick --> (if(s.Text == "Input SP model as Json string here") $.modState(_.copy(Text = "")) else $.modState(_.copy(Text = s.Text))),
           ^.onChange ==> onTextChange // update var text with new text
         )
       )
     }
 
-    def prettify(s: ImportText) ={
+    def prettify(s: State) ={
       val newValue = Json prettyPrint (Json parse s.Text) // formats the text to be more appealing
-      dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
+      //dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
       $.modState(_.copy(Text = newValue)) // Update the state of the text, might be redundant. since the textarea should update on change..
     }
 
-    def stringify(s: ImportText) ={
+    def stringify(s: State) ={
       val newValue = Json stringify (Json parse s.Text) // formats the text to be more appealing
-      dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
+      //dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
       $.modState(_.copy(Text = newValue)) // Update the state of the text, might be redundant. since the textarea should update on change..
     }
 
@@ -106,7 +107,7 @@ object SPModelImportWidget {
   }
 
   private val component = ScalaComponent.builder[Unit]("ExampleServiceWidget")
-    .initialState(ImportText("Input SP model as Json string here"))
+    .initialState(State("Input SP model as Json string here", true))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build

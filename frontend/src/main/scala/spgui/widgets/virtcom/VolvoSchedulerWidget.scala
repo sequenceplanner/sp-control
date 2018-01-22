@@ -1,6 +1,9 @@
 package spgui.widgets.virtcom
 
+import java.awt.FontMetrics
+
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.vdom.TagOf
 import japgolly.scalajs.react.vdom.html_<^.{<, _}
 import org.scalajs.dom
 import org.scalajs.dom.html
@@ -10,16 +13,19 @@ import sp.virtcom.{APIBDDVerifier, APIVolvoScheduler => api}
 import sp.virtcom.APIVolvoScheduler.{calculate, generateSOPs, getCases}
 import sp.models.{APIModel => mapi, APIModelMaker => mmapi}
 import spgui.communication._
-import spgui.components.{Icon, SPWidgetElements}
+import spgui.components.{Icon, SPWidgetElements, SPWidgetElementsCSS}
+import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 
+import scala.collection.immutable.{ListMap, SortedSet}
+import scala.collection.mutable
+import japgolly.scalajs.react.vdom.all.aria
 
 // Todo: integrate with item explorer, SOP maker and gantt viewer.
 // Todo: Create collapsible panels or similar feature
 
 object VolvoSchedulerWidget{
-
-  case class State(modelID : String, selectedIDs : Set[ID], idables : List[IDAble], selectedIdables : List[IDAble], sopId : ID, cases : Map[String, List[Operation]], neglectedCases : Set[ID],structId : ID, selectedThingDs: Map[String,(String,Int)], verificationResult : Int, doneCalculating :Boolean, cpResults : SPAttributes)
-  var modelId ="" // should not be necessary
+  case class State(modelID : ID, selectedIDs : Set[ID], idables : List[IDAble], selectedIdables : List[IDAble], sopId : ID, cases : Map[String, List[Operation]], neglectedCases : Set[ID],structId : ID, selectedThingDs: Map[String,(String,Int)], verificationResult : Int, doneCalculating :Boolean, cpResults : SPAttributes)
+  var modelId = ID.newID // should not be necessary
 
   private class Backend($: BackendScope[Unit, State]) {
 
@@ -40,15 +46,18 @@ object VolvoSchedulerWidget{
         val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[api.Response].map {
 
           case api.gotCases(c) => // Update cases
+            val elem = dom.document.getElementById("lngCase")
+            val lngstStr = if(c.nonEmpty) c.keySet.maxBy(_.length) else "" //longest case name
+            elem.textContent =lngstStr
+
             $.modState(_.copy(cases = c))
 
           case api.generatedSopID(id)  => // when the sops are generated, get the main sop id, refresh the model and get Cases
-            sendToModel(java.util.UUID.fromString(modelId), mapi.GetItemList(0,99999))
-            dom.document.getElementById("SopIdInput").asInstanceOf[html.Input].value = id.toString // update textbox
+            sendToModel(modelId, mapi.GetItemList(0,99999))
             $.modState(_.copy(sopId = id))
 
           case api.calculateStructID(id)  => // when the calculations are done, refresh model and save the new struct id
-            sendToModel(java.util.UUID.fromString(modelId), mapi.GetItemList(0,99999))
+            sendToModel(modelId, mapi.GetItemList(0,99999))
             $.modState(_.copy(structId = id, doneCalculating = true))
 
           case api.cpResults(cpRes)  => // Save optimization results
@@ -75,13 +84,11 @@ object VolvoSchedulerWidget{
 
     def render(s: State) = { // render GUI
       <.div(
-        renderInput(s),
-        renderSelected(s),
-
-        if(s.cases.nonEmpty) {<.div(<.br(), <.p("Cases active during optimization") )}else <.p(""),
-
-        renderCases(s),
+          <.div(^.id :="lngCase", ^.className := Style.lngCaseHide.htmlClass),
         renderButtons(s),
+        //renderInput(s),
+        renderSelected(s),
+        renderCases(s),
         renderCpRes(s),
         renderVerification(s)
       )
@@ -90,101 +97,122 @@ object VolvoSchedulerWidget{
 
     def renderButtons(s: State) ={
       <.div(
-        <.br(), <.br(), <.br(),
-
+        ^.className := Style.inputs.htmlClass,
+        ModelChoiceDropdown(id => {modelId = id; sendToModel(id, mapi.GetItemList(0,99999))}),
+        renderRobotSchOps(s),
         <.button(
-          ^.className := "btn btn-default",
+          ^.className := "btn", ^.className := Style.buttons.htmlClass,
           ^.onClick --> sendToVolvoScheduler(generateSOPs(s.modelID , s.selectedIDs , s.idables)),
           "Generate SOPs"
         ),
         <.button(
-          ^.className := "btn btn-default",
+          ^.className := "btn", ^.className :=  Style.buttons.htmlClass,
           ^.onClick --> sendToVolvoScheduler(getCases(s.sopId , s.idables)),
           "Get Cases"
         ),
         <.button(
-          ^.className := "btn btn-default",
+          ^.className := "btn", ^.className :=  Style.buttons.htmlClass,
           ^.onClick  --> sendToVolvoScheduler(calculate(s.modelID, s.sopId , s.idables, s.neglectedCases)),
           "Synthesize & solve"
         )
       )
     }
 
-    def renderSelected(s: State) = { // Show the selected IDAbles in a table, with additional naming for robot schedules
-      <.div(
-      if(s.selectedIdables.nonEmpty) <.p("Selected items from the model") else <.p("Select items from the model"),
+    def renderSelected(s: State) =  // Show the selected IDAbles in a table, with additional naming for robot schedules
+
+      <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+        <.summary("Selected resources/schedules"),
       <.table(
-        ^.className := "table table-striped",
+        ^.className := "table table-striped", ^.className :="Table",
         ^.id := "selected-items",
         <.tbody(
           s.selectedIdables.map(i =>{
             <.tr(
-              <.td(i.name),
               <.td(getRobotName(s: State, i :IDAble)),
+              <.td(i.name),
               <.td(<.button(^.className := "btn btn-sm",
                 ^.onClick --> removeItem(i,s),
                 <.i(^.className := "fa fa-trash")
               )
               )
             )}).toTagMod
-        )).when(s.selectedIdables.nonEmpty)
+        )), <.br(),
+    ).when(s.selectedIdables.nonEmpty)
+
+
+
+    def renderInput(s :State)  = // This is for preliminary testing of the program
+      <.div(^.className := Style.inputs.htmlClass,
+        ModelChoiceDropdown(id => {modelId = id; sendToModel(id, mapi.GetItemList(0,99999))}),
+        renderRobotSchOps(s)
       )
+
+
+    def renderRobotSchOps(s: State) = <.div(
+      dropdownWScroll("Select Robot Schedules",
+        s.idables.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation]).filter(o=> {o.attributes.getAs[List[String]]("robotcommands").getOrElse(List()).nonEmpty && o.name.contains("SchDefault")} ).sortWith(_.name < _.name)
+                    .map(op => <.div(op.name, "  " + getRobotName(s: State, op), ^.onClick --> addRobotSch(s, op.id), ^.className := Style.schSelect.htmlClass))))
+
+
+
+    def renderCases(s: State) = { //^.className := Style.cases.htmlClass,
+      var tRows = mutable.LinkedHashSet[TagOf[html.TableRow]]() // for saving row items in the table
+    if(s.cases.nonEmpty) {
+
+     val sortedCases = ListMap(s.cases.toSeq.sortBy(_._1): _*).toList // Sort the cases by name
+     val elem = dom.document.getElementById("lngCase")
+     val caseWidthPx = if (elem.clientWidth <= 500) (elem.clientWidth +50).toString + "px" else "500px"
+
+
+     for (List(c1, c2) <- sortedCases.grouped(2)) { // take 2 cases at the time and create dropdown menus, side by side
+       val contents1 = c1._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
+       val contents2 = c2._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
+       val row = <.tr(<.td(dropdownWScroll(c1._1, contents1, caseWidthPx)),
+         <.td(dropdownWScroll(c2._1, contents2, caseWidthPx)))
+       tRows += row
+     }
+     if (sortedCases.length % 2 != 0) { // uneven nbr of cases
+       val c1 = sortedCases(sortedCases.length - 1)
+       val contents1 = c1._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
+       val row = <.tr(<.td(dropdownWScroll(c1._1, contents1, caseWidthPx)))
+       tRows += row
+     }
+   }
+   <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+     <.summary("Cases active during optimization"),
+     <.table(^.className := "table table-striped", ^.className := "Table", <.tbody( // create table
+       tRows.toTagMod))).when(s.cases.nonEmpty)
     }
 
 
-    def renderInput(s :State)  ={ // This is for preliminary testing of the program, giving inputs as text
-      <.div(
-        <.table(
-          ^.className := "table table-striped",
-          <.thead(
-            <.th("input model ID"),
-            <.th("input item ID"),
-            <.th("SOP ID")
-          ),
-          <.tbody(
-              <.tr(
-                <.td(<.input(^.tpe := "text",^.onChange ==> onModelChange)),
-                <.td(<.input( ^.id := "SelectID", ^.tpe := "text", ^.onChange --> addItem(s))),
-                <.td(<.input( ^.id := "SopIdInput", ^.tpe := "text", ^.onChange ==> onSopIdChange))
-            )
-          )
-        ),
-        <.br()
-      )
+
+    def onCaseCheck(opId :ID, s : State) = { // add or remove the selection
+      if(s.neglectedCases.contains(opId))
+        $.modState(_.copy(neglectedCases = s.neglectedCases - opId))
+      else
+        $.modState(_.copy(neglectedCases = s.neglectedCases + opId))
     }
 
-    def renderCases(s: State) = { // Create drop down menus for the cases, it is possible to have multiple cases selected
-      s.cases.map(c=>
-        SPWidgetElements.dropdown(
-          c._1,
-          c._2.map(o =>
-            SPWidgetElements.dropdownElement(
-              o.name,
-              {if(!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square},
-              onCaseCheck(o.id, s)
-            )
-          )
-        )
-      ).toTagMod
-    }
 
-    def renderThings(s : State) = { // Create drop down menus for the Things, only one thing should be selected at a time. Todo: modify to get rid of push button for verification
+
+    def renderThings(s: State) = {
       val activeStruct = s.idables.filter(_.isInstanceOf[Struct]).map(_.asInstanceOf[Struct]).find(_.id == s.structId).getOrElse(Struct(""))
       val idsInStruct = s.idables.filter(i => activeStruct.items.map(_.item).contains(i.id))
-      idsInStruct.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])  // Get the active struct, find idables in struct and Things in idables,
-        .map(thing =>
-          SPWidgetElements.dropdown(
-            thing.name,
-            thing.attributes.getAs[SPAttributes]("stateVariable").getOrElse(SPAttributes()).getAs[List[String]]("domain").getOrElse(List(""))
-              .zipWithIndex.map( di =>
-              SPWidgetElements.dropdownElement(
-                di._1,
-                {if(s.selectedThingDs.get(thing.name).getOrElse(("",0))._1.equals(di._1)) Icon.checkSquare else Icon.square},
-                onThingCheck(s, thing.name,di)
-              )
-            )
-          )
-        ).toTagMod
+      val things = idsInStruct.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing]).sortWith(_.name < _.name)
+
+      things.map(thing => {
+
+        val contents = thing.attributes.getAs[SPAttributes]("stateVariable").getOrElse(SPAttributes()).getAs[List[String]]("domain").getOrElse(List(""))
+                        .zipWithIndex.map( di =>{
+                                                val selected = s.selectedThingDs.get(thing.name).getOrElse(("",0))._1 == di._1; val domName = " " + di._1.replace(thing.name + "_","")
+                                                <.div(if(selected)Icon.check else "  ", domName,  ^.onClick --> thingVerify(s, thing.name,di))})
+        dropdownWScroll(thing.name, contents)
+      }).toTagMod
+    }
+
+    def thingVerify(s : State, tName : String, di : (String,Int)) = {
+        sendToBDDVerifier(APIBDDVerifier.VerifyBDD("dummy",(s.selectedThingDs ++ Map(tName -> di)).map(m => (m._1, m._2._2)))) // verify
+        $.modState(_.copy(selectedThingDs = (s.selectedThingDs ++ Map(tName -> di)))) // update selected things
     }
 
 
@@ -195,18 +223,16 @@ object VolvoSchedulerWidget{
       val bddName = s.cpResults.getAs[String]("bddName").getOrElse("")
       val cpTime = s.cpResults.getAs[Long]("cpTime").getOrElse(0)
 
-      <.div(
+      <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+        <.summary("Results"),
         <.br(),
-        <.p("Number of states in supervisor:  ", numStates),
-        <.p("Constraint programming complete:  ",  cpCompl.toString),
-        <.p("Time to find CP solution:  ", cpTime.toString, " ms"),
-        <.br(),
+        (numStates.toString + " states in supervisor," + "  constraint programming  " + (if(cpCompl) "completed in " + cpTime.toString + " ms" else "failed")),
       <.table(
         ^.className := "table table-striped",
         <.thead(
+          <.tr(
           <.th("Execution time of solutions"),
-          <.th(""),
-          <.th("")
+          )
         ),
         <.tbody(
           cpSops.map(res =>{
@@ -216,66 +242,77 @@ object VolvoSchedulerWidget{
                 <.td(<.button(^.className := "btn btn-sm"/*,^.onClick --> openSOP( res._2) */,"Open Gantt"))
               )}
               ).toTagMod
-            ))
+            )), <.br(),
       ).when(cpSops.nonEmpty)
     }
 
     def renderVerification(s: State) ={ // show BDD verification interface and result
       <.div(
-        <.br(),
         if(s.doneCalculating){ // only show the verification part of GUI once calculation is done
-          <.div(
-            <.p("BDD Verification :   ", if(s.verificationResult ==1) "This can happen" else if(s.verificationResult ==0) "This cannot happen" else ""),
-            renderThings(s),
-            <.button( // Test if the selected state is achievable
-              ^.className := "btn btn-default",
-              ^.onClick  --> sendToBDDVerifier(APIBDDVerifier.VerifyBDD("dummy",s.selectedThingDs.map(m => (m._1, m._2._2)))),
-              "Verify"
-            )
+          <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+            <.summary("BDD Verification"),
+            <.p("Result :   ", if(s.verificationResult ==1) "This can happen" else if(s.verificationResult ==0) "This cannot happen" else ""),
+            renderThings(s)
           )
         }
         else <.p("")
       )
     }
+    def dropdownWScroll(text: String, contents: Seq[TagMod], widthPx: String = "100 %%"): VdomElement =
+      <.span(
+        ^.className:= SPWidgetElementsCSS.dropdownRoot.htmlClass,
+        <.span(
+          ^.className:= SPWidgetElementsCSS.dropdownOuter.htmlClass,
+          ^.className := SPWidgetElementsCSS.defaultMargin.htmlClass,
+          ^.className:= "dropdown",
+          <.span(
+            ^.id :="spans",
+            <.span(text, ^.className:= SPWidgetElementsCSS.textIconClearance.htmlClass),
+            Icon.caretDown,
+            VdomAttr("data-toggle") := "dropdown",
+            ^.id:="something",
+            ^.className := "nav-link dropdown-toggle",
+            aria.hasPopup := "true",
+            aria.expanded := "false",
+            ^.className := "btn",
+            ^.className := SPWidgetElementsCSS.button.htmlClass,
+            ^.className := SPWidgetElementsCSS.clickable.htmlClass,
+              ^.className := Style.dropWidth.htmlClass,
+            ^.width := widthPx
+        ),
+          <.ul(
+            contents.collect{
+              case e => <.div(
+                ^.className := SPWidgetElementsCSS.dropdownElement.htmlClass,
+                e
+              )
+            }.toTagMod,
+            ^.className := SPWidgetElementsCSS.dropDownList.htmlClass,
+            ^.className := Style.scrollDropDown.htmlClass,
+            ^.className := "dropdown-menu",
+            aria.labelledBy := "something"
+          )
+        )
+      )
 
-    // For dropdown menus, on click
-    def onCaseCheck(opId :ID, s : State) = {
-      if(s.neglectedCases.contains(opId))
-        $.modState(_.copy(neglectedCases = s.neglectedCases - opId))
-      else
-        $.modState(_.copy(neglectedCases = s.neglectedCases + opId))
-    }
-    def onThingCheck(s : State, tName : String, di : (String,Int)) = {
-      if(s.selectedThingDs.get(tName).getOrElse(("",0))._1.equals(di._1)) {
-        $.modState(_.copy(selectedThingDs = (s.selectedThingDs ++ Map(tName -> ("", 0)))))
-      }
-      else {
-        $.modState(_.copy(selectedThingDs = (s.selectedThingDs ++ Map(tName -> di))))
-      }
-    }
 
     def onModelChange(e: ReactEventFromInput) = { // Update model when text area changes
-      modelId = e.target.value.replaceAll("\\s", "") // Get the modified value from the text area, remove white spaces
-      sendToModel(java.util.UUID.fromString(modelId), mapi.GetItemList(0,99999))
+      modelId = java.util.UUID.fromString(e.target.value.replaceAll("\\s", "")) // Get the modified value from the text area, remove white spaces
+      sendToModel(modelId, mapi.GetItemList(0,99999))
     }
 
-
-    def addItem(s : State) = {  // Add item to selection
-      val newIDset = s.selectedIDs + java.util.UUID.fromString(dom.document.getElementById("SelectID").asInstanceOf[html.Input].value) // Get the textarea value and update it
-      dom.document.getElementById("SelectID").asInstanceOf[html.Input].value = ""
-      val newSelectedIdables = s.idables.filter(idable => newIDset.contains(idable.id))
-      $.modState(_.copy( selectedIdables = newSelectedIdables, selectedIDs = newIDset ))
+    def addRobotSch(s : State, id : ID) = {  // Add item to selection
+      val newIDset = s.selectedIDs + id // add id to set
+      val newSelectedIdables = s.idables.filter(idable => newIDset.contains(idable.id)) // find IDAble
+      $.modState(_.copy( selectedIdables = newSelectedIdables, selectedIDs = newIDset )) // update state
     }
+
     def removeItem(idable: IDAble, s : State) = { // Remove item from selection
       val newIDset = s.selectedIDs - idable.id
       val newSelectedIdables = s.idables.filter(idable => newIDset.contains(idable.id))
       $.modState(_.copy( selectedIdables = newSelectedIdables, selectedIDs = newIDset ))
     }
 
-    def onSopIdChange(e: ReactEventFromInput) = { // update the state of sopId
-      val newValue = e.target.value.replaceAll("\\s", "") // Get the modified value from the text area, remove white spaces
-      $.modState(_.copy(sopId = java.util.UUID.fromString(newValue)))
-    }
     def getRobotName(s: State, i : IDAble ) ={
       if(i.attributes.getAs[List[String]]("robotcommands").getOrElse(List()).nonEmpty) { // If the IDAble i is a Robot, get the struct containing i, find the corresponding structnode of i and get the parent node's name, i.e robot name.
         val activeStruct = s.idables.filter(_.isInstanceOf[Struct]).map(_.asInstanceOf[Struct]).find(struct => struct.items.map(_.item).contains(i.id)).get
@@ -322,8 +359,9 @@ object VolvoSchedulerWidget{
     }
   }
 
+
   private val component = ScalaComponent.builder[Unit]("VolvoSchedulerWidget")
-    .initialState(State("", Set(), List(),List(), ID.newID, Map(), Set(), ID.newID, Map(), -1, false, SPAttributes()))
+    .initialState(State(ID.newID, Set(), List(),List(), ID.newID, Map(), Set(), ID.newID, Map(), -1, false, SPAttributes()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build
