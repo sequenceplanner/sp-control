@@ -325,6 +325,8 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   }
 
   private def stateEvalToSupremicaSyntax(se: StateEvaluator): String = se match {
+    case ValueHolder(play.api.libs.json.JsTrue) => "1"
+    case ValueHolder(play.api.libs.json.JsFalse) => "0"
     case ValueHolder(play.api.libs.json.JsString(v)) => v
     case ValueHolder(play.api.libs.json.JsNumber(v)) => v.toString()
     case other =>
