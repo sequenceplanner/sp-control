@@ -71,6 +71,7 @@ object PatrikModelService {
 trait PatrikModelLogic extends SynthesizeModel {
   import modeledCases._
   val models = List(
+    SimpleTest(),
     VolvoWeldConveyerCase(),
     GKNcase(),
     GKNSmallcase(),
