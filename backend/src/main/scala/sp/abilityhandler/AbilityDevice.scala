@@ -113,7 +113,7 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
   subscribe(abapi.topicRequest)
 
   val getResources = makeMess(SPHeader(from = handlerID.toString, to = vd.toString), vdapi.GetResources)
-  publish("services", getResources)
+  publish(vdapi.topicResponse, getResources)
 
   override def receiveCommand = {
 
@@ -157,7 +157,7 @@ class AbilityHandler(name: String, handlerID: UUID, vd: UUID) extends Persistent
       val toSend = res.map{r =>
         val h = SPHeader(from = handlerID.toString, to = vd.toString, reply = SPValue(handlerID))
         val b = vdapi.ResourceCommand(r.id, s.filter(kv => r.things.contains(kv._1)))
-        publish("services", makeMess(h, b))
+        publish(vdapi.topicRequest, makeMess(h, b))
       }
 
     case StateIsMissingIDs(abID, ids) =>

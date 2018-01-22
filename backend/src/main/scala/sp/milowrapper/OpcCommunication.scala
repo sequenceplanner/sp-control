@@ -77,11 +77,25 @@ class MiloOPCUAClient {
     try {
       val configBuilder: OpcUaClientConfigBuilder = new OpcUaClientConfigBuilder();
       val endpoints = UaTcpStackClient.getEndpoints(url).get().toList
-      val endpoint: EndpointDescription = endpoints.filter(e => e.getEndpointUrl().equals(url)) match {
+      val endpoint: EndpointDescription = endpoints// .filter(e => e.getEndpointUrl().equals(url)) --- remove for now, tunneling messes url up...
+        match {
         case xs :: _ => xs
         case Nil => throw new Exception("no desired endpoints returned")
       }
-      configBuilder.setEndpoint(endpoint);
+
+      // hack for tunneling... url is not what the server thinks
+      val fixedendpoint = new EndpointDescription(
+        url,
+        endpoint.getServer(),
+        endpoint.getServerCertificate(),
+        endpoint.getSecurityMode(),
+        endpoint.getSecurityPolicyUri(),
+        endpoint.getUserIdentityTokens(),
+        endpoint.getTransportProfileUri(),
+        endpoint.getSecurityLevel()
+      )
+
+      configBuilder.setEndpoint(fixedendpoint);
       configBuilder.setApplicationName(LocalizedText.english("SP OPC UA client"));
       configBuilder.build();
       client = new OpcUaClient(configBuilder.build()).connect().get()
@@ -215,6 +229,7 @@ class MiloOPCUAClient {
   }
 
   def write(nodeIdentifier: String, spVal: SPValue): Boolean = {
+    println("OPCUA trying to write: " + spVal + " to " + nodeIdentifier)
     availableNodes.get(nodeIdentifier) match {
       case Some(n) =>
         val typeid = n.getDataType().get()
