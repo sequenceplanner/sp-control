@@ -18,6 +18,7 @@ import spgui.communication.APIComm._
 import sp.domain._
 import sp.domain.Logic._
 import java.util.UUID
+import play.api.libs.json._
 
 import scala.util.{Try,Success, Failure}
 
@@ -131,9 +132,19 @@ object ItemEditorInControl {
       else None
     }
 
+
+
+    def onDrop(s: String) = {
+      // drop could be an id...
+      val id1 = ID.makeID(s)
+      // ... or from the item explorer
+      val id2 = (Json.parse(s) \ "idable").asOpt[String].map(ID.makeID(_)).getOrElse(None)
+      (id1 ++ id2).foreach(requestItem)
+    }
+
     def render(props: Props, state: State) =
       <.div(^.height := "100%", // TODO: this is ugly
-        OnDataDrop(idAsStr => Callback(ID.makeID(idAsStr).foreach(requestItem))),
+        OnDataDrop(s => Callback(onDrop(s))),
 
         <.button(
           ^.className := "btn",
