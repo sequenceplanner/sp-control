@@ -49,8 +49,8 @@ class Sp1Talker extends Actor {
         val name = "Hej"
         val id = ID.newID
 
-        val h = SPHeader(from = from, to = sp.runners.APIOperationRunner.service)
-        val b = sp.runners.APIOperationRunner.Runners(List(sp.runners.APIOperationRunner.Setup(name, id, ops, abmap, initstate)))
+        val h = SPHeader(from = from, to = sp.runners.API.service)
+        val b = sp.runners.API.Runners(List(sp.runners.API.Setup(name, id, ops, abmap, initstate)))
         println("Starting sop!")
         mediator ! Publish("services", SPMessage.makeJson(h, b))
       }

@@ -3,8 +3,11 @@ package sp.runners
 import sp.domain._
 import sp.domain.Logic._
 
-object APIOperationRunner {
-  val service = "OperationRunner"
+object API {
+  val service = "operationRunner"
+  val topicRequest = "operationRunnerRequest"
+  val topicResponse = "operationRunnerResponse"
+
   sealed trait Request
   sealed trait Response
 
