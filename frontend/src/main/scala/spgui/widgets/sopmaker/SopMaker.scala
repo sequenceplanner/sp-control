@@ -14,6 +14,10 @@ import spgui.components.SPWidgetElements
 import spgui.dragging._
 import spgui.circuit._
 
+import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
+import spgui.{SPWidget, SPWidgetBase}
+import spgui.components.Icon
+
 sealed trait RenderNode {
   val nodeId: UUID
   val w: Float
@@ -67,8 +71,17 @@ object SopMakerWidget {
      */
     def render(state: State) = {
       <.div(
-        "test",
-        //SPWidgetElements.DragoverContext(),
+        SPWidgetElements.buttonGroup(
+          Seq(
+            SPWidgetElements.button(Icon.save, Callback(println("TODO"))),
+            SPWidgetElements.TextBox("save as...", (s) => Callback(println(s))),
+            SPWidgetElements.dropdown(Icon.download, Seq(
+              SPWidgetElements.dropdownElement("test",Callback(println("TODO"))),
+              SPWidgetElements.dropdownElement("test",Callback(println("TODO"))),
+              SPWidgetElements.dropdownElement("test",Callback(println("TODO")))
+            ))
+          )
+        ),
         <.span(
           ^.onMouseOver ==> handleMouseOver("sop_style"),
           ^.onMouseOut ==> handleMouseOver("not_sop_style"),
@@ -280,3 +293,7 @@ object SopMakerWidget {
 
   def apply() = spgui.SPWidget(spwb => component())
 }
+
+
+
+
