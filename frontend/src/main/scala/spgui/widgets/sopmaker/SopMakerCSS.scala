@@ -42,5 +42,20 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     backgroundColor:= "blue"
   )
 
+  val menuOp = style(
+    overflow.visible.important,
+    touchAction:="none",
+    userSelect := "none",
+    position.relative,
+    zIndex := "1",
+  )
+
+  val menuOpInner = style(
+    marginBottom := -12.px
+  )
+  val menuOpText = style(
+    fontSize := 28.px
+  )
+
   this.addToDocument()
 }

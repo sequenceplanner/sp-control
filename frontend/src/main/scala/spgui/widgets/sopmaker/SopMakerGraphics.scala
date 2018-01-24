@@ -4,6 +4,8 @@ import scala.scalajs.js
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.vdom.all.svg
 
+import spgui.components.SPWidgetElementsCSS
+
 object SopMakerGraphics {
 
   trait Rect extends js.Object {
@@ -55,8 +57,6 @@ object SopMakerGraphics {
       )
     )
 
-
-
   def parallelBars(x: Float, y: Float, w:Float): TagMod =
     <.span(
       ^.className := SopMakerCSS.sopComponent.htmlClass,
@@ -93,4 +93,35 @@ object SopMakerGraphics {
         )
       )
     )
+
+  def menuOp(label: String): TagMod =
+    <.span(
+      ^.className := SopMakerCSS.menuOp.htmlClass,
+      ^.className := SPWidgetElementsCSS.defaultMargin.htmlClass,
+      svg.svg(
+        ^.className := SopMakerCSS.menuOpInner.htmlClass,
+        svg.viewBox := "0 0 100 60",
+        svg.width := "48px",
+        svg.height := "32px",
+        svg.rect(
+          svg.width := "100%",
+          svg.height := "100%",
+          svg.rx := 6, svg.ry := 6,
+          svg.fill := "white",
+          svg.stroke := "black",
+          svg.strokeWidth := 1,
+        ),
+        svg.svg(
+          svg.text(
+            ^.className := SopMakerCSS.menuOpText.htmlClass,
+            svg.x := "50%",
+            svg.y := "50%",
+            svg.textAnchor := "middle",
+            svg.dy := ".3em",
+            label
+          )
+        )
+      )
+    )
+
 }

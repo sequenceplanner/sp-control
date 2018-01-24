@@ -75,11 +75,15 @@ object SopMakerWidget {
           Seq(
             SPWidgetElements.button(Icon.save, Callback(println("TODO"))),
             SPWidgetElements.TextBox("save as...", (s) => Callback(println(s))),
-            SPWidgetElements.dropdown(Icon.download, Seq(
+            SPWidgetElements.dropdown("load SOP", Seq(
               SPWidgetElements.dropdownElement("test",Callback(println("TODO"))),
               SPWidgetElements.dropdownElement("test",Callback(println("TODO"))),
               SPWidgetElements.dropdownElement("test",Callback(println("TODO")))
-            ))
+            )),
+            SopMakerGraphics.menuOp("OP"),
+            SopMakerGraphics.menuOp("||"),
+            SopMakerGraphics.menuOp("&&"),
+            SopMakerGraphics.menuOp("??")
           )
         ),
         <.span(
