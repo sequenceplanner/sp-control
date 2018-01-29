@@ -5,6 +5,8 @@ import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.vdom.all.svg
 
 import spgui.components.SPWidgetElementsCSS
+import spgui.components.SPWidgetElements
+import java.util.UUID
 
 object SopMakerGraphics {
 
@@ -94,8 +96,9 @@ object SopMakerGraphics {
       )
     )
 
-  def menuOp(label: String): TagMod =
+  def menuOp(label: String, id: UUID): TagMod =
     <.span(
+      SPWidgetElements.draggable(label, id, "sop"),
       ^.className := SopMakerCSS.menuOp.htmlClass,
       ^.className := SPWidgetElementsCSS.defaultMargin.htmlClass,
       svg.svg(

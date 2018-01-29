@@ -52,6 +52,11 @@ object SopMakerWidget {
   val opSpacingX = 10f
   val opSpacingY = 10f
 
+  val newOpId = UUID.randomUUID()
+  val newParallelId = UUID.randomUUID()
+  val newArbitraryId = UUID.randomUUID()
+  val newAlternativeId = UUID.randomUUID()
+
   var xOrigin = 0f
   var yOrigin = 0f
 
@@ -60,7 +65,6 @@ object SopMakerWidget {
   val idm = ExampleSops.ops.map(o=>o.id -> o).toMap
 
   private class Backend($: BackendScope[Unit, State]) {
-
     /*
      val eventHandler = BackendCommunication.getMessageObserver(
      mess => {
@@ -80,10 +84,10 @@ object SopMakerWidget {
               SPWidgetElements.dropdownElement("test",Callback(println("TODO"))),
               SPWidgetElements.dropdownElement("test",Callback(println("TODO")))
             )),
-            SopMakerGraphics.menuOp("OP"),
-            SopMakerGraphics.menuOp("||"),
-            SopMakerGraphics.menuOp("&&"),
-            SopMakerGraphics.menuOp("??")
+            SopMakerGraphics.menuOp("OP", newOpId),
+            SopMakerGraphics.menuOp("||", newAlternativeId),
+            SopMakerGraphics.menuOp("&&", newParallelId),
+            SopMakerGraphics.menuOp("??", newArbitraryId)
           )
         ),
         <.span(
@@ -156,7 +160,9 @@ object SopMakerWidget {
         case n: RenderSequence =>  getRenderSequence(n, xOffset, yOffset)
           
         case n: RenderOperationNode => {
-          val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
+         // val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
+
+          val opname = n.sop.nodeID.toString
           List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
           List(dropZone(
             id = n.nodeId,
@@ -262,19 +268,36 @@ object SopMakerWidget {
     }
 
     def findSop(root: SOP, sopId: UUID): SOP = {
-      //println(sopList(root).filter(x => x.nodeID != sopId).head)
       sopList(root).filter(x => x.nodeID == sopId).head
     }
-    
+
+    def cloneSop(sop: SOP): SOP = {
+      sop match {
+        case r: Parallel => {
+          Parallel(
+            sop = r.sop.collect{case e => cloneSop(e)}
+          )}
+        case r: OperationNode => {
+          OperationNode(
+            operation = r.operation,
+            conditions = r.conditions,
+            sop = r.sop,
+            nodeID = UUID.randomUUID()
+          )
+        }
+      }
+    }
+
     def insertSop(root: SOP, targetId: UUID, sopId: UUID): SOP = {
       if(root.nodeID == targetId) {
         root match {
           case r: Parallel =>
-            Parallel(sop = findSop($.state.runNow().sop, sopId) :: r.sop)
+            Parallel(sop = cloneSop(findSop($.state.runNow().sop, sopId)) :: r.sop)
           case r: Sequence =>
-            Sequence(sop = findSop($.state.runNow().sop, sopId) :: r.sop)
+            Sequence(sop = cloneSop(findSop($.state.runNow().sop, sopId)) :: r.sop)
           case r: OperationNode => Parallel(
-            sop = List(r, findSop($.state.runNow().sop, sopId)))
+            sop = List(r, cloneSop(findSop($.state.runNow().sop, sopId)))
+          ) 
         }
       } else {
         root match {
