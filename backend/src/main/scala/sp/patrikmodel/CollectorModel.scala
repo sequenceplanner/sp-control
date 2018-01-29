@@ -134,7 +134,8 @@ trait CollectorImplicits extends ExtendIDables {
 
     //Return--------------------------------------------------------------------------------------------
     val ids = varsToAdd ++ opsToAdd ++ fesToAdd ++ robotMovementsToAdd
-    extendIDables(ids)
+    val extIds = extendIDables(ids)
+    ids.filterNot(i=>extIds.exists(_.id == i.id)) ++ extIds
   }
 
   def parseToIDablesWithIDs() = {
@@ -162,7 +163,8 @@ trait CollectorImplicits extends ExtendIDables {
 
     //Return--------------------------------------------------------------------------------------------
     val ids = varsToAdd ++ opsToAdd ++ fesToAdd ++ robotMovementsToAdd
-    extendIDables(ids)
+    val extIds = extendIDables(ids)
+    ids.filterNot(i=>extIds.exists(_.id == i.id)) ++ extIds
   }
 
 }

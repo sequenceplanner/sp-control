@@ -17,7 +17,6 @@ object Launch extends App {
   println("End**************************")
 
   cluster.registerOnMemberUp {
-
     // Start all you actors here.
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
