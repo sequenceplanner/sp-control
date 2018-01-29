@@ -108,9 +108,6 @@ object SopMakerWidget {
 
     val paddingTop = 40f
     val paddingLeft = 40f
-    val handlePrefix = "drag-handle-"
-    def makeHandle(id: UUID) = handlePrefix + id.toString
-    def readHandle(handle: String) = UUID.fromString(handle.split(handlePrefix+"| ")(1))
 
     def op(opId: UUID, opname: String, x: Float, y: Float): TagMod = {
       <.span(
@@ -130,7 +127,6 @@ object SopMakerWidget {
       node match {
         case n: RenderParallel => {
           var w = 0f
-          
           var children = List[TagMod]()
           for(e <- n.children) {
             val child = getRenderTree(
@@ -160,17 +156,18 @@ object SopMakerWidget {
         case n: RenderSequence =>  getRenderSequence(n, xOffset, yOffset)
           
         case n: RenderOperationNode => {
-         // val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
-
-          val opname = n.sop.nodeID.toString
+          val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
+          
           List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
-          List(dropZone(
-            id = n.nodeId,
-            x = xOffset,
-            y = yOffset,
-            w = opWidth,
-            h = opHeight
-          ))
+          List(
+            dropZone(
+              id = n.nodeId,
+              x = xOffset,
+              y = yOffset,
+              w = opWidth,
+              h = opHeight
+            )
+          )
         }
       }
     }
@@ -273,31 +270,33 @@ object SopMakerWidget {
 
     def cloneSop(sop: SOP): SOP = {
       sop match {
-        case r: Parallel => {
-          Parallel(
-            sop = r.sop.collect{case e => cloneSop(e)}
-          )}
+        case r: Parallel => 
+          r.copy(nodeID = UUID.randomUUID())
+        case r: Sequence =>
+          r.copy(nodeID = UUID.randomUUID())
         case r: OperationNode => {
-          OperationNode(
-            operation = r.operation,
-            conditions = r.conditions,
-            sop = r.sop,
-            nodeID = UUID.randomUUID()
-          )
+          r.copy(nodeID = UUID.randomUUID())
         }
       }
     }
 
     def insertSop(root: SOP, targetId: UUID, sopId: UUID): SOP = {
+      //$.modState(s => s.copy())
       if(root.nodeID == targetId) {
         root match {
-          case r: Parallel =>
-            Parallel(sop = cloneSop(findSop($.state.runNow().sop, sopId)) :: r.sop)
-          case r: Sequence =>
-            Sequence(sop = cloneSop(findSop($.state.runNow().sop, sopId)) :: r.sop)
-          case r: OperationNode => Parallel(
-            sop = List(r, cloneSop(findSop($.state.runNow().sop, sopId)))
-          ) 
+          case r: Parallel => {
+            println("more par:" + r.nodeID )
+            Parallel(nodeID = r.nodeID,
+              sop = cloneSop(findSop($.state.runNow().sop, sopId)) :: r.sop)
+          }
+          case r: Sequence => {
+            println("new seq: " + r.nodeID )
+            Sequence(nodeID = r.nodeID, sop = cloneSop(findSop($.state.runNow().sop, sopId)) :: r.sop)
+          }
+          case r: OperationNode => {
+            println("new par: " + r.nodeID )
+            Parallel(sop = List(r, cloneSop(findSop($.state.runNow().sop, sopId))))
+          }
         }
       } else {
         root match {
@@ -312,7 +311,7 @@ object SopMakerWidget {
   }
   
   private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
-    .initialState(State(sop = ExampleSops.giantSop))
+    .initialState(State(sop = ExampleSops.tinySop))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .componentDidMount(_.backend.onMount()) 
