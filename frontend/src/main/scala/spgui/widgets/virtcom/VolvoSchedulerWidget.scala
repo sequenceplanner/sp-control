@@ -2,6 +2,7 @@ package spgui.widgets.virtcom
 
 import java.awt.FontMetrics
 
+import fs2.Pipe.Stepper.Await
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.TagOf
 import japgolly.scalajs.react.vdom.html_<^.{<, _}
@@ -19,7 +20,12 @@ import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import scala.collection.immutable.{ListMap, SortedSet}
 import scala.collection.mutable
 import japgolly.scalajs.react.vdom.all.aria
+import spgui.SPWidget
+import spgui.circuit.{AddWidget, SPGUICircuit, UpdateWidgetData}
+import spgui.widgets.gantt.{Row, Task}
 
+import scala.scalajs.js
+import js.JSConverters._
 // Todo: integrate with item explorer, SOP maker and gantt viewer.
 // Todo: Create collapsible panels or similar feature
 
@@ -223,6 +229,8 @@ object VolvoSchedulerWidget{
       val bddName = s.cpResults.getAs[String]("bddName").getOrElse("")
       val cpTime = s.cpResults.getAs[Long]("cpTime").getOrElse(0)
 
+
+
       <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
         <.summary("Results"),
         <.br(),
@@ -239,12 +247,31 @@ object VolvoSchedulerWidget{
             <.tr(
               <.td(res._1, " s"),
               <.td(<.button(^.className := "btn btn-sm"/*,^.onClick --> openSOP( res._2) */,"Open SOP")), // Todo: send to SOP maker and Gantt viewer
-                <.td(<.button(^.className := "btn btn-sm"/*,^.onClick --> openSOP( res._2) */,"Open Gantt"))
+                <.td(<.button(^.className := "btn btn-sm",^.onClick --> openGantt( res._3, s.idables) ,"Open Gantt"))
               )}
               ).toTagMod
             )), <.br(),
       ).when(cpSops.nonEmpty)
     }
+
+    import spgui.widgets.ganttviewer.{APIGanttViewer => apiGantt}
+    def openGantt(gantt : List[(ID, Double, Double)], ids : List[IDAble]) ={
+      SPGUICircuit.dispatch(AddWidget("Gantt Viewer", 10, 5)) // Todo: try to make sure that the widget is open before sending data to it.
+
+      val ganttForViewer = gantt.map { op =>
+          apiGantt.row(rowName = ids.find(_.id == op._1).get.name, eventName = "", startT= (op._2 * 1000), endT= (op._3 * 1000))}
+
+      sendToGanttViewer(apiGantt.openGantt(ganttForViewer))
+    }
+
+
+    def sendToGanttViewer(mess: apiGantt.Response): Callback = { // Send message to BDDVerifier
+      val h = SPHeader(from = "VolvoSchedulerWidget", to = "GanttViewerWidget", reply = SPValue("VolvoSchedulerWidget"))
+      val json = SPMessage.make(h, mess)
+      BackendCommunication.publish(json, apiGantt.topicResponse)
+      Callback.empty
+    }
+
 
     def renderVerification(s: State) ={ // show BDD verification interface and result
       <.div(
