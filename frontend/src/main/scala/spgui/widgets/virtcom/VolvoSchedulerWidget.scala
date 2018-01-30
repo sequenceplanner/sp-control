@@ -1,33 +1,31 @@
 package spgui.widgets.virtcom
 
-import java.awt.FontMetrics
-
-import fs2.Pipe.Stepper.Await
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.TagOf
-import japgolly.scalajs.react.vdom.html_<^.{<, _}
+import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
 import org.scalajs.dom.html
+
 import sp.domain._
 import sp.domain.Logic._
+
+import scala.collection.immutable.ListMap
+import scala.collection.mutable
+
+import spgui.communication._
+
 import sp.virtcom.{APIBDDVerifier, APIVolvoScheduler => api}
 import sp.virtcom.APIVolvoScheduler.{calculate, generateSOPs, getCases}
-import sp.models.{APIModel => mapi, APIModelMaker => mmapi}
-import spgui.communication._
-import spgui.components.{Icon, SPWidgetElements, SPWidgetElementsCSS}
+import sp.models.{APIModel => mapi}
+
+import spgui.components.Icon
+
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
+import sendMessages._
+import dropdownWithScroll.dropdownWScroll
+import openGantt.showGantt
 
-import scala.collection.immutable.{ListMap, SortedSet}
-import scala.collection.mutable
-import japgolly.scalajs.react.vdom.all.aria
-import spgui.SPWidget
-import spgui.circuit.{AddWidget, SPGUICircuit, UpdateWidgetData}
-import spgui.widgets.gantt.{Row, Task}
-
-import scala.scalajs.js
-import js.JSConverters._
 // Todo: integrate with item explorer, SOP maker and gantt viewer.
-// Todo: Create collapsible panels or similar feature
 
 object VolvoSchedulerWidget{
   case class State(modelID : ID, selectedIDs : Set[ID], idables : List[IDAble], selectedIdables : List[IDAble], sopId : ID, cases : Map[String, List[Operation]], neglectedCases : Set[ID],structId : ID, selectedThingDs: Map[String,(String,Int)], verificationResult : Int, doneCalculating :Boolean, cpResults : SPAttributes)
@@ -47,7 +45,7 @@ object VolvoSchedulerWidget{
       mapi.topicResponse
     )
 
-    val volvoschedulerMessObs = BackendCommunication.getMessageObserver(
+    val volvoschedulerMessObs = BackendCommunication.getMessageObserver( //listen to messages from Volvo Scheduler
       mess => {
         val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[api.Response].map {
 
@@ -55,11 +53,12 @@ object VolvoSchedulerWidget{
             val elem = dom.document.getElementById("lngCase")
             val lngstStr = if(c.nonEmpty) c.keySet.maxBy(_.length) else "" //longest case name
             elem.textContent =lngstStr
-
+            ShowBusy(false)
             $.modState(_.copy(cases = c))
 
           case api.generatedSopID(id)  => // when the sops are generated, get the main sop id, refresh the model and get Cases
             sendToModel(modelId, mapi.GetItemList(0,99999))
+            ShowBusy(false)
             $.modState(_.copy(sopId = id))
 
           case api.calculateStructID(id)  => // when the calculations are done, refresh model and save the new struct id
@@ -67,6 +66,7 @@ object VolvoSchedulerWidget{
             $.modState(_.copy(structId = id, doneCalculating = true))
 
           case api.cpResults(cpRes)  => // Save optimization results
+            ShowBusy(false)
             $.modState(_.copy(cpResults = cpRes))
 
           case x => Callback.empty
@@ -90,35 +90,36 @@ object VolvoSchedulerWidget{
 
     def render(s: State) = { // render GUI
       <.div(
-          <.div(^.id :="lngCase", ^.className := Style.lngCaseHide.htmlClass),
-        renderButtons(s),
-        //renderInput(s),
-        renderSelected(s),
-        renderCases(s),
-        renderCpRes(s),
-        renderVerification(s)
+        <.div(
+          renderInputsAndButtons(s), // menu
+          renderSelected(s), // selected schedules
+          renderCases(s), // render alternatives where the SOPs are branching
+          renderRes(s), // render results of synthesis and Constraint Programming
+          renderVerification(s) // For BDD verification of Supervisor
+        ),
+        <.div(^.id := "VolvoSchedulerSpinner", ^.className := Style.spinLoader.htmlClass), // a loader that can show when the widget is busy
+        <.div(^.id :="lngCase", ^.className := Style.lngCaseHide.htmlClass), // this is a hidden div for calculating pixel size of the longest case.
       )
     }
 
-
-    def renderButtons(s: State) ={
+    def renderInputsAndButtons(s: State) ={
       <.div(
         ^.className := Style.inputs.htmlClass,
-        ModelChoiceDropdown(id => {modelId = id; sendToModel(id, mapi.GetItemList(0,99999))}),
-        renderRobotSchOps(s),
+        ModelChoiceDropdown(id => {modelId = id; sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
+        renderRobotSchOps(s), // Get robot schedules in dropdown
         <.button(
           ^.className := "btn", ^.className := Style.buttons.htmlClass,
-          ^.onClick --> sendToVolvoScheduler(generateSOPs(s.modelID , s.selectedIDs , s.idables)),
+          ^.onClick --> {ShowBusy(); sendToVolvoScheduler(generateSOPs(s.modelID , s.selectedIDs , s.idables))}, // Generate SOPs
           "Generate SOPs"
         ),
         <.button(
           ^.className := "btn", ^.className :=  Style.buttons.htmlClass,
-          ^.onClick --> sendToVolvoScheduler(getCases(s.sopId , s.idables)),
+          ^.onClick --> {ShowBusy(); sendToVolvoScheduler(getCases(s.sopId , s.idables))}, // get cases
           "Get Cases"
         ),
         <.button(
           ^.className := "btn", ^.className :=  Style.buttons.htmlClass,
-          ^.onClick  --> sendToVolvoScheduler(calculate(s.modelID, s.sopId , s.idables, s.neglectedCases)),
+          ^.onClick  --> {ShowBusy();  sendToVolvoScheduler(calculate(s.modelID, s.sopId , s.idables, s.neglectedCases))}, // Synthesise and use CP to solve model
           "Synthesize & solve"
         )
       )
@@ -134,7 +135,7 @@ object VolvoSchedulerWidget{
         <.tbody(
           s.selectedIdables.map(i =>{
             <.tr(
-              <.td(getRobotName(s: State, i :IDAble)),
+              <.td(getRobotName(s: State, i :IDAble)), // find name of parent operation to selected schedule (should be the robot name)
               <.td(i.name),
               <.td(<.button(^.className := "btn btn-sm",
                 ^.onClick --> removeItem(i,s),
@@ -145,51 +146,98 @@ object VolvoSchedulerWidget{
         )), <.br(),
     ).when(s.selectedIdables.nonEmpty)
 
+    def renderCases(s: State) = {
+      var tRows = mutable.LinkedHashSet[TagOf[html.TableRow]]() // for saving row items in the table
+      if(s.cases.nonEmpty) {
+
+        val sortedCases = ListMap(s.cases.toSeq.sortBy(_._1): _*).toList // Sort the cases by name
+        val elem = dom.document.getElementById("lngCase") // get longest case name element and get pixel width to use for all cases.
+        val caseWidthPx = if (elem.clientWidth <= 500) (elem.clientWidth +50).toString + "px" else "500px"
+
+        for (List(c1, c2) <- sortedCases.grouped(2)) { // take 2 cases at the time and create dropdown menus, side by side
+          val contents1 = c1._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
+          val contents2 = c2._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
+          val row = <.tr(<.td(dropdownWScroll(c1._1, contents1, caseWidthPx)),
+            <.td(dropdownWScroll(c2._1, contents2, caseWidthPx)))
+          tRows += row
+        } // Todo: try sliding instead, perhaps no need for the if clause
+        if (sortedCases.length % 2 != 0) { // uneven nbr of cases
+          val c1 = sortedCases(sortedCases.length - 1)
+          val contents1 = c1._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
+          val row = <.tr(<.td(dropdownWScroll(c1._1, contents1, caseWidthPx)))
+          tRows += row
+        }
+      }
+      <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+        <.summary("Cases active during optimization"),
+        <.table(^.className := "table table-striped", ^.className := "Table", <.tbody( // create table
+          tRows.toTagMod))).when(s.cases.nonEmpty)
+    }
 
 
-    def renderInput(s :State)  = // This is for preliminary testing of the program
+
+
+    def renderRes(s :State)  ={ // display results of synthesis and CP in table
+      val numStates = s.cpResults.getAs[Int]("numStates").getOrElse(0)
+      val cpCompl = s.cpResults.getAs[Boolean]("cpCompleted").getOrElse(false)
+      val cpSops = s.cpResults.getAs[List[(Double,SOPSpec, List[(ID,Double,Double)])]]("cpSops").getOrElse(List())
+      val bddName = s.cpResults.getAs[String]("bddName").getOrElse("")
+      val cpTime = s.cpResults.getAs[Long]("cpTime").getOrElse(0)
+
+      <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+        <.summary("Results"),
+        <.br(),
+        (numStates.toString + " states in supervisor," + "  constraint programming  " + (if(cpCompl) "completed in " + cpTime.toString + " ms" else "failed")),
+        <.table(
+          ^.className := "table table-striped",
+          <.thead(
+            <.tr(
+              <.th("Execution time of solutions"),
+            )
+          ),
+          <.tbody(
+            cpSops.map(res =>{
+              <.tr(
+                <.td(res._1, " s"),
+                <.td(<.button(^.className := "btn btn-sm"/*,^.onClick --> openSOP( res._2) */,"Open SOP")), // Todo: send to SOP maker and Gantt viewer
+                <.td(<.button(^.className := "btn btn-sm",^.onClick --> showGantt( res._3, s.idables) ,"Open Gantt"))
+              )}
+            ).toTagMod
+          )), <.br(),
+      ).when(cpSops.nonEmpty)
+    }
+
+
+    def renderVerification(s: State) ={ // show BDD verification interface and result
+      <.div(
+        if(s.doneCalculating){ // only show the verification part of GUI once calculation is done
+          <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+            <.summary("BDD Verification"),
+            <.p("Result :   ", if(s.verificationResult ==1) "This can happen" else if(s.verificationResult ==0) "This cannot happen" else ""),
+            renderThings(s)
+          )
+        }
+        else <.p("")
+      )
+    }
+
+    def ShowBusy(show : Boolean = true)={ // show/hide loader spinner
+      val spinner = dom.document.getElementById("VolvoSchedulerSpinner")
+      if(show) spinner.setAttribute("style","display:block")
+      else spinner.setAttribute("style","display:none")
+    }
+
+
+    def renderInput(s :State)  = // This is for preliminary testing of the program, at least the model part should be global
       <.div(^.className := Style.inputs.htmlClass,
         ModelChoiceDropdown(id => {modelId = id; sendToModel(id, mapi.GetItemList(0,99999))}),
         renderRobotSchOps(s)
       )
 
-
-    def renderRobotSchOps(s: State) = <.div(
+    def renderRobotSchOps(s: State) = <.div( // find idables with robot schedule and put them in a dropdown menu
       dropdownWScroll("Select Robot Schedules",
         s.idables.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation]).filter(o=> {o.attributes.getAs[List[String]]("robotcommands").getOrElse(List()).nonEmpty && o.name.contains("SchDefault")} ).sortWith(_.name < _.name)
                     .map(op => <.div(op.name, "  " + getRobotName(s: State, op), ^.onClick --> addRobotSch(s, op.id), ^.className := Style.schSelect.htmlClass))))
-
-
-
-    def renderCases(s: State) = { //^.className := Style.cases.htmlClass,
-      var tRows = mutable.LinkedHashSet[TagOf[html.TableRow]]() // for saving row items in the table
-    if(s.cases.nonEmpty) {
-
-     val sortedCases = ListMap(s.cases.toSeq.sortBy(_._1): _*).toList // Sort the cases by name
-     val elem = dom.document.getElementById("lngCase")
-     val caseWidthPx = if (elem.clientWidth <= 500) (elem.clientWidth +50).toString + "px" else "500px"
-
-
-     for (List(c1, c2) <- sortedCases.grouped(2)) { // take 2 cases at the time and create dropdown menus, side by side
-       val contents1 = c1._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
-       val contents2 = c2._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
-       val row = <.tr(<.td(dropdownWScroll(c1._1, contents1, caseWidthPx)),
-         <.td(dropdownWScroll(c2._1, contents2, caseWidthPx)))
-       tRows += row
-     }
-     if (sortedCases.length % 2 != 0) { // uneven nbr of cases
-       val c1 = sortedCases(sortedCases.length - 1)
-       val contents1 = c1._2.map(o => <.div(if (!s.neglectedCases.contains(o.id)) Icon.checkSquare else Icon.square, " " + o.name.substring(o.name.indexOf("_") + 1), ^.onClick --> onCaseCheck(o.id, s)))
-       val row = <.tr(<.td(dropdownWScroll(c1._1, contents1, caseWidthPx)))
-       tRows += row
-     }
-   }
-   <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
-     <.summary("Cases active during optimization"),
-     <.table(^.className := "table table-striped", ^.className := "Table", <.tbody( // create table
-       tRows.toTagMod))).when(s.cases.nonEmpty)
-    }
-
 
 
     def onCaseCheck(opId :ID, s : State) = { // add or remove the selection
@@ -200,12 +248,10 @@ object VolvoSchedulerWidget{
     }
 
 
-
     def renderThings(s: State) = {
       val activeStruct = s.idables.filter(_.isInstanceOf[Struct]).map(_.asInstanceOf[Struct]).find(_.id == s.structId).getOrElse(Struct(""))
       val idsInStruct = s.idables.filter(i => activeStruct.items.map(_.item).contains(i.id))
       val things = idsInStruct.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing]).sortWith(_.name < _.name)
-
       things.map(thing => {
 
         val contents = thing.attributes.getAs[SPAttributes]("stateVariable").getOrElse(SPAttributes()).getAs[List[String]]("domain").getOrElse(List(""))
@@ -222,113 +268,12 @@ object VolvoSchedulerWidget{
     }
 
 
-    def renderCpRes(s :State)  ={ // display results of CP in paragraphs and table
-     val numStates = s.cpResults.getAs[Int]("numStates").getOrElse(0)
-      val cpCompl = s.cpResults.getAs[Boolean]("cpCompleted").getOrElse(false)
-      val cpSops = s.cpResults.getAs[List[(Double,SOPSpec, List[(ID,Double,Double)])]]("cpSops").getOrElse(List())
-      val bddName = s.cpResults.getAs[String]("bddName").getOrElse("")
-      val cpTime = s.cpResults.getAs[Long]("cpTime").getOrElse(0)
-
-
-
-      <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
-        <.summary("Results"),
-        <.br(),
-        (numStates.toString + " states in supervisor," + "  constraint programming  " + (if(cpCompl) "completed in " + cpTime.toString + " ms" else "failed")),
-      <.table(
-        ^.className := "table table-striped",
-        <.thead(
-          <.tr(
-          <.th("Execution time of solutions"),
-          )
-        ),
-        <.tbody(
-          cpSops.map(res =>{
-            <.tr(
-              <.td(res._1, " s"),
-              <.td(<.button(^.className := "btn btn-sm"/*,^.onClick --> openSOP( res._2) */,"Open SOP")), // Todo: send to SOP maker and Gantt viewer
-                <.td(<.button(^.className := "btn btn-sm",^.onClick --> openGantt( res._3, s.idables) ,"Open Gantt"))
-              )}
-              ).toTagMod
-            )), <.br(),
-      ).when(cpSops.nonEmpty)
-    }
-
-    import spgui.widgets.ganttviewer.{APIGanttViewer => apiGantt}
-    def openGantt(gantt : List[(ID, Double, Double)], ids : List[IDAble]) ={
-      SPGUICircuit.dispatch(AddWidget("Gantt Viewer", 10, 5)) // Todo: try to make sure that the widget is open before sending data to it.
-
-      val ganttForViewer = gantt.map { op =>
-          apiGantt.row(rowName = ids.find(_.id == op._1).get.name, eventName = "", startT= (op._2 * 1000), endT= (op._3 * 1000))}
-
-      sendToGanttViewer(apiGantt.openGantt(ganttForViewer))
-    }
-
-
-    def sendToGanttViewer(mess: apiGantt.Response): Callback = { // Send message to BDDVerifier
-      val h = SPHeader(from = "VolvoSchedulerWidget", to = "GanttViewerWidget", reply = SPValue("VolvoSchedulerWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, apiGantt.topicResponse)
-      Callback.empty
-    }
-
-
-    def renderVerification(s: State) ={ // show BDD verification interface and result
-      <.div(
-        if(s.doneCalculating){ // only show the verification part of GUI once calculation is done
-          <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
-            <.summary("BDD Verification"),
-            <.p("Result :   ", if(s.verificationResult ==1) "This can happen" else if(s.verificationResult ==0) "This cannot happen" else ""),
-            renderThings(s)
-          )
-        }
-        else <.p("")
-      )
-    }
-    def dropdownWScroll(text: String, contents: Seq[TagMod], widthPx: String = "100 %%"): VdomElement =
-      <.span(
-        ^.className:= SPWidgetElementsCSS.dropdownRoot.htmlClass,
-        <.span(
-          ^.className:= SPWidgetElementsCSS.dropdownOuter.htmlClass,
-          ^.className := SPWidgetElementsCSS.defaultMargin.htmlClass,
-          ^.className:= "dropdown",
-          <.span(
-            ^.id :="spans",
-            <.span(text, ^.className:= SPWidgetElementsCSS.textIconClearance.htmlClass),
-            Icon.caretDown,
-            VdomAttr("data-toggle") := "dropdown",
-            ^.id:="something",
-            ^.className := "nav-link dropdown-toggle",
-            aria.hasPopup := "true",
-            aria.expanded := "false",
-            ^.className := "btn",
-            ^.className := SPWidgetElementsCSS.button.htmlClass,
-            ^.className := SPWidgetElementsCSS.clickable.htmlClass,
-              ^.className := Style.dropWidth.htmlClass,
-            ^.width := widthPx
-        ),
-          <.ul(
-            contents.collect{
-              case e => <.div(
-                ^.className := SPWidgetElementsCSS.dropdownElement.htmlClass,
-                e
-              )
-            }.toTagMod,
-            ^.className := SPWidgetElementsCSS.dropDownList.htmlClass,
-            ^.className := Style.scrollDropDown.htmlClass,
-            ^.className := "dropdown-menu",
-            aria.labelledBy := "something"
-          )
-        )
-      )
-
-
     def onModelChange(e: ReactEventFromInput) = { // Update model when text area changes
       modelId = java.util.UUID.fromString(e.target.value.replaceAll("\\s", "")) // Get the modified value from the text area, remove white spaces
       sendToModel(modelId, mapi.GetItemList(0,99999))
     }
 
-    def addRobotSch(s : State, id : ID) = {  // Add item to selection
+    def addRobotSch(s : State, id : ID) = {  // Add robot schedule item to selection
       val newIDset = s.selectedIDs + id // add id to set
       val newSelectedIdables = s.idables.filter(idable => newIDset.contains(idable.id)) // find IDAble
       $.modState(_.copy( selectedIdables = newSelectedIdables, selectedIDs = newIDset )) // update state
@@ -348,33 +293,6 @@ object VolvoSchedulerWidget{
       }
       else
         "" // dont write anything extra, for now... Would be cool to get the other resource type and such here, like fixture and so on
-    }
-
-    def sendToModel(model: ID, mess: mapi.Request): Callback = { //  Send message to model
-      val h = SPHeader(from = "VolvoSchedulerWidget", to = model.toString,
-        reply = SPValue("VolvoSchedulerWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, mapi.topicRequest)
-      Callback.empty
-    }
-    def sendToHandler(mess: mmapi.Request): Callback = { // Send message to model handler
-      val h = SPHeader(from = "VolvoSchedulerWidget", to = mmapi.service,
-        reply = SPValue("VolvoSchedulerWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, mmapi.topicRequest)
-      Callback.empty
-    }
-    def sendToVolvoScheduler(mess: api.Request): Callback = { // Send message to Volvo scheduler service
-      val h = SPHeader(from = "VolvoSchedulerWidget", to = api.service, reply = SPValue("VolvoSchedulerWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, api.topicRequest)
-      Callback.empty
-    }
-    def sendToBDDVerifier(mess: APIBDDVerifier.Request): Callback = { // Send message to BDDVerifier
-      val h = SPHeader(from = "VolvoSchedulerWidget", to = APIBDDVerifier.service, reply = SPValue("VolvoSchedulerWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, APIBDDVerifier.topicRequest)
-      Callback.empty
     }
 
     def onUnmount() = { // Unmounting widget

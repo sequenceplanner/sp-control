@@ -7,39 +7,10 @@ import scalajs.js
 import org.scalajs.dom
 import spgui.SPWidget
 import spgui.communication.BackendCommunication
-import play.api.libs.json._
 import sp.domain._
 import spgui.widgets.gantt._
 import spgui.SPWidgetBase
-import sp.domain.logic.JsonImplicit
-import sp.domain.Logic._
-import spgui.widgets.ganttviewer.APIGanttViewer.row
-
-
-object APIGanttViewer {
-  sealed trait Request
-  sealed trait Response
-  val topicRequest = "GanttViewerRequests"
-  val topicResponse = "GanttViewerResponse"
-
-  case class row(rowName: String, eventName: String, startT: Double, endT: Double)
-  case class openGantt(gantt : List[row], timeformat : String = "second", viewScale : String = "1 seconds", updateGantt : Boolean = false) extends Response
-
-  object Formats {
-    implicit val frow: JSFormat[row] = Json.format[row]
-    implicit val fopenGantt: JSFormat[openGantt] = Json.format[openGantt]
-
-    def fGanttViewerRequest: JSFormat[Request] = Json.format[Request]
-    def fGanttViewerResponse: JSFormat[Response] = Json.format[Response]
-  }
-
-  object Request {
-    implicit lazy val fGanttViewerRequest: JSFormat[Request] = Formats.fGanttViewerRequest
-  }
-  object Response {
-    implicit lazy val fGanttViewerResponse: JSFormat[Response] = Formats.fGanttViewerResponse
-  }
-}
+import spgui.widgets.ganttviewer.APIGantt.APIGanttViewer.{row,openGantt,Response, topicResponse}
 
 
 object GanttViewerWidget {
@@ -48,8 +19,8 @@ object GanttViewerWidget {
     var spGantt: SPGantt = _;  var divID =""
     val messObs = BackendCommunication.getMessageObserver(
       mess => {
-        val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIGanttViewer.Response].map {
-          case APIGanttViewer.openGantt(gantt, timeformat, viewScale, updateGantt) =>
+        val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[Response].map {
+          case openGantt(gantt, timeformat, viewScale, updateGantt) =>
           if (spGantt == null && (dom.document.getElementById(divID) != null)) {
 
             spGantt = SPGantt(dom.document.getElementById(divID), SPGanttOptions(headers = js.Array(timeformat), viewScale = viewScale))
@@ -63,7 +34,7 @@ object GanttViewerWidget {
         }
         callback.foreach(_.runNow())
       },
-      APIGanttViewer.topicResponse
+      topicResponse
     )
 
     def setGanttData (gantt : List[row]) ={
