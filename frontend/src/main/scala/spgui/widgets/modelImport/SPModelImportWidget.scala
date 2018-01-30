@@ -12,6 +12,7 @@ import sp.models.{APIModelMaker => mmapi}
 import sp.models.{APIModel => mapi}
 import api.{ImportText, ModelInfo}
 import spgui.components.Icon
+import  sendMessages._
 
 object SPModelImportWidget {
 
@@ -62,13 +63,11 @@ object SPModelImportWidget {
 
     def prettify(s: State) ={
       val newValue = Json prettyPrint (Json parse s.Text) // formats the text to be more appealing
-      //dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
       $.modState(_.copy(Text = newValue)) // Update the state of the text, might be redundant. since the textarea should update on change..
     }
 
     def stringify(s: State) ={
       val newValue = Json stringify (Json parse s.Text) // formats the text to be more appealing
-      //dom.document.getElementById("txtarea").asInstanceOf[html.Input].value = newValue // Get the textarea value and update it
       $.modState(_.copy(Text = newValue)) // Update the state of the text, might be redundant. since the textarea should update on change..
     }
 
@@ -77,27 +76,6 @@ object SPModelImportWidget {
       $.modState(_.copy(Text = newValue))// Update the state of the text
     }
 
-
-    def sendToModelImport(mess: api.Request): Callback = {
-      val h = SPHeader(from = "SPModelImportWidget", to = api.service, reply = SPValue("SPModelImportWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, api.topicRequest)
-      Callback.empty
-    }
-    def sendToHandler(mess: mmapi.Request): Callback = {
-      val h = SPHeader(from = "ModelWidget", to = mmapi.service,
-        reply = SPValue("ModelWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, mmapi.topicRequest)
-      Callback.empty
-    }
-    def sendToModel(model: ID, mess: mapi.Request): Callback = {
-      val h = SPHeader(from = "ModelWidget", to = model.toString,
-        reply = SPValue("ModelWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, mapi.topicRequest)
-      Callback.empty
-    }
 
     def onUnmount() = {
       println("Unmounting")
