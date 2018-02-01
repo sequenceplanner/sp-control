@@ -137,6 +137,34 @@ object SopMakerGraphics {
       )
     )
 
+  def sopConnectionLine(x: Float, y: Float, h:Float): TagMod =
+    <.span(
+      ^.className := SopMakerCSS.sopComponent.htmlClass,
+      ^.style := {
+        var rect =  (js.Object()).asInstanceOf[Rect]
+        rect.left = x + SopMakerWidget.opWidth/2
+        rect.top = y
+        rect.height = h
+        rect.width = 4
+        rect
+      },
+      svg.svg(
+        ^.className := SopMakerCSS.sopComponentSVG.htmlClass,
+        svg.width := "100%",
+        svg.svg(
+          svg.width := 4,
+          svg.height := h.toInt,
+          svg.rect(
+            svg.x := 0,
+            svg.y := 0,
+            svg.width:=4,
+            svg.height:=h.toInt,
+            svg.fill := "black",
+          )
+        )
+      )
+    )
+
   def menuOp(label: String, id: UUID): TagMod =
     <.span(
       SPWidgetElements.draggable(label, id, "sop"),
@@ -167,5 +195,4 @@ object SopMakerGraphics {
         )
       )
     )
-
 }

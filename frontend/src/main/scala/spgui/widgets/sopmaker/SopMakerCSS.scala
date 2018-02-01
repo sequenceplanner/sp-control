@@ -10,6 +10,10 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     position.relative
   )
 
+  val sopComponentSVG = style(
+    overflow.visible.important,
+  )
+
   val sopComponent = style(
     overflow.visible.important,
     touchAction:="none",

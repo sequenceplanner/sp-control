@@ -63,9 +63,9 @@ object SopMakerWidget {
   val opHeight = 80f
   val opWidth = 120f
   val opSpacingX = 10f
-  val opSpacingY = 10f
-  val opSpacingYInsideGroup = 10f
-  val opSpacingXInsideGroup = 23f
+  val opSpacingY = 25f
+  val opSpacingYInsideGroup = 45
+  val opSpacingXInsideGroup = 35f
 
   val newOpId = UUID.randomUUID()
   val newParallelId = UUID.randomUUID()
@@ -143,17 +143,27 @@ object SopMakerWidget {
           for(e <- n.children) {
             val child = getRenderTree(
               e,
-              xOffset + w + e.w/2 - n.w/2 + opSpacingX + opSpacingXInsideGroup,
+              xOffset + w + e.w/2f - n.w/2f + opSpacingX + opSpacingXInsideGroup,
               yOffset + parallelBarHeight + opSpacingY + opSpacingYInsideGroup
             )
+            children = children ++ child ++ List(
+              SopMakerGraphics.sopConnectionLine(
+                xOffset + w + e.w/2f - n.w/2f + opSpacingX/2f + opSpacingXInsideGroup,
+                yOffset + parallelBarHeight,
+                opSpacingY + opSpacingYInsideGroup
+              ),
+              SopMakerGraphics.sopConnectionLine(
+                xOffset + w + e.w/2f - n.w/2f + opSpacingX/2f + opSpacingXInsideGroup,
+                yOffset + parallelBarHeight + opSpacingY + opSpacingYInsideGroup + e.h,
+                n.h - e.h - 2*parallelBarHeight - opSpacingYInsideGroup - opSpacingY
+              )
+            )
             w += e.w
-            children = children ++ child
           }
           val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
           val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
           val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
           val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
-
           List(
             dropZone(   // Left dropzone
               id = dropzoneLeft,
@@ -189,7 +199,7 @@ object SopMakerWidget {
           children ++
           List(SopMakerGraphics.parallelBars(
             xOffset - n.w/2,
-            yOffset + n.h - 2*parallelBarHeight,
+            yOffset + n.h - parallelBarHeight,
             n.w - opSpacingX
           ))
         }
@@ -308,14 +318,14 @@ object SopMakerWidget {
         case s: Parallel => {
           if(s.sop.isEmpty) 0
           else math.max(
-            getTreeHeight(s.sop.head) + (parallelBarHeight*2 + opSpacingY*2 + 2*opSpacingYInsideGroup),
+            getTreeHeight(s.sop.head) + (2*parallelBarHeight + 2*opSpacingY + 2*opSpacingYInsideGroup),
             getTreeHeight(Parallel(s.sop.tail))
           )
         }
         case s: Sequence => {
           s.sop.map(e => getTreeHeight(e)).foldLeft(0f)(_ + _)
         }
-        case s: OperationNode => opHeight + opSpacingY
+        case s: OperationNode => opHeight
       }   
     }
   
