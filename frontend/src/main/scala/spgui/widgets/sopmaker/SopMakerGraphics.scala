@@ -46,9 +46,10 @@ object SopMakerGraphics {
             svg.stroke := "black",
             svg.strokeWidth := 1
           ),
+          // Top horizontal line
           svg.rect(
             svg.x := 0,
-            svg.y := SopMakerWidget.opHeight.toInt/8,
+            svg.y := SopMakerWidget.opHorizontalBarOffset.toInt,
             svg.width := SopMakerWidget.opWidth.toInt,
             svg.height:= 1,
             svg.rx := 0, svg.ry := 0,
@@ -56,11 +57,34 @@ object SopMakerGraphics {
             svg.stroke := "black",
             svg.strokeWidth := 1
           ),
+          // Bottom horizontal line
           svg.rect(
             svg.x := 0,
-            svg.y := 7*(SopMakerWidget.opHeight.toInt/8),
+            svg.y :=  (SopMakerWidget.opHeight - SopMakerWidget.opHorizontalBarOffset).toInt,
             svg.width := SopMakerWidget.opWidth.toInt,
             svg.height:= 1,
+            svg.rx := 0, svg.ry := 0,
+            svg.fill := "black",
+            svg.stroke := "black",
+            svg.strokeWidth := 1
+          ),
+          // Left vertical line
+          svg.rect(
+            svg.x := SopMakerWidget.opVerticalBarOffset.toInt,
+            svg.y := SopMakerWidget.opHorizontalBarOffset,
+            svg.width := 1,
+            svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
+            svg.rx := 0, svg.ry := 0,
+            svg.fill := "black",
+            svg.stroke := "black",
+            svg.strokeWidth := 1
+          ),
+          // Right vertical line
+          svg.rect(
+            svg.x := SopMakerWidget.opWidth - SopMakerWidget.opVerticalBarOffset.toInt,
+            svg.y := SopMakerWidget.opHorizontalBarOffset,
+            svg.width := 1,
+            svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
             svg.rx := 0, svg.ry := 0,
             svg.fill := "black",
             svg.stroke := "black",
@@ -92,7 +116,6 @@ object SopMakerGraphics {
       },
       svg.svg(
         svg.width := "100%",
-        svg.height := "100%",
         svg.svg(
           svg.width := w.toInt,
           svg.height := 12,
@@ -102,7 +125,6 @@ object SopMakerGraphics {
             svg.width:=w.toInt,
             svg.height:=4,
             svg.fill := "black",
-            svg.strokeWidth:=1
           ),
           svg.rect(
             svg.x := 0,
@@ -110,7 +132,6 @@ object SopMakerGraphics {
             svg.width:=w.toInt,
             svg.height:=4,
             svg.fill := "black",
-            svg.strokeWidth:=1
           )
         )
       )
