@@ -11,6 +11,9 @@ import sp.domain._
 import scalacss.ScalaCssReact._
 import scala.scalajs.js
 import spgui.components.SPWidgetElements
+import spgui.components.SPWidgetElementsHmm
+
+
 import spgui.dragging._
 import spgui.circuit._
 
@@ -46,6 +49,13 @@ case class RenderOperationNode(
   nodeId: UUID, w:Float, h:Float, sop: OperationNode) extends RenderNode
 
 object SopMakerWidget {
+  object DropzoneDirection extends Enumeration {
+    val Left, Right, Up, Down = Value
+  }
+
+  var dropZones: scala.collection.mutable.Map[UUID, (UUID, DropzoneDirection.Value)] =
+    scala.collection.mutable.Map()
+
   val parallelBarHeight = 12f
   val opHeight = 80f
   val opWidth = 120f
@@ -117,11 +127,8 @@ object SopMakerWidget {
       )
     }
 
-    import spgui.circuit._
-    import spgui.components.SPWidgetElements
-
     def dropZone(id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
-      SPWidgetElements.DragoverZone(id, x, y, w, h)
+      SPWidgetElementsHmm.DragoverZone(id, x, y, w, h)
 
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
       node match {
@@ -157,20 +164,53 @@ object SopMakerWidget {
           
         case n: RenderOperationNode => {
           val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
-          
+          val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
+          val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
+          val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
+          val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
+
           List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
           List(
             dropZone(
-              id = n.nodeId,
+              id = dropzoneLeft,
+              x = xOffset,
+              y = yOffset,
+              w = opWidth/4f,
+              h = opHeight
+            ),
+            dropZone(
+              id = dropzoneRight,
+              x = xOffset + opWidth*3f/4f,
+              y = yOffset,
+              w = opWidth/4f,
+              h = opHeight
+            ),
+            dropZone(
+              id = dropzoneUp,
               x = xOffset,
               y = yOffset,
               w = opWidth,
-              h = opHeight
+              h = opHeight/4f
+            ),
+            dropZone(
+              id = dropzoneDown,
+              x = xOffset,
+              y = yOffset + opHeight*3f/4f,
+              w = opWidth,
+              h = opHeight/4f
             )
           )
         }
       }
     }
+
+    def addDropSubscriber(sopID: UUID, direction: DropzoneDirection.Value): UUID = {
+      val dropID = UUID.randomUUID()
+      dropZones += (dropID -> (sopID, direction))
+      dropID
+    }
+
+    def removeDropSubscriber(dropID:UUID) = { dropZones -= dropID } 
 
     def getRenderSequence(seq: RenderSequence, xOffset: Float, yOffset: Float): List[TagMod] = {
       var h = yOffset
@@ -248,14 +288,23 @@ object SopMakerWidget {
   
     def onMount() = Callback{
       SPGUICircuit.subscribe(SPGUICircuit.zoom(z => z.draggingState.latestDropEvent.get)){
-        x => {
-          $.modState(
-            s => State(insertSop(s.sop, x.value.targetId, x.value.droppedId ))
-          )
-        }.runNow()
+        e => onDropEvent(e.value)
       }
     }
-    
+
+    def onDropEvent(e:DropEventData): Unit = {
+      val sopId = dropZones(e.targetId)._1
+      val direction = dropZones(e.targetId)._2
+      println(direction)
+
+      $.modState(
+        s => State(insertSop(s.sop, sopId, e.droppedId ))
+      )
+    }.runNow()
+
+
+
+
     def onUnmount() = Callback {
       println("Unmounting sopmaker")
     }

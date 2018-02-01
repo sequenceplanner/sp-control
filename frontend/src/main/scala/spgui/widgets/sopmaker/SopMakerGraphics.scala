@@ -46,6 +46,26 @@ object SopMakerGraphics {
             svg.stroke := "black",
             svg.strokeWidth := 1
           ),
+          svg.rect(
+            svg.x := 0,
+            svg.y := SopMakerWidget.opHeight.toInt/8,
+            svg.width := SopMakerWidget.opWidth.toInt,
+            svg.height:= 1,
+            svg.rx := 0, svg.ry := 0,
+            svg.fill := "black",
+            svg.stroke := "black",
+            svg.strokeWidth := 1
+          ),
+          svg.rect(
+            svg.x := 0,
+            svg.y := 7*(SopMakerWidget.opHeight.toInt/8),
+            svg.width := SopMakerWidget.opWidth.toInt,
+            svg.height:= 1,
+            svg.rx := 0, svg.ry := 0,
+            svg.fill := "black",
+            svg.stroke := "black",
+            svg.strokeWidth := 1
+          ),
           svg.svg(    
             svg.text(
               svg.x := "50%",
