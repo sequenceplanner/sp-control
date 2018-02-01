@@ -189,7 +189,7 @@ object SopMakerWidget {
             dropZone(   // Bottom dropzone
               id = dropzoneDown,
               x = xOffset - n.w/2 + opWidth/2,
-              y = yOffset + n.h - 2*parallelBarHeight,
+              y = yOffset + n.h - parallelBarHeight,
               w = n.w,
               h = parallelBarHeight
             )
@@ -203,7 +203,7 @@ object SopMakerWidget {
             n.w - opSpacingX
           ))
         }
-        case n: RenderSequence =>  getRenderSequence(n, xOffset, yOffset)
+        case n: RenderSequence =>  getRenderSequence(n.children, xOffset, yOffset)
           
         case n: RenderOperationNode => {
           val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
@@ -255,14 +255,22 @@ object SopMakerWidget {
 
     def removeDropSubscriber(dropID:UUID) = { dropZones -= dropID } 
 
-    def getRenderSequence(seq: RenderSequence, xOffset: Float, yOffset: Float): List[TagMod] = {
-      var h = yOffset
-      var children = List[TagMod]()
-      for(q <- seq.children){
-        h += q.h
-        children = children ++ getRenderTree( q.self, xOffset, h - q.h )
+    def getRenderSequence(children: List[RenderSequenceElement], xOffset: Float, yOffset:Float ): List[TagMod] = {
+      val head = children.head
+      val tail = children.tail
+      tail match {
+        case Nil => {
+          getRenderTree( head.self, xOffset, yOffset )
+        }
+        case _ =>
+          getRenderTree( head.self, xOffset, yOffset ) ++
+          List(SopMakerGraphics.sopConnectionLine(
+            xOffset,
+            yOffset + head.h,
+            opSpacingY
+          )) ++
+          getRenderSequence(tail, xOffset, yOffset + head.h + opSpacingY )
       }
-      children
     }
 
     def traverseTree(sop: SOP): RenderNode = {
@@ -323,7 +331,7 @@ object SopMakerWidget {
           )
         }
         case s: Sequence => {
-          s.sop.map(e => getTreeHeight(e)).foldLeft(0f)(_ + _)
+          s.sop.map(e => getTreeHeight(e)).foldLeft(opSpacingY)(_ + _)
         }
         case s: OperationNode => opHeight
       }   
