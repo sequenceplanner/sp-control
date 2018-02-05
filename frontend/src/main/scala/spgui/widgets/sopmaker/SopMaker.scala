@@ -335,9 +335,11 @@ object SopMakerWidget {
         case s: OperationNode => opHeight
       }   
     }
-  
+
+
+    val dragSubscriber = new DropSubscriber(onDropEvent _ )
     def onMount() = Callback{
-      Dragging.subscribeToDropEvents(onDropEvent)
+      dragSubscriber.init()
     }
 
     def onDropEvent(e:DropEventData): Unit = {
@@ -350,7 +352,7 @@ object SopMakerWidget {
     }.runNow()
 
     def onUnmount() = Callback {
-      println("Unmounting sopmaker")
+      dragSubscriber.delete()
     }
 
     def sopList(root: SOP): List[SOP] = {
