@@ -1,4 +1,4 @@
-package sp.urdriver
+package sp.drivers.urdriver
 
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
@@ -31,7 +31,7 @@ class URDriverHandler extends Actor {
           } yield {
             b match {
               case vdapi.SetUpDeviceDriver(d) if d.driverType == driverName =>
-                context.actorOf(URDriverRuntime.props(d.name, d.id, d.setup), d.id.toString())
+                context.actorOf(URDriverRuntime.props(d.name, d.id, d.setup), d.id.toString)
               case _ =>
             }
           }

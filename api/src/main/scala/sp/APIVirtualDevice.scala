@@ -22,6 +22,7 @@ package sp.devicehandler {
     case class ResourceCommand(resource: ID, stateRequest: Map[ID, SPValue], timeout: Int = 0) extends Request
 
     // requests from driver
+    // TODO: Create a new api for the drivers
     case class DriverStateChange(name: String, id: ID, state: Map[String, SPValue], diff: Boolean = false) extends Request
     case class DriverCommand(name: String, id: ID, state: Map[String, SPValue]) extends Request
     case class DriverCommandDone(requestID: ID, result: Boolean) extends Request
