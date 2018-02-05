@@ -11,7 +11,6 @@ import sp.domain._
 import scalacss.ScalaCssReact._
 import scala.scalajs.js
 import spgui.components.SPWidgetElements
-import spgui.components.SPWidgetElementsHmm
 
 
 import spgui.dragging._
@@ -64,7 +63,7 @@ object SopMakerWidget {
   val opWidth = 120f
   val opSpacingX = 10f
   val opSpacingY = 25f
-  val opSpacingYInsideGroup = 45
+  val opSpacingYInsideGroup = 10
   val opSpacingXInsideGroup = 35f
 
   val newOpId = UUID.randomUUID()
@@ -133,7 +132,7 @@ object SopMakerWidget {
     }
 
     def dropZone(id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
-      SPWidgetElementsHmm.DragoverZone(id, x, y, w, h)
+      SPWidgetElements.DragoverZone(id, x, y, w, h)
 
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
       node match {
@@ -338,25 +337,17 @@ object SopMakerWidget {
     }
   
     def onMount() = Callback{
-      SPGUICircuit.subscribe(SPGUICircuit.zoom(z => z.draggingState.latestDropEvent)){
-        e => {
-          if(!e.value.isEmpty) onDropEvent(e.value.get)
-        }
-      }
+      Dragging.subscribeToDropEvents(onDropEvent)
     }
 
     def onDropEvent(e:DropEventData): Unit = {
       val sopId = dropZones(e.targetId)._1
       val direction = dropZones(e.targetId)._2
-      println(direction)
 
       $.modState(
         s => State(insertSop(s.sop, sopId, e.droppedId, direction ))
       )
     }.runNow()
-
-
-
 
     def onUnmount() = Callback {
       println("Unmounting sopmaker")
