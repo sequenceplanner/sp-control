@@ -338,8 +338,10 @@ object SopMakerWidget {
     }
   
     def onMount() = Callback{
-      SPGUICircuit.subscribe(SPGUICircuit.zoom(z => z.draggingState.latestDropEvent.get)){
-        e => onDropEvent(e.value)
+      SPGUICircuit.subscribe(SPGUICircuit.zoom(z => z.draggingState.latestDropEvent)){
+        e => {
+          if(!e.value.isEmpty) onDropEvent(e.value.get)
+        }
       }
     }
 
