@@ -59,6 +59,35 @@ class URDriverTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       }
     }
 
+    "moving" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyUR.props(p.ref))
+      dummy ! "activate"
+      dummy ! 10
+
+
+      p.fishForMessage(10 second){
+        case URStream(3, 10, _, _) => true
+        case x: URStream => println(x); false
+      }
+    }
+
+    "deactivate" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyUR.props(p.ref))
+      var z = 0
+      dummy ! "activate"
+
+      p.fishForMessage(10 second){
+        case URStream( _, _, true, _) =>
+          dummy ! "deactivate"
+          z = 1
+          false
+        case URStream( _, _, false, _) if z == 1 => true // => z == 1
+        case x: URStream => println(x); false
+      }
+    }
+
 
   }
 
