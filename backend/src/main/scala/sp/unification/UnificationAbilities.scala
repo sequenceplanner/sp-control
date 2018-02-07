@@ -22,11 +22,11 @@ class UnificationAbilities(ahid: ID) extends Actor {
 
   // The resource state
   // i'm using hardcoded IDs to simplify things while testing. We need a clear model message before removing this
-  val refPos = Thing(name = "refPos", id = ID.makeID("c9442da3-1360-4e42-b618-f1c00d4e0212").get)
-  val active = Thing(name = "active", id = ID.makeID("47a8200d-c402-4bd4-ace8-dfdcd97b89d1").get)
-  val hasTool = Thing("hasTool", id = ID.makeID("b73dcd44-c7de-4ea0-9574-b35e9c2e500c").get)
+  val refPos = Thing(name = "refPos")
+  val active = Thing(name = "active")
+  val hasTool = Thing("hasTool")
   // can not change (currently we do not distinguish)
-  val currentPos = Thing("currentPos", id = ID.makeID("c4a62002-e646-4659-9ee7-94d54ef1cd48").get)
+  val currentPos = Thing("currentPos")
 
   val things = List(refPos, active, hasTool, currentPos)
   val ids = things.map(_.id).toSet
@@ -51,8 +51,8 @@ class UnificationAbilities(ahid: ID) extends Actor {
 
   val vd = SPSpec("VirtualDeviceURDummy", SPAttributes(
     "specType" -> "virtualDevice",
-    "drivers" -> SPValue(List(driver)),
-    "resources" -> SPValue(List(resource))
+    "drivers" -> List(SPValue (driver.asInstanceOf[APIVirtualDevice.Request])),
+    "resources" -> List(SPValue(resource.asInstanceOf[APIVirtualDevice.Request]))
   ))
 
   // Setting up the model

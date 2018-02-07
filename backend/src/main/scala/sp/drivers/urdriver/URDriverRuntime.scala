@@ -41,7 +41,7 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
   // this will be defined based on the setup in the real system
   // in this case the dummy UR will send messages to us since we
   // are its parents in the actor hierarchy
-  val myUR = context.actorOf(DummyUR.props)
+  val myUR = context.actorOf(DummyUR.props(self))
 
   // All messages to the actor arrive here
   def receive = {
@@ -93,7 +93,7 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
     // Converting to the actual api
     for {
       x <- state.get("active")
-      value <- x.to[Boolean] if urState.active != value
+      value <- x.to[Boolean].toOption if urState.active != value
     } yield {
       val send = if (value) "activate" else "deactivate"
       myUR ! send
@@ -101,7 +101,7 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
 
     for {
       x <- state.get("hasTool")
-      value <- x.to[Boolean] if urState.hasTool != value
+      value <- x.to[Boolean].toOption if urState.hasTool != value
     } yield {
       val send = if (value) "addTool" else "removeTool"
       myUR ! send
@@ -109,7 +109,7 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
 
     for {
       x <- state.get("refPos")
-      value <- x.to[Int] if urState.refPos != value
+      value <- x.to[Int].toOption if urState.refPos != value
     } yield {
       myUR ! value
     }
@@ -159,7 +159,7 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
   * A dummy UR robot that has one joint that it will update based on the refPos
   * Will only move if it is in the active state
   */
-class DummyUR extends Actor {
+class DummyUR(replyTo: ActorRef) extends Actor {
   var currentPos = 0
   var refPos = 0
   var active = false
@@ -174,12 +174,12 @@ class DummyUR extends Actor {
     case "resetMove" => refPos = currentPos
     case "tick" =>
       // only move the robot when active
-      if (active) {
+      if (active && refPos != currentPos) {
         val diff = refPos-currentPos
         currentPos = currentPos + diff/Math.abs(diff)
       }
       // sending the state of the dummyUR every tick
-      context.parent ! makeMess
+      replyTo ! makeMess
   }
 
   def makeMess = {
@@ -195,5 +195,5 @@ class DummyUR extends Actor {
 case class URStream(currentPos: Int, refPos: Int, active: Boolean, hasTool: Boolean)
 
 object DummyUR {
-  def props = Props(classOf[DummyUR])
+  def props(replyTo: ActorRef) = Props(classOf[DummyUR], replyTo)
 }
