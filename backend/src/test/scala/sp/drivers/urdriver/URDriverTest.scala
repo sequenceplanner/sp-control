@@ -5,7 +5,6 @@ import akka.cluster.pubsub._
 import akka.testkit._
 import com.typesafe.config._
 import org.scalatest._
-import sp.abilityhandler.{APIAbilityHandler => api}
 import sp.domain.Logic._
 import sp.domain._
 import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Put, Subscribe}
@@ -35,15 +34,9 @@ class URDriverTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
   val mediator = DistributedPubSub(system).mediator
   val id = ID.newID
 
-  val v1 = Thing("v1")
-  val pre = Condition(EQ(v1.id, 1), List(Action(v1.id, ValueHolder(2))))
-  val post = Condition(EQ(v1.id, 3), List(Action(v1.id, ValueHolder(4))))
-  val started = Condition(EQ(v1.id, 2), List())
-  val reset = Condition(AlwaysTrue, List(Action(v1.id, ValueHolder(1))))
-  val ability = api.Ability("test", id, pre, started, post, reset)
-
 
   override def beforeAll: Unit = {
+      val handler = system.actorOf(URDriver.props)
 
   }
 
@@ -97,40 +90,45 @@ class URDriverTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
   }
 
 
-  val driverID = ID.newID
-  val mess = APIVirtualDevice.DriverCommand("test", driverID, Map("refPos" -> 2, "active"->true))
-
-
   "DummyURDriverRuntime" - {
     "initial creation" in {
+      val driverID = ID.newID
+      val d = APIVirtualDevice.Driver("test", driverID, "URDriver", SPAttributes())
+      val setup = APIVirtualDevice.SetUpDeviceDriver(d)
+      sendMess(setup)
+
       val p = TestProbe()
-      val rt = system.actorOf(URDriverRuntime.props("test", driverID, SPAttributes()))
-      val header = SPHeader(from = "testing")
-      val toSend = SPMessage.makeJson(header, mess)
       mediator ! Subscribe("driverEvents", p.ref)
-      mediator ! Publish("driverCommands", toSend)
+      val cmd = APIVirtualDevice.DriverCommand("test", driverID, Map("active"->true))
+
 
       p.fishForMessage(1 second){
         case x: String =>
-          SPMessage.fromJson(x).flatMap{ mess =>
-            for {
-              h <- mess.getHeaderAs[SPHeader] if h.reqID == header.reqID
-              b <- mess.getBodyAs[sp.devicehandler.APIVirtualDevice.Request]
-            } yield {
-              b.isInstanceOf[APIVirtualDevice.DriverCommandDone]
+          val spmess = SPMessage.fromJson(x)
+          println(spmess)
+          spmess.map{ _.getBodyAs[APIVirtualDevice.Response].collect {
+              case l: APIVirtualDevice.NewDriver => sendMess(cmd, driverID)
             }
+          }
 
-          }.getOrElse(false)
+          spmess.flatMap{ _.getBodyAs[APIVirtualDevice.Request].collect {
+            case l: APIVirtualDevice.DriverCommandDone => l.requestID == driverID
+          }}.getOrElse(false)
+
       }
     }
 
     "it is moving" in {
+      val driverID = ID.newID
+      val d = APIVirtualDevice.Driver("test", driverID, "URDriver", SPAttributes())
+      val setup = APIVirtualDevice.SetUpDeviceDriver(d)
+      sendMess(setup)
+
       val p = TestProbe()
-      val rt = system.actorOf(URDriverRuntime.props("test", driverID, SPAttributes()))
-      val header = SPHeader(from = "testing2")
-      val toSend = SPMessage.makeJson(header, mess)
       mediator ! Subscribe("driverEvents", p.ref)
-      mediator ! Publish("driverCommands", toSend)
+      val mess = APIVirtualDevice.DriverCommand("test", driverID, Map("active"->true, "refPos" -> 2))
+      // TODO: Update the test to wait with the cmd until after the driver is loaded
+      sendMess(mess, driverID)
 
       p.fishForMessage(1 second){
         case x: String =>
@@ -154,7 +152,10 @@ class URDriverTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
   }
 
 
-
+  def sendMess(x: APIVirtualDevice.Request, reqID: ID = ID.newID) = {
+    val toSend = SPMessage.makeJson(SPHeader(from = "testing", reqID = reqID), x)
+    mediator ! Publish("driverCommands", toSend)
+  }
 
 
 

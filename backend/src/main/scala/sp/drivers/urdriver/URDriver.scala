@@ -8,23 +8,56 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Subscribe}
 import sp.domain.Logic._
 import sp.domain._
+import sp.devicehandler._
 
 
-
-object URDriverRuntime {
-  def props(name: String, id: UUID, setup: SPAttributes) = Props(classOf[URDriverRuntime], name, id, setup)
+/**
+  * A driver for a mockup UR robot. Lauch this actor and send it a
+  * SetUpDeviceDriver with driverIdentifier = URDriver.driverType
+  */
+object URDriver {
+  val driverType = "URDriver"
+  def props = Props(classOf[URDriver])
 }
 
+class URDriver extends Actor {
+  val mediator = DistributedPubSub(context.system).mediator
+  mediator ! Subscribe("driverCommands", self)
+
+  def receive = {
+    case x: String =>
+      println(x)
+      SPMessage.fromJson(x).foreach{mess =>
+        for {
+          h <- mess.getHeaderAs[SPHeader]
+          b <- mess.getBodyAs[APIVirtualDevice.Request]
+        } yield {
+          b match {
+            case APIVirtualDevice.SetUpDeviceDriver(d) if d.driverType == URDriver.driverType =>
+              context.actorOf(URDriverInstance.props(d), d.id.toString)
+            case _ =>
+          }
+        }
+      }
+  }
+}
+
+
+/**
+  * The actual driver instance answering the commands
+  */
+object URDriverInstance {
+  def props(d: APIVirtualDevice.Driver) = Props(classOf[URDriverInstance], d)
+}
 
 /**
   * This is  running one UR robot, but only as a dummy
   * The driver creates a dummy UR robot, shown below
   * you can set a reference and some states
-  * @param name The name of the driver
-  * @param id The id of the driver
-  * @param setup Currently there is no setup requiered since it is a dummy, but soon it will need it!
+  * @param d APIVirtualDevice.Driver The name, id, and setup of the driver
   */
-class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor {
+class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
+  val id = d.id
   import context.dispatcher
   val mediator = DistributedPubSub(context.system).mediator
   mediator ! Subscribe("driverCommands", self)
@@ -43,8 +76,15 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
   // are its parents in the actor hierarchy
   val myUR = context.actorOf(DummyUR.props(self))
 
+  // We have started and is publishing that we exist
+  // TODO: Also add messages when instance is killed.
+  val header = SPHeader(from = d.name)
+  val body = APIVirtualDevice.NewDriver(d)
+  mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
+
   // All messages to the actor arrive here
   def receive = {
+    case x if {println(s"id:$id, got: $x");false} => false
     // the stream from the dummy UR
     case x: URStream  => // matching the stream
       handleCmdDone(x)
@@ -52,12 +92,6 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
         urState = x
         sendStateToBus(streamToMap(urState))
       }
-
-    // The driver handler want to terminate the driver
-    case "disconnect" =>
-      // clean up the connection with the real system
-      myUR ! PoisonPill
-      self ! PoisonPill
 
     case x: String =>
       // SPMessage uses the APIParser to parse the json string
@@ -134,8 +168,8 @@ class URDriverRuntime(name: String, id: UUID, setup: SPAttributes) extends Actor
 
   // Sending a message to the bus
   def sendStateToBus(state: Map[String, SPValue]) = {
-    val header = SPHeader(from = name)
-    val body = sp.devicehandler.APIVirtualDevice.DriverStateChange(name, id, state, false)
+    val header = SPHeader(from = d.name)
+    val body = sp.devicehandler.APIVirtualDevice.DriverStateChange(d.name, id, state, false)
     mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
   }
 
