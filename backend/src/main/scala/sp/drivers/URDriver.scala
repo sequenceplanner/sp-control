@@ -1,14 +1,11 @@
-package sp.drivers.urdriver
-
-import java.util.UUID
-import java.util.concurrent.TimeUnit
+package sp.drivers
 
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Subscribe}
+import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
-import sp.devicehandler._
 
 
 /**
@@ -58,7 +55,6 @@ object URDriverInstance {
   */
 class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
   val id = d.id
-  import context.dispatcher
   val mediator = DistributedPubSub(context.system).mediator
   mediator ! Subscribe("driverCommands", self)
 
@@ -221,8 +217,9 @@ class DummyUR(replyTo: ActorRef) extends Actor {
   }
 
   // A "ticker" that sends a "tick" string to self every 0.2 second
-  import scala.concurrent.duration._
   import context.dispatcher
+
+  import scala.concurrent.duration._
   val ticker = context.system.scheduler.schedule(0.2 seconds, 0.2 seconds, self, "tick")
 }
 

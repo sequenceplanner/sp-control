@@ -1,14 +1,14 @@
-package sp.drivers.urdriver
+package sp.drivers
 
 import akka.actor._
+import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Subscribe}
 import akka.cluster.pubsub._
 import akka.testkit._
 import com.typesafe.config._
 import org.scalatest._
+import sp.devicehandler.APIVirtualDevice
 import sp.domain.Logic._
 import sp.domain._
-import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Put, Subscribe}
-import sp.devicehandler.APIVirtualDevice
 
 import scala.concurrent.duration._
 

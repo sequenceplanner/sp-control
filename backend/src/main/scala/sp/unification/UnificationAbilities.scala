@@ -4,13 +4,15 @@ import akka.actor._
 import sp.domain._
 import sp.domain.Logic._
 import java.util.UUID
-import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.{ Put, Subscribe, Publish }
-import scala.util.{Failure, Success, Try}
-import sp.domain.logic.{PropositionParser, ActionParser}
 
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Put, Subscribe}
+
+import scala.util.{Failure, Success, Try}
+import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler.APIVirtualDevice
+import sp.drivers.URDriver
 
 object UnificationAbilities {
   def props(ahid: ID) = Props(classOf[UnificationAbilities], ahid)
@@ -38,8 +40,7 @@ class UnificationAbilities(ahid: ID) extends Actor {
 
   // resource and driver setup
   // This should be moved out from this and a model should be created soon.
-  val driverName = "URDriver"
-  val driver = sp.devicehandler.APIVirtualDevice.Driver("URDriver1", ID.newID, driverName, SPAttributes())
+  val driver = sp.devicehandler.APIVirtualDevice.Driver("URDriver1", ID.newID, URDriver.driverType, SPAttributes())
 
   val driverResourceMapper = List(
     sp.devicehandler.APIVirtualDevice.OneToOneMapper(refPos.id, driver.id, "refPos"),
