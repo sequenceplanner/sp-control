@@ -36,7 +36,7 @@ class UnificationAbilities(ahid: ID) extends Actor {
   val activate = APIAbilityHandler.Ability(
     name = "activate",
     preCondition = makeCondition("!active", "active := true"),
-    started = makeCondition("active")
+    postCondition = makeCondition("active")
   )
 
   val moveTo10 = APIAbilityHandler.Ability(
