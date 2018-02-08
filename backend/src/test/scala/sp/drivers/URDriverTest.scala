@@ -106,11 +106,14 @@ class URDriverTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
         case x: String =>
           val spmess = SPMessage.fromJson(x)
           println(spmess)
+
+          // The driver has started, send the command
           spmess.map{ _.getBodyAs[APIVirtualDevice.Response].collect {
               case l: APIVirtualDevice.NewDriver => sendMess(cmd, driverID)
             }
           }
 
+          // The command was written to the dummy
           spmess.flatMap{ _.getBodyAs[APIVirtualDevice.Request].collect {
             case l: APIVirtualDevice.DriverCommandDone => l.requestID == driverID
           }}.getOrElse(false)

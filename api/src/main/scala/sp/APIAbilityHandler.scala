@@ -30,7 +30,7 @@ import sp.domain._
     final case class Abs(a: List[(ID,String)]) extends Response
 
     final case class Ability(name: String,
-                             id: ID,
+                             id: ID = ID.newID,
                              preCondition: Condition = Condition(AlwaysFalse, List()),
                              started: Condition = Condition(AlwaysFalse, List()),
                              postCondition: Condition = Condition(AlwaysTrue, List()),

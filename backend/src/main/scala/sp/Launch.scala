@@ -20,13 +20,19 @@ object Launch extends App {
     // Start all you actors here.
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
-    system.actorOf(ExampleService.props, APIExampleService.service)
-    system.actorOf(SPModelImport.props, APISPModelImport.service)
-    system.actorOf(VolvoScheduler.props, APIVolvoScheduler.service)
-    system.actorOf(BDDVerifier.props, APIBDDVerifier.service)
 
-    // patrik model dsl
-    system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
+    val vdid = java.util.UUID.randomUUID()
+    system.actorOf(sp.devicehandler.VirtualDevice.props("vd", vdid), "vd")
+    val ahid = java.util.UUID.randomUUID()
+    system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
+
+    // match test
+//    val omid = java.util.UUID.randomUUID()
+//    val om = system.actorOf(sp.operationmatcher.OperationMatcher.props("operationmatcher", omid), "om")
+
+    val dh = system.actorOf(sp.drivers.URDriver.props, "URDriver")
+    system.actorOf(sp.unification.UnificationAbilities.props(ahid), "PatrikModel")
+
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")

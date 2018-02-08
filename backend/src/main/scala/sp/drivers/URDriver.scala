@@ -84,10 +84,9 @@ class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
     // the stream from the dummy UR
     case x: URStream  => // matching the stream
       handleCmdDone(x)
-      if (x != urState) {
         urState = x
         sendStateToBus(streamToMap(urState))
-      }
+
 
     case x: String =>
       // SPMessage uses the APIParser to parse the json string
