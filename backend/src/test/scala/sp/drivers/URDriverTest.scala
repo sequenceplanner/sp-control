@@ -58,31 +58,88 @@ class URDriverTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       }
     }
 
+    "deactivate" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyUR.props(p.ref))
+      dummy ! "deactivate"
+
+      p.fishForMessage(1 second){
+        case URStream(_, _, false, _) => true
+        case x => println(x); false
+      }
+    }
+
+
+    // mini fsm test: job1:
+    // robot activates, goes to position 3, gets the tool, goes to position 5,
+    // picks up the item, goes to position 7, releases the item, goes to position 3,
+    // releases the tool, robot deactivates
+
+    "job1" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyUR.props(p.ref))
+      var executed = false
+      var transported = false
+
+      p.fishForMessage(10 second){
+
+        case URStream( 0, 0, false, false) =>
+          dummy ! "activate";
+          println("activated");
+          false
+
+        case URStream( 0, 0, true, false) =>
+          dummy ! 3;
+          println("moving to 3");
+          false
+
+        case URStream( 3, 3, true, false) if transported == false=>
+          dummy ! "addTool";
+          println("got the tool");
+          false
+
+        case URStream( 3, 3, true, true) if transported == false =>
+          dummy ! 5;
+          println("moving to 5");
+          false
+
+        case URStream( 5, 5, true, true) if transported == false =>
+          dummy ! 7;
+          println("item picked up");
+          println("moving to 7");
+          false
+
+        case URStream( 7, 7, true, true) =>
+          dummy ! 3;
+          println("item placed");
+          println("moving to 3");
+          transported = true;
+          false
+
+        case URStream( 3, 3, true, true) if transported =>
+          dummy ! "removeTool";
+          println("released the tool");
+          false
+
+        case URStream( 3, 3, true, false) if transported =>
+          dummy ! "deactivate";
+          println("deactivated");
+          executed = true;
+          false
+
+        case URStream( 3, 3, false, false) => executed
+        case x => println(x); false
+      }
+    }
+
     "moving" in {
       val p = TestProbe()
       val dummy = system.actorOf(DummyUR.props(p.ref))
       dummy ! "activate"
-      dummy ! 10
-
-
-      p.fishForMessage(10 second){
-        case URStream(3, 10, _, _) => true
-        case x: URStream => println(x); false
-      }
-    }
-
-    "deactivate" in {
-      val p = TestProbe()
-      val dummy = system.actorOf(DummyUR.props(p.ref))
-      var z = 0
-      dummy ! "activate"
+      dummy ! 6
 
       p.fishForMessage(10 second){
-        case URStream( _, _, true, _) =>
-          dummy ! "deactivate"
-          z = 1
-          false
-        case URStream( _, _, false, _) if z == 1 => true // => z == 1
+        case URStream( 6, 6, _, _) => true
         case x: URStream => println(x); false
       }
     }
