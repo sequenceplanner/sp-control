@@ -441,7 +441,7 @@ trait AbilityActorLogic extends AbilityLogic{
     case "forcedReset" if state != forcedReset=> (forcedReset, ability.resetCondition.next(theState))
     case "forcedReset" => (checkEnabled(theState), ability.resetCondition.next(theState))
     case "executing" if ability.postCondition.eval(theState) => (finished, ability.postCondition.next(theState))
-    case x if ability.started.eval(theState) && x != executing =>
+    case x if (ability.started.eval(theState) || (x == "starting" && ability.started.guard == AlwaysFalse)) && x != executing =>
       count += 1
       (executing, ability.started.next(theState))
     case "finished" if ability.resetCondition.eval(theState) => (checkEnabled(theState), ability.resetCondition.next(theState))
