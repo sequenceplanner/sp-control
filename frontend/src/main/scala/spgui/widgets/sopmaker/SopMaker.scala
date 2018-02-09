@@ -126,13 +126,13 @@ object SopMakerWidget {
     def op(opId: UUID, opname: String, x: Float, y: Float): TagMod = {
       <.span(
         ^.draggable := false,
-        SPWidgetElements.draggable(opname, opId, "sop"),
+        SPWidgetElements.draggable(opname, findSop(opId), "sop"),
         SopMakerGraphics.sop(opname, x.toInt, y.toInt)
       )
     }
 
-    def dropZone(id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
-      SPWidgetElements.DragoverZone(id, x, y, w, h)
+    def dropZone(direction: DropzoneDirection.Value, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
+      SPWidgetElements.DragoverZone(onDropEvent(id, direction), x, y, w, h)
 
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
       node match {
@@ -159,34 +159,38 @@ object SopMakerWidget {
             )
             w += e.w
           }
-          val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
-          val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
-          val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
-          val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
+          // val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
+          // val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
+          // val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
+          // val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
           List(
             dropZone(   // Left dropzone
-              id = dropzoneLeft,
+              direction = DropzoneDirection.Left,
+              id = n.nodeId,
               x = xOffset - n.w/2 + opWidth/2,
               y = yOffset,
               w = opSpacingXInsideGroup,
               h = n.h - parallelBarHeight
             ),
             dropZone(   // Right dropzone
-              id = dropzoneRight,
+              direction = DropzoneDirection.Right,
+              id = n.nodeId,
               x = xOffset + n.w/2 - opSpacingXInsideGroup - opSpacingX + opWidth/2,
               y = yOffset,
               w = opSpacingXInsideGroup,
               h = n.h - parallelBarHeight
             ),
             dropZone(   // Top dropzone
-              id = dropzoneUp,
+              direction = DropzoneDirection.Up,
+              id = n.nodeId,
               x = xOffset - n.w/2 + opWidth/2,
               y = yOffset,
               w = n.w,
               h = parallelBarHeight
             ),
             dropZone(   // Bottom dropzone
-              id = dropzoneDown,
+              direction = DropzoneDirection.Down,
+              id = n.nodeId,
               x = xOffset - n.w/2 + opWidth/2,
               y = yOffset + n.h - parallelBarHeight,
               w = n.w,
@@ -206,36 +210,40 @@ object SopMakerWidget {
           
         case n: RenderOperationNode => {
           val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
-          val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
-          val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
-          val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
-          val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
+          // val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
+          // val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
+          // val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
+          // val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
 
           List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
           List(
             dropZone(
-              id = dropzoneLeft,
+              direction = DropzoneDirection.Left,
+              id = n.nodeId,
               x = xOffset,
               y = yOffset + opHorizontalBarOffset,
               w = opVerticalBarOffset,
               h = opHeight - 2*opHorizontalBarOffset
             ),
             dropZone(
-              id = dropzoneRight,
+              direction = DropzoneDirection.Right,
+              id = n.nodeId,
               x = xOffset + opWidth - opVerticalBarOffset,
               y = yOffset + opHorizontalBarOffset,
               w = opVerticalBarOffset,
               h = opHeight - 2*opHorizontalBarOffset
             ),
             dropZone(
-              id = dropzoneUp,
+              direction = DropzoneDirection.Up,
+              id = n.nodeId,
               x = xOffset,
               y = yOffset,
               w = opWidth,
               h = opHorizontalBarOffset
             ),
             dropZone(
-              id = dropzoneDown,
+              direction = DropzoneDirection.Down,
+              id = n.nodeId,
               x = xOffset,
               y = yOffset + opHeight - opVerticalBarOffset,
               w = opWidth,
@@ -246,13 +254,13 @@ object SopMakerWidget {
       }
     }
 
-    def addDropSubscriber(sopID: UUID, direction: DropzoneDirection.Value): UUID = {
-      val dropID = UUID.randomUUID()
-      dropZones += (dropID -> (sopID, direction))
-      dropID
-    }
+    // def addDropSubscriber(sopID: UUID, direction: DropzoneDirection.Value): UUID = {
+    //   val dropID = UUID.randomUUID()
+    //   dropZones += (dropID -> (sopID, direction))
+    //   dropID
+    // }
 
-    def removeDropSubscriber(dropID:UUID) = { dropZones -= dropID } 
+    // def removeDropSubscriber(dropID:UUID) = { dropZones -= dropID } 
 
     def getRenderSequence(children: List[RenderSequenceElement], xOffset: Float, yOffset:Float ): List[TagMod] = {
       val head = children.head
@@ -336,30 +344,34 @@ object SopMakerWidget {
       }   
     }
 
-
-    val dragSubscriber = new DropSubscriber(onDropEvent _ )
+    //val dragSubscriber = new DropSubscriber(onDropEvent _ )
+    def onDropEvent(id: UUID, direction: DropzoneDirection.Value)(e: DropData): Unit = {
+      e.data match {
+        case sop:SOP => {
+          // val sopId = dropZones(target)._1
+          // val direction = dropZones(target)._2
+          val sopId = id
+          $.modState(
+            s => State(insertSop(s.sop, sopId, cloneSop(sop), direction ))
+          ).runNow()
+        }
+        case _ => Unit
+      }
+    }
     def onMount() = Callback{
-      dragSubscriber.init()
+      //dragSubscriber.init()
     }
 
-    def onDropEvent(e:DropEventData): Unit = {
-      val sopId = dropZones(e.targetId)._1
-      val direction = dropZones(e.targetId)._2
-
-      $.modState(
-        s => State(insertSop(s.sop, sopId, e.droppedId, direction ))
-      )
-    }.runNow()
-
     def onUnmount() = Callback {
-      dragSubscriber.delete()
+      //dragSubscriber.delete()
     }
 
     def sopList(root: SOP): List[SOP] = {
       root :: root.sop.map(e => sopList(e)).toList.flatten
     }
 
-    def findSop(root: SOP, sopId: UUID): SOP = {
+    def findSop(sopId: UUID): SOP = {
+      val root = $.state.runNow().sop
       sopList(root).filter(x => x.nodeID == sopId).head
     }
 
@@ -375,48 +387,47 @@ object SopMakerWidget {
       }
     }
 
-    def insertSop(root: SOP, targetId: UUID, sopId: UUID, direction: DropzoneDirection.Value): SOP = {
-      //$.modState(s => s.copy())
+    def insertSop(root: SOP, targetId: UUID, sop: SOP, direction: DropzoneDirection.Value): SOP = {
       if(root.nodeID == targetId) {
         root match {
           case r: Parallel => {
             direction match {
               case DropzoneDirection.Left =>
                 Parallel(
-                  sop = cloneSop(findSop($.state.runNow().sop, sopId)):: r.sop
+                  sop = cloneSop(sop):: r.sop
                 )
               case DropzoneDirection.Right =>
                 Parallel(
-                   sop = r.sop :+ cloneSop(findSop($.state.runNow().sop, sopId))
+                  sop = r.sop :+ cloneSop(sop)
                 )
               case DropzoneDirection.Up =>
-                Sequence(sop = List(cloneSop(findSop($.state.runNow().sop, sopId)), r))
+                Sequence(sop = List(cloneSop(sop), r))
               case DropzoneDirection.Down =>
-                Sequence(sop = List(r, cloneSop(findSop($.state.runNow().sop, sopId))))
+                Sequence(sop = List(r, cloneSop(sop)))
             }
           }
           case r: Sequence => {
-            Sequence(nodeID = r.nodeID, sop = cloneSop(findSop($.state.runNow().sop, sopId)) :: r.sop)
+            Sequence(nodeID = r.nodeID, sop = cloneSop(sop) :: r.sop)
           }
           case r: OperationNode => {
             direction match {
               case DropzoneDirection.Left =>
-                Parallel(sop = List(cloneSop(findSop($.state.runNow().sop, sopId)), r))
+                Parallel(sop = List(cloneSop(sop), r))
               case DropzoneDirection.Right => 
-                Parallel(sop = List(r, cloneSop(findSop($.state.runNow().sop, sopId))))
+                Parallel(sop = List(r, cloneSop(sop)))
               case DropzoneDirection.Up =>
-                Sequence(sop = List(cloneSop(findSop($.state.runNow().sop, sopId)), r))
+                Sequence(sop = List(cloneSop(sop), r))
               case DropzoneDirection.Down =>
-                Sequence(sop = List(r, cloneSop(findSop($.state.runNow().sop, sopId))))
+                Sequence(sop = List(r, cloneSop(sop)))
             }
           }
         }
       } else {
         root match {
           case r: Parallel =>
-            Parallel(sop = r.sop.collect{case e => insertSop(e, targetId, sopId, direction)})
+            Parallel(sop = r.sop.collect{case e => insertSop(e, targetId, sop, direction)})
           case r: Sequence =>
-            Sequence(sop = r.sop.collect{case e => insertSop(e, targetId, sopId, direction)})
+            Sequence(sop = r.sop.collect{case e => insertSop(e, targetId, sop, direction)})
           case r: OperationNode => r // TODO
         }
       }
