@@ -131,10 +131,14 @@ object SopMakerWidget {
       )
     }
 
-    def dropZone(direction: DropzoneDirection.Value, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
+    def dropZone(
+      direction: DropzoneDirection.Value, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
+    {
+      println("making a dropzone " + id.toString)
       SPWidgetElements.DragoverZone(onDropEvent(id, direction), x, y, w, h)
-
+    }
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
+      println(node.nodeId.toString)
       node match {
         case n: RenderParallel => {
           var w = 0f
@@ -344,12 +348,9 @@ object SopMakerWidget {
       }   
     }
 
-    //val dragSubscriber = new DropSubscriber(onDropEvent _ )
     def onDropEvent(id: UUID, direction: DropzoneDirection.Value)(e: DropData): Unit = {
       e.data match {
         case sop:SOP => {
-          // val sopId = dropZones(target)._1
-          // val direction = dropZones(target)._2
           val sopId = id
           $.modState(
             s => State(insertSop(s.sop, sopId, cloneSop(sop), direction ))
@@ -359,11 +360,9 @@ object SopMakerWidget {
       }
     }
     def onMount() = Callback{
-      //dragSubscriber.init()
     }
 
     def onUnmount() = Callback {
-      //dragSubscriber.delete()
     }
 
     def sopList(root: SOP): List[SOP] = {
@@ -377,13 +376,9 @@ object SopMakerWidget {
 
     def cloneSop(sop: SOP): SOP = {
       sop match {
-        case r: Parallel => 
-          r.copy(nodeID = UUID.randomUUID())
-        case r: Sequence =>
-          r.copy(nodeID = UUID.randomUUID())
-        case r: OperationNode => {
-          r.copy(nodeID = UUID.randomUUID())
-        }
+        case r: Parallel => r.copy(nodeID = UUID.randomUUID())
+        case r: Sequence => r.copy(nodeID = UUID.randomUUID())
+        case r: OperationNode => r.copy(nodeID = UUID.randomUUID())
       }
     }
 
@@ -392,33 +387,19 @@ object SopMakerWidget {
         root match {
           case r: Parallel => {
             direction match {
-              case DropzoneDirection.Left =>
-                Parallel(
-                  sop = cloneSop(sop):: r.sop
-                )
-              case DropzoneDirection.Right =>
-                Parallel(
-                  sop = r.sop :+ cloneSop(sop)
-                )
-              case DropzoneDirection.Up =>
-                Sequence(sop = List(cloneSop(sop), r))
-              case DropzoneDirection.Down =>
-                Sequence(sop = List(r, cloneSop(sop)))
+              case DropzoneDirection.Left => Parallel(sop = cloneSop(sop):: r.sop)
+              case DropzoneDirection.Right => Parallel(sop = r.sop :+ cloneSop(sop))
+              case DropzoneDirection.Up => Sequence(sop = List(cloneSop(sop), r))
+              case DropzoneDirection.Down => Sequence(sop = List(r, cloneSop(sop)))
             }
           }
-          case r: Sequence => {
-            Sequence(nodeID = r.nodeID, sop = cloneSop(sop) :: r.sop)
-          }
+          case r: Sequence => Sequence(sop = cloneSop(sop) :: r.sop)
           case r: OperationNode => {
             direction match {
-              case DropzoneDirection.Left =>
-                Parallel(sop = List(cloneSop(sop), r))
-              case DropzoneDirection.Right => 
-                Parallel(sop = List(r, cloneSop(sop)))
-              case DropzoneDirection.Up =>
-                Sequence(sop = List(cloneSop(sop), r))
-              case DropzoneDirection.Down =>
-                Sequence(sop = List(r, cloneSop(sop)))
+              case DropzoneDirection.Left => Parallel(sop = List(cloneSop(sop), r))
+              case DropzoneDirection.Right => Parallel(sop = List(r, cloneSop(sop)))
+              case DropzoneDirection.Up => Sequence(sop = List(cloneSop(sop), r))
+              case DropzoneDirection.Down => Sequence(sop = List(r, cloneSop(sop)))
             }
           }
         }
