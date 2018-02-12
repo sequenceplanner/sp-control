@@ -11,7 +11,7 @@ import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Put, Subscribe}
 import scala.util.{Failure, Success, Try}
 import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.abilityhandler.APIAbilityHandler
-import sp.devicehandler.APIVirtualDevice
+import sp.devicehandler._
 import sp.drivers.URDriver
 
 object UnificationAbilities {
@@ -78,39 +78,21 @@ class UnificationAbilities(ahid: ID) extends Actor {
     Condition(g.get, xs.toList)
   }
 
-  def prop(vars: List[IDAble])(cond: String,actions: List[String] = List()) = {
-    def c(condition: String): Option[Proposition] = {
-      PropositionParser(vars).parseStr(condition) match {
-        case Right(p) => Some(p)
-        case Left(err) => println(s"Parsing failed on condition: $condition: $err"); None
-      }
-    }
-
-    def a(actions: List[String]): List[Action] = {
-      actions.flatMap { action =>
-        ActionParser(vars).parseStr(action) match {
-          case Right(a) => Some(a)
-          case Left(err) => println(s"Parsing failed on action: $action: $err"); None
-        }
-      }
-    }
-    Condition(c(cond).get, a(actions))
-  }
 
 
   // resource and driver setup
   // This should be moved out from this and a model should be created soon.
-  val driver = sp.devicehandler.APIVirtualDevice.Driver("URDriver1", ID.newID, URDriver.driverType, SPAttributes())
+  val driver = VD.Driver("URDriver1", ID.newID, URDriver.driverType, SPAttributes())
 
   val driverResourceMapper = List(
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(refPos.id, driver.id, "refPos"),
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(active.id, driver.id, "active"),
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(hasTool.id, driver.id, "hasTool"),
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(currentPos.id, driver.id, "currentPos")
+    VD.OneToOneMapper(refPos.id, driver.id, "refPos"),
+    VD.OneToOneMapper(active.id, driver.id, "active"),
+    VD.OneToOneMapper(hasTool.id, driver.id, "hasTool"),
+    VD.OneToOneMapper(currentPos.id, driver.id, "currentPos")
   )
   val ids: Set[ID] = List(refPos, active, hasTool, currentPos).map(_.id).toSet
 
-  val resource = sp.devicehandler.APIVirtualDevice.Resource("DummyUR", ID.newID, ids, driverResourceMapper, SPAttributes())
+  val resource = VD.Resource("DummyUR", ID.newID, ids, driverResourceMapper, SPAttributes())
 //  TODO Fix the model
 //  val vd = SPSpec("VirtualDeviceURDummy", SPAttributes(
 //    "specType" -> "virtualDevice",
@@ -125,10 +107,12 @@ class UnificationAbilities(ahid: ID) extends Actor {
   mediator ! Publish(APIVirtualDevice.topicRequest,
     SPMessage.makeJson(
       SPHeader(from = "UnificationAbilities"),
-      APIVirtualDevice.SetUpDeviceDriver(driver)))
-  mediator ! Publish(APIVirtualDevice.topicRequest,
-    SPMessage.makeJson(
-      SPHeader(from = "UnificationAbilities"), APIVirtualDevice.SetUpResource(resource)))
+      APIDeviceDriver.SetUpDeviceDriver(driver)))
+
+  // Change to setupVD
+//  mediator ! Publish(APIVirtualDevice.topicRequest,
+//    SPMessage.makeJson(
+//      SPHeader(from = "UnificationAbilities"), APIVirtualDevice.SetUpResource(resource)))
 
   abs.foreach { ab =>
     val body = APIAbilityHandler.SetUpAbility(ab)

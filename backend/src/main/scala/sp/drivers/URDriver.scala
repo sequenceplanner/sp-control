@@ -1,50 +1,30 @@
 package sp.drivers
 
 import akka.actor._
-import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Subscribe}
 import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
 
+import sp.devicehandler.{APIDeviceDriver => api}
+
+
 
 /**
-  * A driver for a mockup UR robot. Lauch this actor and send it a
+  * A driver for a mockup UR robot. Launch this actor and send it a
   * SetUpDeviceDriver with driverIdentifier = URDriver.driverType
   */
 object URDriver {
   val driverType = "URDriver"
-  def props = Props(classOf[URDriver])
+  def props = DriverBase.props(driverType, URDriverInstance.props)
 }
 
-class URDriver extends Actor {
-  val mediator = DistributedPubSub(context.system).mediator
-  mediator ! Subscribe("driverCommands", self)
-
-  def receive = {
-    case x: String =>
-      println(x)
-      SPMessage.fromJson(x).foreach{mess =>
-        for {
-          h <- mess.getHeaderAs[SPHeader]
-          b <- mess.getBodyAs[APIVirtualDevice.Request]
-        } yield {
-          b match {
-            case APIVirtualDevice.SetUpDeviceDriver(d) if d.driverType == URDriver.driverType =>
-              context.actorOf(URDriverInstance.props(d), d.id.toString)
-            case _ =>
-          }
-        }
-      }
-  }
-}
 
 
 /**
   * The actual driver instance answering the commands
   */
 object URDriverInstance {
-  def props(d: APIVirtualDevice.Driver) = Props(classOf[URDriverInstance], d)
+  def props(d: VD.Driver) = Props(classOf[URDriverInstance], d)
 }
 
 /**
@@ -53,10 +33,13 @@ object URDriverInstance {
   * you can set a reference and some states
   * @param d APIVirtualDevice.Driver The name, id, and setup of the driver
   */
-class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
-  val id = d.id
-  val mediator = DistributedPubSub(context.system).mediator
-  mediator ! Subscribe("driverCommands", self)
+class URDriverInstance(d: VD.Driver) extends Actor
+  with ActorLogging
+  with sp.service.MessageBussSupport {
+
+
+  subscribe(api.topicRequest)
+
 
   // the internal state of the UR-robot, Using a case class to simplify life
   var urState = URStream(
@@ -75,14 +58,14 @@ class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
   // We have started and is publishing that we exist
   // TODO: Also add messages when instance is killed.
   val header = SPHeader(from = d.name)
-  val body = APIVirtualDevice.NewDriver(d)
-  mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
+  val body = api.TheDriver(d, streamToMap(urState))
+  publish(api.topicResponse, SPMessage.makeJson(header, body))
 
   // All messages to the actor arrive here
   def receive = {
-    case x if {println(s"id:$id, got: $x");false} => false
+    case x if {println(s"id:${d.id}, got: $x");false} => false
     // the stream from the dummy UR
-    case x: URStream  => // matching the stream
+    case x: URStream  => // matching the stream from the UR
       handleCmdDone(x)
         urState = x
         sendStateToBus(streamToMap(urState))
@@ -93,12 +76,27 @@ class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
       SPMessage.fromJson(x).foreach{mess =>
           for {
             h <- mess.getHeaderAs[SPHeader] // we can filter the message based on the header, but is skipping it for now
-            b <- mess.getBodyAs[sp.devicehandler.APIVirtualDevice.Request] // we are expecting a case class in the Vritual device API
+            b <- mess.getBodyAs[api.Request] // we are expecting a case class in the Vritual device API
           } yield {
             b match {
-              case sp.devicehandler.APIVirtualDevice.DriverCommand(n, driverid, state) if driverid == id  => // matching that it is a command and that it is to this driver
+              case api.GetDriver =>
+                val body = api.TheDriver(d, streamToMap(urState))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+
+
+              // The command to the driver
+              case api.DriverCommand(driverid, state) if driverid == d.id  => // matching that it is a command and that it is to this driver
                 handleCmd(state - "currentPos", h) // removing currentPos since that can not be set
                 //mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
+
+              // Terminating the driver
+              case api.TerminateDriver(driverid) if driverid == d.id =>
+                self ! PoisonPill
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+
+
               case _ =>
             }
           }
@@ -153,8 +151,8 @@ class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
       val res = changed.forall(kv => !streamMap.contains(kv._1) || streamMap.get(kv._1).contains(kv._2))
       if (res) {
         val updH = header.swapToAndFrom
-        val b = sp.devicehandler.APIVirtualDevice.DriverCommandDone(updH.reqID, true) // we do not check if it fails in this case
-        mediator ! Publish("driverEvents", SPMessage.makeJson(updH, b))
+        val b = api.DriverCommandDone(updH.reqID, true) // we do not check if it fails in this case
+        publish(api.topicResponse, SPMessage.makeJson(updH, b))
         reqHeader = None
         changed = Map()
       }
@@ -163,9 +161,10 @@ class URDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
 
   // Sending a message to the bus
   def sendStateToBus(state: Map[String, SPValue]) = {
-    val header = SPHeader(from = d.name)
-    val body = sp.devicehandler.APIVirtualDevice.DriverStateChange(d.name, id, state, false)
-    mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
+    val updH = SPHeader(from = d.name)
+    val b = api.DriverStateChange(d.name, d.id, state, false)
+    publish(api.topicResponse, SPMessage.makeJson(updH, b))
+
   }
 
 
