@@ -25,7 +25,7 @@ import sendMessages._
 import dropdownWithScroll.dropdownWScroll
 import openGantt.showGantt
 
-// Todo: integrate with item explorer, SOP maker and gantt viewer.
+// Todo: integrate with item explorer and SOP maker
 
 object VolvoSchedulerWidget{
   case class State(modelID : ID, selectedIDs : Set[ID], idables : List[IDAble], selectedIdables : List[IDAble], sopId : ID, cases : Map[String, List[Operation]], neglectedCases : Set[ID],structId : ID, selectedThingDs: Map[String,(String,Int)], verificationResult : Int, doneCalculating :Boolean, cpResults : SPAttributes)
@@ -221,8 +221,10 @@ object VolvoSchedulerWidget{
 
     def ShowBusy(show : Boolean = true)={ // show/hide loader spinner
       val spinner = dom.document.getElementById("VolvoSchedulerSpinner")
-      if(show) spinner.setAttribute("style","display:block")
-      else spinner.setAttribute("style","display:none")
+      if(spinner != null) {
+        if (show) spinner.setAttribute("style", "display:block")
+        else spinner.setAttribute("style", "display:none")
+      }
     }
 
 
