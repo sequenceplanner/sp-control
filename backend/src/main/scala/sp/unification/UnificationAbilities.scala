@@ -90,29 +90,38 @@ class UnificationAbilities(ahid: ID) extends Actor {
     VD.OneToOneMapper(hasTool.id, driver.id, "hasTool"),
     VD.OneToOneMapper(currentPos.id, driver.id, "currentPos")
   )
-  val ids: Set[ID] = List(refPos, active, hasTool, currentPos).map(_.id).toSet
+  val things = List(refPos, active, hasTool, currentPos)
+  val ids: Set[ID] = things.map(_.id).toSet
 
   val resource = VD.Resource("DummyUR", ID.newID, ids, driverResourceMapper, SPAttributes())
-//  TODO Fix the model
-//  val vd = SPSpec("VirtualDeviceURDummy", SPAttributes(
-//    "specType" -> "virtualDevice",
-//    "drivers" -> List(SPValue(driver)),
-//    "resources" -> List(SPValue(resource))
-//  ))
+
 
   // Setting up the model
   val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
 
 
+  // creating a model here
+
+  val ops = abs.map(APIAbilityHandler.abilityToOperation)
+  val xs = things ++ List(VD.resourceToThing(resource), VD.driverToThing(driver))
+  // Probably add it to a struct as well
+
+  val cm = sp.models.APIModelMaker.CreateModel("unificationVD", SPAttributes("isa"->"VD"))
+
+
+  // Direct launch of the VD and abilities below
+
   mediator ! Publish(APIVirtualDevice.topicRequest,
     SPMessage.makeJson(
       SPHeader(from = "UnificationAbilities"),
-      APIDeviceDriver.SetUpDeviceDriver(driver)))
+      APIVirtualDevice.SetUpVD(
+        name = "UnificationVD",
+        id = ID.newID,
+        resources = List(resource),
+        drivers = List(driver),
+        attributes = SPAttributes()
+      )))
 
-  // Change to setupVD
-//  mediator ! Publish(APIVirtualDevice.topicRequest,
-//    SPMessage.makeJson(
-//      SPHeader(from = "UnificationAbilities"), APIVirtualDevice.SetUpResource(resource)))
 
   abs.foreach { ab =>
     val body = APIAbilityHandler.SetUpAbility(ab)

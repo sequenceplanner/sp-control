@@ -18,6 +18,42 @@ package sp.devicehandler {
     case class OneToOneMapper(thing: ID, driverID: ID, driverIdentifier: String) extends DriverStateMapper
 
 
+    def resourceToThing(r: Resource): Thing = {
+      Thing(
+        name = r.name,
+        id = r.id,
+        attributes = SPAttributes(
+          "things" -> r.things,
+          "setup" -> r.setup,
+          "sendOnlyDiffs" -> r.sendOnlyDiffs,
+          "stateMap" -> r.stateMap
+        )
+      )
+    }
+    def driverToThing(d: Driver): Thing = {
+      Thing(
+        name = d.name,
+        id = d.id,
+        attributes = SPAttributes(
+          "setup" -> d.setup,
+          "driverType" -> d.driverType
+        )
+      )
+    }
+    def thingToResource(t: Thing): Resource = {
+      val s = t.attributes.getAs[SPAttributes]("setup").getOrElse(SPAttributes())
+      val only = t.attributes.getAs[Boolean]("sendOnlyDiffs").getOrElse(false)
+      val sMap = t.attributes.getAs[List[DriverStateMapper]]("stateMap").getOrElse(List())
+      val things = t.attributes.getAs[Set[ID]]("things").getOrElse(Set())
+      Resource(t.name, t.id, things, sMap, s, only)
+    }
+    def thingToDriver(t: Thing): Driver = {
+      val s = t.attributes.getAs[SPAttributes]("setup").getOrElse(SPAttributes())
+      val dT = t.attributes.getAs[String]("driverType").getOrElse("")
+      Driver(t.name, t.id, dT, s)
+    }
+
+
     // Json
     import play.api.libs.json._
     object Resource {

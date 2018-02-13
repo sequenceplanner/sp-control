@@ -8,10 +8,13 @@ import sp.domain._
 import Logic._
 
 object AbilityHandlerWidget {
+  import sp.devicehandler._
   import sp.devicehandler.{APIVirtualDevice => vdapi}
   import sp.abilityhandler.{APIAbilityHandler => abapi}
 
-  case class State(resources: List[vdapi.Resource], abilities: List[abapi.Ability], abilityState: Map[ID, SPValue])
+  // TODO: update to list the availible VDs
+
+  case class State(resources: List[VD.Resource], abilities: List[abapi.Ability], abilityState: Map[ID, SPValue])
 
   private class Backend($: BackendScope[Unit, State]) {
 
@@ -19,7 +22,7 @@ object AbilityHandlerWidget {
       if (mess) sendToAB(abapi.GetAbilities)
     }, abapi.topicResponse)
     val vdObs = BackendCommunication.getWebSocketStatusObserver(  mess => {
-      if (mess) sendToVD(vdapi.GetResources)
+      if (mess) sendToVD(vdapi.GetVD)
     }, vdapi.topicResponse)
 
     val vdapiHandler = BackendCommunication.getMessageObserver(handleVDMess, vdapi.topicResponse)
@@ -27,8 +30,8 @@ object AbilityHandlerWidget {
 
     def handleVDMess(mess: SPMessage): Unit = {
       mess.body.to[vdapi.Response].map{
-        case vdapi.Resources(r) =>
-          $.modState(s => s.copy(resources = r)).runNow()
+        case vdapi.TheVD(_, _, r, _, _) =>
+          $.modState(s => s.copy(resources = r.map(_.r))).runNow()
         case x =>
           println(s"AbilityHandlerWidget - TODO: $x")
       }
@@ -53,7 +56,7 @@ object AbilityHandlerWidget {
         <.br(),
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick --> sendToVD(vdapi.GetResources), "Get resources"
+          ^.onClick --> sendToVD(vdapi.GetVD), "Get resources"
         ),
         <.button(
           ^.className := "btn btn-default",

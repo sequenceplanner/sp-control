@@ -24,12 +24,13 @@ object Launch extends App {
     val vdid = java.util.UUID.randomUUID()
     //system.actorOf(sp.devicehandler.VirtualDevice.props("vd", vdid), "vd")
     val ahid = java.util.UUID.randomUUID()
-    //system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
+    system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
 
     // match test
 //    val omid = java.util.UUID.randomUUID()
 //    val om = system.actorOf(sp.operationmatcher.OperationMatcher.props("operationmatcher", omid), "om")
 
+    system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
     val dh = system.actorOf(sp.drivers.URDriver.props, "URDriver")
     system.actorOf(sp.unification.UnificationAbilities.props(ahid), "Unification")
 

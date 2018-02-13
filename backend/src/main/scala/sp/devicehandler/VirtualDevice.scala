@@ -72,6 +72,8 @@ class VirtualDeviceMaker extends Actor
         b <- m.getBodyAs[APIVirtualDevice.Request] if b.isInstanceOf[APIVirtualDevice.SetUpVD]
         setup = b.asInstanceOf[APIVirtualDevice.SetUpVD]
       } yield {
+        println("Setting up VD")
+        println(setup)
         val updH = h.swapToAndFrom
         if (vds.contains(setup.id)){
           publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"VD with id ${setup.id} already exist")))

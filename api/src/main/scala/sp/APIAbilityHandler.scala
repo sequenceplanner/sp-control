@@ -39,6 +39,58 @@ import sp.domain._
                              result: List[ID] = List(),
                              attributes: SPAttributes = SPAttributes())
 
+    /**
+      * Use this to convert from abilities to operations for storing in a model
+      * @param a The ability
+      * @return an operation
+      */
+    def abilityToOperation(a: Ability): Operation = {
+      Operation(
+        name = a.name,
+        id = a.id,
+        attributes = a.attributes ++ SPAttributes(
+          "isa" -> "Ability",
+          "parameters" -> a.parameters,
+          "result" -> a.result
+        ),
+        conditions = List(
+          a.preCondition.copy(attributes = a.attributes ++ SPAttributes("kind" -> "pre")),
+          a.started.copy(attributes = a.attributes ++ SPAttributes("kind" -> "started")),
+          a.postCondition.copy(attributes = a.attributes ++ SPAttributes("kind" -> "post")),
+          a.resetCondition.copy(attributes = a.attributes ++ SPAttributes("kind" -> "reset"))
+        )
+      )
+    }
+
+    /**
+      * Converts any operation to an ability
+      * @param o
+      */
+    def operationToAbility(o: Operation): Ability = {
+      val p = o.attributes.getAs[List[ID]]("parameters").getOrElse(List())
+      val r = o.attributes.getAs[List[ID]]("result").getOrElse(List())
+      Ability(
+        name = o.name,
+        id = o.id,
+        parameters = p,
+        result = r,
+        preCondition = mergeConditions(extractCondition(o, "pre")),
+        started = mergeConditions(extractCondition(o, "started")),
+        postCondition = mergeConditions(extractCondition(o, "post")),
+        resetCondition = mergeConditions(extractCondition(o, "reset"))
+      )
+    }
+
+
+    // Move below funtion to OperaitonLogic
+    def extractCondition(o: Operation, kind: String): List[Condition] = {
+      o.conditions.filter(c => c.attributes.getAs[String]("kind").contains(kind))
+    }
+    def mergeConditions(xs: List[Condition]): Condition = {
+      val init = xs.headOption.getOrElse(Condition(AlwaysFalse))
+      xs.tail.foldLeft(init){(a, b) => a.copy(guard = AND(List(a.guard, b.guard)), action = a.action ++ b.action)}
+    }
+
 
 
 
