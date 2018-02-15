@@ -79,7 +79,7 @@ class AbilityHandlerMaker extends Actor
         if (ahs.contains(setup.id)){
           publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"Abilityhandler with id ${setup.id} already exist")))
         } else {
-          val a = context.actorOf(AbilityHandler.propsHandler(setup.name, setup.id, setup.id))
+          val a = context.actorOf(AbilityHandler.propsHandler(setup.name, setup.id, setup.vd))
           ahs += setup.id -> a
           context.watch(a)
           a ! APIAbilityHandler.SetUpAbilities(setup.abilities, setup.handshake) // no need for jsonify since this is also matched in AbilityHandler
@@ -539,11 +539,14 @@ trait AbilityComm {
     b <- m.getBodyAs[APIAbilityHandler.Request]
   } yield (h, b)
 
-  def extractVDReply(mess: Option[SPMessage], instanceID: ID, vd: String) = for {
+  def extractVDReply(mess: Option[SPMessage], instanceID: ID, vd: String) = {
+    println("header from VD: "+mess )
+    println("expecting: "+ vd)
+    for {
     m <- mess
-    h <- m.getHeaderAs[SPHeader] //fix later  if h.from.contains(vd) || h.reply == SPValue(instanceID)
+    h <- m.getHeaderAs[SPHeader] if h.from.contains(vd) || h.reply == SPValue(instanceID)
     b <- m.getBodyAs[APIVirtualDevice.Response]
-  } yield (h, b)
+  } yield (h, b)}
 
   def extractServiceRequest(mess: Option[SPMessage]) = for {
     m <- mess
