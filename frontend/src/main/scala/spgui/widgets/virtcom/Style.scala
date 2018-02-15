@@ -62,34 +62,27 @@ object Style extends StyleSheet.Inline {
 
 
 
-  val rotate0 = keyframe(
-    transform := "rotate(0deg)"
-  )
-  val rotate180 = keyframe(
-    transform := "rotate(180deg)"
-  )
-  val rotate360 = keyframe(
-    transform := "rotate(360deg)"
-  )
-
   val rotate = keyframes(
-    (0%%) -> rotate0,
-    (50%%) -> rotate180,
-    (100%%) -> rotate360
+    (0%%) -> keyframe(transform := "rotate(0deg)"),
+    (100%%) -> keyframe(transform := "rotate(360deg)")
   )
 
   val loader = mixin(
+
     position.absolute,
-    borderRadius(200.px),
-    borderTop.attr := "#fff 8px solid",
-    borderLeft.attr :="#555 8px solid",
-    borderRight.attr := "#555 8px solid",
-    borderBottom.attr :="#fff 8px solid",
-    top(50 %%),
+    top(50 %%), // center
     left(50 %%),
+
+    borderTop.attr    := "DarkGray  8px solid", // color size sides of rectangle
+    borderLeft.attr   := "LightGray 8px solid",
+    borderRight.attr  := "LightGray 8px solid",
+    borderBottom.attr := "DarkGray  8px solid",
+
+    borderRadius(50 %%), // circle
+
     animationName(rotate),
     animationIterationCount.infinite,
-    animationTimingFunction.linear
+    animationTimingFunction.linear // continuous
   )
 
   val spinLoader = style(
@@ -97,7 +90,7 @@ object Style extends StyleSheet.Inline {
     height(100.px),
     width(100.px),
     animationDuration.attr := "3s",
-    marginTop(-50.px),
+    marginTop(-50.px), // adjust to center
     marginLeft(-50.px),
     display.none
   )
