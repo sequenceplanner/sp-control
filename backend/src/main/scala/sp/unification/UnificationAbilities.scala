@@ -13,14 +13,13 @@ import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler._
 import sp.drivers.URDriver
+import sp.service.MessageBussSupport
 
 object UnificationAbilities {
-  def props(ahid: ID) = Props(classOf[UnificationAbilities], ahid)
+  def props = Props(classOf[UnificationAbilities])
 }
 
-class UnificationAbilities(ahid: ID) extends Actor {
-  import context.dispatcher
-  val mediator = DistributedPubSub(context.system).mediator
+class UnificationAbilities extends Actor with MessageBussSupport{
 
   // The resource state
   // i'm using hardcoded IDs to simplify things while testing. We need a clear model message before removing this
@@ -110,24 +109,30 @@ class UnificationAbilities(ahid: ID) extends Actor {
 
 
   // Direct launch of the VD and abilities below
+  val vdID = ID.newID
+  val abID = ID.newID
 
-  mediator ! Publish(APIVirtualDevice.topicRequest,
+  publish(APIVirtualDevice.topicRequest,
     SPMessage.makeJson(
       SPHeader(from = "UnificationAbilities"),
       APIVirtualDevice.SetUpVD(
         name = "UnificationVD",
-        id = ID.newID,
+        id = vdID,
         resources = List(resource),
         drivers = List(driver),
         attributes = SPAttributes()
       )))
 
+  publish(APIAbilityHandler.topicRequest,
+    SPMessage.makeJson(
+      SPHeader(from = "UnificationAbilities"),
+      APIAbilityHandler.SetUpAbilityHandler(
+        name = "UnificationAbilites",
+        id = abID,
+        abilities = abs,
+        vd = vdID
+      )))
 
-  abs.foreach { ab =>
-    val body = APIAbilityHandler.SetUpAbility(ab)
-    val msg = SPMessage.makeJson[SPHeader, APIAbilityHandler.SetUpAbility](SPHeader(to = ahid.toString, from = "hej"), body)
-    mediator ! Publish(APIAbilityHandler.topicRequest, msg)
-  }
 
   // Not doing anything, creates the model on startup
   def receive = {

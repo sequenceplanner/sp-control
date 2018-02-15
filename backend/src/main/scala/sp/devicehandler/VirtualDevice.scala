@@ -64,6 +64,7 @@ class VirtualDeviceMaker extends Actor
   var vds: Map[ID, ActorRef] = Map()
 
   override def receive = {
+    case x if {println(s"Virtual device maker got: $x"); false} => false
     case x: String =>
       val mess = SPMessage.fromJson(x)
       for {
@@ -116,6 +117,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
   initVD
 
   override def receive = {
+    //case x if {println(s"VD got: ${x}"); false} => false
     case x: String =>
       val mess = SPMessage.fromJson(x)
       for {
@@ -123,6 +125,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
         h <- m.getHeaderAs[SPHeader]
         b <- m.getBodyAs[APIVirtualDevice.Request]
       } yield {
+        println("VD requests: " +b)
         b match {
           case r : APIVirtualDevice.VDCommand =>
             val ackHeader = h.copy(reply = VirtualDeviceInfo.attributes.service)
@@ -150,10 +153,9 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
               }
             }
           case APIVirtualDevice.GetVD =>
-            val updh = h.swapToAndFrom
+            val updh = h.swapToAndFrom.copy(from = id.toString)
             publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updh, makeVDMessage))
             publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updh, APISP.SPDone()))
-
 
 
           case x => println("todo: " + x)
@@ -165,6 +167,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
         h <- m.getHeaderAs[SPHeader]
         b <- m.getBodyAs[APIDeviceDriver.Response]
       } yield {
+        //println("VD from driver: " +b)
         b match {
 
           case e @ APIDeviceDriver.DriverStateChange(name, did, state, _) =>

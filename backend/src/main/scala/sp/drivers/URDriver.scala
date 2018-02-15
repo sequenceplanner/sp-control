@@ -63,12 +63,12 @@ class URDriverInstance(d: VD.Driver) extends Actor
 
   // All messages to the actor arrive here
   def receive = {
-    case x if {println(s"id:${d.id}, got: $x");false} => false
     // the stream from the dummy UR
     case x: URStream  => // matching the stream from the UR
       handleCmdDone(x)
-        urState = x
-        sendStateToBus(streamToMap(urState))
+      if (urState != x) println(x)
+      sendStateToBus(streamToMap(urState))
+      urState = x
 
 
     case x: String =>
@@ -78,6 +78,7 @@ class URDriverInstance(d: VD.Driver) extends Actor
             h <- mess.getHeaderAs[SPHeader] // we can filter the message based on the header, but is skipping it for now
             b <- mess.getBodyAs[api.Request] // we are expecting a case class in the Vritual device API
           } yield {
+            println("URDRIVER req: " +b)
             b match {
               case api.GetDriver =>
                 val body = api.TheDriver(d, streamToMap(urState))

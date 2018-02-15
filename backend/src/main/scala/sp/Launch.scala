@@ -21,10 +21,8 @@ object Launch extends App {
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
 
-    val vdid = java.util.UUID.randomUUID()
-    //system.actorOf(sp.devicehandler.VirtualDevice.props("vd", vdid), "vd")
-    val ahid = java.util.UUID.randomUUID()
-    system.actorOf(sp.abilityhandler.AbilityHandler.props("ah", ahid, vdid), "ah")
+
+    system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
 
     // match test
 //    val omid = java.util.UUID.randomUUID()
@@ -32,8 +30,7 @@ object Launch extends App {
 
     system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
     val dh = system.actorOf(sp.drivers.URDriver.props, "URDriver")
-    system.actorOf(sp.unification.UnificationAbilities.props(ahid), "Unification")
-
+    system.actorOf(sp.unification.UnificationAbilities.props, "UnificationAbilityMaker")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")

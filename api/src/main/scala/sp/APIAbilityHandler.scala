@@ -18,7 +18,9 @@ import sp.domain._
     final case class ExecuteCmd(cmd: ID) extends Request
 
     case object GetAbilities extends Request
+    final case class SetUpAbilityHandler(name: String, id: ID, abilities: List[Ability], vd: ID, handshake: Boolean = false) extends Request
     final case class SetUpAbility(ability: Ability, handshake: Boolean = false) extends Request
+    final case class SetUpAbilities(abilities: List[Ability], handshake: Boolean = false) extends Request
 
 
 
@@ -38,6 +40,41 @@ import sp.domain._
                              parameters: List[ID] = List(),
                              result: List[ID] = List(),
                              attributes: SPAttributes = SPAttributes())
+
+
+    object Formats {
+      import play.api.libs.json._
+      implicit lazy val fAbility: JSFormat[Ability] = Json.format[Ability]
+      implicit lazy val fStartAbility: JSFormat[StartAbility] = Json.format[StartAbility]
+      implicit lazy val fForceResetAbility: JSFormat[ForceResetAbility] = Json.format[ForceResetAbility]
+      implicit lazy val fForceResetAllAbilities:     JSFormat[ForceResetAllAbilities.type]     = deriveCaseObject[ForceResetAllAbilities.type]
+      implicit lazy val fExecuteCmd: JSFormat[ExecuteCmd] = Json.format[ExecuteCmd]
+      implicit lazy val fGetAbilities:     JSFormat[GetAbilities.type]     = deriveCaseObject[GetAbilities.type]
+      implicit lazy val fSetUpAbilityHandler: JSFormat[SetUpAbilityHandler] = Json.format[SetUpAbilityHandler]
+      implicit lazy val fSetUpAbility: JSFormat[SetUpAbility] = Json.format[SetUpAbility]
+      implicit lazy val fSetUpAbilities: JSFormat[SetUpAbilities] = Json.format[SetUpAbilities]
+      implicit lazy val fCmdID: JSFormat[CmdID] = Json.format[CmdID]
+      implicit lazy val fAbilityStarted: JSFormat[AbilityStarted] = Json.format[AbilityStarted]
+      implicit lazy val fAbilityCompleted: JSFormat[AbilityCompleted] = Json.format[AbilityCompleted]
+      implicit lazy val fAbilityState: JSFormat[AbilityState] = Json.format[AbilityState]
+      implicit lazy val fAbilities: JSFormat[Abilities] = Json.format[Abilities]
+      implicit lazy val fAbs: JSFormat[Abs] = Json.format[Abs]
+      def fAbilityHandlerRequest: JSFormat[Request] = Json.format[Request]
+      def fAbilityHandlerResponse: JSFormat[Response] = Json.format[Response]
+    }
+
+
+    object Request {
+      implicit lazy val fAPIAbilityHandlerRequest: JSFormat[Request] = Formats.fAbilityHandlerRequest
+    }
+
+    object Response {
+      implicit lazy val fAPIAbilityHandlerResponse: JSFormat[Response] = Formats.fAbilityHandlerResponse
+    }
+
+
+
+
 
     /**
       * Use this to convert from abilities to operations for storing in a model
@@ -94,31 +131,5 @@ import sp.domain._
 
 
 
-    object Formats {
-      import play.api.libs.json._
-      implicit lazy val fAbility: JSFormat[Ability] = Json.format[Ability]
-      implicit lazy val fStartAbility: JSFormat[StartAbility] = Json.format[StartAbility]
-      implicit lazy val fForceResetAbility: JSFormat[ForceResetAbility] = Json.format[ForceResetAbility]
-      implicit lazy val fForceResetAllAbilities:     JSFormat[ForceResetAllAbilities.type]     = deriveCaseObject[ForceResetAllAbilities.type]
-      implicit lazy val fExecuteCmd: JSFormat[ExecuteCmd] = Json.format[ExecuteCmd]
-      implicit lazy val fGetAbilities:     JSFormat[GetAbilities.type]     = deriveCaseObject[GetAbilities.type]
-      implicit lazy val fSetUpAbility: JSFormat[SetUpAbility] = Json.format[SetUpAbility]
-      implicit lazy val fCmdID: JSFormat[CmdID] = Json.format[CmdID]
-      implicit lazy val fAbilityStarted: JSFormat[AbilityStarted] = Json.format[AbilityStarted]
-      implicit lazy val fAbilityCompleted: JSFormat[AbilityCompleted] = Json.format[AbilityCompleted]
-      implicit lazy val fAbilityState: JSFormat[AbilityState] = Json.format[AbilityState]
-      implicit lazy val fAbilities: JSFormat[Abilities] = Json.format[Abilities]
-      implicit lazy val fAbs: JSFormat[Abs] = Json.format[Abs]
-      def fAbilityHandlerRequest: JSFormat[Request] = Json.format[Request]
-      def fAbilityHandlerResponse: JSFormat[Response] = Json.format[Response]
-    }
 
-
-    object Request {
-      implicit lazy val fAPIAbilityHandlerRequest: JSFormat[Request] = Formats.fAbilityHandlerRequest
-    }
-
-    object Response {
-      implicit lazy val fAPIAbilityHandlerResponse: JSFormat[Response] = Formats.fAbilityHandlerResponse
-    }
   }
