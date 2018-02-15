@@ -107,11 +107,23 @@ class UnificationAbilities extends Actor with MessageBussSupport{
   // creating a model here
 
   val ops = abs.map(APIAbilityHandler.abilityToOperation)
-  val xs = things ++ List(VD.resourceToThing(resource), VD.driverToThing(driver))
+  val rIDable = VD.resourceToThing(resource)
+  val dIDAble = VD.driverToThing(driver)
+  val xs = things ++ List(rIDable, dIDAble)
+  val theVD = Struct(
+    "TheVD",
+    makeStructNodes(
+      rIDable.children(
+        refPos, active, hasTool, currentPos
+      ),
+      dIDAble.children()
+    ) ++ makeStructNodes(ops.map(StructWrapper):_*),
+    SPAttributes("isa"->"VD")
+  )
   // Probably add it to a struct as well
 
   val cm = sp.models.APIModelMaker.CreateModel("unificationVD", SPAttributes("isa"->"VD"))
-  val addItems = APIModel.PutItems(ops ++ xs, SPAttributes("info"->"initial items"))
+  val addItems = APIModel.PutItems(theVD :: ops ++ xs , SPAttributes("info"->"initial items"))
 
 
 
@@ -152,7 +164,7 @@ class UnificationAbilities extends Actor with MessageBussSupport{
 
   // Not doing anything, creates the model on startup
   def receive = {
-    case x => println("Ability creation for unification got: "+x)
+    case x => //println("Ability creation for unification got: "+x)
   }
 
 }
