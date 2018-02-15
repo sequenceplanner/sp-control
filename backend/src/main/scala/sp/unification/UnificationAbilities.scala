@@ -13,13 +13,20 @@ import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler._
 import sp.drivers.URDriver
+import sp.models.{APIModel, APIModelMaker}
 import sp.service.MessageBussSupport
+
+import scala.concurrent.duration._
 
 object UnificationAbilities {
   def props = Props(classOf[UnificationAbilities])
 }
 
 class UnificationAbilities extends Actor with MessageBussSupport{
+  import context.dispatcher
+
+  subscribe(APIModel.topicResponse)
+  subscribe(APIModelMaker.topicResponse)
 
   // The resource state
   // i'm using hardcoded IDs to simplify things while testing. We need a clear model message before removing this
@@ -96,9 +103,7 @@ class UnificationAbilities extends Actor with MessageBussSupport{
 
 
   // Setting up the model
-  val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
-
-
+  //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
   // creating a model here
 
   val ops = abs.map(APIAbilityHandler.abilityToOperation)
@@ -106,37 +111,48 @@ class UnificationAbilities extends Actor with MessageBussSupport{
   // Probably add it to a struct as well
 
   val cm = sp.models.APIModelMaker.CreateModel("unificationVD", SPAttributes("isa"->"VD"))
+  val addItems = APIModel.PutItems(ops ++ xs, SPAttributes("info"->"initial items"))
+
+
+
+  context.system.scheduler.scheduleOnce(1 seconds){
+    println("GOO")
+    publish(APIModelMaker.topicRequest, SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm))
+  }
+  context.system.scheduler.scheduleOnce(1.1 seconds){
+    println("Goo 2")
+    publish(APIModel.topicRequest,SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems))}
 
 
   // Direct launch of the VD and abilities below
-  val vdID = ID.newID
-  val abID = ID.newID
-
-  publish(APIVirtualDevice.topicRequest,
-    SPMessage.makeJson(
-      SPHeader(from = "UnificationAbilities"),
-      APIVirtualDevice.SetUpVD(
-        name = "UnificationVD",
-        id = vdID,
-        resources = List(resource),
-        drivers = List(driver),
-        attributes = SPAttributes()
-      )))
-
-  publish(APIAbilityHandler.topicRequest,
-    SPMessage.makeJson(
-      SPHeader(from = "UnificationAbilities"),
-      APIAbilityHandler.SetUpAbilityHandler(
-        name = "UnificationAbilites",
-        id = abID,
-        abilities = abs,
-        vd = vdID
-      )))
+//  val vdID = ID.newID
+//  val abID = ID.newID
+//
+//  publish(APIVirtualDevice.topicRequest,
+//    SPMessage.makeJson(
+//      SPHeader(from = "UnificationAbilities"),
+//      APIVirtualDevice.SetUpVD(
+//        name = "UnificationVD",
+//        id = vdID,
+//        resources = List(resource),
+//        drivers = List(driver),
+//        attributes = SPAttributes()
+//      )))
+//
+//  publish(APIAbilityHandler.topicRequest,
+//    SPMessage.makeJson(
+//      SPHeader(from = "UnificationAbilities"),
+//      APIAbilityHandler.SetUpAbilityHandler(
+//        name = "UnificationAbilites",
+//        id = abID,
+//        abilities = abs,
+//        vd = vdID
+//      )))
 
 
   // Not doing anything, creates the model on startup
   def receive = {
-    case _ =>
+    case x => println("Ability creation for unification got: "+x)
   }
 
 }

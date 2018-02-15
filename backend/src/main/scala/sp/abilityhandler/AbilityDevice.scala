@@ -540,8 +540,6 @@ trait AbilityComm {
   } yield (h, b)
 
   def extractVDReply(mess: Option[SPMessage], instanceID: ID, vd: String) = {
-    println("header from VD: "+mess )
-    println("expecting: "+ vd)
     for {
     m <- mess
     h <- m.getHeaderAs[SPHeader] if h.from.contains(vd) || h.reply == SPValue(instanceID)
