@@ -158,14 +158,64 @@ package sp.devicehandler {
 
     import VD._
 
+    /**
+      * A request to get the driver information and its current state.
+      * Will respond with [[APIDeviceDriver.TheDriver]]
+      */
     case object GetDriver extends Request
+
+    /**
+      * A request to set up a new driver instance. Sometimes this will also start the generic driver, but
+      * sometimes you have to start the generic driver in a SP node.
+      * Will respond with an [[APISP.SPDone]] or [[APISP.SPError]]
+      * @param driver
+      */
     case class SetUpDeviceDriver(driver: Driver) extends Request
+
+    /**
+      * A request to change the state of the driver
+      * Will respond with [[APIDeviceDriver.DriverCommandDone]]
+      * @param driverID The id of the driver
+      * @param state The state to change. Only need to include the variables you would like to change
+      */
     case class DriverCommand(driverID: ID, state: Map[String, SPValue]) extends Request
+
+    /**
+      * A request to terminate the driver instance.
+      * will respond with [[APIDeviceDriver.DriverTerminated]]
+      * @param id
+      */
     case class TerminateDriver(id: ID) extends Request
 
+    /**
+      * The response from the driver that a command has been performed. The result is given in result
+      * @param requestID The id of the request given in the header when [[APIDeviceDriver.DriverCommand]] was given.
+      * @param result A boolean if the command was successful or not.
+      */
     case class DriverCommandDone(requestID: ID, result: Boolean) extends Response
+
+    /**
+      * An event sent out by the driver when its state has changed.
+      * @param name The name of the driver
+      * @param id The ID of the driver
+      * @param state The new state of the driver
+      * @param diff a boolean variable saying if the given state only include the variables that changed. If true,
+      *             the complete state is retrieved by the GetDriver request
+      */
     case class DriverStateChange(name: String, id: ID, state: Map[String, SPValue], diff: Boolean = false) extends Response
+
+    /**
+      * A response including the driver information and its current state
+      * @param x The Dreiver defined as [[VD.Driver]]
+      * @param driverState The driver state defined as a Map[String, SPValue]
+      */
     case class TheDriver(x: Driver, driverState: DriverState) extends Response
+
+    /**
+      * A response that the driver has been terminated. The message is not guranteed to come, for example
+      * if the driver crashes.
+      * @param id
+      */
     case class DriverTerminated(id: ID) extends Response
 
     object Formats {
