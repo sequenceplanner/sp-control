@@ -7,9 +7,13 @@ import sp.domain.logic.AttributeLogic._
 import sp.domain.logic.StructLogic._
 import spgui.components.DragAndDrop.{DataOnDrag, OnDataDrop}
 import spgui.components.Icon
+import spgui.components.SPWidgetElements
+import spgui.dragging._
+import java.util.UUID
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+
 
 case class DragMessage(node: ID, struct: Option[ID])
 case class DropMessage(node: Option[ID], struct: ID)
@@ -32,7 +36,7 @@ object StructView {
                     struct: Struct,
                     items: Map[ID, IDAble],
                     retrieveItems: Option[Set[ID] => Future[Set[IDAble]]],
-                    handleDrop: Option[DragNDropMessage => Callback],
+                    handleDrop: Option[MoveInstruction => DropData => Unit] = None,
                     filteredNodes: Set[ID],
                     expanded: Boolean
                   )
@@ -56,14 +60,18 @@ object StructView {
     }
 
     def render(p: Props, s: State) = {
-      val dragHandling = p.handleDrop.map { handleDropFunction =>
-        DraggingTagMod.onDrop(None, p.struct.id, handleDropFunction)
-      }.getOrElse(EmptyVdom)
+
+      // val dragHandling = p.handleDrop.map { handleDropFunction =>
+      //   DraggingTagMod.onDrop(None, p.struct.id, handleDropFunction)
+      // }.getOrElse(EmptyVdom)
       val rootItemsToRender = p.struct.items.filter(sn => sn.parent.isEmpty && !p.filteredNodes.contains(sn.nodeID))
       lazy val directChildren = p.struct.items.filter(_.parent.isEmpty).map(_.item)
 
       <.div(
-        <.div(^.onClick --> toggle(p.struct.id, directChildren), dragHandling, Icon.folder, p.struct.name),
+        SPWidgetElements.DragoverZoneWithChild(
+          p.handleDrop.get(MoveToStruct(p.struct.id)),
+          <.div(^.onClick --> toggle(p.struct.id, directChildren), Icon.folder, p.struct.name)
+        ),
         <.ul(
           ^.className := Style.ul.htmlClass,
           rootItemsToRender.toTagMod(node => <.li(renderNode(node, p, s)))
@@ -72,16 +80,24 @@ object StructView {
     }
 
     def renderNode(node: StructNode, p: Props, s: State): TagMod = {
-      val dragHandling = p.handleDrop.map { handleDropFunction =>
-        List(
-          DraggingTagMod.onDrag(node.nodeID, Some(p.struct.id)),
-          DraggingTagMod.onDrop(Some(node.nodeID), p.struct.id, handleDropFunction)
-        ).toTagMod
-      }.getOrElse(EmptyVdom)
+      // val dragHandling = p.handleDrop.map { handleDropFunction =>
+      //   List(
+      //     //DraggingTagMod.onDrag(),
+      //     SPWidgetElements.draggable(node.nodeID.toString, Some(p.struct.id), "todo"),
+      //     SPWidgetElements.DragoverZoneWithChild
+      //     DraggingTagMod.onDrop(Some(node.nodeID), p.struct.id, handleDropFunction)
+      //   ).toTagMod
+      // }.getOrElse(EmptyVdom)
+
       val childrenToRender = p.struct.getChildren(node.nodeID).filterNot(sn => p.filteredNodes.contains(sn.nodeID))
 
       <.div(
-        <.div(renderNodeItem(node, p, s), dragHandling),
+        SPWidgetElements.DragoverZoneWithChild(
+          p.handleDrop.get(MoveToNode(p.struct.id, node.nodeID)),
+          <.div(renderNodeItem(node, p, s),
+            SPWidgetElements.draggable(p.struct.name, node, "todo"),
+          )
+        ),
         <.ul(
           ^.className := Style.ul.htmlClass,
           childrenToRender.toTagMod(sn => <.li(renderNode(sn, p, s)))
@@ -128,7 +144,7 @@ object StructView {
              struct: Struct,
              items: Map[ID, IDAble] = Map(),
              retrieveItems: Option[Set[ID] => Future[Set[IDAble]]] = None,
-             handleDrop: Option[DragNDropMessage => Callback] = None,
+             handleDrop: Option[MoveInstruction => DropData => Unit] = None,
              filteredNodes: Set[ID] = Set(),
              expanded: Boolean = false
            ) = component(Props(struct, items, retrieveItems, handleDrop, filteredNodes, expanded))

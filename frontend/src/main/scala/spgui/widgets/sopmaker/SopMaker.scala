@@ -135,7 +135,7 @@ object SopMakerWidget {
       direction: DropzoneDirection.Value, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
     {
       println("making a dropzone " + id.toString)
-      SPWidgetElements.DragoverZone(onDropEvent(id, direction), x, y, w, h)
+      SPWidgetElements.DragoverZoneRect(onDropEvent(id, direction), x, y, w, h)
     }
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
       println(node.nodeId.toString)
@@ -163,10 +163,6 @@ object SopMakerWidget {
             )
             w += e.w
           }
-          // val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
-          // val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
-          // val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
-          // val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
           List(
             dropZone(   // Left dropzone
               direction = DropzoneDirection.Left,
@@ -214,10 +210,6 @@ object SopMakerWidget {
           
         case n: RenderOperationNode => {
           val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
-          // val dropzoneLeft  = addDropSubscriber(n.nodeId, DropzoneDirection.Left)
-          // val dropzoneRight = addDropSubscriber(n.nodeId, DropzoneDirection.Right)
-          // val dropzoneUp    = addDropSubscriber(n.nodeId, DropzoneDirection.Up)
-          // val dropzoneDown  = addDropSubscriber(n.nodeId, DropzoneDirection.Down)
 
           List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
           List(
@@ -257,14 +249,6 @@ object SopMakerWidget {
         }
       }
     }
-
-    // def addDropSubscriber(sopID: UUID, direction: DropzoneDirection.Value): UUID = {
-    //   val dropID = UUID.randomUUID()
-    //   dropZones += (dropID -> (sopID, direction))
-    //   dropID
-    // }
-
-    // def removeDropSubscriber(dropID:UUID) = { dropZones -= dropID } 
 
     def getRenderSequence(children: List[RenderSequenceElement], xOffset: Float, yOffset:Float ): List[TagMod] = {
       val head = children.head
@@ -424,7 +408,3 @@ object SopMakerWidget {
 
   def apply() = spgui.SPWidget(spwb => component())
 }
-
-
-
-
