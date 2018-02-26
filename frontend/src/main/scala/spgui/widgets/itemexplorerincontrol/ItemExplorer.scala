@@ -116,6 +116,7 @@ object ItemExplorer {
               println("all nodes: " + $.state.runNow().newItems)
 
               val idStructB = m.struct
+
               //val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
               val structB = $.state.map(_.structs.find(_.id == idStructB).get)
               
@@ -123,7 +124,8 @@ object ItemExplorer {
               println("a: " + nodeA)
 
               //val cNodeA = CallbackTo(nodeA)
- 
+
+
               // replaceStruct(structB.runNow().copy(items = structB.runNow().items + nodeA)).runNow()
               replaceStruct(structB.runNow().copy(items = structB.runNow().items ++ Set(nodeA))).runNow()
               // $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA))).runNow()
@@ -202,6 +204,14 @@ object ItemExplorer {
       modifyState >> notifyBackend
     }
 
+    def removeNode(data: DropData) {
+      data.data match {
+        case struct: StructNode => $.modState { s =>
+          s.copy(structs = s.structs.map(st => st.copy(items = st.items.filter(it => it!= struct))))
+        }.runNow()
+      }
+    }
+
     def render(s: State) =
       <.div(
         ^.className := Style.outerDiv.htmlClass,
@@ -229,7 +239,7 @@ object ItemExplorer {
           <.li("New Items: ").when(!newItems.isEmpty),
           newItems.toTagMod { case (sn, idAble) =>
             <.li(
-              SPWidgetElements.draggable(idAble.name, idAble, "todo"),
+              SPWidgetElements.draggable(idAble.name, idAble, "todo", (d:DropData) => println("yes" + d)),
               ItemKinds.icon(idAble), idAble.name)
           }
         )
@@ -246,6 +256,7 @@ object ItemExplorer {
                 struct,
                 retrieveItems = Some(itemRequest),
                 handleDrop = Some(handleDrop),
+                handleDragged = (data:DropData) => removeNode(data),
                 filteredNodes = s.hiddenIDs(struct.id),
                 expanded = s.expanded
               )

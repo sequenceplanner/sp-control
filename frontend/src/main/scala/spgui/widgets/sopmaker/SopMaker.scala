@@ -126,7 +126,7 @@ object SopMakerWidget {
     def op(opId: UUID, opname: String, x: Float, y: Float): TagMod = {
       <.span(
         ^.draggable := false,
-        SPWidgetElements.draggable(opname, findSop(opId), "sop"),
+        SPWidgetElements.draggable(opname, findSop(opId), "sop", (d:DropData) => println("dropped an op")),
         SopMakerGraphics.sop(opname, x.toInt, y.toInt)
       )
     }

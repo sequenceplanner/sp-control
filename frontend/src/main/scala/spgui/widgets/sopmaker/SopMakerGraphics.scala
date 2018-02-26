@@ -8,6 +8,8 @@ import spgui.components.SPWidgetElementsCSS
 import spgui.components.SPWidgetElements
 import java.util.UUID
 
+import spgui.dragging._
+
 object SopMakerGraphics {
 
   trait Rect extends js.Object {
@@ -167,7 +169,7 @@ object SopMakerGraphics {
 
   def menuOp(label: String, id: UUID): TagMod =
     <.span(
-      SPWidgetElements.draggable(label, null, "sop"),
+      SPWidgetElements.draggable(label, null, "sop", (d:DropData) => println("static op drop")),
       ^.className := SopMakerCSS.menuOp.htmlClass,
       ^.className := SPWidgetElementsCSS.defaultMargin.htmlClass,
       svg.svg(

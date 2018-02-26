@@ -37,6 +37,7 @@ object StructView {
                     items: Map[ID, IDAble],
                     retrieveItems: Option[Set[ID] => Future[Set[IDAble]]],
                     handleDrop: Option[MoveInstruction => DropData => Unit] = None,
+                    handleDragged: (DropData => Unit),
                     filteredNodes: Set[ID],
                     expanded: Boolean
                   )
@@ -95,7 +96,7 @@ object StructView {
         SPWidgetElements.DragoverZoneWithChild(
           p.handleDrop.get(MoveToNode(p.struct.id, node.nodeID)),
           <.div(renderNodeItem(node, p, s),
-            SPWidgetElements.draggable(p.struct.name, node, "todo"),
+            SPWidgetElements.draggable(p.struct.name, node, "todo", p.handleDragged),
           )
         ),
         <.ul(
@@ -145,7 +146,8 @@ object StructView {
              items: Map[ID, IDAble] = Map(),
              retrieveItems: Option[Set[ID] => Future[Set[IDAble]]] = None,
              handleDrop: Option[MoveInstruction => DropData => Unit] = None,
+             handleDragged: (DropData => Unit),
              filteredNodes: Set[ID] = Set(),
              expanded: Boolean = false
-           ) = component(Props(struct, items, retrieveItems, handleDrop, filteredNodes, expanded))
+           ) = component(Props(struct, items, retrieveItems, handleDrop, handleDragged, filteredNodes, expanded))
 }
