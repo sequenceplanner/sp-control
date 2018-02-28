@@ -10,14 +10,23 @@ import sp.runners.{APIOperationRunner => api}
 import sp.abilityhandler.{APIAbilityHandler => abilityAPI}
 
 
-class OperationRunner extends Actor with ActorLogging with OperationRunnerLogic {
-  import akka.cluster.pubsub._
-  import DistributedPubSubMediator.{ Put, Send, Subscribe, Publish }
-  val mediator = DistributedPubSub(context.system).mediator
-  mediator ! Subscribe("services", self)
-  mediator ! Subscribe("spevents", self)
-  mediator ! Subscribe("answers", self)
-  mediator ! Subscribe("events", self)
+class OperationRunner extends Actor
+  with ActorLogging
+  with OperationRunnerLogic
+  with sp.service.ServiceCommunicationSupport
+  with sp.service.MessageBussSupport {
+
+  import context.dispatcher
+  subscribe(APIOperationRunner.topicRequest)
+  subscribe(abilityAPI.topicResponse)
+  subscribe(sp.devicehandler.APIVirtualDevice.topicResponse)
+
+  // Setting up the status response that is used for identifying the service in the cluster
+  val statusResponse = OperationRunnerInfo.attributes.copy(
+    instanceName = "OperationRunner"
+  )
+
+
 
   val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
 
@@ -27,9 +36,11 @@ class OperationRunner extends Actor with ActorLogging with OperationRunnerLogic 
     case x: String if sender() != self =>
       val mess = SPMessage.fromJson(x)
 
+      log.info("OP RUNNER.........................")
+      log.info(mess.toString)
+
       matchRequests(mess)
       matchAbilityAPI(mess)
-      matchServiceRequests(mess)
       // if needed, also get the state from the VD here
 
 
@@ -39,18 +50,18 @@ class OperationRunner extends Actor with ActorLogging with OperationRunnerLogic 
 
   def matchRequests(mess: Option[SPMessage]) = {
 
-    OperationRunnerComm.extractRequest(mess).map{ case (h, b) =>
+    OperationRunnerComm.extractRequest(mess).foreach{ case (h, b) =>
       val updH = h.copy(from = api.service)
-      mediator ! Publish("answers", OperationRunnerComm.makeMess(updH, APISP.SPACK()))
-      mediator ! Publish("services", OperationRunnerComm.makeMess(myH, abilityAPI.GetAbilities))
+      publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPACK()))
+      publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.GetAbilities))
       b match {
         case api.CreateRunner(setup) =>
           addRunner(setup).foreach{xs =>
-            mediator ! Publish("answers", OperationRunnerComm.makeMess(updH, api.Runners(xs)))
+            publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
 
             val state = runners(setup.runnerID).currentState
 
-            println("Runner started. Init state: " + state)
+            log.info("Runner started. Init state: " + state)
             setRunnerState(setup.runnerID, SPState(state = state), startAbility, sendState(_, setup.runnerID), false)
 
           }
@@ -59,7 +70,7 @@ class OperationRunner extends Actor with ActorLogging with OperationRunnerLogic 
           setRunnerState(id, SPState(state = s), startAbility, sendState(_, id)) match {
             case Some(_) =>
             case None =>
-              mediator ! Publish("answers", OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
+              publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
           }
         case api.AddOperations(id, ops, map) =>
           updRunner(id, ops, Set(), map, startAbility, sendState(_, id) )
@@ -67,22 +78,22 @@ class OperationRunner extends Actor with ActorLogging with OperationRunnerLogic 
           updRunner(id, Set(), ops, Map(), startAbility, sendState(_, id) )
         case api.TerminateRunner(id) =>
           val xs = removeRunner(id)
-          mediator ! Publish("answers", OperationRunnerComm.makeMess(updH, api.Runners(xs)))
+          publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
         case api.GetState(id) =>
           getRunnerState(id) match {
             case Some(s) =>
-              mediator ! Publish("services", OperationRunnerComm.makeMess(updH, api.StateEvent(id, s)))
+              publish(api.topicResponse, OperationRunnerComm.makeMess(updH, api.StateEvent(id, s)))
             case None =>
-              mediator ! Publish("answers", OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
+              publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
           }
         case api.GetRunners =>
           val xs = runners.map(_._2.setup).toList
-          mediator ! Publish("answers", OperationRunnerComm.makeMess(updH, api.Runners(xs)))
+          publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
         case ForceComplete(id) =>
           completeOPs(id, startAbility, sendState)
        }
 
-      mediator ! Publish("answers", SPMessage.makeJson(updH, APISP.SPDone()))
+      publish(APIOperationRunner.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
 
 
     }
@@ -95,10 +106,10 @@ class OperationRunner extends Actor with ActorLogging with OperationRunnerLogic 
         b match {
           case abilityAPI.AbilityStarted(id) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            println(s"The ability with id $id started for operations: $ops")
+            log.info(s"The ability with id $id started for operations: $ops")
           case abilityAPI.AbilityCompleted(id, _) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            println(s"The ability with id $id completed for operations: $ops")
+            log.info(s"The ability with id $id completed for operations: $ops")
             completeOPs(id, startAbility, sendState)
           case abilityAPI.AbilityState(id, s) =>
 
@@ -107,45 +118,30 @@ class OperationRunner extends Actor with ActorLogging with OperationRunnerLogic 
               x <- s.get(id) if x.isInstanceOf[SPAttributes]
               v <- x.asInstanceOf[SPAttributes].get("state")
             } yield v).getOrElse(SPValue("notEnabled"))
-            println(s"The ability with id $id updated with state: $abState")
+            log.info(s"The ability with id $id updated with state: $abState")
             newAbilityState(id, abState, startAbility, sendState)
-          case x => println(s"Operation Runner got a message it do not handle: $x")
+          case x => log.info(s"Operation Runner got a message it do not handle: $x")
         }
     }
   }
 
-  def matchServiceRequests(mess: Option[SPMessage]) = {
-    OperationRunnerComm.extractServiceRequest(mess) map { case (h, b) =>
-      val spHeader = h.copy(from = api.service)
-      mediator ! Publish("spevents", OperationRunnerComm.makeMess(spHeader, statusResponse))
-    }
-  }
 
 
   val startAbility = (id: ID) => {
 
-    println("Starting ability: " + id)
+    log.info("Starting ability: " + id)
     val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
-    mediator ! Publish("services", OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id)))
+    publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id)))
   }
 
   val sendState = (s: SPState, id: ID) => {
-    println(s"new state for $id: " +s)
+    log.info(s"new state for $id: " +s)
     val myH = SPHeader(from = api.service)
-    mediator ! Publish("events", OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state)))
+    publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state)))
 
   }
 
 
-
-
-  val statusResponse = OperationRunnerInfo.attributes
-
-  // Sends a status response when the actor is started so service handlers finds it
-  override def preStart() = {
-    val mess = SPMessage.makeJson(SPHeader(from = api.service, to = "serviceHandler"), statusResponse)
-    mediator ! Publish("spevents", mess)
-  }
 
 
 }
@@ -163,6 +159,8 @@ object OperationRunner {
  * Using a trait to make the logic testable
  */
 trait OperationRunnerLogic {
+  def log: akka.event.LoggingAdapter
+
   case class Runner(setup: api.Setup, currentState: Map[ID, SPValue]) {
     val noAbilityOps = setup.ops.filter(o => !setup.opAbilityMap.contains(o.id))
   }
@@ -247,7 +245,7 @@ trait OperationRunnerLogic {
   def newAbilityState(ability: ID, abilityState: SPValue, startAbility: ID => Unit, sendState: (SPState, ID) => Unit) = {
     runners.map{r =>
       if (r._2.setup.opAbilityMap.values.toSet.contains(ability)){
-        println("An ability has an operation and was updated")
+        log.info("An ability has an operation and was updated")
         val cS = SPState(state = runners(r._1).currentState + (ability -> abilityState))
         setRunnerState(r._1, cS, startAbility, sendState(_,r._1))
       }
@@ -257,7 +255,7 @@ trait OperationRunnerLogic {
   def setRunnerState(runnerID: ID, s: SPState, startAbility: ID => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false) = {
     val r = runners.get(runnerID)
     r.map { x =>
-      //println("set runner state from: " + x.currentState + " to " + s)
+      log.info("set runner state from: " + x.currentState + " to " + s)
       if (s != x.currentState) sendState(s)
       val startOP = (o: Operation) => {
         x.setup.opAbilityMap.get(o.id).foreach(startAbility)
@@ -287,8 +285,8 @@ trait OperationRunnerLogic {
     val enAb = runners.map(r =>
        r._2.setup.opAbilityMap.filter(a => a.equals(SPValue("notEnabled")))).toList
     // kolla abilities. Jämföra och kolla vilka som är not enabled, kanske.
-    println("runner enabled abilities: " + enAb.toString())
-    println("runner enabled ops: " + enabled.map(_.name).mkString(", "))
+    log.info("runner enabled abilities: " + enAb.toString())
+    log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
     val res = enabled.headOption.map{o =>
       val updS = runOp(o, s)
       sendCmd(o)

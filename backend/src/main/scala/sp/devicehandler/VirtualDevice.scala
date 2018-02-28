@@ -64,7 +64,7 @@ class VirtualDeviceMaker extends Actor
   var vds: Map[ID, ActorRef] = Map()
 
   override def receive = {
-    case x if {println(s"Virtual device maker got: $x"); false} => false
+    case x if {log.debug(s"Virtual device maker got: $x"); false} => false
     case x: String =>
       val mess = SPMessage.fromJson(x)
       for {
@@ -73,8 +73,8 @@ class VirtualDeviceMaker extends Actor
         b <- m.getBodyAs[APIVirtualDevice.Request] if b.isInstanceOf[APIVirtualDevice.SetUpVD]
         setup = b.asInstanceOf[APIVirtualDevice.SetUpVD]
       } yield {
-        println("Setting up VD")
-        println(setup)
+        log.debug("Setting up VD")
+        log.debug(setup.toString)
         val updH = h.swapToAndFrom
         if (vds.contains(setup.id)){
           publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"VD with id ${setup.id} already exist")))
@@ -117,7 +117,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
   initVD
 
   override def receive = {
-    //case x if {println(s"VD got: ${x}"); false} => false
+    //case x if {log.debug(s"VD got: ${x}"); false} => false
     case x: String =>
       val mess = SPMessage.fromJson(x)
       for {
@@ -125,7 +125,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
         h <- m.getHeaderAs[SPHeader]
         b <- m.getBodyAs[APIVirtualDevice.Request]
       } yield {
-        println("VD requests: " +b)
+        log.debug("VD requests: " +b)
         b match {
           case r : APIVirtualDevice.VDCommand =>
             val ackHeader = h.copy(reply = VirtualDeviceInfo.attributes.service)
@@ -135,7 +135,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
 
             val doneHeader = h.copy(reply = VirtualDeviceInfo.attributes.service)
             if(diffs.isEmpty || diffs.forall { case (k,v) => v.isEmpty }) {
-              println("No variables to update... Sending done immediately for request: " + h.reqID)
+              log.debug("No variables to update... Sending done immediately for request: " + h.reqID)
               publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(doneHeader, APISP.SPDone()))
             } else {
               val commands = getDriverCommands(diffs)
@@ -158,7 +158,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
             publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updh, APISP.SPDone()))
 
 
-          case x => println("todo: " + x)
+          case x => log.debug("todo: " + x)
         }
       }
 
@@ -167,15 +167,15 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
         h <- m.getHeaderAs[SPHeader]
         b <- m.getBodyAs[APIDeviceDriver.Response]
       } yield {
-        //println("VD from driver: " +b)
+        //log.debug("VD from driver: " +b)
         b match {
 
           case e @ APIDeviceDriver.DriverStateChange(name, did, state, _) =>
-            //println("got a statechange:" + e)
+            //log.debug("got a statechange:" + e)
             val oldrs = resourceState
             driverEvent(e)
-            //println("new driver state: " + driverState)
-            //println("new resource state: " + resourceState)
+            //log.debug("new driver state: " + driverState)
+            //log.debug("new resource state: " + resourceState)
 
             resourceState.filter { case (nid, ns) =>
               oldrs.get(nid) match {
@@ -213,14 +213,14 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
 
 
 
-          case x => println("todo: " + x)
+          case x => log.debug("todo: " + x)
         }
       }
 
     case DriverCommandTimeout(request, timeout) =>
       activeDriverRequests.get(request).map { reqs =>
-        println("Driver command(s) timed out after " + timeout + "ms")
-        println(" failed driver requests: " + reqs.mkString(", "))
+        log.debug("Driver command(s) timed out after " + timeout + "ms")
+        log.debug(" failed driver requests: " + reqs.mkString(", "))
       }
       activeDriverRequests = activeDriverRequests - request
   }

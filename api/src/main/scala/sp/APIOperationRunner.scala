@@ -5,6 +5,8 @@ import sp.domain.Logic._
 
 object APIOperationRunner {
   val service = "OperationRunner"
+  val topicRequest = "operationRunnerRequest"
+  val topicResponse = "operationRunnerResponse"
   sealed trait Request
   sealed trait Response
 

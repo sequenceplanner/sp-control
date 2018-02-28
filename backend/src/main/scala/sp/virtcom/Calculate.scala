@@ -311,7 +311,6 @@ trait cal  extends ExtendIDables with RegBDD {
 
     } yield {
       val resAttr = SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
-      // Todo: return results
 
       val snids = ids_merged.map(i => StructNode(i.id)) ++ sops.map(_._2).map(s => StructNode(s.id))
       val newStruct = Struct("VRS_"+ "Solved" , snids.toSet)

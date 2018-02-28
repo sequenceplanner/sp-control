@@ -8,7 +8,7 @@ import sp.domain._
     sealed trait Response
     val service = "abilityHandler"
     val topicRequest = "abilityHandlerRequest"
-    val topicResponse = "abilityHandlerRespponse"
+    val topicResponse = "abilityHandlerResponse"
 
     final case class StartAbility(id: ID, params: Map[ID, SPValue] = Map(), attributes: SPAttributes = SPAttributes()) extends Request
     final case class ForceResetAbility(id: ID) extends Request

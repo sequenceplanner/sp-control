@@ -31,6 +31,7 @@ object Launch extends App {
     system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
     val dh = system.actorOf(sp.drivers.URDriver.props, "URDriver")
     system.actorOf(sp.unification.UnificationAbilities.props, "UnificationAbilityMaker")
+    system.actorOf(sp.runners.OperationRunner.props, "oprunner")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")

@@ -127,39 +127,64 @@ class UnificationAbilities extends Actor with MessageBussSupport{
 
 
 
-  context.system.scheduler.scheduleOnce(1 seconds){
-    println("GOO")
-    publish(APIModelMaker.topicRequest, SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm))
-  }
-  context.system.scheduler.scheduleOnce(1.1 seconds){
-    println("Goo 2")
-    publish(APIModel.topicRequest,SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems))}
+//  context.system.scheduler.scheduleOnce(1 seconds){
+//    println("GOO")
+//    publish(APIModelMaker.topicRequest, SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm))
+//  }
+//  context.system.scheduler.scheduleOnce(1.1 seconds){
+//    println("Goo 2")
+//    publish(APIModel.topicRequest,SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems))}
 
 
   // Direct launch of the VD and abilities below
-//  val vdID = ID.newID
-//  val abID = ID.newID
-//
-//  publish(APIVirtualDevice.topicRequest,
-//    SPMessage.makeJson(
-//      SPHeader(from = "UnificationAbilities"),
-//      APIVirtualDevice.SetUpVD(
-//        name = "UnificationVD",
-//        id = vdID,
-//        resources = List(resource),
-//        drivers = List(driver),
-//        attributes = SPAttributes()
-//      )))
-//
-//  publish(APIAbilityHandler.topicRequest,
-//    SPMessage.makeJson(
-//      SPHeader(from = "UnificationAbilities"),
-//      APIAbilityHandler.SetUpAbilityHandler(
-//        name = "UnificationAbilites",
-//        id = abID,
-//        abilities = abs,
-//        vd = vdID
-//      )))
+  val vdID = ID.newID
+  val abID = ID.newID
+
+  publish(APIVirtualDevice.topicRequest,
+    SPMessage.makeJson(
+      SPHeader(from = "UnificationAbilities"),
+      APIVirtualDevice.SetUpVD(
+        name = "UnificationVD",
+        id = vdID,
+        resources = List(resource),
+        drivers = List(driver),
+        attributes = SPAttributes()
+      )))
+
+  publish(APIAbilityHandler.topicRequest,
+    SPMessage.makeJson(
+      SPHeader(from = "UnificationAbilities"),
+      APIAbilityHandler.SetUpAbilityHandler(
+        name = "UnificationAbilites",
+        id = abID,
+        abilities = abs,
+        vd = vdID
+      )))
+
+
+
+
+  // Operations
+  import sp.runners._
+  val actOp = Operation("activate")
+  val to20 = Operation("to20", List(Condition(EQ(actOp.id, ValueHolder("f")))))
+  val to10 = Operation("to10", List(Condition(EQ(to20.id, ValueHolder("f")))))
+
+  val setupRunner = APIOperationRunner.CreateRunner(APIOperationRunner.Setup(
+    name = "test",
+    runnerID = ID.newID,
+    Set(actOp, to10, to20),
+    opAbilityMap = Map(
+      actOp.id -> activate.id,
+      to20.id -> moveTo20.id,
+      to10.id -> moveTo10.id
+    ),
+    initialState = Map()
+  ))
+
+  publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
+    SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
+
 
 
   // Not doing anything, creates the model on startup
