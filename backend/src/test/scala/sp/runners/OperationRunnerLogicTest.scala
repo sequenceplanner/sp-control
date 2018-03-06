@@ -14,7 +14,7 @@ import sp.runners.{APIOperationRunner => api}
   * Created by kristofer on 2016-05-04.
   */
 class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) with ImplicitSender
-  with WordSpecLike with Matchers with BeforeAndAfterAll with Parsing {
+  with WordSpecLike with Matchers with BeforeAndAfterAll with Parsing  {
 
   def this() = this(ActorSystem("myTest", ConfigFactory.parseString(
     """
@@ -80,7 +80,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
     val ops = Set(o1, o2, o3)
 
     "evaluate ops" in {
-      val logic = new OperationRunnerLogic{}
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       val res = logic.evaluateOps(List(o1, o2, o3), initState)
       assert(res == List(o1))
 
@@ -97,7 +97,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
     }
 
     "upd state" in {
-      val logic = new OperationRunnerLogic{}
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       val s = initState.add(Map[ID, SPValue](o1.id -> "f", t1.id -> 2))
 
       val res = logic.evaluateOps(List(o1, o2, o3), s)
@@ -122,7 +122,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
 
     "run ops" in {
-      val logic = new OperationRunnerLogic{}
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       logic.addRunner(setup)
 
       var starting = List[ID]()
