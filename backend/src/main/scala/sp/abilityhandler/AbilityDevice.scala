@@ -471,17 +471,24 @@ trait AbilityActorLogic extends AbilityLogic{
   }
 
   def updateState(s: String, theState: SPState): (String, SPState) = s match {
-    case "starting" if ability.preCondition.eval(theState) && state != starting => (starting, ability.preCondition.next(theState))
-    case "forcedReset" if state != forcedReset=> (forcedReset, ability.resetCondition.next(theState))
-    case "forcedReset" => (checkEnabled(theState), ability.resetCondition.next(theState))
-    case "executing" if ability.postCondition.eval(theState) => (finished, ability.postCondition.next(theState))
+    case "starting" if ability.preCondition.eval(theState) && state != starting =>
+      println(s"${ability.name} starting")
+      (starting, ability.preCondition.next(theState))
+    case "forcedReset" if state != forcedReset=>
+      (forcedReset, ability.resetCondition.next(theState))
+    case "forcedReset" =>
+      (checkEnabled(theState), ability.resetCondition.next(theState))
+    case "executing" if ability.postCondition.eval(theState) =>
+      println(s"${ability.name} completed")
+      (finished, ability.postCondition.next(theState))
     case x if (ability.started.eval(theState) || (x == "starting" && ability.started.guard == AlwaysFalse)) && x != executing =>
+      println(s"${ability.name} executing")
       count += 1
       (executing, ability.started.next(theState))
     case "finished" if ability.resetCondition.eval(theState) => (checkEnabled(theState), ability.resetCondition.next(theState))
     case "unavailable" => (checkEnabled(theState), theState)
-    case x if ability.preCondition.eval(theState) && state != starting => (enabled, theState)
-    case x => (state, theState)
+    case _ if ability.preCondition.eval(theState) && state != starting => (enabled, theState)
+    case _ => (state, theState)
   }
 
   def checkEnabled(tS: SPState) = if (ability.preCondition.eval(tS)) enabled else notEnabled

@@ -36,8 +36,8 @@ class OperationRunner extends Actor
     case x: String if sender() != self =>
       val mess = SPMessage.fromJson(x)
 
-      log.info("OP RUNNER.........................")
-      log.info(mess.toString)
+      log.debug("OP RUNNER.........................")
+      log.debug(mess.toString)
 
       matchRequests(mess)
       matchAbilityAPI(mess)
@@ -61,7 +61,7 @@ class OperationRunner extends Actor
 
             val state = runners(setup.runnerID).currentState
 
-            log.info("Runner started. Init state: " + state)
+            log.debug("Runner started. Init state: " + state)
             setRunnerState(setup.runnerID, SPState(state = state), startAbility, sendState(_, setup.runnerID), false)
 
           }
@@ -106,10 +106,10 @@ class OperationRunner extends Actor
         b match {
           case abilityAPI.AbilityStarted(id) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            log.info(s"The ability with id $id started for operations: $ops")
+            log.debug(s"The ability with id $id started for operations: $ops")
           case abilityAPI.AbilityCompleted(id, _) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            log.info(s"The ability with id $id completed for operations: $ops")
+            log.debug(s"The ability with id $id completed for operations: $ops")
             completeOPs(id, startAbility, sendState)
           case abilityAPI.AbilityState(id, s) =>
 
@@ -118,9 +118,9 @@ class OperationRunner extends Actor
               x <- s.get(id) if x.isInstanceOf[SPAttributes]
               v <- x.asInstanceOf[SPAttributes].get("state")
             } yield v).getOrElse(SPValue("notEnabled"))
-            log.info(s"The ability with id $id updated with state: $abState")
+            log.debug(s"The ability with id $id updated with state: $abState")
             newAbilityState(id, abState, startAbility, sendState)
-          case x => log.info(s"Operation Runner got a message it do not handle: $x")
+          case x => log.debug(s"Operation Runner got a message it do not handle: $x")
         }
     }
   }
@@ -129,13 +129,15 @@ class OperationRunner extends Actor
 
   val startAbility = (id: ID) => {
 
-    log.info("Starting ability: " + id)
+    log.debug("Starting ability: " + id)
     val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
     publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id)))
   }
 
   val sendState = (s: SPState, id: ID) => {
-    log.info(s"new state for $id: " +s)
+    log.info("")
+    log.info(s"new state for $id: ")
+    s.state.foreach(x => log.info(x.toString))
     val myH = SPHeader(from = api.service)
     publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state)))
 
@@ -245,7 +247,7 @@ trait OperationRunnerLogic {
   def newAbilityState(ability: ID, abilityState: SPValue, startAbility: ID => Unit, sendState: (SPState, ID) => Unit) = {
     runners.map{r =>
       if (r._2.setup.opAbilityMap.values.toSet.contains(ability)){
-        log.info("An ability has an operation and was updated")
+        log.debug("An ability has an operation and was updated")
         val cS = SPState(state = runners(r._1).currentState + (ability -> abilityState))
         setRunnerState(r._1, cS, startAbility, sendState(_,r._1))
       }
@@ -255,7 +257,7 @@ trait OperationRunnerLogic {
   def setRunnerState(runnerID: ID, s: SPState, startAbility: ID => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false) = {
     val r = runners.get(runnerID)
     r.map { x =>
-      log.info("set runner state from: " + x.currentState + " to " + s)
+      log.debug("set runner state from: " + x.currentState + " to " + s)
       if (s != x.currentState) sendState(s)
       val startOP = (o: Operation) => {
         x.setup.opAbilityMap.get(o.id).foreach(startAbility)
@@ -285,8 +287,8 @@ trait OperationRunnerLogic {
     val enAb = runners.map(r =>
        r._2.setup.opAbilityMap.filter(a => a.equals(SPValue("notEnabled")))).toList
     // kolla abilities. Jämföra och kolla vilka som är not enabled, kanske.
-    log.info("runner enabled abilities: " + enAb.toString())
-    log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
+    log.debug("runner enabled abilities: " + enAb.toString())
+    log.debug("runner enabled ops: " + enabled.map(_.name).mkString(", "))
     val res = enabled.headOption.map{o =>
       val updS = runOp(o, s)
       sendCmd(o)
@@ -300,12 +302,14 @@ trait OperationRunnerLogic {
   def runOp(o: Operation, s: SPState) = {
       val filtered = filterConditions(o.conditions, Set("pre", "precondition"))
       val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+      log.info(s"${o.name} started")
       newState.next(o.id -> OperationState.executing)
   }
 
   def completeOP(o: Operation, s: SPState) = {
     val filtered = filterConditions(o.conditions, Set("post", "postcondition"))
     val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+    log.info(s"${o.name} completed")
     newState.next(o.id -> OperationState.finished)
   }
 
