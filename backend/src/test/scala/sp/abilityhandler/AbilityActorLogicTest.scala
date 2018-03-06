@@ -10,6 +10,28 @@ import sp.domain.Logic._
 class AbilityActorLogicTest extends FreeSpec with Matchers{
   import sp.abilityhandler.{APIAbilityHandler => api}
 
+
+  val v1 = Thing("v1")
+  val pre = Condition(EQ(v1.id, 1), List(Action(v1.id, ValueHolder(2))))
+  val post = Condition(EQ(v1.id, 3), List(Action(v1.id, ValueHolder(4))))
+  val started = Condition(EQ(v1.id, 2), List())
+  val reset = Condition(AlwaysTrue, List(Action(v1.id, ValueHolder(1))))
+  val ab = api.Ability(
+    "test",
+    ID.newID,
+    pre,
+    started,
+    post,
+    reset,
+    List(),
+    List(),
+    SPAttributes(
+      "syncedExecution" -> true,
+      "syncedFinished" -> false
+    )
+  )
+
+
   "Methods tests" - {
 
     "extractVariables" in {
@@ -28,58 +50,112 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
       res.toSet shouldEqual Set(v1.id, v2.id, v3.id, v4.id)
     }
 
-    val v1 = Thing("v1")
-    val pre = Condition(EQ(v1.id, 1), List(Action(v1.id, ValueHolder(2))))
-    val post = Condition(EQ(v1.id, 3), List(Action(v1.id, ValueHolder(4))))
-    val started = Condition(EQ(v1.id, 2), List())
-    val reset = Condition(AlwaysTrue, List(Action(v1.id, ValueHolder(1))))
-    val a = api.Ability("test", ID.newID, pre, started, post, reset)
+
 
     import AbilityState._
-    "updstate" in {
+
+    "printing state changes" in {
       val logic = new AbilityActorLogic {
-        override val ability = a
+        override val ability = ab.copy(attributes = SPAttributes())
+      }
+      println(logic.state)
+      println("ev: " + logic.evalState(Map(v1.id -> 0)))
+      println(logic.state)
+      println("ev: " + logic.evalState(Map(v1.id -> 3)))
+      println(logic.state)
+      println("ev: " + logic.evalState(Map(v1.id -> 1)))
+      println(logic.state)
+      println("ev: " + logic.evalState(Map(v1.id -> 1), "start"))
+      println(logic.state)
+      println("ev: " + logic.evalState(Map(v1.id -> 2)))
+      println(logic.state)
+      println("ev: " + logic.evalState(Map(v1.id -> 3)))
+      println(logic.state)
+      println("ev: " + logic.evalState(Map(v1.id -> 4)))
+      println(logic.state)
+
+    }
+
+
+
+    "test simple state machine " in {
+      val logic = new AbilityActorLogic {
+        override val ability = ab.copy(attributes = SPAttributes())
       }
       logic.state shouldEqual unavailable
       logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(notEnabled)
+      logic.evalState(Map(v1.id -> 3))._1 shouldEqual None
+      logic.evalState(Map(v1.id -> 1))._1 shouldEqual Some(enabled)
+      logic.evalState(Map(v1.id -> 1), "start")._1 shouldEqual Some(starting)
       logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(executing)
       logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(finished)
       // Auto restart
-      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(notEnabled)
-      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(executing)
-
+      logic.evalState(Map(v1.id -> 4))._1 shouldEqual Some(enabled)
     }
-    "updstate when missing state ids" in {
+
+    "test state machine with well defined executing" in {
       val logic = new AbilityActorLogic {
-        override val ability = a
+        override val ability = ab
       }
       logic.state shouldEqual unavailable
-      println(logic.evalState(Map()))
+      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(notEnabled)
+      logic.evalState(Map(v1.id -> 3))._1 shouldEqual None
+      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(executing)
+      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(finished)
+    }
+
+
+    "test state machine with well defined finished" in {
+      val logic = new AbilityActorLogic {
+        override val ability = ab.copy(
+        resetCondition = Condition(EQ(v1.id, 4), List(Action(v1.id, ValueHolder(1)))),
+        attributes = SPAttributes("syncedFinished" -> true))
+      }
+      logic.state shouldEqual unavailable
+      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(notEnabled)
+      logic.evalState(Map(v1.id -> 2))._1 shouldEqual None
+      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(finished)
+      logic.evalState(Map(v1.id -> 1))._1 shouldEqual None
+      logic.evalState(Map(v1.id -> 4))._1 shouldEqual Some(enabled)
+    }
+
+
+    "Keep unavailible when when missing state ids" in {
+      val logic = new AbilityActorLogic {
+        override val ability = ab
+      }
+      logic.state shouldEqual unavailable
+      logic.evalState(Map())._1 shouldEqual None
 
     }
 
     "startNReset" in {
       val logic = new AbilityActorLogic {
-        override val ability = a
+        override val ability = ab.copy(
+          resetCondition = Condition(EQ(v1.id, 4), List(Action(v1.id, ValueHolder(1))))
+        )
       }
-      logic.state shouldEqual unavailable
 
+
+      logic.state shouldEqual unavailable
       val init: Map[ID, SPValue] = Map(v1.id -> 0)
       logic.evalState(init)._1 shouldEqual Some(notEnabled)
       logic.start(init) shouldEqual  None
       logic.start(Map(v1.id -> 1)) shouldEqual Some(Map(v1.id -> SPValue(2)))
       logic.state shouldEqual starting
       logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(executing)
-      logic.reset(Map(v1.id -> 2)) shouldEqual Some(Map(v1.id -> SPValue(1)))
-      logic.evalState(Map(v1.id -> 3))
+      logic.reset(Map(v1.id -> 2)) shouldEqual None
+      logic.state shouldEqual forcedReset
+      logic.evalState(Map(v1.id -> 2))._2 shouldEqual Some(Map(v1.id -> SPValue(1)))
+      logic.state shouldEqual enabled
+      logic.evalState(Map(v1.id -> 10))
       logic.state shouldEqual notEnabled
-
     }
 
 
     "sendCmc" in {
       val logic = new AbilityActorLogic {
-        override val ability = a
+        override val ability = ab
       }
 
       logic.start(Map(v1.id -> 0)) shouldEqual None
@@ -94,5 +170,17 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
 
 
 
+
+
+  }
+
+  "Ability logic test" - {
+    "check force attributes" in {
+      val logic = new AbilityLogic {}
+
+      assert(logic.syncedExecution(ab))
+      assert(!logic.syncedFinished(ab))
+
+    }
   }
 }

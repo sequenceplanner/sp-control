@@ -134,7 +134,6 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
     case x: String => handleRequests(x)
     case x if {log.debug(s"ABH from an ability got: $x"); false} => false
 
-      // move this to a partial function
     case CanNotStart(req, abID, error) =>
       val h = SPHeader(from = handlerID.toString)
       publish(APIAbilityHandler.topicResponse, makeMess(h, APISP.SPError(s"ability $abID couldn't start. $error")))
@@ -150,8 +149,6 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
         "counter" -> cnt
       )
       val b = APIAbilityHandler.AbilityState(abID, Map(abID -> abilityState))
-      // hur ska vi ha det med event/answer-topics?
-      // publish("events", makeMess(h, b))
       publish(APIAbilityHandler.topicResponse, makeMess(h, b))
 
       req.foreach{ req =>
@@ -255,15 +252,6 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
 
 
         case APIAbilityHandler.SetUpAbility(ab, hand) =>
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
-          log.debug("--------------------------------------------------")
           log.debug(ab.toString)
           setupNewAbility(ab)
           publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
@@ -370,7 +358,7 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
 
     case StartAbility(s, id, p, attr) =>
       log.debug("STARTING ABILITY")
-      val res = start(s)
+      val res = start(s ++ p)
       res.foreach { updS =>
         reqID = Some(id)
         if (p.nonEmpty) sender() ! StateUpdReq(ability.id, p)
@@ -381,6 +369,9 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
       if (res.isEmpty)
         sender() ! CanNotStart(id, ability.id, createNotStartingErrorMessage())
 
+
+      checkAndSend(s, sender())
+
     case ResetAbility(s) =>
       val res = reset(s)
       res.foreach { updS =>
@@ -388,26 +379,32 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
       }
       sendAbilityState(sender())
 
+      checkAndSend(s, sender())
+
     case NewState(s) =>
       val missingIDs = ids.diff(s.keySet)
       if (missingIDs.nonEmpty){
         sender() ! StateIsMissingIDs(ability.id, missingIDs)
       }
 
-      val res = evalState(s)
-      res._1.foreach { updS =>
-        sendAbilityState(sender())
-      }
-      res._2.foreach{ updS =>
-        sender() ! StateUpdReq(ability.id, updS)
-      }
+      checkAndSend(s, sender())
     case GetState =>
       sendAbilityState(sender())
   }
 
-  def sendAbilityState(to: ActorRef) =
+  def sendAbilityState(to: ActorRef) = {
     to ! AbilityStateChange(ability.id, state, count, reqID)
+  }
 
+  def checkAndSend(s: Map[ID, SPValue], to: ActorRef): Unit = {
+    val res = evalState(s)
+    res._1.foreach { updS =>
+      sendAbilityState(to)
+    }
+    res._2.foreach{ updS =>
+      to ! StateUpdReq(ability.id, updS)
+    }
+  }
 
 
 }
@@ -429,8 +426,10 @@ object AbilityState {
     val executing = "executing"
     val finished = "finished"
     val forcedReset = "forcedReset"
+    val failed = "failed"
 }
 
+// TODO: Merge the state of the abilities into the VD-state (when the VD is moved)
 trait AbilityActorLogic extends AbilityLogic{
   val ability: APIAbilityHandler.Ability
   lazy val ids = idsFromAbility(ability)
@@ -438,7 +437,7 @@ trait AbilityActorLogic extends AbilityLogic{
   import AbilityState._
 
   var state: String = unavailable
-  var count = 0
+  var count: Long = 0
   var currentCaller = SPAttributes()
 
 
@@ -446,49 +445,90 @@ trait AbilityActorLogic extends AbilityLogic{
   def makeAvailable() = state = notEnabled
 
   def start(s: Map[ID, SPValue]) = {
-    val tH = evalState(s, starting)
-    if (state == starting){
+    val tH = evalState(s, "start")
+    if (state == starting || state == executing){
       tH._2
     } else None
   }
 
   def reset(s: Map[ID, SPValue]) = {
-    val tH = evalState(s, forcedReset)
+    val tH = evalState(s, "reset")
     tH._2
   }
 
 
-  def evalState(s: Map[ID, SPValue], force: String = "") = {
+  /**
+    * Evaluates the ability state and updates it if needed
+    * @param s Current state
+    * @param cmd to start, reset or fail the ability, Leave blank if no cmd
+    * @return
+    */
+  def evalState(s: Map[ID, SPValue], cmd: String = "") = {
     val theState = SPState(state = s)
-    val aS = if (force.isEmpty) state else force
-    val abilityState = updateState(aS, theState)
+    val abilityState = updateState(theState, cmd)
 
-    val newAState = if (state != abilityState._1) Some(abilityState._1) else None
+    val newAState = if (abilityState._1.isEmpty) None else Some(abilityState._1)
     val newRState = if (theState != abilityState._2) Some(abilityState._2.state) else None
 
     newAState.foreach(x => state = x)
     (newAState, newRState)
   }
 
-  def updateState(s: String, theState: SPState): (String, SPState) = s match {
-    case "starting" if ability.preCondition.eval(theState) && state != starting =>
-      println(s"${ability.name} starting")
-      (starting, ability.preCondition.next(theState))
-    case "forcedReset" if state != forcedReset=>
-      (forcedReset, ability.resetCondition.next(theState))
-    case "forcedReset" =>
-      (checkEnabled(theState), ability.resetCondition.next(theState))
-    case "executing" if ability.postCondition.eval(theState) =>
-      println(s"${ability.name} completed")
-      (finished, ability.postCondition.next(theState))
-    case x if (ability.started.eval(theState) || (x == "starting" && ability.started.guard == AlwaysFalse)) && x != executing =>
-      println(s"${ability.name} executing")
-      count += 1
+  /**
+    * The main state machine, taking the state and a command (start or reset) and updated the ability state
+    * To have a synced execution, i.e. that there is a well defined state in the real system that
+    * defined that the ability is execution, set the "syncedExecution" attributes to true in
+    * the abilities attributes.
+    * Set the "syncedFinished" attributes to true if there is a well defined finshed state
+    * @param theState Current state
+    * @param cmd Either "start" or "reset" (and fail soon)
+    * @return (String, SPState), Where the string states the new state, or empty if
+    *         the state was not changed. And the state is the new updated state
+    */
+  def updateState(theState: SPState, cmd: String): (String, SPState) = state match {
+    case x if cmd == "start" &&
+      (x == enabled || x == notEnabled || x == unavailable) &&
+      ability.preCondition.eval(theState) =>
+
+      if (ability.started.eval(theState)) // skipping starting for simple abilities
+        (executing, ability.started.next(ability.preCondition.next(theState)))
+      else
+        (starting, ability.preCondition.next(theState))
+
+    case x if cmd == "reset" && x != forcedReset =>
+      (forcedReset, theState)
+
+    case x if x == forcedReset =>
+      val updS = ability.resetCondition.next(theState)
+      (checkEnabled(updS), updS)
+
+    case x if x == unavailable && theState.state.nonEmpty =>
+      (notEnabled, theState)
+
+    case x if x != executing && syncedExecution(ability) && ability.started.eval(theState) =>
+      (executing, theState)
+    case x if x != finished && syncedFinished(ability) && ability.postCondition.eval(theState) =>
+      (finished, theState)
+
+    case x if x == notEnabled && ability.preCondition.eval(theState) =>
+      (enabled, theState)
+    case x if x == enabled && !ability.preCondition.eval(theState) =>
+      (notEnabled, theState)
+
+
+    case x if x == starting && ability.started.eval(theState) =>
       (executing, ability.started.next(theState))
-    case "finished" if ability.resetCondition.eval(theState) => (checkEnabled(theState), ability.resetCondition.next(theState))
-    case "unavailable" => (checkEnabled(theState), theState)
-    case _ if ability.preCondition.eval(theState) && state != starting => (enabled, theState)
-    case _ => (state, theState)
+    case x if x == executing && ability.postCondition.eval(theState) =>
+      (finished, ability.postCondition.next(theState))
+    case x if x == finished && ability.resetCondition.eval(theState) =>
+      val updS = ability.resetCondition.next(theState)
+      (checkEnabled(updS), updS)
+
+
+    //case x if x == failed => // not yet used. fail if driver fails
+
+    case _ => ("", theState) // No change
+
   }
 
   def checkEnabled(tS: SPState) = if (ability.preCondition.eval(tS)) enabled else notEnabled
@@ -535,6 +575,24 @@ trait AbilityLogic {
     a.map(_.id) ++  a.map(_.value).collect{
       case ASSIGN(id) => id
     }
+  }
+
+  /**
+    * Check the attributes if this ability has a well defined executing
+    * state. If so, it should jump to it if the starting guard is true
+    * @param a
+    */
+  def syncedExecution(a: APIAbilityHandler.Ability): Boolean = {
+    a.attributes.getAs[Boolean]("syncedExecution").getOrElse(false)
+  }
+
+  /**
+    * Check the attributes if this ability has a well defined finished
+    * state. If so, it should jump to it if the postcondition guard is true
+    * @param a
+    */
+  def syncedFinished(a: APIAbilityHandler.Ability): Boolean = {
+    a.attributes.getAs[Boolean]("syncedFinished").getOrElse(false)
   }
 
 
