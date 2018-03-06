@@ -167,8 +167,8 @@ class UnificationAbilities extends Actor with MessageBussSupport{
   // Operations
   import sp.runners._
   val actOp = Operation("activate")
-  val to20 = Operation("to20", List(Condition(EQ(actOp.id, ValueHolder("f")))))
-  val to10 = Operation("to10", List(Condition(EQ(to20.id, ValueHolder("f")))))
+  val to20 = Operation("to20", List(makeSeqCond(actOp.id, "f")))
+  val to10 = Operation("to10", List(makeSeqCond(to20.id, "f")))
 
   val setupRunner = APIOperationRunner.CreateRunner(APIOperationRunner.Setup(
     name = "test",
@@ -186,6 +186,11 @@ class UnificationAbilities extends Actor with MessageBussSupport{
     SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
 
 
+
+
+  def makeSeqCond(op: ID, state: String) = {
+    Condition(guard = EQ(op, ValueHolder(state)), attributes = SPAttributes("kind"->"pre", "group"->"sequence"))
+  }
 
   // Not doing anything, creates the model on startup
   def receive = {
