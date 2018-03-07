@@ -41,7 +41,8 @@ object AbilityHandlerWidget {
       mess.body.to[abapi.Response].map{
         case abapi.Abilities(a) =>
           $.modState(s => s.copy(abilities = a)).runNow()
-        case abapi.AbilityState(id, state) =>
+        case x @ abapi.AbilityState(id, state) =>
+          println(x)
           $.modState{s =>
             val ns = s.abilityState ++ state
             s.copy(abilityState = ns)}.runNow()

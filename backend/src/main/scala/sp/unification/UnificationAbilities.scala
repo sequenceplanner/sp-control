@@ -41,15 +41,15 @@ class UnificationAbilities extends Actor with MessageBussSupport{
   // abilities
   val activate = APIAbilityHandler.Ability(
     name = "activate",
-    preCondition = makeCondition("!active", "active := true"),
-    postCondition = makeCondition("active")
+    preCondition = makeCondition("!active", "active := true")
   )
 
   val moveTo10 = APIAbilityHandler.Ability(
     name = "moveTo10",
     preCondition = makeCondition("active && refPos == currentPos && currentPos != 10", "refPos := 10"),
     started = makeCondition("refPos = 10"),
-    postCondition = makeCondition("currentPos = 10")
+    postCondition = makeCondition("currentPos = 10"),
+    resetCondition = makeCondition("true", "refPos = currentPos")
   )
 
 
@@ -57,7 +57,9 @@ class UnificationAbilities extends Actor with MessageBussSupport{
     name = "moveTo20",
     preCondition = makeCondition("active && refPos == currentPos && currentPos != 20", "refPos := 20"),
     started = makeCondition("refPos = 20"),
-    postCondition = makeCondition("currentPos = 20")
+    postCondition = makeCondition("currentPos = 20"),
+    resetCondition = makeCondition("true", "refPos = currentPos")
+
   )
 
   val abs = List(activate, moveTo10, moveTo20)
@@ -70,10 +72,15 @@ class UnificationAbilities extends Actor with MessageBussSupport{
     val things: List[Thing] = List(refPos, active, hasTool, currentPos)
 
 
-    val g = PropositionParser(things).parseStr(guard) match {
-      case Right(p) => Some(p)
-      case Left(err) => println(s"Parsing failed on condition: $guard: $err"); None
-    }
+
+    val g = if (guard == "true") Some(AlwaysTrue)
+            else if (guard == "false") Some(AlwaysFalse)
+            else PropositionParser(things).parseStr(guard) match {
+              case Right(p) => Some(p)
+              case Left(err) => println(s"Parsing failed on condition: $guard: $err"); None
+            }
+
+
 
     val xs = actions.flatMap { action =>
       ActionParser(things).parseStr(action) match {
@@ -182,8 +189,8 @@ class UnificationAbilities extends Actor with MessageBussSupport{
     initialState = Map()
   ))
 
-  publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
-    SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
+//  publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
+//    SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
 
 
 

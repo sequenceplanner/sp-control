@@ -387,6 +387,9 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
         sender() ! StateIsMissingIDs(ability.id, missingIDs)
       }
 
+      // Always checking twice if the ability can jump multiple states
+      // But limits too two to avoid free wheeling
+      checkAndSend(s, sender())
       checkAndSend(s, sender())
     case GetState =>
       sendAbilityState(sender())
@@ -495,11 +498,11 @@ trait AbilityActorLogic extends AbilityLogic{
       else
         (starting, ability.preCondition.next(theState))
 
-    case x if cmd == "reset" && x != forcedReset =>
+    case x if cmd == "reset" && !(x == forcedReset || x == unavailable || x == enabled || x == notEnabled) =>
       (forcedReset, theState)
 
     case x if x == forcedReset =>
-      val updS = ability.resetCondition.next(theState)
+      val updS =  ability.resetCondition.next(theState)
       (checkEnabled(updS), updS)
 
     case x if x == unavailable && theState.state.nonEmpty =>

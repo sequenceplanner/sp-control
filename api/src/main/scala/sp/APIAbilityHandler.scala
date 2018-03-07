@@ -34,7 +34,7 @@ import sp.domain._
     final case class Ability(name: String,
                              id: ID = ID.newID,
                              preCondition: Condition = Condition(AlwaysFalse, List()),
-                             started: Condition = Condition(AlwaysFalse, List()),
+                             started: Condition = Condition(AlwaysTrue, List()),
                              postCondition: Condition = Condition(AlwaysTrue, List()),
                              resetCondition: Condition = Condition(AlwaysTrue, List()),
                              parameters: List[ID] = List(),
