@@ -189,8 +189,8 @@ class UnificationAbilities extends Actor with MessageBussSupport{
     initialState = Map()
   ))
 
-//  publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
-//    SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
+  publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
+    SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
 
 
 
