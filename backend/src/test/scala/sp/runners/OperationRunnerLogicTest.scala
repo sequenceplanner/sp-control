@@ -38,28 +38,26 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
   "Op runner logic" must {
 
-
-
     val t1 = Thing("t1")
     val t2 = Thing("t2")
-    var o1 = Operation("o1")
-    var o2 = Operation("o2")
-    var o3 = Operation("o3")
+    val o1x = Operation("o1")
+    val o2x = Operation("o2")
+    val o3x = Operation("o3")
     val a1 = Thing("a1")
     val a2 = Thing("a2")
     val a3 = Thing("a3")
 
 
-    val ids = List(t1, t2, o1, o2, o3)
+    val ids = List(t1, t2, o1x, o2x, o3x)
     val o1Pre = prop(ids, "t1 == 0", List("t1 := 1"))
     val o1Post = prop(ids, "", List("t1 := 2"), "post")
 
     val o2Pre = prop(ids, "o1 == f", List("t2 := 1"))
     val o3Pre = prop(ids, "t1 == 2", List("t1 := 3"))
 
-    o1 = o1.copy(conditions = List(o1Pre, o1Post))
-    o2 = o2.copy(conditions = List(o2Pre))
-    o3 = o3.copy(conditions = List(o3Pre))
+    val o1 = o1x.copy(conditions = List(o1Pre, o1Post))
+    val o2 = o2x.copy(conditions = List(o2Pre))
+    val o3 = o3x.copy(conditions = List(o3Pre))
 
 
 
@@ -78,6 +76,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
     val initState = SPState(state = init)
     val ops = Set(o1, o2, o3)
+
 
     "evaluate ops" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
@@ -103,18 +102,18 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       val res = logic.evaluateOps(List(o1, o2, o3), s)
       assert(res == List(o2, o3))
 
-      var starting = List[Operation]()
-      val f = (o: Operation) => starting = o :: starting
+      var starting = List[ID]()
+      val f = (o: ID) => starting = o :: starting
 
       var states = List[SPState]()
       val f2 = (o: SPState) => states = o :: states
 
-      val upd = logic.newState(s, ops, f, f2, false)
+      val upd = logic.newState(s, ops, abOp, f,  f2, false)
       println("jhsfd")
       println(upd)
       println(starting)
       println(states)
-      assert(starting == List(o3, o2))
+      assert(starting == List(a3.id, a2.id))
       assert(upd(t1.id) == SPValue(3) && upd(t2.id) == SPValue(1) &&
         upd(o2.id) == SPValue("e") && upd(o3.id) == SPValue("e"))
 
@@ -123,7 +122,17 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
     "run ops" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
-      logic.addRunner(setup)
+      val newS = setup.copy(opAbilityMap = Map(o1.id -> a1.id))
+      logic.addRunner(newS)
+
+      println("**************************")
+      println(Set(o1, o2, o3))
+      println(newS)
+      println(logic.runners)
+      println("**************************")
+
+
+
 
       var starting = List[ID]()
       val f = (o: ID) => starting = o :: starting
@@ -131,12 +140,16 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       var states = List[SPState]()
       val f2 = (o: SPState, id: ID) => states = o :: states
 
+      println(logic.runners)
       logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
 
+      logic.newAbilityState(a1.id, SPValue("enabled"), f, f2)
+      logic.newAbilityState(a1.id, SPValue("finished"), f, f2)
 
-      val upd = logic.completeOPs(a1.id, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+
+
       println("sfdsdf")
-      println(upd)
       println(starting)
       println(states)
 
