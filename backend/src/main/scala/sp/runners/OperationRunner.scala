@@ -49,7 +49,6 @@ class OperationRunner extends Actor
 
 
   def matchRequests(mess: Option[SPMessage]) = {
-
     OperationRunnerComm.extractRequest(mess).foreach{ case (h, b) =>
       val updH = h.copy(from = api.service)
       publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPACK()))
@@ -72,13 +71,17 @@ class OperationRunner extends Actor
             case None =>
               publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
           }
+
         case api.AddOperations(id, ops, map) =>
           updRunner(id, ops, Set(), map, startAbility, sendState(_, id) )
+
         case api.RemoveOperations(id, ops) =>
           updRunner(id, Set(), ops, Map(), startAbility, sendState(_, id) )
+
         case api.TerminateRunner(id) =>
           val xs = removeRunner(id)
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
+
         case api.GetState(id) =>
           getRunnerState(id) match {
             case Some(s) =>
@@ -86,9 +89,11 @@ class OperationRunner extends Actor
             case None =>
               publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
           }
+
         case api.GetRunners =>
           val xs = runners.map(_._2.setup).toList
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
+
         case ForceComplete(id) =>
           completeOPs(id, startAbility, sendState)
        }
@@ -104,22 +109,25 @@ class OperationRunner extends Actor
     OperationRunnerComm.extractAbilityReply(mess).map { case (h, b) =>
 
         b match {
+
           case abilityAPI.AbilityStarted(id) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            log.debug(s"The ability with id $id started for operations: $ops")
+            log.info(s"The ability with id $id started for operations: $ops")
+
           case abilityAPI.AbilityCompleted(id, _) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            log.debug(s"The ability with id $id completed for operations: $ops")
+            log.info(s"The ability with id $id completed for operations: $ops")
             completeOPs(id, startAbility, sendState)
-          case abilityAPI.AbilityState(id, s) =>
 
+          case abilityAPI.AbilityState(id, s) =>
             //val ops = getOPFromAbility(id).flatMap(_._2)
             val abState = (for {
               x <- s.get(id) if x.isInstanceOf[SPAttributes]
               v <- x.asInstanceOf[SPAttributes].get("state")
             } yield v).getOrElse(SPValue("notEnabled"))
-            log.debug(s"The ability with id $id updated with state: $abState")
+            log.info(s"The ability with id $id updated with state: $abState")
             newAbilityState(id, abState, startAbility, sendState)
+
           case x => log.debug(s"Operation Runner got a message it do not handle: $x")
         }
     }
@@ -127,17 +135,16 @@ class OperationRunner extends Actor
 
 
 
-  val startAbility = (id: ID) => {
-
+  val startAbility: ID => Unit = (id: ID) => {
     log.debug("Starting ability: " + id)
     val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
     publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id)))
   }
 
   val sendState = (s: SPState, id: ID) => {
-    log.info("")
-    log.info(s"new state for $id: ")
-    s.state.foreach(x => log.info(x.toString))
+    log.debug("")
+    log.debug(s"new state for $id: ")
+    s.state.foreach(x => log.debug(x.toString))
     val myH = SPHeader(from = api.service)
     publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state)))
 
@@ -302,14 +309,14 @@ trait OperationRunnerLogic {
   def runOp(o: Operation, s: SPState) = {
       val filtered = filterConditions(o.conditions, Set("pre", "precondition"))
       val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
-      log.info(s"${o.name} started")
+      log.debug(s"${o.name} started")
       newState.next(o.id -> OperationState.executing)
   }
 
   def completeOP(o: Operation, s: SPState) = {
     val filtered = filterConditions(o.conditions, Set("post", "postcondition"))
     val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
-    log.info(s"${o.name} completed")
+    log.debug(s"${o.name} completed")
     newState.next(o.id -> OperationState.finished)
   }
 
@@ -317,11 +324,23 @@ trait OperationRunnerLogic {
     ops.filter(o => isEnabled(o, s))
   }
 
-  def isEnabled(o: Operation, s: SPState) = {
-    val oState = s(o.id)
-    val xs = filterConditions(o.conditions, Set("pre", "precondition"))
-    xs.forall(_.eval(s)) && oState == OperationState.init
+  def isEnabled(o: Operation, s: SPState): Boolean = {
+    (s(o.id) == OperationState.init) &&
+      filterConditions(o.conditions, Set("pre", "precondition")).forall(_.eval(s))
   }
+
+  def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID]): Boolean = {
+    !opAbilityMap.contains(o.id) &&
+      s(o.id) == OperationState.executing &&
+      filterConditions(o.conditions, Set("post", "postcondition")).forall(_.eval(s))
+  }
+
+  def canReset(o: Operation, s: SPState): Boolean = {
+    (s(o.id) == OperationState.finished) &&
+      filterConditions(o.conditions, Set("reset", "resetcondition")).forall(_.eval(s))
+  }
+
+
   def filterConditions(conds: List[Condition], set: Set[String]) = {
     conds filter(c => {
       val res = c.attributes.getAs[String]("kind").getOrElse("")
