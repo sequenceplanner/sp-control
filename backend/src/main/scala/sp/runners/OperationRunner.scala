@@ -320,12 +320,9 @@ trait OperationRunnerLogic {
     val complete = ops.filter(o => canComplete(o, s, opAbilityMap))
     val reset = ops.filter(o => canReset(o, s))
 
-    log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
-    log.info("runner can complete ops: " + complete.map(_.name).mkString(", "))
-    log.info("runner can reset ops: " + reset.map(_.name).mkString(", "))
-
-    println(s)
-    println(ops)
+    if (enabled.nonEmpty) log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
+    if (complete.nonEmpty) log.info("runner can complete ops: " + complete.map(_.name).mkString(", "))
+    if (reset.nonEmpty) log.info("runner can reset ops: " + reset.map(_.name).mkString(", "))
 
     var opsToGo = ops
 

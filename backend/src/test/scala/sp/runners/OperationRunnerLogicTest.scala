@@ -125,14 +125,6 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       val newS = setup.copy(opAbilityMap = Map(o1.id -> a1.id))
       logic.addRunner(newS)
 
-      println("**************************")
-      println(Set(o1, o2, o3))
-      println(newS)
-      println(logic.runners)
-      println("**************************")
-
-
-
 
       var starting = List[ID]()
       val f = (o: ID) => starting = o :: starting
@@ -140,7 +132,6 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       var states = List[SPState]()
       val f2 = (o: SPState, id: ID) => states = o :: states
 
-      println(logic.runners)
       logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
 
       logic.newAbilityState(a1.id, SPValue("enabled"), f, f2)
@@ -149,11 +140,47 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
 
 
-      println("sfdsdf")
-      println(starting)
-      println(states)
+      //println("sfdsdf")
+      //println(starting)
+      //println(states)
+
+      starting shouldEqual List(a1.id)
+      states.head.get(o3.id).get shouldEqual  SPValue(OperationState.finished)
+    }
+    "run ops, reset and no ability" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val resetC = Condition(AlwaysTrue, List(), SPAttributes("kind"->"reset"))
+      val updO3 = o3.copy(conditions = o3.conditions :+ resetC)
 
 
+      val newS = setup.copy(
+        opAbilityMap = Map(),
+        ops = Set(o1, o2, updO3)
+      )
+
+      logic.addRunner(newS)
+
+
+      var starting = List[ID]()
+      val f = (o: ID) => starting = o :: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState, id: ID) => states = o :: states
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
+
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+
+
+      //println("sfdsdf")
+      //println(starting)
+      //println(states)
+
+      starting shouldEqual List()
+      states.head.get(o3.id).get shouldEqual  SPValue(OperationState.init)
     }
 
     "testing messages" in {
