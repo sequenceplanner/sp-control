@@ -97,18 +97,20 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
     "upd state" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+      logic.addRunner(setup)
+      val r = logic.runners(setup.runnerID)
       val s = initState.add(Map[ID, SPValue](o1.id -> "f", t1.id -> 2))
 
       val res = logic.evaluateOps(List(o1, o2, o3), s)
       assert(res == List(o2, o3))
 
       var starting = List[ID]()
-      val f = (o: ID) => starting = o :: starting
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
 
       var states = List[SPState]()
       val f2 = (o: SPState) => states = o :: states
 
-      val upd = logic.newState(s, ops, abOp, f,  f2, false)
+      val upd = logic.newState(s, ops, r, f,  f2, false)
       println("jhsfd")
       println(upd)
       println(starting)
@@ -120,14 +122,47 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
     }
 
 
-    "run ops" in {
+    "run ops, all abilities" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+      logic.addRunner(setup)
+
+
+      var starting = List[ID]()
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState, id: ID) => states = o :: states
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
+
+      logic.newAbilityState(a1.id, SPValue("enabled"), f, f2)
+      logic.newAbilityState(a2.id, SPValue("enabled"), f, f2)
+      logic.newAbilityState(a3.id, SPValue("enabled"), f, f2)
+
+      logic.newAbilityState(a1.id, SPValue("finished"), f, f2)
+      logic.newAbilityState(a2.id, SPValue("finished"), f, f2)
+      logic.newAbilityState(a3.id, SPValue("finished"), f, f2)
+
+      //logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+
+
+      //println("sfdsdf")
+      //println(starting)
+      //println(states)
+
+      starting shouldEqual List(a3.id, a2.id, a1.id)
+      states.head.get(o3.id).get shouldEqual  SPValue(OperationState.finished)
+    }
+
+
+    "run ops, one ability" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       val newS = setup.copy(opAbilityMap = Map(o1.id -> a1.id))
       logic.addRunner(newS)
 
 
       var starting = List[ID]()
-      val f = (o: ID) => starting = o :: starting
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
 
       var states = List[SPState]()
       val f2 = (o: SPState, id: ID) => states = o :: states
@@ -147,6 +182,8 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       starting shouldEqual List(a1.id)
       states.head.get(o3.id).get shouldEqual  SPValue(OperationState.finished)
     }
+
+
     "run ops, reset and no ability" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
 
@@ -163,7 +200,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
 
       var starting = List[ID]()
-      val f = (o: ID) => starting = o :: starting
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
 
       var states = List[SPState]()
       val f2 = (o: SPState, id: ID) => states = o :: states
@@ -182,6 +219,125 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       starting shouldEqual List()
       states.head.get(o3.id).get shouldEqual  SPValue(OperationState.init)
     }
+
+
+    "run ops, with connected resource variables" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val r1 = Thing("r1")
+      val r2 = Thing("r2")
+      val driverR1 = ID.newID
+      val driverR2 = ID.newID
+      val badID = ID.newID
+      println(s"bad id: $badID")
+
+
+      val startC1 = prop(List(r1, r2), "r1 == 10")
+      val startC2 = prop(List(r1, r2), "r2 == 10")
+
+
+      val o1Upd = o1.copy(conditions = o1.conditions :+ startC1)
+      val o2Upd = o2.copy(conditions = o2.conditions :+ startC2)
+
+
+      val newS = setup.copy(
+        opAbilityMap = Map(),
+        ops = Set(o1Upd, o2Upd, o3),
+        variableMap = Map(r1.id -> driverR1, r2.id -> driverR2)
+      )
+
+      logic.addRunner(newS)
+
+      var starting = List[sp.abilityhandler.APIAbilityHandler.StartAbility]()
+      val f = (id: ID, param: Map[ID, SPValue]) => starting =
+        sp.abilityhandler.APIAbilityHandler.StartAbility(id, param):: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState, id: ID) => states = o :: states
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
+
+      logic.newResourceState(Map(driverR1 -> 10), f, f2)
+      logic.newResourceState(Map(badID -> "hej"), f, f2)
+      logic.newResourceState(Map(driverR2 -> 10), f, f2)
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+
+
+      states.head.get(o2.id).get shouldEqual  SPValue(OperationState.finished)
+      states.head.get(badID) shouldEqual  None
+    }
+
+    "prepare ability parameters" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val r1 = Thing("r1")
+      val r2 = Thing("r2")
+      val driverR1 = ID.newID
+      val driverR2 = ID.newID
+
+      val initS: Map[ID, SPValue] = setup.initialState ++ Map(r1.id->SPValue(10), r2.id -> SPValue(15))
+
+      val newS = setup.copy(
+        variableMap = Map(r1.id -> driverR1, r2.id -> driverR2),
+        abilityParameters = Map(a1.id -> Set(r2.id)),
+        initialState = initS
+      )
+
+      logic.addRunner(newS)
+      val r = logic.runners(setup.runnerID)
+
+      val res = logic.prepareAbilityParameters(a1.id, r, initS)
+
+      assert(res.contains(driverR2))
+
+    }
+
+
+    "run ops, one ability with parameters" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+
+      val driverR1 = ID.newID
+      val driverR2 = ID.newID
+
+
+      val newS = setup.copy(
+        opAbilityMap = Map(o1.id -> a1.id),
+        variableMap = Map(t1.id -> driverR1, t2.id -> driverR2),
+        abilityParameters = Map(a1.id -> Set(t1.id))
+      )
+      logic.addRunner(newS)
+
+
+      var starting = List[sp.abilityhandler.APIAbilityHandler.StartAbility]()
+      val f = (id: ID, param: Map[ID, SPValue]) => starting =
+        sp.abilityhandler.APIAbilityHandler.StartAbility(id, param):: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState, id: ID) => states = o :: states
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
+
+      logic.newAbilityState(a1.id, SPValue("enabled"), f, f2)
+      logic.newAbilityState(a1.id, SPValue("finished"), f, f2)
+
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+
+
+      println("lasflksndf")
+      println(starting)
+      //println(states)
+
+      val resParams = Map(driverR1 -> SPValue(1))
+
+      starting shouldEqual List(
+        sp.abilityhandler.APIAbilityHandler.StartAbility(a1.id, resParams)
+      )
+      states.head.get(o3.id).get shouldEqual  SPValue(OperationState.finished)
+    }
+
+
+
 
     "testing messages" in {
       val s = OperationRunnerInfo.apischema

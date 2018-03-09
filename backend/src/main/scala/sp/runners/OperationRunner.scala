@@ -133,12 +133,24 @@ class OperationRunner extends Actor
     }
   }
 
+  def matchVDAPI(mess: Option[SPMessage]) = {
+    for {
+      m <- mess
+      h <- m.getHeaderAs[SPHeader]
+      b <- m.getBodyAs[sp.devicehandler.APIVirtualDevice.Response] if b.isInstanceOf[sp.devicehandler.APIVirtualDevice.StateEvent]
+      se = b.asInstanceOf[sp.devicehandler.APIVirtualDevice.StateEvent]
+    } yield {
 
 
-  val startAbility: ID => Unit = (id: ID) => {
+    }
+  }
+
+
+
+  val startAbility: (ID, Map[ID, SPValue]) => Unit = (id: ID, params: Map[ID, SPValue]) => {
     log.debug("Starting ability: " + id)
     val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
-    publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id)))
+    publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id, params)))
   }
 
   val sendState = (s: SPState, id: ID) => {
@@ -167,7 +179,7 @@ object OperationRunner {
 /*
  * The logic for running the operations
  *
- * TODO: 180308: Start using the OperationLogic in sp-domain and OperationStateDefinition
+ * TODO: 180308: Use instead the OperationLogic in sp-domain and OperationStateDefinition
  */
 trait OperationRunnerLogic {
   def log: akka.event.LoggingAdapter
@@ -178,7 +190,6 @@ trait OperationRunnerLogic {
   }
   var runners: Map[ID, Runner] = Map()
   var abilities: Set[ID] = Set()
-
 
 
   object OperationState {
@@ -213,7 +224,7 @@ trait OperationRunnerLogic {
                 add: Set[Operation],
                 remove: Set[ID],
                 opAbilityMap: Map[ID, ID],
-                startAbility: ID => Unit,
+                startAbility: (ID, Map[ID, SPValue]) => Unit,
                 sendState: SPState => Unit
                ) = {
     val updR = runners.get(runner).map {runner =>
@@ -236,7 +247,7 @@ trait OperationRunnerLogic {
     //setup.ops.forall(o => setup.opAbilityMap.contains(o.id))
   }
 
-//  def completeOPs(ability: ID, startAbility: ID => Unit, sendState: (SPState, ID) => Unit, runOneAtTheTime: Boolean = false): Unit = {
+//  def completeOPs(ability: ID, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit, runOneAtTheTime: Boolean = false): Unit = {
 //    val tempR = runners
 //
 //    tempR.foreach{r =>
@@ -255,7 +266,7 @@ trait OperationRunnerLogic {
 //    }
 //  }
 
-  def newAbilityState(ability: ID, abilityState: SPValue, startAbility: ID => Unit, sendState: (SPState, ID) => Unit): Unit = {
+  def newAbilityState(ability: ID, abilityState: SPValue, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit): Unit = {
     runners.foreach{r =>
       if (r._2.setup.opAbilityMap.values.toSet.contains(ability)){
         log.debug("An ability has an operation and was updated")
@@ -265,22 +276,35 @@ trait OperationRunnerLogic {
     }
   }
 
-  def setRunnerState(runnerID: ID, s: SPState, startAbility: ID => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): Unit = {
+  def newResourceState(state: Map[ID, SPValue], startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit, runOneAtTheTime: Boolean = false) = {
+    runners.foreach{r =>
+      val reMap = r._2.setup.variableMap.map(kv => kv._2 -> kv._1)
+      val myThings = state.filter(kv => reMap.contains(kv._1))
+      if (myThings.nonEmpty){
+        log.debug("A resource state with connected variables have been updated")
+        val remapState = myThings.map(kv => reMap(kv._1) -> kv._2)
+        val cS = SPState(state = runners(r._1).currentState ++ remapState)
+        setRunnerState(r._1, cS, startAbility, sendState(_,r._1), runOneAtTheTime)
+      }
+    }
+  }
+
+  def setRunnerState(runnerID: ID, s: SPState, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): Unit = {
     val r = runners.get(runnerID)
     r.foreach { x =>
       val theS = x.currentState ++ s.state
       val theState = SPState(state = theS)
       log.debug("set runner state from: " + x.currentState + " to " + theS)
       if (theS != x.currentState) sendState(theState)
-      val updS = newState(theState, x.setup.ops, x.setup.opAbilityMap, startAbility: ID => Unit, sendState, runOneAtTheTime)
+      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runOneAtTheTime)
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
 
-  def tickRunner(runnerID: ID, startAbility: ID => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): Unit = {
+  def tickRunner(runnerID: ID, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): Unit = {
     runners.get(runnerID).foreach { x =>
       val theState = SPState(state = x.currentState)
-      val updS = newState(theState, x.setup.ops, x.setup.opAbilityMap, startAbility: ID => Unit, sendState, runOneAtTheTime)
+      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runOneAtTheTime)
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
@@ -305,8 +329,7 @@ trait OperationRunnerLogic {
     *
     * @param s Current state
     * @param ops The operaitons to evaluate
-    * @param opAbilityMap The map between operations and abilities. Is needed for knowing when to check postconditions
-    *                     (only when an operation do not have an ability)
+    * @param r The runner, since we need to know the mapping to abilities
     * @param startAbility A function from the actor side for starting the abilities
     * @param sendState A function from the actor side to send the state of the runner
     * @param runOneAtTheTime A flag to use if only one operation should start at the time.
@@ -315,14 +338,12 @@ trait OperationRunnerLogic {
     *                        state change
     * @return The updated state
     */
-  def newState(s: SPState, ops: Set[Operation], opAbilityMap: Map[ID, ID], startAbility: ID => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): SPState = {
+  def newState(s: SPState, ops: Set[Operation], r: Runner, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): SPState = {
     val enabled = ops.filter(isEnabled(_, s))
-    val complete = ops.filter(o => canComplete(o, s, opAbilityMap))
+    val complete = ops.filter(o => canComplete(o, s, r.setup.opAbilityMap))
     val reset = ops.filter(o => canReset(o, s))
 
-    if (enabled.nonEmpty) log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
-    if (complete.nonEmpty) log.info("runner can complete ops: " + complete.map(_.name).mkString(", "))
-    if (reset.nonEmpty) log.info("runner can reset ops: " + reset.map(_.name).mkString(", "))
+
 
     var opsToGo = ops
 
@@ -330,9 +351,8 @@ trait OperationRunnerLogic {
       opsToGo -= o
       val updS = runOp(o, s)
       sendState(updS)
-      opAbilityMap.get(o.id).foreach(startAbility)
+      r.setup.opAbilityMap.get(o.id).foreach(id => startAbility(id, prepareAbilityParameters(id, r, updS.state)))
       updS
-      //if (runOneAtTheTime) updS else newState(updS, ops - o, opAbilityMap, startAbility, sendState, false)
     }.getOrElse(s)
 
     val resCompl = complete.headOption.map{o =>
@@ -340,22 +360,38 @@ trait OperationRunnerLogic {
       val updS = completeOP(o, resEn)
       sendState(updS)
       updS
-      //if (runOneAtTheTime) updS else newState(updS, ops - o, opAbilityMap, startAbility, sendState, false)
     }.getOrElse(resEn)
 
     val res = reset.headOption.map{o =>
       opsToGo -= o
-      val updS = resetOP(o, s)
+      val updS = resetOP(o, resEn)
       sendState(updS)
       updS
     }.getOrElse(resCompl)
+
+    log.info("*************")
+    if (enabled.isEmpty && complete.isEmpty && reset.isEmpty) log.info("runner no ops changing: ")
+    if (enabled.nonEmpty)  log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
+    if (complete.nonEmpty) log.info("runner can complete ops: " + complete.map(_.name).mkString(", "))
+    if (reset.nonEmpty)    log.info("runner can reset ops: " + reset.map(_.name).mkString(", "))
+    log.info(res.toString)
+    log.info("*************")
 
 
     if (runOneAtTheTime || res == s)
       res
     else
-      newState(res, opsToGo, opAbilityMap, startAbility, sendState, runOneAtTheTime)
+      newState(res, opsToGo, r, startAbility, sendState, runOneAtTheTime)
 
+  }
+
+  def prepareAbilityParameters(ability: ID, r: Runner, state: Map[ID, SPValue]) = {
+   for {
+     kv <- state if r.setup.variableMap.contains(kv._1)
+     xs <- r.setup.abilityParameters.get(ability) if xs.contains(kv._1)
+   } yield {
+     r.setup.variableMap(kv._1) -> kv._2
+   }
   }
 
 

@@ -50,11 +50,11 @@ object OperationRunnerComm {
     b <- m.getBodyAs[abilityAPI.Response]
     } yield (h, b)
 
-  def extractAbilityStates(mess: Option[SPMessage], abilities: Set[ID]) = for {
-    m <- mess
-    h <- m.getHeaderAs[SPHeader]
-    b <- m.getBodyAs[abilityAPI.Response] if b.isInstanceOf[abilityAPI.AbilityState] && abilities.contains(b.asInstanceOf[abilityAPI.AbilityState].id)
-    } yield (h, b)
+//  def extractAbilityStates(mess: Option[SPMessage], abilities: Set[ID]) = for {
+//    m <- mess
+//    h <- m.getHeaderAs[SPHeader]
+//    b <- m.getBodyAs[abilityAPI.Response] if b.isInstanceOf[abilityAPI.AbilityState] && abilities.contains(b.asInstanceOf[abilityAPI.AbilityState].id)
+//    } yield (h, b)
 
   def extractServiceRequest(mess: Option[SPMessage]) = for {
     m <- mess
