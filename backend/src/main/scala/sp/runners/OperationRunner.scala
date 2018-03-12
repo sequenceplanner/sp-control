@@ -41,6 +41,7 @@ class OperationRunner extends Actor
 
       matchRequests(mess)
       matchAbilityAPI(mess)
+      matchVDAPI(mess)
       // if needed, also get the state from the VD here
 
 
@@ -111,11 +112,11 @@ class OperationRunner extends Actor
 
           case abilityAPI.AbilityStarted(id) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            log.info(s"The ability with id $id started for operations: $ops")
+            log.debug(s"The ability with id $id started for operations: $ops")
 
           case abilityAPI.AbilityCompleted(id, _) =>
             val ops = getOPFromAbility(id).flatMap(_._2)
-            log.info(s"The ability with id $id completed for operations: $ops")
+            log.debug(s"The ability with id $id completed for operations: $ops")
 
             newAbilityState(id, sp.abilityhandler.AbilityState.finished, startAbility, sendState)
 
@@ -125,7 +126,7 @@ class OperationRunner extends Actor
               x <- s.get(id) if x.isInstanceOf[SPAttributes]
               v <- x.asInstanceOf[SPAttributes].get("state")
             } yield v).getOrElse(SPValue("notEnabled"))
-            log.info(s"The ability with id $id updated with state: $abState")
+            log.debug(s"The ability with id $id updated with state: $abState")
             newAbilityState(id, abState, startAbility, sendState)
 
           case x => log.debug(s"Operation Runner got a message it do not handle: $x")
@@ -137,9 +138,18 @@ class OperationRunner extends Actor
     for {
       m <- mess
       h <- m.getHeaderAs[SPHeader]
-      b <- m.getBodyAs[sp.devicehandler.APIVirtualDevice.Response] if b.isInstanceOf[sp.devicehandler.APIVirtualDevice.StateEvent]
-      se = b.asInstanceOf[sp.devicehandler.APIVirtualDevice.StateEvent]
+      b <- m.getBodyAs[sp.devicehandler.APIVirtualDevice.Response]
     } yield {
+      b match {
+        case x: sp.devicehandler.APIVirtualDevice.StateEvent =>
+          log.debug("we got a VD state: ")
+          x.state.foreach(kv => log.debug(kv.toString))
+          newResourceState(x.state, startAbility, sendState)
+        case x: sp.devicehandler.APIVirtualDevice.TheVD =>
+          val state = x.resources.flatMap(_.state).toMap
+          newResourceState(state, startAbility, sendState)
+      }
+
 
 
     }
@@ -179,7 +189,7 @@ object OperationRunner {
 /*
  * The logic for running the operations
  *
- * TODO: 180308: Use instead the OperationLogic in sp-domain and OperationStateDefinition
+ * TODO: 180308: maybe update to use the OperationLogic in sp-domain and OperationStateDefinition
  */
 trait OperationRunnerLogic {
   def log: akka.event.LoggingAdapter
@@ -244,27 +254,7 @@ trait OperationRunnerLogic {
 
   private def validateRunner(setup: api.Setup) = {
     !runners.contains(setup.runnerID)
-    //setup.ops.forall(o => setup.opAbilityMap.contains(o.id))
   }
-
-//  def completeOPs(ability: ID, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit, runOneAtTheTime: Boolean = false): Unit = {
-//    val tempR = runners
-//
-//    tempR.foreach{r =>
-//      val opsID = r._2.setup.opAbilityMap.filter(_._2 == ability).keySet
-//      val xs = r._2.setup.ops.filter(o => opsID.contains(o.id))
-//      xs.foreach{o =>
-//        val cS = SPState(state = runners(r._1).currentState)
-//        val s = completeOP(o, cS)
-//        setRunnerState(r._1, s, startAbility, sendState(_,r._1), runOneAtTheTime)
-//      }
-//      r._2.noAbilityOps.foreach {o =>
-//        val cS = SPState(state = runners(r._1).currentState)
-//        val s = completeOP(o, cS)
-//        setRunnerState(r._1, s, startAbility, sendState(_,r._1), runOneAtTheTime)
-//      }
-//    }
-//  }
 
   def newAbilityState(ability: ID, abilityState: SPValue, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit): Unit = {
     runners.foreach{r =>
@@ -320,7 +310,7 @@ trait OperationRunnerLogic {
 
 
 
-
+  import scala.annotation.tailrec
 
 
   /**
@@ -338,44 +328,55 @@ trait OperationRunnerLogic {
     *                        state change
     * @return The updated state
     */
-  def newState(s: SPState, ops: Set[Operation], r: Runner, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): SPState = {
-    val enabled = ops.filter(isEnabled(_, s))
-    val complete = ops.filter(o => canComplete(o, s, r.setup.opAbilityMap))
-    val reset = ops.filter(o => canReset(o, s))
+  @tailrec final def newState(s: SPState, ops: Set[Operation], r: Runner, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): SPState = {
 
+    val filterOps = ops.foldLeft((List[Operation](), List[Operation](), List[Operation]())){case (aggr, o) =>
+      if (isEnabled(o, s)) {
+        (aggr._1 :+ o, aggr._2, aggr._3)
+      } else if (canComplete(o, s, r.setup.opAbilityMap)) {
+        (aggr._1, aggr._2  :+ o, aggr._3)
+      } else if (canReset(o, s)){
+        (aggr._1, aggr._2, aggr._3 :+ o)
+      } else aggr
+    }
 
+    val enabled = filterOps._1
+    val complete = filterOps._2
+    val reset = filterOps._3
 
     var opsToGo = ops
 
-    val resEn = enabled.headOption.map{o =>
+    val resRes = reset.headOption.map{o =>
       opsToGo -= o
-      val updS = runOp(o, s)
+      val updS = resetOP(o, s)
       sendState(updS)
-      r.setup.opAbilityMap.get(o.id).foreach(id => startAbility(id, prepareAbilityParameters(id, r, updS.state)))
       updS
     }.getOrElse(s)
 
     val resCompl = complete.headOption.map{o =>
       opsToGo -= o
-      val updS = completeOP(o, resEn)
+      val updS = completeOP(o, resRes)
       sendState(updS)
       updS
-    }.getOrElse(resEn)
+    }.getOrElse(resRes)
 
-    val res = reset.headOption.map{o =>
+    val res = enabled.headOption.map{o =>
       opsToGo -= o
-      val updS = resetOP(o, resEn)
+      val updS = runOp(o, resCompl)
       sendState(updS)
+      r.setup.opAbilityMap.get(o.id).foreach(id => startAbility(id, prepareAbilityParameters(id, r, updS.state)))
       updS
     }.getOrElse(resCompl)
 
-    log.info("*************")
-    if (enabled.isEmpty && complete.isEmpty && reset.isEmpty) log.info("runner no ops changing: ")
+
+
+    if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("vv*************")
+    if (enabled.isEmpty && complete.isEmpty && reset.isEmpty) log.debug("runner no ops changing: ")
     if (enabled.nonEmpty)  log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
     if (complete.nonEmpty) log.info("runner can complete ops: " + complete.map(_.name).mkString(", "))
     if (reset.nonEmpty)    log.info("runner can reset ops: " + reset.map(_.name).mkString(", "))
-    log.info(res.toString)
-    log.info("*************")
+    if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty) log.info(res.toString)
+    if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("*************")
 
 
     if (runOneAtTheTime || res == s)

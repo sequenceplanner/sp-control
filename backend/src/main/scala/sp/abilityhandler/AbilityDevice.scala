@@ -10,6 +10,10 @@ import akka.persistence._
 import scala.util.Try
 
 
+// TODO: 180311: Currently we do not have a synchronized state in the
+// TODO: abilities. If guaranteed booking is needed, it must be done on the
+// TODO: operation layer
+
 
 object AbilityHandler {
   def props = Props(classOf[AbilityHandlerMaker])
@@ -106,12 +110,15 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
 
   // Internal state of the ability
   case class AbilityStorage(ability: APIAbilityHandler.Ability, actor: ActorRef, ids: Set[ID] = Set(), current: Option[AbilityStateChange] = None)
+
+  // Internal state of the ability handler
   var abilities: Map[ID, AbilityStorage] = Map()
   var resources: List[VD.Resource] = List()
   var state: Map[ID, SPValue] = Map()
 
 
   subscribe(APIAbilityHandler.topicRequest)
+  subscribe(APIVirtualDevice.topicResponse)
 
   // Setting up the status response that is used for identifying the service in the cluster
   val statusResponse = AbilityHandler.attributes.copy(
@@ -123,8 +130,6 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
   // starts waiting for ping requests from service handler
   triggerServiceRequestComm(statusResponse)
 
-  subscribe(APIVirtualDevice.topicResponse)
-  subscribe(APIAbilityHandler.topicRequest)
 
   val getVD = makeMess(SPHeader(from = handlerID.toString, to = vd.toString), APIVirtualDevice.GetVD)
   publish(APIVirtualDevice.topicRequest, getVD)
@@ -305,10 +310,17 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
     extractVDReply(mess, handlerID, vd.toString) foreach { case (h, b) =>
       log.debug("ABH from VD: " +b)
       b match {
-        case APIVirtualDevice.StateEvent(r, rID, s, d) =>
+        case x @ APIVirtualDevice.StateEvent(r, rID, s, d) =>
           state = state ++ s
-          val f = abilities.filter(kv => kv._2.ids.intersect(s.keySet).nonEmpty)
-          f.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
+
+          // Add filters if we need it later. Probably is better that all abilities has
+          // the complete state
+          //val f = abilities.filter(kv => kv._2.ids.intersect(s.keySet).nonEmpty)
+          //f.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
+
+          // The no filter version
+          abilities.foreach(kv => kv._2.actor ! NewState(state))
+
         case x: APIVirtualDevice.TheVD =>
           resources = x.resources.map(_.r)
           state = x.resources.foldLeft(state)(_ ++ _.state)
@@ -356,30 +368,39 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
       makeUnavailable()
       sendAbilityState(sender())
 
-    case StartAbility(s, id, p, attr) =>
+    case x @ StartAbility(s, id, p, attr) =>
       log.debug("STARTING ABILITY")
+      log.debug(x.toString)
       val res = start(s ++ p)
-      res.foreach { updS =>
-        reqID = Some(id)
-        if (p.nonEmpty) sender() ! StateUpdReq(ability.id, p)
-        sender() ! StateUpdReq(ability.id, updS)
-        sendAbilityState(sender())
-        "fix timeout here if needed"
+      res.collect {
+        case updS if updS != s =>
+          reqID = Some(id)
+          log.debug(updS.toString())
+          if (p.nonEmpty) sender() ! StateUpdReq(ability.id, p)
+          sender() ! StateUpdReq(ability.id, updS)
+          sendAbilityState(sender())
+
+          log.debug("")
+          log.debug("StartAbility v v v")
+          log.debug("the state: " + s)
+          log.debug("new ability state: " + state)
+          log.debug("ability updated state: " + updS)
+          log.debug("StartAbility END")
+          log.debug("")
+        case _ =>
+          sender() ! CanNotStart(id, ability.id, createNotStartingErrorMessage())
+
+        //fix timeout here if needed
       }
-      if (res.isEmpty)
-        sender() ! CanNotStart(id, ability.id, createNotStartingErrorMessage())
 
-
-      checkAndSend(s, sender())
+      //checkAndSend(res.getOrElse(s), sender())
 
     case ResetAbility(s) =>
       val res = reset(s)
-      res.foreach { updS =>
-        sender() ! StateUpdReq(ability.id, updS)
-      }
+      if (res != s)  sender() ! StateUpdReq(ability.id, res)
       sendAbilityState(sender())
 
-      checkAndSend(s, sender())
+      //checkAndSend(res.getOrElse(s), sender())
 
     case NewState(s) =>
       val missingIDs = ids.diff(s.keySet)
@@ -401,12 +422,23 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
 
   def checkAndSend(s: Map[ID, SPValue], to: ActorRef): Unit = {
     val res = evalState(s)
+
+    val changed = res._2 != s
+
+    val print = res._1.isDefined || changed
+    if (print) log.debug("checkAndSend v v v")
+    if (print) log.debug("the state: " + s)
+    if (print) log.debug("new ability state: " + res._1)
+    if (print) log.debug("ability updated state: " + res._2)
+    if (print) log.debug("checkAndSend END")
+
+
     res._1.foreach { updS =>
       sendAbilityState(to)
     }
-    res._2.foreach{ updS =>
-      to ! StateUpdReq(ability.id, updS)
-    }
+    if (changed)
+      to ! StateUpdReq(ability.id, res._2)
+
   }
 
 
@@ -447,10 +479,10 @@ trait AbilityActorLogic extends AbilityLogic{
   def makeUnavailable() = state = unavailable
   def makeAvailable() = state = notEnabled
 
-  def start(s: Map[ID, SPValue]) = {
+  def start(s: Map[ID, SPValue]): Option[Map[ID, SPValue]] = {
     val tH = evalState(s, "start")
     if (state == starting || state == executing){
-      tH._2
+      Some(tH._2)
     } else None
   }
 
@@ -466,7 +498,7 @@ trait AbilityActorLogic extends AbilityLogic{
     * @param cmd to start, reset or fail the ability, Leave blank if no cmd
     * @return
     */
-  def evalState(s: Map[ID, SPValue], cmd: String = "") = {
+  def evalState(s: Map[ID, SPValue], cmd: String = ""): (Option[String], Map[ID, SPValue]) = {
     val theState = SPState(state = s)
     val abilityState = updateState(theState, cmd)
 
@@ -474,7 +506,7 @@ trait AbilityActorLogic extends AbilityLogic{
     val newRState = if (theState != abilityState._2) Some(abilityState._2.state) else None
 
     newAState.foreach(x => state = x)
-    (newAState, newRState)
+    (newAState, abilityState._2.state)
   }
 
   /**

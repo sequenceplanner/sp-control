@@ -170,7 +170,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
         //log.debug("VD from driver: " +b)
         b match {
 
-          case e @ APIDeviceDriver.DriverStateChange(name, did, state, _) =>
+          case e @ APIDeviceDriver.DriverStateChange(name, did, state, _) if drivers.contains(did) =>
             //log.debug("got a statechange:" + e)
             val oldrs = resourceState
             driverEvent(e)
@@ -187,6 +187,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
               val body = APIVirtualDevice.StateEvent(resources(rid).r.name, rid, state)
               // hur ska vi ha det med event/answer-topics?
               // publish("events", SPMessage.makeJson(header, body))
+
               publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(header, body))
             }
 

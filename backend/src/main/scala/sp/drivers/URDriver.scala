@@ -69,6 +69,7 @@ class URDriverInstance(d: VD.Driver) extends Actor
       if (urState != x) log.debug(x.toString)
       sendStateToBus(streamToMap(urState))
       urState = x
+      log.info(s"${d.name} pos: ${x.currentPos}")
 
 
     case x: String =>
@@ -188,7 +189,7 @@ class URDriverInstance(d: VD.Driver) extends Actor
   * A dummy UR robot that has one joint that it will update based on the refPos
   * Will only move if it is in the active state
   */
-class DummyUR(replyTo: ActorRef) extends Actor {
+class DummyUR(replyTo: ActorRef) extends Actor with ActorLogging {
   var currentPos = 0
   var refPos = 0
   var active = false
