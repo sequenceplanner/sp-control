@@ -20,7 +20,7 @@ object Launch extends App {
     val dh = system.actorOf(sp.drivers.URDriver.props, "URDriver")
     val rosh = system.actorOf(sp.drivers.ROSDriver.props, "ROSDriver")
 
-    system.actorOf(sp.unification.UnificationAbilities.props, "UnificationAbilityMaker")
+    system.actorOf(sp.unification.UnificationDummyVDModel.props, "UnificationAbilityMaker")
     system.actorOf(sp.runners.OperationRunner.props, "oprunner")
   }
 
