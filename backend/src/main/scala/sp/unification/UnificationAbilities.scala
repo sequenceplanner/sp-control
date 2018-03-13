@@ -339,7 +339,50 @@ class UnificationAbilities extends Actor with MessageBussSupport{
     Condition(g.get, xs.toList, attributes = SPAttributes("kind"->kind))
   }
 
+  // val VDModel = Struct(
+  //   "VD",
+  //   // resources.flatMap(_.abilities).map(APIAbilityHandler.abilityToOperation).map(
+  //   //   op => StructNode(
+  //   //       stuff here
+  //   //   )
+  //   ),
+  //   SPAttributes("isa" -> "VD")
 
+  val ops = resources.flatMap(_.abilities).map(APIAbilityHandler.abilityToOperation)
+  val cm = sp.models.APIModelMaker.CreateModel("unificationVD", SPAttributes("isa"->"VD"))
+
+  val rIDable = resources.map(r => VD.resourceToThing(r.resource))
+  val dIDable = resources.map(r => VD.driverToThing(r.driver))
+
+  val xs = rIDable ++ dIDable
+  val theVD = Struct(
+    "TheVD",
+     makeStructNodes(dIDable.map(StructWrapper):_*)
+     ++ makeStructNodes(rIDable.map(StructWrapper):_*)
+     ++ makeStructNodes(ops.map(StructWrapper):_*),
+
+    SPAttributes("isa"->"VD")
+  )
+
+  val addItems = APIModel.PutItems(theVD ::  ops ++ xs , SPAttributes("info"->"initial items"))
+  
+  context.system.scheduler.scheduleOnce(1 seconds){
+    println("GOO")
+    publish(
+      APIModelMaker.topicRequest,
+      SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm)
+    )
+  }
+
+  context.system.scheduler.scheduleOnce(1.1 seconds){
+    println("Goo 2")
+    publish(
+      APIModel.topicRequest,
+      SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems)
+    )
+  }
+
+  
 
 
   // Setting up the model

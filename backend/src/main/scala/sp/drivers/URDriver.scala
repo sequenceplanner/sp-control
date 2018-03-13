@@ -71,40 +71,34 @@ class URDriverInstance(d: VD.Driver) extends Actor
       urState = x
       log.info(s"${d.name} pos: ${x.currentPos}")
 
-
     case x: String =>
       // SPMessage uses the APIParser to parse the json string
       SPMessage.fromJson(x).foreach{mess =>
-          for {
-            h <- mess.getHeaderAs[SPHeader] // we can filter the message based on the header, but is skipping it for now
-            b <- mess.getBodyAs[api.Request] // we are expecting a case class in the Vritual device API
-          } yield {
-            log.debug("URDRIVER req: " +b)
-            b match {
-              case api.GetDriver =>
-                val body = api.TheDriver(d, streamToMap(urState))
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+        for {
+          h <- mess.getHeaderAs[SPHeader] // we can filter the message based on the header, but is skipping it for now
+          b <- mess.getBodyAs[api.Request] // we are expecting a case class in the Vritual device API
+        } yield {
+          log.debug("URDRIVER req: " +b)
+          b match {
+            case api.GetDriver =>
+              val body = api.TheDriver(d, streamToMap(urState))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
 
+            // The command to the driver
+            case api.DriverCommand(driverid, state) if driverid == d.id  => // matching that it is a command and that it is to this driver
+              handleCmd(state - "currentPos", h) // removing currentPos since that can not be set
+                                                 //mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
 
-              // The command to the driver
-              case api.DriverCommand(driverid, state) if driverid == d.id  => // matching that it is a command and that it is to this driver
-                handleCmd(state - "currentPos", h) // removing currentPos since that can not be set
-                //mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
-
-              // Terminating the driver
-              case api.TerminateDriver(driverid) if driverid == d.id =>
-                self ! PoisonPill
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
-
-
-              case _ =>
-            }
+            // Terminating the driver
+            case api.TerminateDriver(driverid) if driverid == d.id =>
+              self ! PoisonPill
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+            case _ =>
           }
-
+        }
       }
-
   }
 
   // Keeping track of when the variables have been written to the dummy UR
@@ -168,8 +162,6 @@ class URDriverInstance(d: VD.Driver) extends Actor
     publish(api.topicResponse, SPMessage.makeJson(updH, b))
 
   }
-
-
 
   def streamToMap(stream: URStream) = {
     Map[String, SPValue](

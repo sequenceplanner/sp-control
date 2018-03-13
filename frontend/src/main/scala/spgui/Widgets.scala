@@ -33,7 +33,9 @@ object LoadingWidgets {
       ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
-      ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4)
+      ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),
+      ("VDTracker",         widgets.vdtesting.VDTracker(),          5,5)
+
     )
 
 
