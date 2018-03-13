@@ -364,6 +364,8 @@ trait OperationRunnerLogic {
       opsToGo -= o
       val updS = runOp(o, resCompl)
       sendState(updS)
+
+      // TODO: Use another mechanism to send parameters. Maybe use names or a trait with predefined parameter names. It should be up to the ability to map the parameters into the resource state...
       r.setup.opAbilityMap.get(o.id).foreach(id => startAbility(id, prepareAbilityParameters(id, r, updS.state)))
       updS
     }.getOrElse(resCompl)
