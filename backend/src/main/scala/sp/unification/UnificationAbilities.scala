@@ -10,9 +10,9 @@ import akka.cluster.pubsub.DistributedPubSubMediator.{Publish, Put, Subscribe}
 
 import scala.util.{Failure, Success, Try}
 import sp.domain.logic.{ActionParser, PropositionParser}
-import sp.abilityhandler.APIAbilityHandler
-import sp.devicehandler.APIVirtualDevice
-import sp.drivers.URDriver
+import sp.abilityhandler._
+import sp.devicehandler._
+import sp.drivers.{HumanDriver, URDriver}
 
 object UnificationAbilities {
   def props(ahid: ID) = Props(classOf[UnificationAbilities], ahid)
@@ -29,17 +29,19 @@ class UnificationAbilities(ahid: ID) extends Actor {
   val hasTool = Thing("hasTool")
   // can not change (currently we do not distinguish)
   val currentPos = Thing("currentPos")
-
+  //val working = Thing("working")
+  //val humanRefPos = Thing("humanRefPos")
+  //val humanCurrentPos = Thing("humanCurrentPos")
 
 
   // abilities
-  val activate = APIAbilityHandler.Ability(
+  val activate = sp.abilityhandler.APIAbilityHandler.Ability(
     name = "activate",
     preCondition = makeCondition("!active", "active := true"),
     postCondition = makeCondition("active")
   )
 
-  val moveTo10 = APIAbilityHandler.Ability(
+  val moveTo10 = sp.abilityhandler.APIAbilityHandler.Ability(
     name = "moveTo10",
     preCondition = makeCondition("active && refPos == currentPos && currentPos != 10", "refPos := 10"),
     started = makeCondition("refPos = 10"),
@@ -47,17 +49,33 @@ class UnificationAbilities(ahid: ID) extends Actor {
   )
 
 
-  val moveTo20 = APIAbilityHandler.Ability(
+  val moveTo20 = sp.abilityhandler.APIAbilityHandler.Ability(
     name = "moveTo20",
     preCondition = makeCondition("active && refPos == currentPos && currentPos != 20", "refPos := 20"),
     started = makeCondition("refPos = 20"),
     postCondition = makeCondition("currentPos = 20")
   )
+/*
+  val humanMoveToStation = sp.abilityhandler.APIAbilityHandler.Ability(
+    name = "humanMoveToStation",
+    preCondition = makeCondition("!working && humanRefPos == humanCurrentPos && humanCurrentPos != 30", "humanRefPos := 30"),
+    started = makeCondition("humanRefPos = 30"),
+    postCondition = makeCondition("humanCurrentPos = 30")
+  )
+
+  val humanStartWorking = sp.abilityhandler.APIAbilityHandler.Ability(
+    name = "humanStartWorking",
+    preCondition = makeCondition("!working && humanRefPos == humanCurrentPos && humanCurrentPos == 30", "working := true"),
+    started = makeCondition("working = true"),
+    postCondition = makeCondition("working = true")
+  )
+*/
+
 
   val abs = List(activate, moveTo10, moveTo20)
 
 
-
+q
 
   def makeCondition(guard: String, actions: String*) = {
 
@@ -100,17 +118,25 @@ class UnificationAbilities(ahid: ID) extends Actor {
 
   // resource and driver setup
   // This should be moved out from this and a model should be created soon.
-  val driver = sp.devicehandler.APIVirtualDevice.Driver("URDriver1", ID.newID, URDriver.driverType, SPAttributes())
+  val driver1 = sp.devicehandler.APIVirtualDevice.Driver("URDriver1", ID.newID, URDriver.driverType, SPAttributes())
+  //val driver2 = sp.devicehandler.APIVirtualDevice.Driver("HumanDriver1", ID.newID, HumanDriver.driverType, SPAttributes())
 
   val driverResourceMapper = List(
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(refPos.id, driver.id, "refPos"),
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(active.id, driver.id, "active"),
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(hasTool.id, driver.id, "hasTool"),
-    sp.devicehandler.APIVirtualDevice.OneToOneMapper(currentPos.id, driver.id, "currentPos")
-  )
-  val ids: Set[ID] = List(refPos, active, hasTool, currentPos).map(_.id).toSet
+    sp.devicehandler.APIVirtualDevice.OneToOneMapper(refPos.id, driver1.id, "refPos"),
+    sp.devicehandler.APIVirtualDevice.OneToOneMapper(active.id, driver1.id, "active"),
+    sp.devicehandler.APIVirtualDevice.OneToOneMapper(hasTool.id, driver1.id, "hasTool"),
+    sp.devicehandler.APIVirtualDevice.OneToOneMapper(currentPos.id, driver1.id, "currentPos"),
+    //sp.devicehandler.APIVirtualDevice.OneToOneMapper(working.id, driver2.id, "working"),
+    //sp.devicehandler.APIVirtualDevice.OneToOneMapper(humanRefPos.id, driver2.id, "humanRefPos"),
+    //sp.devicehandler.APIVirtualDevice.OneToOneMapper(humanCurrentPos.id, driver2.id, "humanCurrentPos")
 
-  val resource = sp.devicehandler.APIVirtualDevice.Resource("DummyUR", ID.newID, ids, driverResourceMapper, SPAttributes())
+  )
+  val ids1: Set[ID] = List(refPos, active, hasTool, currentPos).map(_.id).toSet
+  //val ids2: Set[ID] = List(working, humanRefPos, humanCurrentPos).map(_.id).toSet
+
+  val resourceUR = sp.devicehandler.APIVirtualDevice.Resource("DummyUR", ID.newID, ids1, driverResourceMapper, SPAttributes())
+  //val resourceHuman = sp.devicehandler.APIVirtualDevice.Resource("DummyHuman", ID.newID, ids2, driverResourceMapper, SPAttributes())
+
 //  TODO Fix the model
 //  val vd = SPSpec("VirtualDeviceURDummy", SPAttributes(
 //    "specType" -> "virtualDevice",
@@ -125,10 +151,17 @@ class UnificationAbilities(ahid: ID) extends Actor {
   mediator ! Publish(APIVirtualDevice.topicRequest,
     SPMessage.makeJson(
       SPHeader(from = "UnificationAbilities"),
-      APIVirtualDevice.SetUpDeviceDriver(driver)))
+      APIVirtualDevice.SetUpDeviceDriver(driver1)))
+  //mediator ! Publish(APIVirtualDevice.topicRequest,
+  //SPMessage.makeJson(
+  //    SPHeader(from = "UnificationAbilities"),
+  //    APIVirtualDevice.SetUpDeviceDriver(driver2)))
   mediator ! Publish(APIVirtualDevice.topicRequest,
     SPMessage.makeJson(
-      SPHeader(from = "UnificationAbilities"), APIVirtualDevice.SetUpResource(resource)))
+      SPHeader(from = "UnificationAbilities"), APIVirtualDevice.SetUpResource(resourceUR)))
+  //mediator ! Publish(APIVirtualDevice.topicRequest,
+  //SPMessage.makeJson(
+  //    SPHeader(from = "UnificationAbilities"), APIVirtualDevice.SetUpResource(resourceHuman)))
 
   abs.foreach { ab =>
     val body = APIAbilityHandler.SetUpAbility(ab)

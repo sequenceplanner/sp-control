@@ -9,7 +9,7 @@ import sp.domain._
 
 
 /**
-  * A driver for a mockup UR human. Lauch this actor and send it a
+  * A driver for a mockup human. Lauch this actor and send it a
   * SetUpDeviceDriver with driverIdentifier = HumanDriver.driverType
   */
 object HumanDriver {
@@ -30,8 +30,8 @@ class HumanDriver extends Actor {
           b <- mess.getBodyAs[APIVirtualDevice.Request]
         } yield {
           b match {
-            case APIVirtualDevice.SetUpDeviceDriver(d) if d.driverType == URDriver.driverType =>
-              context.actorOf(URDriverInstance.props(d), d.id.toString)
+            case APIVirtualDevice.SetUpDeviceDriver(d) if d.driverType == HumanDriver.driverType =>
+              context.actorOf(HumanDriverInstance.props(d), d.id.toString)
             case _ =>
           }
         }
@@ -60,10 +60,9 @@ class HumanDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
 
   // the state of the Human, Using a case class to simplify life
   var humanState = HumanStream(
-    // position currentPos = 5 is near the robot, so the robot shouldn't move when the human is there
-    refPos = 0,
-    currentPos = 0,
-    working = false,
+    humanRefPos = 20,
+    humanCurrentPos = 20,
+    working = false
   )
 
   // the dummy Human that we will observe with this driver
@@ -97,7 +96,7 @@ class HumanDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
           } yield {
             b match {
               case sp.devicehandler.APIVirtualDevice.DriverCommand(n, driverid, state) if driverid == id  => // matching that it is a command and that it is to this driver
-                handleCmd(state - "currentPos", h) // removing currentPos since that can not be set
+                handleCmd(state - "humanCurrentPos", h) // removing currentPos since that can not be set
                 //mediator ! Publish("driverEvents", SPMessage.makeJson(header, body))
               case _ =>
             }
@@ -119,13 +118,20 @@ class HumanDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
     reqHeader = Some(h)
     changed = state
 
-
     for {
-      x <- state.get("refPos")
-      value <- x.to[Int].toOption if humanState.refPos != value
+      x <- state.get("working")
+      value <- x.to[Boolean].toOption if humanState.working != value
     } yield {
-      myHuman ! value
+      val send = if (value) "startWorking" else "stopWorking"
+      myHuman ! send
     }
+
+    //for {
+    //  x <- state.get("humanRefPos")
+    //  value <- x.to[Int].toOption if humanState.humanRefPos != value
+    //} yield {
+    //  myHuman ! value
+    //}
 
 
 
@@ -156,9 +162,9 @@ class HumanDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
 
   def streamToMap(stream: HumanStream) = {
     Map[String, SPValue](
-      "currentPos" -> stream.currentPos,
-      "refPos" -> stream.refPos,
-      "working" -> stream.working,
+      "humanCurrentPos" -> stream.humanCurrentPos,
+      "humanRefPos" -> stream.humanRefPos,
+      "working" -> stream.working
     )
   }
 
@@ -172,28 +178,31 @@ class HumanDriverInstance(d: APIVirtualDevice.Driver) extends Actor {
   *
   */
 class DummyHuman(replyTo: ActorRef) extends Actor {
-  var cmd = "doNothing"
-  var currentPos = "atHome"
+  //var cmd = "doNothing"
+  //var currentPos = "atHome"
+  var humanRefPos = 20
+  var humanCurrentPos = 20
   var working = false
-  var cmdCompl = false
+  //var cmdCompl = false
 
   def receive = {
     case "startWorking" => working = true
     case "stopWorking" => working = false
-    case "cmd" =>
-    case "moveToHome" => refPos = 20
-    case x: Int => refPos = x
+    //case "cmd" =>
+    case "moveToHome" => humanRefPos = 20
+    case "moveToStation" => humanRefPos = 30
+    case x: Int => humanRefPos = x
     case "tick" =>
-      if (refPos != currentPos) {
-        val diff = refPos-currentPos
-        currentPos = currentPos + diff/Math.abs(diff)
+      if (humanRefPos != humanCurrentPos) {
+        val diff = humanRefPos-humanCurrentPos
+        humanCurrentPos = humanCurrentPos + diff/Math.abs(diff)
       }
       // sending the state of the dummyHuman every tick
       replyTo ! makeMess
   }
 
   def makeMess = {
-    HumanStream(currentPos, refPos, working)
+    HumanStream(humanCurrentPos, humanRefPos, working)
   }
 
   // A "ticker" that sends a "tick" string to self every 0.2 second
@@ -203,7 +212,7 @@ class DummyHuman(replyTo: ActorRef) extends Actor {
   val ticker = context.system.scheduler.schedule(0.2 seconds, 0.2 seconds, self, "tick")
 }
 
-case class HumanStream(currentPos: Int, refPos: Int, working: Boolean)
+case class HumanStream(humanCurrentPos: Int, humanRefPos: Int, working: Boolean)
 
 object DummyHuman {
   def props(replyTo: ActorRef) = Props(classOf[DummyHuman], replyTo)
