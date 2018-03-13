@@ -69,7 +69,7 @@ class URDriverInstance(d: VD.Driver) extends Actor
       if (urState != x) log.debug(x.toString)
       sendStateToBus(streamToMap(urState))
       urState = x
-      log.info(s"${d.name} pos: ${x.currentPos}")
+      log.debug(s"${d.name} pos: ${x.currentPos}")
 
 
     case x: String =>

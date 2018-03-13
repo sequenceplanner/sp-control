@@ -12,7 +12,7 @@ import scala.util.{Failure, Success, Try}
 import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler._
-import sp.drivers.URDriver
+import sp.drivers.{ROSDriver, URDriver}
 import sp.models.{APIModel, APIModelMaker}
 import sp.service.MessageBussSupport
 import sp.runners._
@@ -225,7 +225,7 @@ class UnificationAbilities extends Actor with MessageBussSupport{
 
 
 
-  // Direct launch of the VD and abilities below
+   //Direct launch of the VD and abilities below
   val vdID = ID.newID
   val abID = ID.newID
 
@@ -251,13 +251,60 @@ class UnificationAbilities extends Actor with MessageBussSupport{
       )))
 
 
-  // direct launch of operation runner
+     //direct launch of operation runner
   publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
     SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
 
 
 
+  // Testing ROS-driver
+  val command = Thing("command")
+  val ur_state = Thing("ur_state")
 
+  val abROS = APIAbilityHandler.Ability(
+    name = "testROS",
+    id = ID.newID,
+    preCondition = makeCondition("pre", "true", "command := move_big_item")(List(command, ur_state))
+  )
+
+
+
+
+  val rosDriver = VD.Driver(s"testingRos", ID.newID, ROSDriver.driverType, SPAttributes())
+  val driverResourceMapper = List(
+    VD.OneToOneMapper(command.id, rosDriver.id, "command"),
+    VD.OneToOneMapper(ur_state.id, rosDriver.id, "human")
+  )
+
+
+  val rosIDs: Set[ID] = Set(command.id, ur_state.id)
+  val ROSR = VD.Resource("TestingROS_UR", ID.newID, rosIDs, driverResourceMapper, SPAttributes())
+
+
+
+  val vdROSID = ID.newID
+  val abROSID = ID.newID
+
+  publish(APIVirtualDevice.topicRequest,
+    SPMessage.makeJson(
+      SPHeader(from = "UnificationAbilities"),
+      APIVirtualDevice.SetUpVD(
+        name = "TestingROS",
+        id = vdROSID,
+        resources = List(ROSR),
+        drivers = List(rosDriver),
+        attributes = SPAttributes()
+      )))
+
+  publish(APIAbilityHandler.topicRequest,
+    SPMessage.makeJson(
+      SPHeader(from = "UnificationAbilities"),
+      APIAbilityHandler.SetUpAbilityHandler(
+        name = "ROSAbilities",
+        id = abROSID,
+        abilities = List(abROS),
+        vd = vdROSID
+      )))
 
 
 
