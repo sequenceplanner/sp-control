@@ -5,6 +5,8 @@ import java.util.UUID
 import akka.NotUsed
 
 
+// TODO 180313 move to sp comm
+
 /**
   * This helper only receives messages that arrives to the topic after it has started
   */
@@ -23,8 +25,8 @@ trait KafkaStreamHelper {
   import scala.util.{Failure, Success}
 
   val system: ActorSystem
-   implicit val ec: ExecutionContext
-   implicit val materializer: ActorMaterializer
+  lazy implicit val ec = system.dispatcher
+  lazy implicit val materializer = ActorMaterializer.create(system)
 
   lazy val host: String = system.settings.config getString "sp.kafka.interface"
   lazy val port: Int = system.settings.config getInt "sp.kafka.port"
