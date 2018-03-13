@@ -13,7 +13,8 @@ object APISPModelImport {
 
   case class ImportText(Text: String) extends Request // The model arrives as a text string.
   case class ModelInfo(id: ID, name: String, version: Long, attributes: SPAttributes, history: List[SPAttributes])
-  case class Model(model: ID, info: ModelInfo, ids: List[IDAble]) extends Response // This is the expected format of a model
+  case class Model(model: ID, info: ModelInfo, ids: List[IDAble]) extends Response // This is the expected format of the old models
+
 
   object Formats {
     implicit val fImportText: JSFormat[ImportText] = Json.format[ImportText]

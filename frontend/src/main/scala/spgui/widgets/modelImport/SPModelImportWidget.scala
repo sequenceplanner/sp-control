@@ -2,8 +2,6 @@ package spgui.widgets.modelImport
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import org.scalajs.dom
-import org.scalajs.dom.html
 import play.api.libs.json.Json
 import spgui.communication._
 import sp.domain._
@@ -20,21 +18,43 @@ object SPModelImportWidget {
 
   private class Backend($: BackendScope[Unit, State]) {
 
-    val messObs = BackendCommunication.getMessageObserver(
+    val importMessObs = BackendCommunication.getMessageObserver(
       mess => {
-        import api.Formats._
-        val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[api.Model].map {
+        import api.Formats.fModel
+        import mapi.Formats.fModelToExport
+        mess.getBodyAs[api.Model].map { // import model of the old variety
               case api.Model(modelID: ID, info: ModelInfo, ids: List[IDAble]) =>
-                val mID = if($.state.runNow().randID) ID.newID else modelID
-                sendToHandler(mmapi.CreateModel(info.name, info.attributes, mID)) // Create model
-                sendToModel(mID, mapi.PutItems(ids)) // Populate model with IDAbles
-                sendToHandler(mmapi.GetModels) // Refresh model
+                importModel(info.name, modelID, info.attributes, ids)
               case x => Callback.empty
         }
-        callback.foreach(_.runNow())
+        mess.getBodyAs[mapi.ModelToExport].map { // import the new (previously exported) model
+          case mapi.ModelToExport(name, id, version, attributes, items) =>
+            importModel(name, id, attributes, items)
+          case x => Callback.empty
+        }
       },
       api.topicResponse // Listen to Model Import API
     )
+
+    def importModel(name : String, id : ID, attributes : SPAttributes, items : List[IDAble]) ={
+      val mID = if($.state.runNow().randID) ID.newID else id
+      sendToHandler(mmapi.CreateModel(name, attributes, mID)) // Create model
+      sendToModel(mID, mapi.PutItems(items)) // Populate model with IDAbles
+      sendToHandler(mmapi.GetModels) // Refresh model
+    }
+
+    val exportMessObs = BackendCommunication.getMessageObserver(
+      mess => {
+        val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[mapi.Response].map {
+          case m2e: mapi.ModelToExport =>
+            $.modState(_.copy(Text = Json.toJson(m2e).toString))
+          case x => Callback.empty
+        }
+        callback.foreach(_.runNow())
+      },
+      mapi.topicResponse
+    )
+
 
     def render(s: State) = {
       <.div(
@@ -79,7 +99,8 @@ object SPModelImportWidget {
 
     def onUnmount() = {
       println("Unmounting")
-      messObs.kill()
+      importMessObs.kill()
+      exportMessObs.kill()
       Callback.empty
     }
   }

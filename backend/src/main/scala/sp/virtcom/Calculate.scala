@@ -146,7 +146,6 @@ trait cal  extends ExtendIDables with RegBDD {
 
     plcSOP.sop.foreach(individualSop => {
       var exOps =  extractFromPLCSOP(individualSop :SOP, operations) // Changed to List[op] from set,
-      //exOps.foreach(oplist => {oplist.foreach(op => println("op :" + op.name + ", ID :" + op.id)); println("\n")})
       opSequences ++= exOps
     })
 
@@ -297,11 +296,11 @@ trait cal  extends ExtendIDables with RegBDD {
     //  run synthesis and get the optimization results
 
     // Run synthesis with Supremica
-    val (ids2,synthAttr,bdd) = sp.patrikmodel.Synthesize.synthesizeModel(hids)
+    val (opsWithConds,synthAttr,bdd) = sp.patrikmodel.Synthesize.synthesizeModel(hids)
     val numstates =synthAttr.getAs[Int]("nbrOfStatesInSupervisor").getOrElse(-1)
     val bddName = synthAttr.getAs[String]("moduleName").getOrElse("")
     RegisterBDD(bddName, bdd)
-    val ids_merged = hids.filter(x => !ids2.exists(y => y.id == x.id)) ++ ids2
+    val ids_merged = hids.filter(x => !opsWithConds.exists(y => y.id == x.id)) ++ opsWithConds
     for {
       //Get info about the CP solution
       (cpCompl, cpTime, cpSols) <- roFuture

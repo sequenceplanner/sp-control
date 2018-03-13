@@ -4,15 +4,6 @@ import akka.actor._
 import sp.domain._
 import sp.domain.Logic._
 
-import scala.concurrent.Future
-import akka.util._
-import akka.pattern.ask
-import sp.virtcom.APIBDDVerifier
-
-import scala.concurrent._
-import scala.concurrent.duration._
-import scala.util._
-
 object BDDVerifier {
   def props = Props(classOf[BDDVerifier])
 

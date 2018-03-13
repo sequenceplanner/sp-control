@@ -148,6 +148,7 @@ object ModelsInControlWidget {
           <.th("rename"),
           <.th("put dummy items"),
           <.th("preview"),
+          <.th("export"),
           <.th("delete")
         )),
         <.tbody(
@@ -195,6 +196,14 @@ object ModelsInControlWidget {
                     ^.className := "btn btn-sm",
                     ^.title := "Preview model",
                     ^.onClick --> sendToModel(m, mapi.GetItemList()),
+                    <.i(^.className := "fa fa-eye")
+                  )
+                ),
+                <.td(
+                  <.button(
+                    ^.className := "btn btn-sm",
+                    ^.title := "Export model",
+                    ^.onClick --> sendToModel(m, mapi.ExportModel),
                     <.i(^.className := "fa fa-eye")
                   )
                 ),
