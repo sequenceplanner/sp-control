@@ -80,8 +80,8 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
           b <- mess.getBodyAs[APIHumanDriver.FromHuman]
         } yield {
           b match {
-            case APIHumanDriver.HumanEvent(name, s) if name == d.name =>
-              driverState = driverState ++ s
+            case x: APIHumanDriver.HumanEvent =>
+              driverState = driverState ++ x.state
 
               for {
                 attr <- h.reply.to[SPAttributes].toOption

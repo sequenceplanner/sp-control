@@ -381,7 +381,7 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
           sendAbilityState(sender())
 
           log.debug("")
-          log.debug("StartAbility v v v")
+          log.info("StartAbility v v v" + ability.name)
           log.debug("the state: " + s)
           log.debug("new ability state: " + state)
           log.debug("ability updated state: " + updS)

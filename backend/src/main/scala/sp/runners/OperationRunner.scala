@@ -374,10 +374,10 @@ trait OperationRunnerLogic {
 
     if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("vv*************")
     if (enabled.isEmpty && complete.isEmpty && reset.isEmpty) log.debug("runner no ops changing: ")
-    if (enabled.nonEmpty)  log.info("runner enabled ops: " + enabled.map(_.name).mkString(", "))
-    if (complete.nonEmpty) log.info("runner can complete ops: " + complete.map(_.name).mkString(", "))
-    if (reset.nonEmpty)    log.info("runner can reset ops: " + reset.map(_.name).mkString(", "))
-    if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty) log.info(res.toString)
+    if (enabled.nonEmpty)  log.info("runner OP Started: " + enabled.head)
+    if (complete.nonEmpty) log.info("runner compl: " + complete.head)
+    if (reset.nonEmpty)    log.info("runner reset: " + reset.head)
+    if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty) log.debug(res.toString)
     if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("*************")
 
 

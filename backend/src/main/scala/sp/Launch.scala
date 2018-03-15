@@ -17,12 +17,17 @@ object Launch extends App {
     sp.SPCore.launch(system)
     system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
     system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
-    val dh = system.actorOf(sp.drivers.URDriver.props, "URDriver")
-    val rosh = system.actorOf(sp.drivers.ROSDriver.props, "ROSDriver")
+    val dh = system.actorOf(sp.drivers.URDriver.props, "URDriverH")
+    //val rosh = system.actorOf(sp.drivers.ROSDriver.props, "ROSDriverH")
+    val humanH = system.actorOf(sp.drivers.HumanDriver.props, "HumanDriverH")
+    system.actorOf(sp.runners.OperationRunner.props, "oprunnerH")
 
-    system.actorOf(sp.unification.UnificationDummyVDModel.props, "UnificationAbilityMaker")
-    system.actorOf(sp.runners.OperationRunner.props, "oprunner")
+
   }
+
+  scala.io.StdIn.readLine("Press ENTER to run model\n")
+  system.actorOf(sp.unification.UnificationDummyVDModel.props, "UnificationAbilityMaker")
+
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
   cluster.leave(cluster.selfAddress)

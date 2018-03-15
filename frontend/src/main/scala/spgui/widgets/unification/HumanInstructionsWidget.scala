@@ -13,7 +13,7 @@ object HumanInstructionsWidget {
   import sp.driver._
 
   // TODO: Handle different persons...
-  case class State(name: String = "",
+  case class State(name: String = "Kristofer",
                    cmd: Option[Map[String, SPValue]] = None,
                    ack: Boolean = false,
                    completed: Boolean = false,
@@ -36,10 +36,11 @@ object HumanInstructionsWidget {
           case x: APIHumanDriver.StateChangeRequest =>
             $.modState{s =>
               val updS = s.copy(
-              cmd = Some(x.state),
-              ack = false,
-              completed = false,
-              header = Some(h))
+                cmd = Some(x.state),
+                ack = false,
+                completed = false,
+                header = Some(h)
+              )
 
               sendEvent(updS, false, false)
 
@@ -60,7 +61,6 @@ object HumanInstructionsWidget {
             <.div(if (s.ack) "ack" else ""),
             <.br(),
             <.div(if (s.completed) "completed" else "")
-
           )
         }.getOrElse(<.div("")),
         <.br(),
@@ -90,9 +90,12 @@ object HumanInstructionsWidget {
 
       val header = s.header.map(_.swapToAndFrom).getOrElse(SPHeader(from = "THE HUMAN WIDGET"))
 
-      val json = SPMessage.make(header, humanS) // *(...) is a shorthand for toSpValue(...)
+      val json = SPMessage.make(header, APIHumanDriver.HumanEvent(s.name, humanS)) // *(...) is a shorthand for toSpValue(...)
       BackendCommunication.publish(json, APIHumanDriver.topicFromHuman)
-      $.modState(_.copy())
+
+      val updCmd = if (done) None else s.cmd
+
+      $.modState(x => x.copy(cmd = updCmd, ack =ack, completed = done, header = None))
     }
   }
 

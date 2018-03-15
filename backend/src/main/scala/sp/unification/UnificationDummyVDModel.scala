@@ -6,7 +6,7 @@ import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
 import sp.domain.logic.{ActionParser, PropositionParser}
-import sp.drivers.{ROSDriver, URDriver}
+import sp.drivers.{HumanDriver, ROSDriver, URDriver}
 import sp.models.{APIModel, APIModelMaker}
 import sp.runners._
 import sp.service.MessageBussSupport
@@ -50,6 +50,8 @@ object UnificationDummyVDModel {
   val partAtD = Thing("partAtD") // partType, empty if no part
   val partAtOut = Thing("partAtOut") // partType, empty if no part
 
+  val humanCmd = Thing("humanCmd") //
+
   val initStateShared: Map[ID, SPValue] = Map(
     zoneParts.id -> false,
     zoneOut.id -> false,
@@ -57,27 +59,30 @@ object UnificationDummyVDModel {
     partAtB.id -> "partB",
     partAtC.id -> "partC",
     partAtD.id -> "partD",
-    partAtOut.id -> "empty"
+    partAtOut.id -> "empty",
+    humanCmd.id -> ""
   )
 
-  val modelVariables = List(zoneParts, zoneOut, partAtA, partAtB, partAtC, partAtD, partAtOut)
+  val modelVariables = List(zoneParts, zoneOut, partAtA, partAtB, partAtC, partAtD, partAtOut, humanCmd)
 
   val r1 = makeMeADummyRobotWithMoveAbility("r1")
   val r2 = makeMeADummyRobotWithMoveAbility("r2")
+  val human = makeAHuman("kristofer")
 
   val parts = List(partAtA, partAtB, partAtC, partAtD)
-  val resources = List(r1, r2)
+  val resources = List(r1, r2, human)
 
-  val sinkOpOfParts = Operation(
-    name = "sink",
+  val humanOP = Operation(
+    name = "humanUnload",
     conditions = List(
-      makeCondition("pre", s"${partAtOut.id} != empty", s"${partAtOut.id} := empty")(modelVariables),
+      makeCondition("pre", s"${partAtOut.id} != empty AND zoneOut == false", s"${humanCmd.id} := partAtOut", "zoneOut := true")(modelVariables),
+      makeCondition("post", s"true", s"${partAtOut.id} := empty", "zoneOut := false")(modelVariables),
       makeCondition("reset", s"true")(modelVariables),
     )
   )
 
 
-  val robotOperations: List[RobotOperations] = resources.map{robot =>
+  val robotOperations: List[RobotOperations] = List(r1, r2).map{robot =>
     val resourceName = robot.resource.name
     // variables only used by the resource operations
     val ref = Thing(s"$resourceName.ref")
@@ -126,27 +131,31 @@ object UnificationDummyVDModel {
   }
 
   // Setting up the hard coded mapping between operations and abilities
-  val mappingOperationsAndAbilities = resources zip robotOperations map {
+  val mappingOperationsAndAbilities = List(r1, r2) zip robotOperations map {
     case (r, robOp) =>
       val opAbMap = robOp.ops.map(_.id -> r.moveToID).toMap
       val activMap = Map(robOp.activateID -> r.activateID)
       val varMap = Map(
         robOp.refID -> r.refID,
-        robOp.current -> r.currentID
+        robOp.current -> r.currentID,
       )
       val abPar = Map(r.moveToID -> Set(robOp.refID))
       (opAbMap ++ activMap, varMap, abPar)
   }
 
+  val humanOpAb = Map(humanOP.id -> human.abilities.head.id)
+  val humanVMap = Map(humanCmd.id ->human.refID)
+  val humanParam = Map(human.abilities.head.id -> Set(humanCmd.id))
+
   // Setting up the operation runner
   val setupRunner = APIOperationRunner.CreateRunner(APIOperationRunner.Setup(
     name = "test",
     runnerID = ID.newID,
-    ops = robotOperations.flatMap(_.ops).toSet + sinkOpOfParts,
-    opAbilityMap = mappingOperationsAndAbilities.flatMap(_._1).toMap,
+    ops = robotOperations.flatMap(_.ops).toSet + humanOP,
+    opAbilityMap = mappingOperationsAndAbilities.flatMap(_._1).toMap ++ humanOpAb,
     initialState = robotOperations.flatMap(_.init).toMap ++ initStateShared,
-    variableMap = mappingOperationsAndAbilities.flatMap(_._2).toMap,
-    abilityParameters = mappingOperationsAndAbilities.flatMap(_._3).toMap
+    variableMap = mappingOperationsAndAbilities.flatMap(_._2).toMap ++ humanVMap,
+    abilityParameters = mappingOperationsAndAbilities.flatMap(_._3).toMap ++ humanParam
   ))
 
 
@@ -175,7 +184,7 @@ object UnificationDummyVDModel {
       conditions = bs ++ resetCond ++ List(
         // part is not taken, move (do not need to book due to the zone)
         makeCondition("pre",
-          s"${fromPos.id} != empty && ${toPos.id} = empty",
+          s"${fromPos.id} != empty AND ${toPos.id} == empty",
           s"${toPos.id} := ${fromPos.id}")(vars),
         makeCondition("post", "true", s"${fromPos.id} := empty")(vars),
 
@@ -212,16 +221,17 @@ object UnificationDummyVDModel {
       name = s"$name.moveTo",
       parameters = List(refPos.id),
       preCondition = makeCondition("pre",active.id.toString)(theThings),
-      postCondition = makeCondition("post", s"${currentPos.id} = ${refPos.id}")(theThings)
+      postCondition = makeCondition("post", s"${currentPos.id} = ${refPos.id}")(theThings),
+      resetCondition = makeCondition("reset", "true", s"${refPos.id} := ${currentPos.id}")(theThings)
     )
 
     // example of a move with no parameters:
     val moveTo20 = APIAbilityHandler.Ability(
       name = "moveTo20",
-      preCondition = makeCondition("pre",s"active && ${refPos.id} == ${currentPos.id} && ${currentPos.id} != 20", s"${refPos.id} := 20")(theThings),
+      preCondition = makeCondition("pre",s"active AND ${refPos.id} == ${currentPos.id} AND ${currentPos.id} != 20", s"${refPos.id} := 20")(theThings),
       started = makeCondition("started", s"${refPos.id} = 20")(theThings),
       postCondition = makeCondition("post", s"${currentPos.id} = 20")(theThings),
-      resetCondition = makeCondition("reset", "true", s"${refPos.id} = ${currentPos.id}")(theThings)
+      resetCondition = makeCondition("reset", "true", s"${refPos.id} := ${currentPos.id}")(theThings)
     )
 
     val enableRobot = APIAbilityHandler.Ability(
@@ -241,6 +251,42 @@ object UnificationDummyVDModel {
       currentID = currentPos.id,
       activateID = enableRobot.id
     )
+  }
+
+  def makeAHuman(name:String) = {
+    val cmd = Thing(name = s"$name.cmd")
+    val ack = Thing(name = s"$name.ack")
+    val completed = Thing(name = s"$name.completed")
+    val theThings: List[Thing] = List(cmd, ack, completed)
+    val driver = VD.Driver(s"$name", ID.newID, HumanDriver.driverType, SPAttributes())
+    val driverResourceMapper = List(
+      VD.OneToOneMapper(cmd.id, driver.id, "cmd"),
+      VD.OneToOneMapper(ack.id, driver.id, "ack"),
+      VD.OneToOneMapper(completed.id, driver.id, "completed")
+    )
+    val ids: Set[ID] = theThings.map(_.id).toSet
+    val resource = VD.Resource(name, ID.newID, ids, driverResourceMapper, SPAttributes())
+
+    // The operation need to send cmd
+    val humanInstruction = APIAbilityHandler.Ability(
+      name = s"$name.instruction",
+      parameters = List(cmd.id),
+      preCondition = makeCondition("pre","true")(theThings),
+      started = makeCondition("started", s"${completed.id} = false")(theThings),
+      postCondition = makeCondition("post", s"${completed.id} = true")(theThings)
+    )
+
+    ResourceAndAbilities(
+      abilities = List(humanInstruction),
+      resource = resource,
+      driver = driver,
+      vars = theThings,
+      moveToID = humanInstruction.id,
+      refID = cmd.id,
+      currentID = ack.id,
+      activateID = completed.id
+    )
+
   }
 
 
