@@ -39,7 +39,8 @@ object StructView {
                     handleDrop: Option[MoveInstruction => DropData => Unit] = None,
                     handleDragged: (DropData => Unit),
                     filteredNodes: Set[ID],
-                    expanded: Boolean
+                    expanded: Boolean,
+                    modelID: Option[UUID] = None
                   )
   case class State(
                     items: Map[ID, IDAble],
@@ -96,7 +97,7 @@ object StructView {
         SPWidgetElements.DragoverZoneWithChild(
           p.handleDrop.get(MoveToNode(p.struct.id, node.nodeID)),
           <.div(renderNodeItem(node, p, s),
-            SPWidgetElements.draggable(p.struct.name, node, "todo", p.handleDragged),
+            SPWidgetElements.draggable(p.struct.name, DraggedStructNode(node, p.modelID), "todo", p.handleDragged),
           )
         ),
         <.ul(
@@ -107,10 +108,15 @@ object StructView {
     }
 
     def renderNodeItem(node: StructNode, p: Props, s: State) = {
+
       val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleRight else Icon.toggleDown
       val itemOp = s.items.get(node.item)
       val itemIcon = itemOp.map(ItemKinds.icon).getOrElse(Icon.question)
-      val shownName = itemOp.map(_.name).getOrElse(node.item.toString)
+      val shownName = itemOp.map(_.name).getOrElse({
+       // retrieveItems(Set(node.item)).runNow()
+        node.item.toString
+      })
+
       lazy val directChildren = p.struct.getChildren(node.nodeID).map(_.item)
 
       <.div(<.span(arrowIcon, ^.onClick --> toggle(node.nodeID, directChildren)), itemIcon, shownName)
@@ -148,6 +154,7 @@ object StructView {
              handleDrop: Option[MoveInstruction => DropData => Unit] = None,
              handleDragged: (DropData => Unit),
              filteredNodes: Set[ID] = Set(),
-             expanded: Boolean = false
-           ) = component(Props(struct, items, retrieveItems, handleDrop, handleDragged, filteredNodes, expanded))
+             expanded: Boolean = false,
+             modelID: Option[UUID] = None
+           ) = component(Props(struct, items, retrieveItems, handleDrop, handleDragged, filteredNodes, expanded, modelID))
 }
