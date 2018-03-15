@@ -42,8 +42,6 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
   with sp.service.MessageBussSupport {
 
   override val system = context.system
-  override implicit val ec = system.dispatcher
-  override implicit val materializer = ActorMaterializer.create(system)
 
   subscribe(api.topicRequest)
 

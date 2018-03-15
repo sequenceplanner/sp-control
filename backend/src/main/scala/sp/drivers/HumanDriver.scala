@@ -27,11 +27,9 @@ object HumanDriverInstance {
   def props(d: VD.Driver) = Props(classOf[HumanDriverInstance], d)
 }
 
-class HumanDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
+class HumanDriverInstance(d: VD.Driver) extends Actor
   with ActorLogging
   with sp.service.MessageBussSupport {
-
-  override val system = context.system
 
   subscribe(api.topicRequest)
   subscribe(APIHumanDriver.topicFromHuman)
@@ -39,8 +37,10 @@ class HumanDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
   // The name of the driver is the identification name of the human, for now.
   val name = d.name
 
+  // The driver state is based on what we get back from the various human services.
   var driverState = Map[String, SPValue]()
 
+  publish(api.topicResponse, SPMessage.makeJson(SPHeader(from = d.id.toString), api.TheDriver(d, driverState)))
 
   def receive = {
     case x: String =>
@@ -59,8 +59,9 @@ class HumanDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
 
               case api.DriverCommand(driverid, state) if driverid == d.id  =>
                 publish(api.topicResponse, SPMessage.makeJson(header, APISP.SPACK()))
-                handleCmd(state, header)
-                val myHeader = SPHeader(from = d.id.toString, to = d.name, reply = SPValue(h.reqID))
+                val myHeader = SPHeader(from = d.id.toString, to = d.name, reply = SPAttributes(
+                  "reqID" -> h.reqID, "from" -> h.from, "reply" -> h.reply
+                ))
                 val b = APIHumanDriver.StateChangeRequest(d.name, state)
                 publish(APIHumanDriver.topicToHuman, SPMessage.makeJson(myHeader, b))
 
@@ -81,11 +82,19 @@ class HumanDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
           b match {
             case APIHumanDriver.HumanEvent(name, s) if name == d.name =>
               driverState = driverState ++ s
-              h.reply.to[ID].map{id =>
-                val header = SPHeader(from = d.id.toString, to = id.toString, reply = h.reply)
-                publish(api.topicResponse, SPMessage.makeJson(header, api.DriverCommandDone(id, true)))
+
+              for {
+                attr <- h.reply.to[SPAttributes].toOption
+                reqID <- attr.getAs[ID]("reqID")
+                from <- attr.getAs[String]("from")
+                reply <- attr.getAs[SPValue]("reply")
+              } yield {
+                val header = SPHeader(from = d.id.toString, to = from, reqID = reqID, reply = reply)
+                publish(api.topicResponse, SPMessage.makeJson(header, api.DriverCommandDone(reqID, true)))
                 publish(api.topicResponse, SPMessage.makeJson(header, APISP.SPDone()))
+
               }
+
               publish(api.topicResponse, SPMessage.makeJson(SPHeader(from = d.id.toString), APIDeviceDriver.DriverStateChange(d.name, d.id, driverState)))
 
           }
@@ -94,11 +103,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
 
   }
 
-  // Mapping from state to actual dummy UR api
-  def handleCmd(state: Map[String, SPValue], h: SPHeader) = {
-    // send to kafka
 
-  }
 
 
 
