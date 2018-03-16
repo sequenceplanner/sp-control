@@ -3,7 +3,6 @@ package spgui.widgets.vdtesting
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import spgui.circuit.{SPGUICircuit, SetTheme}
-
 import spgui.SPWidget
 import spgui.components.Icon
 import spgui.components.{SPWidgetElements => Comp}
@@ -12,8 +11,12 @@ import sp.domain.SPAttributes._
 import sp.domain.SPMessage
 import sp.domain.Logic._
 import sp.domain.SPValue
+
 import scalajs.js._
 import sp.domain._
+import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
+import sp.models.{APIModel => mapi}
+import sp.vdtesting.APIVDTracker
 
 object VDTracker {
   //import sp.devicehandler._
@@ -25,7 +28,9 @@ object VDTracker {
   case class State(currentDriverState: Map[String, SPValue] = Map(),
                    latestEvent: Map[ID, SPValue] = Map(),
                    latestAbilityState: Map[ID, SPValue] = Map(),
-                   latestVDeviceState: Map[ID, SPValue] = Map()
+                   latestVDeviceState: Map[ID, SPValue] = Map(),
+                   modelIdables : List[IDAble] = List(),
+                   modelID : ID = ID.newID
   )
 
 
@@ -34,14 +39,17 @@ object VDTracker {
     //   //if (mess) sendToVD(vdapi.GetVD)
     // }, vdapi.topicResponse)
 
+
     val deviceDriverHandler =
       BackendCommunication.getMessageObserver(onDeviceDriverMessage, APIDeviceDriver.topicResponse)
     val operationRunnerHandler =
       BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
     val abilityHandler =
       BackendCommunication.getMessageObserver(onAbilityMessage, APIAbilityHandler.topicResponse)
-    val virtualDeviceHandler = 
+    val virtualDeviceHandler =
       BackendCommunication.getMessageObserver(onVirtualDeviceMessage, APIVirtualDevice.topicResponse)
+    val modelMessObs =
+      BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
 
     def onDeviceDriverMessage(mess: SPMessage): Unit = {
       mess.body.to[APIDeviceDriver.Response].map{
@@ -74,16 +82,47 @@ object VDTracker {
         }
       }
     }
+    def onModelObsMes(mess: SPMessage): Unit = {
+      mess.body.to[mapi.Response].map{
+        case mapi.SPItems(items) => {
+          println("items:   "  + items  )
+          $.modState(_.copy(modelIdables = items)).runNow()
+        }
+      }
+    }
 
+
+    def sendToModel(model: ID, mess: mapi.Request): Callback = { //  Send message to model
+      val h = SPHeader(from = "VolvoSchedulerWidget", to = model.toString,
+        reply = SPValue("VolvoSchedulerWidget"))
+      val json = SPMessage.make(h, mess)
+      BackendCommunication.publish(json, mapi.topicRequest)
+      Callback.empty
+    }
+    def send(mess: APIVDTracker.Request): Callback = {
+      val h = SPHeader(from = "VDTrackerWidget", to = APIVDTracker.service, reply = SPValue("VDTracker"))
+      val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
+      BackendCommunication.publish(json, APIVDTracker.topicRequest)
+      Callback.empty
+    }
 
     def render(p:Unit, s:State) =
       <.div(
+        <.button(
+          ^.className := "btn btn-default",
+          ^.onClick --> send(APIVDTracker.createModel()), "Create model"
+        ),
+        ModelChoiceDropdown(id => {$.modState(_.copy(modelID = id)); sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
+       <.button(
+          ^.className := "btn btn-default",
+          ^.onClick --> send(APIVDTracker.launchVD(s.modelID, s.modelIdables)), "Launch VD"
+        ),
         <.div("current driver state: ", s.currentDriverState.toString),
-        <.div(),
+        <.br(),
         <.div("latest event:", s.latestEvent.toString),
-        <.div(),
+        <.br(),
         <.div("latest ability state: ", s.latestAbilityState.toString),
-        <.div(),
+        <.br(),
         <.div("latest VDevice state:", s.latestVDeviceState.toString)
       )
 
@@ -92,7 +131,11 @@ object VDTracker {
     }
 
     def onUnmount(): Callback =  {
-      deviceDriverHandler.kill
+      deviceDriverHandler.kill()
+      operationRunnerHandler.kill()
+      abilityHandler.kill()
+      virtualDeviceHandler.kill()
+      modelMessObs.kill()
       Callback.empty
     }
   }

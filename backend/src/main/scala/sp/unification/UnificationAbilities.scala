@@ -49,7 +49,6 @@ class UnificationAbilities extends Actor with MessageBussSupport{
 
 
 
-
   /** The operation model
     * The operations can move at the same time if they do not share zone and robot
     * In this model, we do not match but have hardcoded abilities and variables
