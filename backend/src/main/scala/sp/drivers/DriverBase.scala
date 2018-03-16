@@ -56,7 +56,6 @@ class DriverBase(driverType: String, theDriverActor: VD.Driver => Props) extends
 
   def receive = {
     case x: String =>
-      println(x)
       SPMessage.fromJson(x).foreach{mess =>
         for {
           h <- mess.getHeaderAs[SPHeader]
