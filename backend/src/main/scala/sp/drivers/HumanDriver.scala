@@ -1,11 +1,6 @@
 package sp.drivers
 
 import akka.actor._
-import akka.kafka.Subscriptions
-import akka.kafka.scaladsl.{Consumer, Producer}
-import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Sink, Source}
-import org.apache.kafka.clients.producer.ProducerRecord
 import sp.devicehandler.VD.DriverState
 import sp.devicehandler._
 import sp.domain.Logic._
