@@ -2,10 +2,9 @@ package spgui.widgets.itemexplorerincontrol
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.domain._
 import sp.domain.logic.AttributeLogic._
 import sp.domain.logic.StructLogic._
-import spgui.components.DragAndDrop.{DataOnDrag, OnDataDrop}
+// import spgui.components.DragAndDrop.{DataOnDrag, OnDataDrop}
 import spgui.components.Icon
 import spgui.components.SPWidgetElements
 import spgui.dragging._
@@ -14,28 +13,35 @@ import java.util.UUID
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
+import spgui.communication._
+import sp.models.{APIModel => mapi}
+import sp.domain.SPMessage
+//import sp.domain.Logic._
+// import sp.domain.SPAttributes._
+// import sp.domain.SPValue
+import sp.domain._
 
 case class DragMessage(node: ID, struct: Option[ID])
 case class DropMessage(node: Option[ID], struct: ID)
-case class DragNDropMessage(drag: DragMessage, drop: DropMessage)
+// case class DragNDropMessage(drag: DragMessage, drop: DropMessage)
 
-object DraggingTagMod {
-  implicit val fDragMessage: JSFormat[DragMessage] = play.api.libs.json.Json.format[DragMessage]
-  def onDrag(node: ID, struct: Option[ID]) = DataOnDrag(SPValue(DragMessage(node, struct)).toJson)
-  def onDrop(node: Option[ID], struct: ID, handleDrop: DragNDropMessage => Callback) =
-    OnDataDrop { str =>
-      val dragMsg = fromJsonAs[DragMessage](str)
-      val dragNDropMsg = dragMsg.map(msg => DragNDropMessage(msg, DropMessage(node, struct)))
-      val cb = dragNDropMsg.map(handleDrop)
-      cb.getOrElse(Callback.empty)
-    }
-}
+// object DraggingTagMod {
+//   implicit val fDragMessage: JSFormat[DragMessage] = play.api.libs.json.Json.format[DragMessage]
+//   def onDrag(node: ID, struct: Option[ID]) = DataOnDrag(SPValue(DragMessage(node, struct)).toJson)
+//   def onDrop(node: Option[ID], struct: ID, handleDrop: DragNDropMessage => Callback) =
+//     OnDataDrop { str =>
+//       val dragMsg = fromJsonAs[DragMessage](str)
+//       val dragNDropMsg = dragMsg.map(msg => DragNDropMessage(msg, DropMessage(node, struct)))
+//       val cb = dragNDropMsg.map(handleDrop)
+//       cb.getOrElse(Callback.empty)
+//     }
+// }
 
 object StructView {
   case class Props(
                     struct: Struct,
                     items: Map[ID, IDAble],
-                    retrieveItems: Option[Set[ID] => Future[Set[IDAble]]],
+                    retrieveItems: Option[Set[ID] => Unit],
                     handleDrop: Option[MoveInstruction => DropData => Unit] = None,
                     handleDragged: (DropData => Unit),
                     filteredNodes: Set[ID],
@@ -43,22 +49,24 @@ object StructView {
                     modelID: Option[UUID] = None
                   )
   case class State(
-                    items: Map[ID, IDAble],
                     expandedNodes: Set[ID] = Set()
                   )
 
   class Backend($: BackendScope[Props, State]) {
-
     def toggle(id: ID, childrenIDs: Set[ID]) = {
       val modNodes = $.modState(s => s.copy(expandedNodes = s.expandedNodes + id -- s.expandedNodes.intersect(Set(id))))
       retrieveItems(childrenIDs) >> modNodes
     }
 
     def retrieveItems(ids: Set[ID]) = {
-      def addToState(items: Set[IDAble]) =
-        $.modState(s => s.copy(items = s.items ++ items.map(item => item.id -> item)))
-      val future = $.props.map(_.retrieveItems.map(_(ids).map(addToState)).getOrElse(Future(Callback.empty)))
-      future.flatMap(Callback.future(_))
+      // def addToState(items: Set[IDAble]) =
+      //   $.modState(s => s.copy(items = s.items ++ items.map(item => item.id -> item)))
+      // val future = $.props.map(_.retrieveItems.map(_(ids).map(addToState)).getOrElse(Future(Callback.empty)))
+      // future.flatMap(Callback.future(_))
+
+      $.props.map(p => p.retrieveItems.get(ids))
+
+
     }
 
     def render(p: Props, s: State) = {
@@ -107,13 +115,14 @@ object StructView {
       )
     }
 
-    def renderNodeItem(node: StructNode, p: Props, s: State) = {
-
+    def renderNodeItem(node: StructNode, p: Props, s: State) = {      
       val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleRight else Icon.toggleDown
-      val itemOp = s.items.get(node.item)
+      val itemOp = p.items.get(node.item)
+      // if(itemOp.isEmpty && itemRequested.compareAndSet(false, true)) {
+      //   Future(retrieveItems((s.items.map(_._2.id).toSet)).runNow())
+      // }
       val itemIcon = itemOp.map(ItemKinds.icon).getOrElse(Icon.question)
       val shownName = itemOp.map(_.name).getOrElse({
-       // retrieveItems(Set(node.item)).runNow()
         node.item.toString
       })
 
@@ -124,19 +133,20 @@ object StructView {
   }
 
   val component = ScalaComponent.builder[Props]("StructView")
-    .initialStateFromProps(p => State(p.items))
+    .initialState(State())
     .renderBackend[Backend]
     .componentWillReceiveProps { scope =>
       val nextExpanded = scope.nextProps.expanded
       val expandedChanged = scope.currentProps.expanded != nextExpanded
       if (expandedChanged) {
         if (nextExpanded) {
-          val allNodeIDs = scope.nextProps.struct.items.map(_.nodeID)
-          val struct = scope.nextProps.struct
-          val unretrievedItems = struct.items.map(_.item) -- scope.state.items.keySet
-          val retrieveItems = scope.backend.retrieveItems(unretrievedItems)
-          val modifyState = scope.modState(_.copy(expandedNodes = allNodeIDs + struct.id))
-          modifyState >> retrieveItems
+          scope.backend.retrieveItems(scope.nextProps.items.keySet)
+          // val allNodeIDs = scope.nextProps.struct.items.map(_.nodeID)
+          // val struct = scope.nextProps.struct
+          // val unretrievedItems = struct.items.map(_.item) -- scope.state.items.keySet
+          // val retrieveItems = scope.backend.retrieveItems(unretrievedItems)
+          // val modifyState = scope.modState(_.copy(expandedNodes = allNodeIDs + struct.id))
+          // modifyState >> retrieveItems
         } else {
           scope.modState(_.copy(expandedNodes = Set()))
         }
@@ -150,7 +160,7 @@ object StructView {
   def apply(
              struct: Struct,
              items: Map[ID, IDAble] = Map(),
-             retrieveItems: Option[Set[ID] => Future[Set[IDAble]]] = None,
+             retrieveItems: Option[Set[ID] => Unit] = None,
              handleDrop: Option[MoveInstruction => DropData => Unit] = None,
              handleDragged: (DropData => Unit),
              filteredNodes: Set[ID] = Set(),

@@ -13,6 +13,9 @@ import spgui.dragging._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import java.util.UUID
+import sp.domain.SPMessage
+import spgui.communication._
+import sp.domain.Logic._
 
 
 trait MoveInstruction{}
@@ -23,32 +26,34 @@ case class DraggedStructNode(node: StructNode, model: Option[UUID])
 
 object ItemExplorer {
   case class State(
-                    currentMComm: Option[ModelAPIComm] = None,
-                    currentModelID: Option[UUID] = None,
-                    newItems: List[(StructNode, IDAble)] = Nil,
-                    structs: List[Struct] = Nil,
-                    hiddenIDs: Map[ID, Set[ID]] = Map(), // structID -> structNodeIDs
-                    expanded: Boolean = false
-                  )
+    currentMComm: Option[ModelAPIComm] = None,
+    currentModelID: Option[UUID] = None,
+    newItems: List[(StructNode, IDAble)] = Nil,
+    structs: List[Struct] = Nil,
+    hiddenIDs: Map[ID, Set[ID]] = Map(), // structID -> structNodeIDs
+    expanded: Boolean = false,
+    items: Map[ID, IDAble] = Map()
+  )
 
   class Backend($: BackendScope[Unit, State]) {
-
     def sendToModel(mess: mapi.Request): Callback = {
       val currentMComm = $.state.map(_.currentMComm)
-      currentMComm.flatMap(op => op.map(comm => Callback(comm.request(mess))).getOrElse(Callback.empty))
-    }
+        currentMComm.flatMap(op => op.map(comm => Callback(comm.request(mess))).getOrElse(Callback.empty))
+      }
 
     def request(req: mapi.Request): Future[mapi.Response] = {
       val mcomm = $.state.map(_.currentMComm.get).toFuture
       mcomm.flatMap(_.request(req).takeFirstResponse.map(_._2))
     }
 
-    def itemRequest(ids: Set[ID]): Future[Set[IDAble]] = {
+    def itemRequest(ids: Set[ID]): Unit = {
       val mcomm = $.state.map(_.currentMComm.get).toFuture
       val futureToRes = mcomm.flatMap(_.request(mapi.GetItems(ids.toList)).takeFirstResponse.map(_._2))
       futureToRes.map {
-        case mapi.SPItems(items) => items.toSet
-        case _ => Set[IDAble]()
+        case mapi.SPItems(items) => {
+          $.modState(s => s.copy(items = s.items ++ items.map(item => item.id -> item))).runNow()
+        }
+        case _ => Unit
       }
     }
 
@@ -61,6 +66,7 @@ object ItemExplorer {
 
     def setCurrentModel(id: ID) = { // TODO dont do anything if already active
       val mcomm = new ModelAPIComm(id)
+
       val modifyState = $.setState(State(currentMComm = Some(mcomm), currentModelID = Some(id)))
       val requestStructs = Callback.future {
         val f = mcomm.request(mapi.GetStructures).takeFirstResponse
@@ -97,16 +103,12 @@ object ItemExplorer {
     // Option(...).get fine to use in here, since DragNDropMessage knows they are not empty
     def handleDrop(moveInstruction: MoveInstruction)(msg: DropData): Unit =  {
       //val target = $.state.map(_.structs.find(_.id == msg.dropTarget).get._1)
-      println(msg)
+      //println(msg)
       // val target = $.state.map(_.newItems.find(_._1.nodeID == targetId).get._1).runNow()
       // //val target = $.state.map(_.newItems.find(_.nodeId == targetId).get).runNow()
       // (msg.data, target) match {
       //   case (nodeA: StructNode, nodeB: StructNode) => {}
       // }
-
-
-
-
 
       moveInstruction match {
         case m: MoveToStruct => {
@@ -121,10 +123,10 @@ object ItemExplorer {
               val idStructB = m.struct
               val structB = $.state.map(_.structs.find(_.id == idStructB).get)
               
-              println("b:" + structB.runNow())
-              println("a: " + nodeA)
+              // println("b:" + structB.runNow())
+              // println("a: " + nodeA)
               val newNode = nodeA.copy(nodeID = UUID.randomUUID())
-              replaceStruct(structB.runNow().copy(items = structB.runNow().items ++ Set(newNode))).runNow()
+
               // if (modelID != something
               $.state.map{
                 s => if(s.currentModelID.get == mess.model.getOrElse(null)) Unit
@@ -133,8 +135,12 @@ object ItemExplorer {
                   val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
                   val items = req.takeFirstResponse.map(_._2).map {
                     case mapi.SPItems(items) => {
-                      println("new items: " + items )
+                      //println("new items: " + items )
                       sendToModel(mapi.PutItems(items)).runNow()
+                      replaceStruct(structB.runNow().copy(items = structB.runNow().items ++ Set(newNode))).runNow()
+                      $.modState(s => s.copy(
+                        items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap
+                      )).runNow()
                     }
                     case _ => Set[IDAble]()
                   }
@@ -249,6 +255,7 @@ object ItemExplorer {
             <.li(
               StructView(
                 struct,
+                items = s.items,
                 retrieveItems = Some(itemRequest),
                 handleDrop = Some(handleDrop),
                 handleDragged = (data:DropData) => removeNode(data),
@@ -269,4 +276,7 @@ object ItemExplorer {
 
   def apply() = SPWidget(spwb => itemExplorerComponent())
 }
+
+
+
 
