@@ -53,7 +53,7 @@ object StructView {
       <.div(
         SPWidgetElements.DragoverZoneWithChild(
           p.handleDrop.get,
-          DroppedOnStruct(p.struct.id, p.modelID.get),
+          DroppedOnStruct(p.struct, p.modelID.get),
           <.div(^.onClick --> toggle(p.struct.id, directChildren), Icon.folder, p.struct.name)
         ),
         <.ul(
@@ -69,7 +69,7 @@ object StructView {
       <.div(
         SPWidgetElements.DragoverZoneWithChild(
           p.handleDrop.get,
-          DroppedOnNode(p.struct.id, node.nodeID, p.modelID.get),
+          DroppedOnNode(p.struct, node, p.modelID.get),
           <.div(renderNodeItem(node, p, s),
             SPWidgetElements.draggable(p.struct.name, DraggedStructNode(node, p.modelID), "todo", p.handleDragged.get),
           )

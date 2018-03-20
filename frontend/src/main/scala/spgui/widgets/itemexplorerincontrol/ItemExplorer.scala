@@ -18,9 +18,10 @@ import spgui.communication._
 import sp.domain.Logic._
 
 case class DraggedIDAble(idAble: IDAble, model: Option[ID]) extends DragData
-case class DraggedStructNode(node: StructNode, model: Option[ID]) extends DragData
-case class DroppedOnNode(struct: ID, node: ID, model: ID) extends DropData
-case class DroppedOnStruct(struct: ID, model: ID) extends DropData
+case class DraggedStructNode(node: StructNode, model: Option[ID]) extends DragData // TODO maybe kill
+
+case class DroppedOnNode(struct: Struct, node: StructNode, model: ID) extends DropData
+case class DroppedOnStruct(struct: Struct, model: ID) extends DropData
 
 // case class MoveToStruct(struct: ID, model: ID) extends MoveInstruction
 // case class MoveToNode(struct: ID, node: ID, model: ID) extends MoveInstruction
@@ -103,74 +104,60 @@ object ItemExplorer {
 
     def toggleAll = $.modState(s => s.copy(expanded = !s.expanded))
 
-    // def handleDrop(moveInstruction: MoveInstruction)(msg: DropData): Unit =  {
-    //   moveInstruction match {
-    //     case m: MoveToStruct => {
-    //       println("move to struct")
-    //       msg.data match {
-    //         case mess: DraggedIDAble => {
-    //           println("TODO")
-    //         }
-    //         case mess: DraggedStructNode => {
-    //           println("dragged to struct node")
-    //           val nodeA = mess.node
-    //           val idNodeA = nodeA.nodeID
-    //           val idStructB = m.struct
-    //           val newNode = nodeA.copy(nodeID = ID.newID)
-    //           $.state.map{ s =>                
-    //             val externalMComm = new ModelAPIComm(mess.model.get)
-    //             val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
-    //             val items = req.takeFirstResponse.map(_._2).map {
-    //               case mapi.SPItems(items) => {
-    //                 val targetStruct = s.structs.find(_.id == idStructB)
-    //                 targetStruct match {
-    //                   case structB: Some[Struct] => {
-    //                     val addItemsRemote = sendToModel(mapi.PutItems(items))
-    //                     val replace = replaceStruct(structB.get.copy(
-    //                       items = structB.get.items ++ Set(newNode)))
-    //                     val addItemsLocally = $.modState(s => s.copy(
-    //                       items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap
-    //                     ))
-    //                       (addItemsRemote >> replace >> addItemsLocally).runNow()
-    //                   }
-    //                 }
-    //               }
-    //               case _ => Set[IDAble]()
-    //             }
-    //           }.runNow()
-    //         }
-    //         case _ => {
-    //           println("something else")
-    //         }
-    //       }
-    //     }
-    //     case m: MoveToNode => {
-    //       println("move to node")
-    //       // val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
-    //       // val structB = $.state.map(_.structs.find(_.id == idStructB).get)
-    //       // val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s.addTo(idNodeB, Set(n))) }
-    //       // val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
-    //       // changeStruct >> changeNewItems
-   
-    //     }
-    //   }
-    // }
-    def handleDrop(data: DragDropData) = {
+    def handleDrop(dragDropData: DragDropData): Unit =  {
+      dragDropData match {
+        case DragDropData(a: DraggedIDAble, b: DroppedOnStruct) => {
+          println("idable -> struct")
+        }
+        case DragDropData(fromStructNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
+          println("structnode -> struct")
+          val nodeA = fromStructNode.node
+          val idNodeA = nodeA.nodeID
+          val structB = toStruct.struct
+          val newNode = nodeA.copy(nodeID = ID.newID)
+          $.state.map{ s =>
+            val externalMComm = new ModelAPIComm(fromStructNode.model.get)
+            val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
+            val items = req.takeFirstResponse.map(_._2).map {
+              case mapi.SPItems(items) => {
+                val replace = replaceStruct(structB.copy(
+                  items = structB.items ++ Set(newNode)))
+                val addItemsRemote = sendToModel(mapi.PutItems(items))
+                val addItemsLocally = $.modState(s => s.copy(
+                  items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap
+                ))
+                  (replace >> addItemsRemote >> addItemsLocally).runNow()
+              }
+            }
+          }.runNow()
+        }
 
+        case DragDropData(a: DraggedIDAble, b: DroppedOnNode) => {
+          println("idable -> node")
+        }
+        case DragDropData(a: DraggedStructNode, b: DroppedOnNode) => {
+          println("struct -> node")
+        }
+        case _ => println("nope")
+      }
     }
-    def handleDragged(data: DragDropData) = {
-
+    
+    def handleDragged(dragDropData: DragDropData) = {
+      dragDropData match {
+        case DragDropData(a: DraggedIDAble, b: DroppedOnStruct) => {
+          println("idable -> struct")
+        }
+        case DragDropData(fromStructNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
+          if(!toStruct.struct.items.contains(fromStructNode.node)) {
+            $.modState { s =>
+              s.copy(structs = s.structs.map(st => st.copy(items =
+                st.items.filter(it => it!= fromStructNode.node)
+              )))
+            }.runNow()
+          }
+        }
+      }
     }
-
-    // def handleDragged(msg: DropData): Unit =  {
-    //   msg.data match{
-    //     case DraggedStructNode(struct, modelID) => {
-    //       $.modState { s =>
-    //         s.copy(structs = s.structs.map(st => st.copy(items = st.items.filter(it => it!= struct))))
-    //       }
-    //     }.runNow()
-    //   }
-    // }
 
     //}(msg.data, msg.dropTarget/*msg.drag, msg.drop*/) match {
       // case (DragMessage(idNodeA, None), DropMessage(None, idStructB)) => // new item to struct
