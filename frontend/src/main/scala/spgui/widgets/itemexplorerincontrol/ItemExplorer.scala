@@ -12,22 +12,25 @@ import spgui.dragging._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import java.util.UUID
+//import java.util.UUID
 import sp.domain.SPMessage
 import spgui.communication._
 import sp.domain.Logic._
 
+case class DraggedIDAble(idAble: IDAble, model: Option[ID]) extends DragData
+case class DraggedStructNode(node: StructNode, model: Option[ID]) extends DragData
+case class DroppedOnNode(struct: ID, node: ID, model: ID) extends DropData
+case class DroppedOnStruct(struct: ID, model: ID) extends DropData
 
-trait MoveInstruction{}
-case class MoveToStruct(struct: UUID) extends MoveInstruction
-case class MoveToNode(struct: UUID, node: UUID) extends MoveInstruction
-case class DraggedIDAble(idAble: IDAble, model: Option[UUID])
-case class DraggedStructNode(node: StructNode, model: Option[UUID])
+// case class MoveToStruct(struct: ID, model: ID) extends MoveInstruction
+// case class MoveToNode(struct: ID, node: ID, model: ID) extends MoveInstruction
+// case class DraggedIDAble(idAble: IDAble, model: Option[ID])
+// case class DraggedStructNode(node: StructNode, model: Option[ID])
 
 object ItemExplorer {
   case class State(
     currentMComm: Option[ModelAPIComm] = None,
-    currentModelID: Option[UUID] = None,
+    currentModelID: Option[ID] = None,
     newItems: List[(StructNode, IDAble)] = Nil,
     structs: List[Struct] = Nil,
     hiddenIDs: Map[ID, Set[ID]] = Map(), // structID -> structNodeIDs
@@ -100,69 +103,74 @@ object ItemExplorer {
 
     def toggleAll = $.modState(s => s.copy(expanded = !s.expanded))
 
-    // Option(...).get fine to use in here, since DragNDropMessage knows they are not empty
-    def handleDrop(moveInstruction: MoveInstruction)(msg: DropData): Unit =  {
-      //val target = $.state.map(_.structs.find(_.id == msg.dropTarget).get._1)
-      //println(msg)
-      // val target = $.state.map(_.newItems.find(_._1.nodeID == targetId).get._1).runNow()
-      // //val target = $.state.map(_.newItems.find(_.nodeId == targetId).get).runNow()
-      // (msg.data, target) match {
-      //   case (nodeA: StructNode, nodeB: StructNode) => {}
-      // }
-
-      moveInstruction match {
-        case m: MoveToStruct => {
-          println("move to struct")
-          msg.data match {
-            case mess: DraggedIDAble => {
-              println("TODO")
-            }
-            case mess: DraggedStructNode => {
-              val nodeA = mess.node
-              val idNodeA = nodeA.nodeID
-              val idStructB = m.struct
-              val structB = $.state.map(_.structs.find(_.id == idStructB).get)
-              
-              // println("b:" + structB.runNow())
-              // println("a: " + nodeA)
-              val newNode = nodeA.copy(nodeID = UUID.randomUUID())
-
-              // if (modelID != something
-              $.state.map{
-                s => if(s.currentModelID.get == mess.model.getOrElse(null)) Unit
-                else {
-                  val externalMComm = new ModelAPIComm(mess.model.get)
-                  val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
-                  val items = req.takeFirstResponse.map(_._2).map {
-                    case mapi.SPItems(items) => {
-                      //println("new items: " + items )
-                      sendToModel(mapi.PutItems(items)).runNow()
-                      replaceStruct(structB.runNow().copy(items = structB.runNow().items ++ Set(newNode))).runNow()
-                      $.modState(s => s.copy(
-                        items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap
-                      )).runNow()
-                    }
-                    case _ => Set[IDAble]()
-                  }
-                }
-              }.runNow()                     
-            }
-            case _ => {
-              println("something else")
-            }
-          }
-        }
-        case m:MoveToNode => {
-          println("move to node")
-          // val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
-          // val structB = $.state.map(_.structs.find(_.id == idStructB).get)
-          // val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s.addTo(idNodeB, Set(n))) }
-          // val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
-          // changeStruct >> changeNewItems
+    // def handleDrop(moveInstruction: MoveInstruction)(msg: DropData): Unit =  {
+    //   moveInstruction match {
+    //     case m: MoveToStruct => {
+    //       println("move to struct")
+    //       msg.data match {
+    //         case mess: DraggedIDAble => {
+    //           println("TODO")
+    //         }
+    //         case mess: DraggedStructNode => {
+    //           println("dragged to struct node")
+    //           val nodeA = mess.node
+    //           val idNodeA = nodeA.nodeID
+    //           val idStructB = m.struct
+    //           val newNode = nodeA.copy(nodeID = ID.newID)
+    //           $.state.map{ s =>                
+    //             val externalMComm = new ModelAPIComm(mess.model.get)
+    //             val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
+    //             val items = req.takeFirstResponse.map(_._2).map {
+    //               case mapi.SPItems(items) => {
+    //                 val targetStruct = s.structs.find(_.id == idStructB)
+    //                 targetStruct match {
+    //                   case structB: Some[Struct] => {
+    //                     val addItemsRemote = sendToModel(mapi.PutItems(items))
+    //                     val replace = replaceStruct(structB.get.copy(
+    //                       items = structB.get.items ++ Set(newNode)))
+    //                     val addItemsLocally = $.modState(s => s.copy(
+    //                       items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap
+    //                     ))
+    //                       (addItemsRemote >> replace >> addItemsLocally).runNow()
+    //                   }
+    //                 }
+    //               }
+    //               case _ => Set[IDAble]()
+    //             }
+    //           }.runNow()
+    //         }
+    //         case _ => {
+    //           println("something else")
+    //         }
+    //       }
+    //     }
+    //     case m: MoveToNode => {
+    //       println("move to node")
+    //       // val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
+    //       // val structB = $.state.map(_.structs.find(_.id == idStructB).get)
+    //       // val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s.addTo(idNodeB, Set(n))) }
+    //       // val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
+    //       // changeStruct >> changeNewItems
    
-        }
-      }
+    //     }
+    //   }
+    // }
+    def handleDrop(data: DragDropData) = {
+
     }
+    def handleDragged(data: DragDropData) = {
+
+    }
+
+    // def handleDragged(msg: DropData): Unit =  {
+    //   msg.data match{
+    //     case DraggedStructNode(struct, modelID) => {
+    //       $.modState { s =>
+    //         s.copy(structs = s.structs.map(st => st.copy(items = st.items.filter(it => it!= struct))))
+    //       }
+    //     }.runNow()
+    //   }
+    // }
 
     //}(msg.data, msg.dropTarget/*msg.drag, msg.drop*/) match {
       // case (DragMessage(idNodeA, None), DropMessage(None, idStructB)) => // new item to struct
@@ -205,14 +213,6 @@ object ItemExplorer {
       modifyState >> notifyBackend
     }
 
-    def removeNode(data: DropData) {
-      data.data match {
-        case DraggedStructNode(struct, modelID) => $.modState { s =>
-          s.copy(structs = s.structs.map(st => st.copy(items = st.items.filter(it => it!= struct))))
-        }.runNow()
-      }
-    }
-
     def render(s: State) =
       <.div(
         ^.className := Style.outerDiv.htmlClass,
@@ -233,14 +233,14 @@ object ItemExplorer {
         SPWidgetElements.TextBox("Filter...", str => filterAllStructs(str))
       )
 
-    def renderNewItems(newItems: List[(StructNode, IDAble)], currentModelID: Option[UUID]) =
+    def renderNewItems(newItems: List[(StructNode, IDAble)], currentModelID: Option[ID]) =
       <.div(
         ^.className := Style.newItems.htmlClass,
         <.ul(
           <.li("New Items: ").when(!newItems.isEmpty),
           newItems.toTagMod { case (sn, idAble) =>
             <.li(
-              SPWidgetElements.draggable(idAble.name, DraggedIDAble(idAble, currentModelID), "todo", (d:DropData) => println("yes" + d)),
+              SPWidgetElements.draggable(idAble.name, DraggedIDAble(idAble, currentModelID), "todo", (d:DragDropData) => println("yes" + d)),
               ItemKinds.icon(idAble), idAble.name)
           }
         )
@@ -258,7 +258,7 @@ object ItemExplorer {
                 items = s.items,
                 retrieveItems = Some(itemRequest),
                 handleDrop = Some(handleDrop),
-                handleDragged = (data:DropData) => removeNode(data),
+                handleDragged = Some(handleDragged),
                 filteredNodes = s.hiddenIDs(struct.id),
                 expanded = s.expanded,
                 modelID = s.currentModelID

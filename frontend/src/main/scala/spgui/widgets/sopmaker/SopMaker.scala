@@ -47,6 +47,9 @@ case class RenderSequenceElement(
 case class RenderOperationNode(
   nodeId: UUID, w:Float, h:Float, sop: OperationNode) extends RenderNode
 
+case class DraggedSOP(sop: SOP) extends DragData
+case class DroppedOnSOP(sop: Any = Unit) extends DropData
+
 object SopMakerWidget {
   object DropzoneDirection extends Enumeration {
     val Left, Right, Up, Down = Value
@@ -126,16 +129,16 @@ object SopMakerWidget {
     def op(opId: UUID, opname: String, x: Float, y: Float): TagMod = {
       <.span(
         ^.draggable := false,
-        SPWidgetElements.draggable(opname, findSop(opId), "sop", (d:DropData) => println("dropped an op")),
+        SPWidgetElements.draggable(opname, DraggedSOP(findSop(opId)), "sop", (d:DragDropData) => println("dropped an op")),
         SopMakerGraphics.sop(opname, x.toInt, y.toInt)
       )
     }
 
     def dropZone(
-      direction: DropzoneDirection.Value, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
+      direction: DropzoneDirection.Value, sop:Any, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
     {
       println("making a dropzone " + id.toString)
-      SPWidgetElements.DragoverZoneRect(onDropEvent(id, direction), x, y, w, h)
+      SPWidgetElements.DragoverZoneRect(onDropEvent(id, direction), DroppedOnSOP(sop), x, y, w, h)
     }
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
       println(node.nodeId.toString)
@@ -166,6 +169,7 @@ object SopMakerWidget {
           List(
             dropZone(   // Left dropzone
               direction = DropzoneDirection.Left,
+              sop = DroppedOnSOP(),
               id = n.nodeId,
               x = xOffset - n.w/2 + opWidth/2,
               y = yOffset,
@@ -175,6 +179,7 @@ object SopMakerWidget {
             dropZone(   // Right dropzone
               direction = DropzoneDirection.Right,
               id = n.nodeId,
+              sop = DroppedOnSOP(),
               x = xOffset + n.w/2 - opSpacingXInsideGroup - opSpacingX + opWidth/2,
               y = yOffset,
               w = opSpacingXInsideGroup,
@@ -182,6 +187,7 @@ object SopMakerWidget {
             ),
             dropZone(   // Top dropzone
               direction = DropzoneDirection.Up,
+              sop = DroppedOnSOP(),
               id = n.nodeId,
               x = xOffset - n.w/2 + opWidth/2,
               y = yOffset,
@@ -190,6 +196,7 @@ object SopMakerWidget {
             ),
             dropZone(   // Bottom dropzone
               direction = DropzoneDirection.Down,
+              sop = DroppedOnSOP(),
               id = n.nodeId,
               x = xOffset - n.w/2 + opWidth/2,
               y = yOffset + n.h - parallelBarHeight,
@@ -216,6 +223,7 @@ object SopMakerWidget {
             dropZone(
               direction = DropzoneDirection.Left,
               id = n.nodeId,
+              sop = DroppedOnSOP(),
               x = xOffset,
               y = yOffset + opHorizontalBarOffset,
               w = opVerticalBarOffset,
@@ -223,6 +231,7 @@ object SopMakerWidget {
             ),
             dropZone(
               direction = DropzoneDirection.Right,
+              sop = DroppedOnSOP(),
               id = n.nodeId,
               x = xOffset + opWidth - opVerticalBarOffset,
               y = yOffset + opHorizontalBarOffset,
@@ -232,6 +241,7 @@ object SopMakerWidget {
             dropZone(
               direction = DropzoneDirection.Up,
               id = n.nodeId,
+              sop = DroppedOnSOP(),
               x = xOffset,
               y = yOffset,
               w = opWidth,
@@ -239,6 +249,7 @@ object SopMakerWidget {
             ),
             dropZone(
               direction = DropzoneDirection.Down,
+              sop = DroppedOnSOP(),
               id = n.nodeId,
               x = xOffset,
               y = yOffset + opHeight - opVerticalBarOffset,
@@ -332,9 +343,9 @@ object SopMakerWidget {
       }   
     }
 
-    def onDropEvent(id: UUID, direction: DropzoneDirection.Value)(e: DropData): Unit = {
-      e.data match {
-        case sop:SOP => {
+    def onDropEvent(id: UUID, direction: DropzoneDirection.Value)(e: DragDropData): Unit = {
+      e.dragData match {
+        case DraggedSOP(sop: SOP) => {
           val sopId = id
           $.modState(
             s => State(insertSop(s.sop, sopId, cloneSop(sop), direction ))

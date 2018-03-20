@@ -169,7 +169,7 @@ object SopMakerGraphics {
 
   def menuOp(label: String, id: UUID): TagMod =
     <.span(
-      SPWidgetElements.draggable(label, null, "sop", (d:DropData) => println("static op drop")),
+      //SPWidgetElements.draggable(label, null, "sop", (d:DropData) => println("static op drop")),
       ^.className := SopMakerCSS.menuOp.htmlClass,
       ^.className := SPWidgetElementsCSS.defaultMargin.htmlClass,
       svg.svg(
