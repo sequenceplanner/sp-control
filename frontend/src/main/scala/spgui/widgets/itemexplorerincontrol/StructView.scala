@@ -59,7 +59,8 @@ object StructView {
         <.ul(
           ^.className := Style.ul.htmlClass,
           rootItemsToRender.toTagMod(node => <.li(renderNode(node, p, s)))
-        ).when(s.expandedNodes.contains(p.struct.id))
+        ).when(true// s.expandedNodes.contains(p.struct.id)
+        )
       )
     }
 
@@ -69,15 +70,16 @@ object StructView {
       <.div(
         SPWidgetElements.DragoverZoneWithChild(
           p.handleDrop.get,
-          DroppedOnNode(p.struct, node, p.modelID.get),
+          DroppedOnNode(Some(p.struct), node, p.modelID.get),
           <.div(renderNodeItem(node, p, s),
-            SPWidgetElements.draggable(p.struct.name, DraggedStructNode(node, p.modelID), "todo", p.handleDragged.get),
+            SPWidgetElements.draggable(p.struct.name, DraggedStructNode(Some(p.struct), node, p.modelID), "todo", p.handleDragged.get),
           )
         ),
         <.ul(
           ^.className := Style.ul.htmlClass,
           childrenToRender.toTagMod(sn => <.li(renderNode(sn, p, s)))
-        ).when(s.expandedNodes.contains(node.nodeID))
+        ).when(true// s.expandedNodes.contains(node.nodeID)
+        )
       )
     }
 

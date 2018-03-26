@@ -15,12 +15,11 @@ import scala.concurrent.Future
 //import java.util.UUID
 import sp.domain.SPMessage
 import spgui.communication._
-import sp.domain.Logic._
 
-case class DraggedIDAble(idAble: IDAble, model: Option[ID]) extends DragData
-case class DraggedStructNode(node: StructNode, model: Option[ID]) extends DragData // TODO maybe kill
+case class DraggedStruct(struct: Struct, model: Option[ID]) extends DragData
+case class DraggedStructNode(parentStruct: Option[Struct], node: StructNode, model: Option[ID]) extends DragData 
 
-case class DroppedOnNode(struct: Struct, node: StructNode, model: ID) extends DropData
+case class DroppedOnNode(parentStruct: Option[Struct], node: StructNode, model: ID) extends DropData
 case class DroppedOnStruct(struct: Struct, model: ID) extends DropData
 
 // case class MoveToStruct(struct: ID, model: ID) extends MoveInstruction
@@ -106,13 +105,9 @@ object ItemExplorer {
 
     def handleDrop(dragDropData: DragDropData): Unit =  {
       dragDropData match {
-        case DragDropData(a: DraggedIDAble, b: DroppedOnStruct) => {
-          println("idable -> struct")
-        }
         case DragDropData(fromStructNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
-          println("structnode -> struct")
+          println("node -> struct")
           val nodeA = fromStructNode.node
-          val idNodeA = nodeA.nodeID
           val structB = toStruct.struct
           val newNode = nodeA.copy(nodeID = ID.newID)
           $.state.map{ s =>
@@ -132,10 +127,23 @@ object ItemExplorer {
           }.runNow()
         }
 
-        case DragDropData(a: DraggedIDAble, b: DroppedOnNode) => {
-          println("idable -> node")
+        case DragDropData(fromNode: DraggedStructNode, toNode: DroppedOnNode) => {
+          println("node -> node")
+          val structA = fromNode.parentStruct.get
+          val structB = toNode.parentStruct.get
+          val nodeA = fromNode.node
+          val idNodeA = fromNode.node.nodeID
+          val idNodeB = toNode.node.nodeID
+          $.state.map{ s =>
+            val nodesToMove = StructExtras(structA).getAllChildren(idNodeA) + nodeA.copy(parent = None)
+            val newStructB = StructExtras(structB).addTo(idNodeB, nodesToMove)
+            replaceStruct(newStructB).runNow()
+          }.runNow()
+
+        case DragDropData(a: DraggedStruct, b: DroppedOnStruct) => {
+          println("struct -> struct")
         }
-        case DragDropData(a: DraggedStructNode, b: DroppedOnNode) => {
+        case DragDropData(a: DraggedStruct, b: DroppedOnNode) => {
           println("struct -> node")
         }
         case _ => println("nope")
@@ -144,17 +152,23 @@ object ItemExplorer {
     
     def handleDragged(dragDropData: DragDropData) = {
       dragDropData match {
-        case DragDropData(a: DraggedIDAble, b: DroppedOnStruct) => {
-          println("idable -> struct")
-        }
-        case DragDropData(fromStructNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
-          if(!toStruct.struct.items.contains(fromStructNode.node)) {
+        case DragDropData(fromNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
+          if(!toStruct.struct.items.contains(fromNode.node)) {
             $.modState { s =>
               s.copy(structs = s.structs.map(st => st.copy(items =
-                st.items.filter(it => it!= fromStructNode.node)
+                st.items.filter(it => it!= fromNode.node)
               )))
             }.runNow()
           }
+        }
+        case DragDropData(fromNode: DraggedStructNode, toNode: DroppedOnNode) => {
+          val structA = fromNode.parentStruct.get
+          val nodeA = fromNode.node
+          val idNodeA = fromNode.node.nodeID
+
+          val nodesToMove = StructExtras(structA).getAllChildren(idNodeA) + nodeA.copy(parent = None)
+          val newStructA = structA.copy(items = structA.items -- nodesToMove)
+          replaceStruct(newStructA).runNow()
         }
       }
     }
@@ -189,8 +203,6 @@ object ItemExplorer {
       //   val newStructB = structB.zip(nodesToMove).map { case (s, nodes) => s.addTo(idNodeB, nodes) }
       //   newStructA.flatMap(replaceStruct) >> newStructB.flatMap(replaceStruct)
     
-//    def handleDrop(msg: DropData) = {}
-
     // replaces the Struct with same ID as newStruct with newStruct
     def replaceStruct(newStruct: Struct) = {
       val modifyState = $.modState { s =>
@@ -227,7 +239,7 @@ object ItemExplorer {
           <.li("New Items: ").when(!newItems.isEmpty),
           newItems.toTagMod { case (sn, idAble) =>
             <.li(
-              SPWidgetElements.draggable(idAble.name, DraggedIDAble(idAble, currentModelID), "todo", (d:DragDropData) => println("yes" + d)),
+              SPWidgetElements.draggable(idAble.name, DraggedStructNode(None, sn, currentModelID), "todo", (d:DragDropData) => println("yes" + d)),
               ItemKinds.icon(idAble), idAble.name)
           }
         )
@@ -247,7 +259,7 @@ object ItemExplorer {
                 handleDrop = Some(handleDrop),
                 handleDragged = Some(handleDragged),
                 filteredNodes = s.hiddenIDs(struct.id),
-                expanded = s.expanded,
+                expanded = true,//s.expanded,
                 modelID = s.currentModelID
               )
             )
