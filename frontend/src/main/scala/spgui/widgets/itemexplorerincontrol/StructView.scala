@@ -45,7 +45,7 @@ object StructView {
     def toggleAll() = {
       def toggleRecursive(id: ID, struct: Struct): Unit = {
         val directChildren = struct.getChildren(id).map(_.item)
-        val directChildrenNodes = struct.items.filter(_.parent == id).map(_.nodeID)
+        val directChildrenNodes = struct.getChildren(id).map(_.nodeID)
         toggle(id, directChildren).runNow()
         directChildrenNodes.map{ c => toggleRecursive(c, struct) }
       }
