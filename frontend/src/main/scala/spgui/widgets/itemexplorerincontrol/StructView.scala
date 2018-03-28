@@ -33,13 +33,29 @@ object StructView {
                     modelID: Option[UUID] = None
                   )
   case class State(
-                    expandedNodes: Set[ID] = Set()
+                    expandedNodes: Set[ID] = Set() 
                   )
 
   class Backend($: BackendScope[Props, State]) {
     def toggle(id: ID, childrenIDs: Set[ID]) = {
       val modNodes = $.modState(s => s.copy(expandedNodes = s.expandedNodes + id -- s.expandedNodes.intersect(Set(id))))
       retrieveItems(childrenIDs) >> modNodes
+    }
+
+    def toggleAll() = {
+      def toggleRecursive(id: ID, struct: Struct): Unit = {
+        val directChildren = struct.getChildren(id).map(_.item)
+        val directChildrenNodes = struct.items.filter(_.parent == id).map(_.nodeID)
+        toggle(id, directChildren).runNow()
+        directChildrenNodes.map{ c => toggleRecursive(c, struct) }
+      }
+
+      $.props.map{ p =>
+        val directChildren = p.struct.items.filter(_.parent.isEmpty).map(_.item)
+        val directChildrenNodes = p.struct.items.filter(_.parent.isEmpty).map(_.nodeID)
+        toggle(p.struct.id, directChildren).runNow()
+        directChildrenNodes.map{ c => toggleRecursive(c, p.struct)}
+      }
     }
 
     def retrieveItems(ids: Set[ID]) = {
@@ -49,37 +65,56 @@ object StructView {
     def render(p: Props, s: State) = {
       val rootItemsToRender = p.struct.items.filter(sn => sn.parent.isEmpty && !p.filteredNodes.contains(sn.nodeID))
       lazy val directChildren = p.struct.items.filter(_.parent.isEmpty).map(_.item)
-
       <.div(
         SPWidgetElements.DragoverZoneWithChild(
           p.handleDrop.get,
           DroppedOnStruct(p.struct, p.modelID.get),
-          <.div(^.onClick --> toggle(p.struct.id, directChildren), Icon.folder, p.struct.name)
+          <.div(
+            ^.className := Style.nodeOuter.htmlClass,
+            if(directChildren.isEmpty) EmptyVdom
+            else {
+              <.span(
+                 if (s.expandedNodes.contains(p.struct.id)) Icon.toggleDown else Icon.toggleRight,
+                ^.onClick --> toggle(p.struct.id, directChildren)
+              )
+            },
+            Icon.folder,
+            p.struct.name
+          )
         ),
         <.ul(
           ^.className := Style.ul.htmlClass,
           rootItemsToRender.toTagMod(node => <.li(renderNode(node, p, s)))
-        ).when(true// s.expandedNodes.contains(p.struct.id)
-        )
+        ).when(s.expandedNodes.contains(p.struct.id))
       )
     }
 
     def renderNode(node: StructNode, p: Props, s: State): TagMod = {
       val childrenToRender = p.struct.getChildren(node.nodeID).filterNot(sn => p.filteredNodes.contains(sn.nodeID))
-
+      lazy val directChildren = p.struct.getChildren(node.nodeID).map(_.item)
+      val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleDown else Icon.toggleRight
       <.div(
         SPWidgetElements.DragoverZoneWithChild(
           p.handleDrop.get,
           DroppedOnNode(Some(p.struct), node, p.modelID.get),
-          <.div(renderNodeItem(node, p, s),
-            SPWidgetElements.draggable(p.struct.name, DraggedStructNode(Some(p.struct), node, p.modelID), "todo", p.handleDragged.get),
+          <.div(
+            ^.className := Style.nodeOuter.htmlClass,
+            if(childrenToRender.isEmpty) EmptyVdom
+            else {
+              <.span(
+                arrowIcon,
+                ^.onClick --> toggle(node.nodeID, directChildren)
+              )
+            },
+            <.span(renderNodeItem(node, p, s),
+              SPWidgetElements.draggable(p.struct.name, DraggedStructNode(Some(p.struct), node, p.modelID), "todo", p.handleDragged.get),
+            )
           )
         ),
         <.ul(
           ^.className := Style.ul.htmlClass,
           childrenToRender.toTagMod(sn => <.li(renderNode(sn, p, s)))
-        ).when(true// s.expandedNodes.contains(node.nodeID)
-        )
+        ).when(s.expandedNodes.contains(node.nodeID))
       )
     }
 
@@ -90,10 +125,10 @@ object StructView {
       val shownName = itemOp.map(_.name).getOrElse({
         node.item.toString
       })
-
-      lazy val directChildren = p.struct.getChildren(node.nodeID).map(_.item)
-
-      <.div(<.span(arrowIcon, ^.onClick --> toggle(node.nodeID, directChildren)), itemIcon, shownName)
+      <.div(
+        itemIcon,
+        shownName
+      )
     }
   }
 
@@ -104,10 +139,13 @@ object StructView {
       val nextExpanded = scope.nextProps.expanded
       val expandedChanged = scope.currentProps.expanded != nextExpanded
       if (expandedChanged) {
-        if (nextExpanded) {
-          scope.backend.retrieveItems(scope.nextProps.items.keySet)
-        } else {
-          scope.modState(_.copy(expandedNodes = Set()))
+        scope.backend.toggleAll() >>
+        {
+          if (nextExpanded) {
+            scope.backend.retrieveItems(scope.nextProps.items.keySet)
+          } else {
+            scope.modState(_.copy(expandedNodes = Set()))
+          }
         }
       }
       else {

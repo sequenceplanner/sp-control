@@ -139,7 +139,7 @@ object ItemExplorer {
             val newStructB = StructExtras(structB).addTo(idNodeB, nodesToMove)
             replaceStruct(newStructB).runNow()
           }.runNow()
-
+        }
         case DragDropData(a: DraggedStruct, b: DroppedOnStruct) => {
           println("struct -> struct")
         }
@@ -259,7 +259,7 @@ object ItemExplorer {
                 handleDrop = Some(handleDrop),
                 handleDragged = Some(handleDragged),
                 filteredNodes = s.hiddenIDs(struct.id),
-                expanded = true,//s.expanded,
+                expanded = s.expanded,
                 modelID = s.currentModelID
               )
             )
