@@ -204,7 +204,7 @@ object ModelsInControlWidget {
                     ^.className := "btn btn-sm",
                     ^.title := "Export model",
                     ^.onClick --> sendToModel(m, mapi.ExportModel),
-                    <.i(^.className := "fa fa-eye")
+                    <.i(^.className := "fa fa-print")
                   )
                 ),
                 <.td(
