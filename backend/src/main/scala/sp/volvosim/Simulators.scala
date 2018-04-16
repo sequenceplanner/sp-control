@@ -63,24 +63,21 @@ object DummyVolvoRobot {
 
 // Transport
 
-case class BodyTracker(id: String, length: Int, frontPos: Int, rearPos: Int)
+case class BodyTracker(id: String, length: Int, frontPos: Int)
+case class Sensor(pos: Int, active: Boolean)
 
 case class TransporterState(bodies: Map[String, BodyTracker],
                             run: Boolean,
-                            sensorInput: Boolean,
-                            sensorOutput: Boolean,
-                                )
+                            sensorList: List[Sensor]
+                           )
 
 case class TransportDefinition(length: Int,
-                               posInputSensor: Int,
-                               posOutputSensor: Int,
-                               nextTransporter: Option[ActorRef]
+                               sensorList: List[Sensor]
                               )
 
 case class StartTransport()
 case class StopTransport()
 case class NewBody(bodyID: String, length: Int)
-case class LeavingBody(bodyID: String, length: Int)
 
 
 /**
@@ -88,7 +85,7 @@ case class LeavingBody(bodyID: String, length: Int)
   * Will only move if it is in the active state
   */
 class DummyVolvoTransporter(replyTo: ActorRef, setup: TransportDefinition) extends Actor with ActorLogging {
-  var state = TransporterState(Map(), false, false, false)
+  var state = TransporterState(Map(), false, setup.sensorList)
 
   def receive = {
     case x: StartTransport =>
@@ -99,29 +96,26 @@ class DummyVolvoTransporter(replyTo: ActorRef, setup: TransportDefinition) exten
       val b = BodyTracker(
         id = x.bodyID,
         length = x.length,
-        frontPos = 1,
-        rearPos = -1)
+        frontPos = 0)
       state = state.copy(bodies = state.bodies + (x.bodyID -> b))
 
-    case x: LeavingBody =>
-      val b = BodyTracker(
-        id = x.bodyID,
-        length = x.length,
-        frontPos = 1,
-        rearPos = -1)
-      state = state.copy(bodies = state.bodies + (x.bodyID -> b))
 
     case "tick" =>
-      if (state.) {
-        state = state.copy(currentTime = state.currentTime + 1)
-
-        println(s"vårt state $state")
-
-        if (robotprogram.get(state.currentProgram).exists(_ <= state.currentTime)){
-          state = state.copy(currentProgram = "")
-          state = state.copy(currentTime = 0)
-          println(s"vårt state nu $state")
+      if (state.run){
+        val updB = state.bodies.flatMap{ case (name, b) =>
+          val front =  b.frontPos + 1
+          if (front-b.length > setup.length) None else Some((name, b.copy(frontPos = front)))
         }
+
+        val updS = state.sensorList.map {s =>
+          val isActive = updB.foldLeft(false){(a, b) =>
+            val car = b._2
+            car.frontPos >= s.pos && (car.frontPos-car.length <= s.pos) || a
+          }
+          s.copy(active = isActive)
+        }
+
+        state = state.copy(bodies = updB, sensorList = updS)
 
       }
 
@@ -138,5 +132,43 @@ class DummyVolvoTransporter(replyTo: ActorRef, setup: TransportDefinition) exten
 
 
 object DummyVolvoTransporter {
-  def props(replyTo: ActorRef, programs: Map[String, Int]) = Props(classOf[DummyVolvoRobot], replyTo, programs)
+  def props(replyTo: ActorRef, setup: TransportDefinition) = Props(classOf[DummyVolvoTransporter], replyTo, setup)
+}
+
+
+
+
+case class Pressurize(ref: Int)
+case class DePressurize()
+case class PressureState(act: Int, ref: Int, atRef: Boolean)
+
+class DummyVolvoPressurizer(replyTo: ActorRef) extends Actor with ActorLogging {
+  var state = PressureState(0,0, true)
+
+  def receive = {
+    case x: Pressurize =>
+      state = state.copy(ref = x.ref)
+    case x: DePressurize =>
+      state = state.copy(ref = 0)
+
+
+    case "tick" =>
+      if (state.ref != state.act){
+        val diff = state.ref-state.act
+        val currentPos = state.act + diff/Math.abs(diff)
+        state = state.copy(act = currentPos, atRef = state.ref == currentPos)
+      }
+
+      replyTo ! state
+  }
+
+  import context.dispatcher
+
+  import scala.concurrent.duration._
+  val ticker = context.system.scheduler.schedule(0 seconds, 1 seconds, self, "tick")
+}
+
+
+object DummyVolvoPressurizer {
+  def props(replyTo: ActorRef) = Props(classOf[DummyVolvoPressurizer], replyTo)
 }

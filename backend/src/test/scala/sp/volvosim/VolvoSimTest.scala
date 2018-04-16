@@ -77,7 +77,106 @@ class VolvoSimTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
 
   }
 
+  "DummyTransport testing" - {
+    "getting state" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyVolvoTransporter.props(p.ref,
+        TransportDefinition(10, List(Sensor(2, false), Sensor(8, false)))
+      ))
 
+      p.fishForMessage(10 second){
+        case TransporterState(b, false, s) =>
+          true
+        case x => println(x); false
+      }
+    }
+
+    "running transport" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyVolvoTransporter.props(p.ref,
+        TransportDefinition(10, List(Sensor(2, false), Sensor(8, false)))
+      ))
+
+      dummy ! StartTransport()
+
+      var track = 0
+
+      p.fishForMessage(10 second){
+        case x @ TransporterState(_, false, _) =>
+          println(x)
+          false
+        case x @ TransporterState(_, true, _) =>
+          println(x)
+          track = 1
+          true
+
+
+        case x => println("NEJ"); false
+      }
+    }
+
+
+    "running transport with car" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyVolvoTransporter.props(p.ref,
+        TransportDefinition(10, List(Sensor(4, false), Sensor(6, false)))
+      ))
+
+      dummy ! StartTransport()
+      dummy ! NewBody("Hej", 5)
+
+      var track = 0
+
+      p.fishForMessage(10 second){
+        case x @ TransporterState(b, true, _) =>
+          println(x)
+          false
+
+
+        case x => println("NEJ"); false
+      }
+    }
+
+
+
+  }
+
+
+
+  "DummyPressurizing testing" - {
+    "getting state" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyVolvoPressurizer.props(p.ref))
+
+      p.fishForMessage(10 second){
+        case PressureState(act, ref, ok) =>
+          true
+        case x => println(x); false
+      }
+    }
+
+
+
+
+    "running pressure" in {
+      val p = TestProbe()
+      val dummy = system.actorOf(DummyVolvoPressurizer.props(p.ref))
+
+      dummy ! Pressurize(5)
+
+      p.fishForMessage(10 second){
+        case x @ PressureState(act, ref, ok) =>
+          println(x)
+          false
+
+
+        case x => println("NEJ"); false
+      }
+    }
+
+
+
+  }
 
 
 
