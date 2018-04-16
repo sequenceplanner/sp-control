@@ -128,8 +128,4 @@ import sp.domain._
       xs.tail.foldLeft(init){(a, b) => a.copy(guard = AND(List(a.guard, b.guard)), action = a.action ++ b.action)}
     }
 
-
-
-
-
   }

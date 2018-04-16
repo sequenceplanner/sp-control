@@ -107,22 +107,24 @@ object VDTracker {
           ^.onClick --> send(APIVDTracker.launchOpRunner(s.modelIdables)), "Launch operation runner"
         ),
         <.br(),
-        renderInfo("latest event", s.latestEvent),
+        renderInfo("latest event", s.latestEvent, s.modelIdables),
         <.br(),
-        renderInfo("latest ability state", s.latestAbilityState),
+        renderInfo("latest ability state", s.latestAbilityState, s.modelIdables),
         <.br(),
-        renderInfo("latest VDevice state", s.latestVDeviceState),
+        renderInfo("latest VDevice state", s.latestVDeviceState, s.modelIdables),
       )
 
 
-    def renderInfo(name : String, m: Map[ID , SPValue]) =
+    def renderInfo(name : String, m: Map[ID , SPValue], ids : List[IDAble]) =
       <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
         <.summary(name),
         <.table(
           ^.className := "table table-striped", ^.className :="Table",
           <.tbody(
             m.map(is =>{
+              val cI = ids.filter(i => i.id == is._1)
               <.tr(
+                <.td(if(cI.nonEmpty) cI.head.name else ""),
                 <.td(is._1.toString),
                 <.td(is._2.toString)
               )}).toTagMod

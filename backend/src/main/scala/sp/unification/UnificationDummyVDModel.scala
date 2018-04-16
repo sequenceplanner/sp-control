@@ -161,8 +161,6 @@ object UnificationDummyVDModel {
 
 
 
-
-
   def makeMovePartOP(name: String,
                      bookings: List[Thing],
                      fromPos: Thing,
