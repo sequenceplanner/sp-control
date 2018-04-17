@@ -26,7 +26,7 @@ object Launch extends App {
   }
 
   scala.io.StdIn.readLine("Press ENTER to run model\n")
-  system.actorOf(sp.unification.UnificationROSModel.props, "UnificationAbilityMaker")
+  system.actorOf(sp.unification.UnificationDummyVDModel.props, "UnificationAbilityMaker")
 
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
