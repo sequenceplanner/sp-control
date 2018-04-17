@@ -103,19 +103,23 @@ import sp.domain._
       * Converts any operation to an ability
       * @param o
       */
-    def operationToAbility(o: Operation): Ability = {
-      val p = o.attributes.getAs[List[ID]]("parameters").getOrElse(List())
-      val r = o.attributes.getAs[List[ID]]("result").getOrElse(List())
-      Ability(
-        name = o.name,
-        id = o.id,
-        parameters = p,
-        result = r,
-        preCondition = mergeConditions(extractCondition(o, "pre")),
-        started = mergeConditions(extractCondition(o, "started")),
-        postCondition = mergeConditions(extractCondition(o, "post")),
-        resetCondition = mergeConditions(extractCondition(o, "reset"))
-      )
+    def operationToAbility(o: Operation): Option[Ability] = {
+      for {
+        isa <- o.attributes.getAs[String]("isa") if isa == "Ability"
+      } yield {
+        val p = o.attributes.getAs[List[ID]]("parameters").getOrElse(List())
+        val r = o.attributes.getAs[List[ID]]("result").getOrElse(List())
+        Ability(
+          name = o.name,
+          id = o.id,
+          parameters = p,
+          result = r,
+          preCondition = mergeConditions(extractCondition(o, "pre")),
+          started = mergeConditions(extractCondition(o, "started")),
+          postCondition = mergeConditions(extractCondition(o, "post")),
+          resetCondition = mergeConditions(extractCondition(o, "reset"))
+        )
+      }
     }
 
 
@@ -124,8 +128,11 @@ import sp.domain._
       o.conditions.filter(c => c.attributes.getAs[String]("kind").contains(kind))
     }
     def mergeConditions(xs: List[Condition]): Condition = {
-      val init = xs.headOption.getOrElse(Condition(AlwaysFalse))
-      xs.tail.foldLeft(init){(a, b) => a.copy(guard = AND(List(a.guard, b.guard)), action = a.action ++ b.action)}
+      xs match {
+        case Nil => Condition(AlwaysFalse)
+        case x :: Nil => x
+        case x :: xs => xs.foldLeft(x){(a, b) => a.copy(guard = AND(List(a.guard, b.guard)), action = a.action ++ b.action)}
+      }
     }
 
   }
