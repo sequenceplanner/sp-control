@@ -2,6 +2,8 @@ package spgui.widgets.vdtesting
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import sp.devicehandler.VD
+import sp.devicehandler.VD.OneToOneMapper
 import spgui.circuit.{SPGUICircuit, SetTheme}
 import spgui.SPWidget
 import spgui.components.Icon
@@ -107,30 +109,31 @@ object VDTracker {
           ^.onClick --> send(APIVDTracker.launchOpRunner(s.modelIdables)), "Launch operation runner"
         ),
         <.br(),
-        renderInfo("latest event", s.latestEvent, s.modelIdables),
+        renderInfo("Operation runner variables", s.latestEvent, s.modelIdables),
         <.br(),
-        renderInfo("latest ability state", s.latestAbilityState, s.modelIdables),
+        renderInfo("Ability state", s.latestAbilityState, s.modelIdables),
         <.br(),
-        renderInfo("latest VDevice state", s.latestVDeviceState, s.modelIdables),
+        renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables),
       )
 
 
-    def renderInfo(name : String, m: Map[ID , SPValue], ids : List[IDAble]) =
-      <.details( ^.open := "open", ^.className := Style.collapsible.htmlClass,
+    def renderInfo(name : String, m: Map[ID , SPValue], ids : List[IDAble]) = {
+      <.details(^.open := "open", ^.className := Style.collapsible.htmlClass,
         <.summary(name),
         <.table(
-          ^.className := "table table-striped", ^.className :="Table",
+          ^.className := "table table-striped", ^.className := "Table",
           <.tbody(
-            m.map(is =>{
+            m.map(is => {
               val cI = ids.filter(i => i.id == is._1)
               <.tr(
-                <.td(if(cI.nonEmpty) cI.head.name else ""),
+                <.td(if (cI.nonEmpty) cI.head.name else ""),
                 <.td(is._1.toString),
                 <.td(is._2.toString)
-              )}).toTagMod
-          )), <.br(),
+              )
+            }).toTagMod
+          )), <.br()
       ).when(m.nonEmpty)
-
+    }
 
     def onUnmount(): Callback =  {
       operationRunnerHandler.kill()

@@ -4,7 +4,7 @@ import akka.actor._
 import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler.VD.DriverStateMapper
 import sp.devicehandler._
-import sp.domain.Logic._
+import sp.domain.Logic.{makeStructNodes, _}
 import sp.domain._
 import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.drivers.{HumanDriver, ROSDriver, URDriver}
@@ -383,12 +383,14 @@ class UnificationDummyVDModel extends Actor with MessageBussSupport{
     val ops = resources.flatMap(_.abilities).map(APIAbilityHandler.abilityToOperation)
     val rIDable = resources.map(r => VD.resourceToThing(r.resource))
     val dIDable = resources.map(r => VD.driverToThing(r.driver))
+    val vars = resources.map(r=> r.vars).flatten
     val setup = setupToThing(setupRunner.setup)
 
-    val xs = rIDable ++ dIDable :+ setup
+    val xs = rIDable ++ dIDable ++ vars :+ setup
     val theVD = Struct(
       "TheVD",
       makeStructNodes(dIDable.map(StructWrapper): _*)
+        ++ makeStructNodes(vars.map(StructWrapper): _*)
         ++ makeStructNodes(rIDable.map(StructWrapper): _*)
         ++ makeStructNodes(ops.map(StructWrapper): _*)
         ++ makeStructNodes(List(setup).map(StructWrapper): _*),
