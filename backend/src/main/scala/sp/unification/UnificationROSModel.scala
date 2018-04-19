@@ -68,16 +68,7 @@ object UnificationROSModel {
   val moveToHome = {
     Operation(
       name = "moveToHome",
-      conditions =  List(
-        // part is not taken, move (do not need to book due to the zone)
-        makeCondition("pre",
-          s"${booked.id} == false",
-          s"${booked.id} := true")(vars),
-        makeCondition("post",
-          s"true",
-          s"${booked.id} := true")(vars),
-        makeCondition("reset", "true")(vars),
-
+      conditions =  sharedConds ++ List(
         // move the robot
         makeCondition("pre",
           s"${actPosOP.id} != URHomePos",
@@ -89,27 +80,28 @@ object UnificationROSModel {
   val moveToPickPos = {
     Operation(
       name = "moveToPickPos",
-      conditions =  List(
-        // part is not taken, move (do not need to book due to the zone)
-        makeCondition("pre",
-          s"${booked.id} == false",
-          s"${booked.id} := true")(vars),
-        makeCondition("post",
-          s"true",
-          s"${booked.id} := true")(vars),
-        makeCondition("reset", "true")(vars),
-
+      conditions =  sharedConds ++ List(
         // move the robot
         makeCondition("pre",
-          s"${actPosOP.id} != PickPos",
+          s"true",
           s"${refPosOP.id} := PickPos")(vars)
       )
     )
   }
 
+  def sharedConds = List(
+    makeCondition("pre",
+      s"${booked.id} == false",
+      s"${booked.id} := true")(vars),
+    makeCondition("post",
+      s"true",
+      s"${booked.id} := true")(vars),
+    makeCondition("reset", "true")(vars)
+  )
+
 
   val opRunner = APIOperationRunner.Setup(
-    name = "ROS UR",
+    name = "ROS_Runner",
     runnerID = ID.newID,
     ops = Set(moveToHome, moveToPickPos),
     opAbilityMap = Map(moveToHome.id -> command.id, moveToPickPos.id -> command.id),
@@ -199,14 +191,22 @@ class UnificationROSModel extends Actor with MessageBussSupport{
   def launchOpRunner(ids : List[IDAble])= {
 
     // Extract setup data from IDAbles
-    val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
-    val setupRunnerThings = things.filter(t => t.name == "setupRunnerAsThing")
+    val setupRunnerThings = ids.find{t =>
+      println(s"t: ${t.name}, isit: ${t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}")
+      t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}.map(_.asInstanceOf[Thing])
 
-    val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(setupRunnerThings.head))
+    println(setupRunnerThings)
 
-    //direct launch of operation runner
-    publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
-      SPHeader(from = "UnificationAbilities", to = APIOperationRunner.service), exSetupRunner))
+
+    setupRunnerThings.map{s =>
+      println("HOHO")
+      val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(s))
+
+      publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
+        SPHeader(from = "UnificationAbilities", to = APIOperationRunner.service), exSetupRunner))
+
+    }
+
   }
 
 

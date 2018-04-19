@@ -101,7 +101,13 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
       sender() ! "ack"
 
 
-    case "start" => println("The kafka consumer is running")
+    case "start" =>
+      println("The kafka consumer is running")
+      sendToKafka(SPAttributes(
+        "isa"->"GetState"
+      ))
+
+
     case "terminate" => println("The kafka consumer is dying")
 
 
@@ -154,13 +160,16 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
     // Setting up variables to check when the ros resource is updated
     reqHeader = Some(h)
 
-    // send to kafka
-    val msg = (SPAttributes(
+    sendToKafka(SPAttributes.make(state))
+
+  }
+
+  def sendToKafka(mess: SPAttributes) = {
+    val msg = SPAttributes(
       "receiver" -> resourceName
-    ) ++ SPAttributes.make(state))
+    ) ++ mess
 
     sendQueue.offer(msg)
-
   }
 
 

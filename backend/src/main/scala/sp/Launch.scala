@@ -21,11 +21,11 @@ object Launch extends App {
     val rosh = system.actorOf(sp.drivers.ROSDriver.props, "ROSDriverH")
     val humanH = system.actorOf(sp.drivers.HumanDriver.props, "HumanDriverH")
     system.actorOf(sp.runners.OperationRunner.props, "oprunnerH")
+    system.actorOf(sp.unification.UnificationROSModel.props, "UnificationROS")
 
 
   }
 
-  system.actorOf(sp.unification.UnificationROSModel.props, "UnificationAbilityMaker")
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
   cluster.leave(cluster.selfAddress)
 
