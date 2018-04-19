@@ -58,7 +58,8 @@ class VolvoSimDriverTest(_system: ActorSystem) extends TestKit(_system) with Imp
       val p = TestProbe()
       mediator ! Subscribe(APIDeviceDriver.topicResponse, p.ref)
       val cmd = APIDeviceDriver.DriverCommand(driverID,
-        Map("currentProgram"->"prog5"))
+        Map("currentProgram"->"prog5")
+      )
 
 
       p.fishForMessage(10 second){
@@ -67,15 +68,51 @@ class VolvoSimDriverTest(_system: ActorSystem) extends TestKit(_system) with Imp
           println(spmess)
 
           // The driver has started, send the command
-          spmess.map{ _.getBodyAs[APIDeviceDriver.Response].collect {
-              case l: APIDeviceDriver.TheDriver => sendMess(cmd, driverID)
-            }
-          }
+          spmess.flatMap{ _.getBodyAs[APIDeviceDriver.Response].collect {
+              case l: APIDeviceDriver.TheDriver =>
+                sendMess(cmd, driverID)
+                false
 
-          // The command was written to the dummy
-          spmess.flatMap{ _.getBodyAs[APIDeviceDriver.Request].collect {
-            case l: APIDeviceDriver.DriverCommandDone => l.requestID == driverID
-          }}.getOrElse(false)
+              case l: APIDeviceDriver.DriverCommandDone =>
+                l.requestID == driverID
+            }
+          }.getOrElse(false)
+
+
+      }
+    }
+
+    "running" in {
+      val driverID = ID.newID
+      val d = VD.Driver("test", driverID, DummyVolvoRobotDriver.driverType, SPAttributes())
+      val setup = APIDeviceDriver.SetUpDeviceDriver(d)
+      sendMess(setup)
+
+      val p = TestProbe()
+      mediator ! Subscribe(APIDeviceDriver.topicResponse, p.ref)
+      val cmd = APIDeviceDriver.DriverCommand(driverID,
+        Map("currentProgram"->"prog5")
+      )
+
+
+
+      var timeChanging = false
+      p.fishForMessage(10 second){
+        case x: String =>
+          val spmess = SPMessage.fromJson(x)
+          println(spmess)
+
+          // The driver has started, send the command
+          spmess.flatMap{ _.getBodyAs[APIDeviceDriver.Response].collect {
+              case l: APIDeviceDriver.TheDriver =>
+                sendMess(cmd, driverID)
+                false
+
+              case l: APIDeviceDriver.DriverCommandDone =>
+                l.requestID == driverID
+            }
+          }.getOrElse(false)
+
 
       }
     }

@@ -111,15 +111,10 @@ class DummyVolvoRobotDriverInstance(d: VD.Driver) extends Actor
       }
   }
 
-  // Keeping track of when the variables have been written to the dummy UR
-  // This can only handle one command at the time. If more is needed, this should
-  // be handled with another actor, an ask request or similar.
   var reqHeader: Option[SPHeader] = None
   var changed: Map[String, SPValue] = Map()
 
-  // Mapping from state to actual dummy UR api
   def handleCmd(cmd: Map[String, SPValue], h: SPHeader) = {
-    // Setting up variables to check when the dummyUR is updated
     reqHeader = Some(h)
     changed = cmd
 
