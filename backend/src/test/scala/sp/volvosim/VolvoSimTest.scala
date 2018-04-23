@@ -81,11 +81,11 @@ class VolvoSimTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
     "getting state" in {
       val p = TestProbe()
       val dummy = system.actorOf(DummyVolvoTransporter.props(p.ref,
-        TransportDefinition(10, List(Sensor(2, false), Sensor(8, false)))
+        TransportDefinition(10, List(Sensor("s1", 2, false), Sensor("s2", 8, false)))
       ))
 
       p.fishForMessage(10 second){
-        case TransporterState(b, false, s) =>
+        case TransporterState(b, false, s, _) =>
           true
         case x => println(x); false
       }
@@ -94,7 +94,7 @@ class VolvoSimTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
     "running transport" in {
       val p = TestProbe()
       val dummy = system.actorOf(DummyVolvoTransporter.props(p.ref,
-        TransportDefinition(10, List(Sensor(2, false), Sensor(8, false)))
+        TransportDefinition(10, List(Sensor("s1", 2, false), Sensor("s2", 8, false)))
       ))
 
       dummy ! StartTransport()
@@ -102,10 +102,10 @@ class VolvoSimTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       var track = 0
 
       p.fishForMessage(10 second){
-        case x @ TransporterState(_, false, _) =>
+        case x @ TransporterState(_, false, _, _) =>
           println(x)
           false
-        case x @ TransporterState(_, true, _) =>
+        case x @ TransporterState(_, true, _, _) =>
           println(x)
           track = 1
           true
@@ -119,7 +119,7 @@ class VolvoSimTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
     "running transport with car" in {
       val p = TestProbe()
       val dummy = system.actorOf(DummyVolvoTransporter.props(p.ref,
-        TransportDefinition(10, List(Sensor(4, false), Sensor(6, false)))
+        TransportDefinition(10, List(Sensor("s", 4, false), Sensor("s", 6, false)))
       ))
 
       dummy ! StartTransport()
@@ -128,7 +128,7 @@ class VolvoSimTest(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       var track = 0
 
       p.fishForMessage(10 second){
-        case x @ TransporterState(b, true, _) =>
+        case x @ TransporterState(b, true, _, _) =>
           println(x)
           false
 

@@ -37,6 +37,8 @@ class VolvoSimDriverTest(_system: ActorSystem) extends TestKit(_system) with Imp
 
   override def beforeAll: Unit = {
       val handler = system.actorOf(DummyVolvoRobotDriver.props)
+      val handler2 = system.actorOf(VolvoTransportSimulationDriver.props)
+      val handler3 = system.actorOf(VolvoPressureSimulationDriver.props)
 
   }
 
@@ -49,39 +51,6 @@ class VolvoSimDriverTest(_system: ActorSystem) extends TestKit(_system) with Imp
 
 
   "DummyURDriverRuntime" - {
-    "initial creation" in {
-      val driverID = ID.newID
-      val d = VD.Driver("test", driverID, DummyVolvoRobotDriver.driverType, SPAttributes())
-      val setup = APIDeviceDriver.SetUpDeviceDriver(d)
-      sendMess(setup)
-
-      val p = TestProbe()
-      mediator ! Subscribe(APIDeviceDriver.topicResponse, p.ref)
-      val cmd = APIDeviceDriver.DriverCommand(driverID,
-        Map("currentProgram"->"prog5")
-      )
-
-
-      p.fishForMessage(10 second){
-        case x: String =>
-          val spmess = SPMessage.fromJson(x)
-          println(spmess)
-
-          // The driver has started, send the command
-          spmess.flatMap{ _.getBodyAs[APIDeviceDriver.Response].collect {
-              case l: APIDeviceDriver.TheDriver =>
-                sendMess(cmd, driverID)
-                false
-
-              case l: APIDeviceDriver.DriverCommandDone =>
-                l.requestID == driverID
-            }
-          }.getOrElse(false)
-
-
-      }
-    }
-
     "running" in {
       val driverID = ID.newID
       val d = VD.Driver("test", driverID, DummyVolvoRobotDriver.driverType, SPAttributes())
@@ -96,7 +65,121 @@ class VolvoSimDriverTest(_system: ActorSystem) extends TestKit(_system) with Imp
 
 
 
-      var timeChanging = false
+      var done = false
+      p.fishForMessage(10 second){
+        case x: String =>
+          val spmess = SPMessage.fromJson(x)
+          println("robot: " + spmess)
+
+          // The driver has started, send the command
+          spmess.flatMap{ _.getBodyAs[APIDeviceDriver.Response].collect {
+              case l: APIDeviceDriver.TheDriver if l.x.id == driverID =>
+                sendMess(cmd, driverID)
+                false
+
+              case l: APIDeviceDriver.DriverCommandDone if l.requestID == driverID =>
+                done = true
+                false
+
+              case l: APIDeviceDriver.DriverStateChange if l.id == driverID =>
+                done && 3 <= l.state.get("currentTime").flatMap(_.asOpt[Int]).getOrElse(-1)
+
+          }
+          }.getOrElse(false)
+
+      }
+
+
+    }
+
+
+  }
+
+  "SimulationTransportDriverTest" - {
+
+    "running" in {
+      val driverID = ID.newID
+      val d = VD.Driver(
+        "test",
+        driverID,
+        VolvoTransportSimulationDriver.driverType,
+        SPAttributes(
+          "length" -> 30,
+          "sensors" -> List(Sensor("s1", 5, false), Sensor("s2", 25, false))
+        )
+      )
+
+      val setup = APIDeviceDriver.SetUpDeviceDriver(d)
+      sendMess(setup)
+
+      val p = TestProbe()
+      mediator ! Subscribe(APIDeviceDriver.topicResponse, p.ref)
+      val cmd = APIDeviceDriver.DriverCommand(driverID,
+        Map(
+          "start"->true,
+          "newBodyID" -> "b1",
+          "newBodyLength" -> 10
+        )
+      )
+
+
+
+      var done = false
+      p.fishForMessage(10 second){
+        case x: String =>
+          val spmess = SPMessage.fromJson(x)
+          println("transport: " + spmess)
+
+          // The driver has started, send the command
+          spmess.flatMap{ _.getBodyAs[APIDeviceDriver.Response].collect {
+              case l: APIDeviceDriver.TheDriver  if l.x.id == driverID =>
+                sendMess(cmd, driverID)
+                false
+
+              case l: APIDeviceDriver.DriverCommandDone if l.requestID == driverID =>
+                done = true
+                false
+
+              case l: APIDeviceDriver.DriverStateChange if l.id == driverID =>
+                done && l.state.get("s1").flatMap(_.asOpt[Boolean]).getOrElse(false)
+
+            }
+          }.getOrElse(false)
+
+        case x => println(x); false
+
+
+      }
+    }
+
+
+  }
+
+
+  "SimulationPressureDriverTest" - {
+    "running" in {
+      val driverID = ID.newID
+      val d = VD.Driver(
+        "test",
+        driverID,
+        VolvoPressureSimulationDriver.driverType,
+        SPAttributes()
+      )
+
+      val setup = APIDeviceDriver.SetUpDeviceDriver(d)
+      sendMess(setup)
+
+      val p = TestProbe()
+      mediator ! Subscribe(APIDeviceDriver.topicResponse, p.ref)
+      val cmd = APIDeviceDriver.DriverCommand(driverID,
+        Map(
+          "ref"->3
+        )
+      )
+
+
+
+      var done = false
       p.fishForMessage(10 second){
         case x: String =>
           val spmess = SPMessage.fromJson(x)
@@ -104,14 +187,23 @@ class VolvoSimDriverTest(_system: ActorSystem) extends TestKit(_system) with Imp
 
           // The driver has started, send the command
           spmess.flatMap{ _.getBodyAs[APIDeviceDriver.Response].collect {
-              case l: APIDeviceDriver.TheDriver =>
-                sendMess(cmd, driverID)
-                false
+            case l: APIDeviceDriver.TheDriver  if l.x.id == driverID =>
+              sendMess(cmd, driverID)
+              false
 
-              case l: APIDeviceDriver.DriverCommandDone =>
-                l.requestID == driverID
+            case l: APIDeviceDriver.DriverCommandDone if l.requestID == driverID =>
+              done = true
+              false
+
+              case l: APIDeviceDriver.DriverStateChange if l.id == driverID =>
+                val res = l.state.get("act").flatMap(_.asOpt[Int]).getOrElse(-1)
+                val res2 = l.state.get("atRef").flatMap(_.asOpt[Boolean]).getOrElse(false)
+                done && res == 3 && res2
+
             }
           }.getOrElse(false)
+
+        case x => println(x); false
 
 
       }

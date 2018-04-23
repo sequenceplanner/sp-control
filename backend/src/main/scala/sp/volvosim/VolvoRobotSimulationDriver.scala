@@ -167,3 +167,55 @@ class DummyVolvoRobotDriverInstance(d: VD.Driver) extends Actor
 
 
 }
+
+
+
+
+case class DummyVolvoRobotState(
+                                 currentProgram : String,
+                                 currentTime : Int,
+                                 eStop : Boolean,
+                                 homePosition : Boolean
+                               )
+
+case class DummyVolvoRobotStartProgram(prog: String)
+
+
+
+class DummyVolvoRobot(replyTo: ActorRef, robotprogram:Map[String, Int]) extends Actor with ActorLogging {
+  var state = DummyVolvoRobotState("", 0, false, true)
+
+  def receive = {
+    case DummyVolvoRobotStartProgram(prog) if state.currentProgram.isEmpty && robotprogram.contains(prog) =>
+      println(s"Vi fick $prog")
+      state = state.copy(currentProgram = prog)
+      replyTo ! state
+
+    case "tick" =>
+      if (state.currentProgram.nonEmpty) {
+        state = state.copy(currentTime = state.currentTime + 1)
+
+        println(s"vårt state $state")
+
+        if (robotprogram.get(state.currentProgram).exists(_ <= state.currentTime)){
+          state = state.copy(currentProgram = "")
+          state = state.copy(currentTime = 0)
+          println(s"vårt state nu $state")
+        }
+
+      }
+      // sending the state of the robot every tick
+      replyTo ! state
+  }
+
+  // A "ticker" that sends a "tick" string to self every 0.2 second
+  import context.dispatcher
+
+  import scala.concurrent.duration._
+  val ticker = context.system.scheduler.schedule(0 seconds, 1 seconds, self, "tick")
+}
+
+
+object DummyVolvoRobot {
+  def props(replyTo: ActorRef, programs: Map[String, Int]) = Props(classOf[DummyVolvoRobot], replyTo, programs)
+}
