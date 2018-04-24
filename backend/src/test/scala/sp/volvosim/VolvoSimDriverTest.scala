@@ -27,8 +27,8 @@ class VolvoSimDriverTest(_system: ActorSystem) extends TestKit(_system) with Imp
       |akka.loglevel = "INFO"
       |akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
       |akka.remote.netty.tcp.hostname="127.0.0.1"
-      |akka.remote.netty.hostname.port=2551
-      |akka.cluster.seed-nodes=["akka.tcp://SP@127.0.0.1:2551"]
+      |akka.remote.netty.hostname.port=2559
+      |akka.cluster.seed-nodes=["akka.tcp://SP@127.0.0.1:2559"]
     """.stripMargin)))
 
   val mediator = DistributedPubSub(system).mediator

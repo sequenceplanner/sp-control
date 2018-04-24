@@ -4,6 +4,7 @@ import akka.actor._
 import sp.example._
 import sp.modelImport._
 import sp.virtcom._
+
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -17,11 +18,17 @@ object Launch extends App {
     sp.SPCore.launch(system)
     system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
     system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
-    val dh = system.actorOf(sp.drivers.URDriver.props, "URDriverH")
-    val rosh = system.actorOf(sp.drivers.ROSDriver.props, "ROSDriverH")
-    val humanH = system.actorOf(sp.drivers.HumanDriver.props, "HumanDriverH")
     system.actorOf(sp.runners.OperationRunner.props, "oprunnerH")
-    system.actorOf(sp.unification.UnificationROSModel.props, "UnificationROS")
+//    val dh = system.actorOf(sp.drivers.URDriver.props, "URDriverH")
+//    val rosh = system.actorOf(sp.drivers.ROSDriver.props, "ROSDriverH")
+//    val humanH = system.actorOf(sp.drivers.HumanDriver.props, "HumanDriverH")
+//    system.actorOf(sp.unification.UnificationROSModel.props, "UnificationROS")
+
+    import sp.volvosim._
+    system.actorOf(DummyVolvoRobotDriver.props)
+    system.actorOf(VolvoTransportSimulationDriver.props)
+    system.actorOf(VolvoPressureSimulationDriver.props)
+    system.actorOf(VolvoSimModel.props, "VolvoSimMaker")
 
 
   }
