@@ -2,35 +2,37 @@ package sp.unification
 
 import akka.actor._
 import sp.abilityhandler.APIAbilityHandler
+import sp.devicehandler.VD.DriverStateMapper
 import sp.devicehandler._
-import sp.domain.Logic._
+import sp.domain.Logic.{makeStructNodes, _}
 import sp.domain._
 import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.drivers.{HumanDriver, ROSDriver, URDriver}
 import sp.models.{APIModel, APIModelMaker}
 import sp.runners._
 import sp.service.MessageBussSupport
+import sp.vdtesting.APIVDTracker
 
 import scala.concurrent.duration._
 
 
-  // Some support classes
-  case class RobotOperations(ops: List[Operation],
-                             vars: List[Thing],
-                             init: Map[ID, SPValue],
-                             refID: ID,
-                             current: ID,
-                             activateID: ID
-                            )
-  case class ResourceAndAbilities(abilities: List[APIAbilityHandler.Ability],
-                                  resource: VD.Resource,
-                                  driver: VD.Driver,
-                                  vars: List[Thing],
-                                  moveToID: ID,
-                                  refID: ID,
-                                  currentID: ID,
-                                  activateID: ID
-                                 )
+// Some support classes
+case class RobotOperations(ops: List[Operation],
+                           vars: List[Thing],
+                           init: Map[ID, SPValue],
+                           refID: ID,
+                           current: ID,
+                           activateID: ID
+                          )
+case class ResourceAndAbilities(abilities: List[APIAbilityHandler.Ability],
+                                resource: VD.Resource,
+                                driver: VD.Driver,
+                                vars: List[Thing],
+                                moveToID: ID,
+                                refID: ID,
+                                currentID: ID,
+                                activateID: ID
+                               )
 object UnificationDummyVDModel {
   def props = Props(classOf[UnificationDummyVDModel])
 
@@ -126,8 +128,6 @@ object UnificationDummyVDModel {
       current = current.id,
       activateID = actOp.id
     )
-
-
   }
 
   // Setting up the hard coded mapping between operations and abilities
@@ -157,7 +157,6 @@ object UnificationDummyVDModel {
     variableMap = mappingOperationsAndAbilities.flatMap(_._2).toMap ++ humanVMap,
     abilityParameters = mappingOperationsAndAbilities.flatMap(_._3).toMap ++ humanParam
   ))
-
 
 
 
@@ -315,146 +314,152 @@ class UnificationDummyVDModel extends Actor with MessageBussSupport{
 
   subscribe(APIModel.topicResponse)
   subscribe(APIModelMaker.topicResponse)
-
+  subscribe(APIVDTracker.topicRequest)
 
 
   import UnificationDummyVDModel._
 
 
 
+  def launchVDAbilities(ids : List[IDAble])= {
 
-   //Direct launch of the VD and abilities below
-  val vdID = ID.newID
-  val abID = ID.newID
+    // Extract model data from IDAbles
+    val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
+    val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
+    val rTmp = things.filter(t => t.attributes.keys.contains("stateMap"))
+    val setupRunnerThings = things.filter(t => t.name == "setupRunnerAsThing")
 
-  publish(APIVirtualDevice.topicRequest,
-    SPMessage.makeJson(
-      SPHeader(from = "UnificationAbilities"),
-      APIVirtualDevice.SetUpVD(
-        name = "UnificationVD",
-        id = vdID,
-        resources = resources.map(_.resource),
-        drivers = resources.map(_.driver),
-        attributes = SPAttributes()
-      )))
+    val exAbilities = ops.flatMap(o=> APIAbilityHandler.operationToAbility(o))
+    val exResorces = rTmp.map(t => VD.thingToResource(t))
+    val exDrivers = things.diff(rTmp).diff(setupRunnerThings).map(t=> VD.thingToDriver(t))
+    val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(setupRunnerThings.head))
 
-  publish(APIAbilityHandler.topicRequest,
-    SPMessage.makeJson(
-      SPHeader(from = "UnificationAbilities"),
-      APIAbilityHandler.SetUpAbilityHandler(
-        name = "UnificationAbilites",
-        id = abID,
-        abilities = resources.flatMap(_.abilities),
-        vd = vdID
-      )))
+    //Direct launch of the VD and abilities below
+    val vdID = ID.newID
+    val abID = ID.newID
+
+    publish(APIVirtualDevice.topicRequest,
+      SPMessage.makeJson(
+        SPHeader(from = "UnificationAbilities"),
+        APIVirtualDevice.SetUpVD(
+          name = "UnificationVD",
+          id = vdID,
+          exResorces, //= resources.map(_.resource),
+          exDrivers, // = resources.map(_.driver),
+          attributes = SPAttributes()
+        )))
+
+    publish(APIAbilityHandler.topicRequest,
+      SPMessage.makeJson(
+        SPHeader(from = "UnificationAbilities"),
+        APIAbilityHandler.SetUpAbilityHandler(
+          name = "UnificationAbilites",
+          id = abID,
+          exAbilities,
+          vd = vdID
+        )))
+  }
+
+  def launchOpRunner(ids : List[IDAble])= {
+
+    // Extract setup data from IDAbles
+    val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
+    val setupRunnerThings = things.filter(t => t.name == "setupRunnerAsThing")
+
+    val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(setupRunnerThings.head))
+
+    //direct launch of operation runner
+    publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
+      SPHeader(from = "UnificationAbilities", to = APIOperationRunner.service), exSetupRunner))
+  }
 
 
-     //direct launch of operation runner
-  publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
-    SPHeader(from = "UnificationAbilities", to=APIOperationRunner.service), setupRunner))
+  def saveModel() = {
+
+    //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
+
+    val cm = sp.models.APIModelMaker.CreateModel("unificationVD", SPAttributes("isa" -> "VD"))
+
+    val ops = resources.flatMap(_.abilities).map(APIAbilityHandler.abilityToOperation)
+    val rIDable = resources.map(r => VD.resourceToThing(r.resource))
+    val dIDable = resources.map(r => VD.driverToThing(r.driver))
+    val vars = resources.map(r=> r.vars).flatten
+    val setup = setupToThing(setupRunner.setup)
+
+    val xs = rIDable ++ dIDable ++ vars :+ setup
+    val theVD = Struct(
+      "TheVD",
+      makeStructNodes(dIDable.map(StructWrapper): _*)
+        ++ makeStructNodes(vars.map(StructWrapper): _*)
+        ++ makeStructNodes(rIDable.map(StructWrapper): _*)
+        ++ makeStructNodes(ops.map(StructWrapper): _*)
+        ++ makeStructNodes(List(setup).map(StructWrapper): _*),
+
+      SPAttributes("isa" -> "VD")
+    )
+
+    val addItems = APIModel.PutItems(theVD :: ops ++ xs, SPAttributes("info" -> "initial items"))
+
+    context.system.scheduler.scheduleOnce(1 seconds) {
+      publish(
+        APIModelMaker.topicRequest,
+        SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm)
+      )
+    }
+
+    context.system.scheduler.scheduleOnce(1.1 seconds) {
+      publish(
+        APIModel.topicRequest,
+        SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems)
+      )
+    }
+  }
 
 
-
-
-
-
-
-
-
-  // val VDModel = Struct(
-  //   "VD",
-  //   // resources.flatMap(_.abilities).map(APIAbilityHandler.abilityToOperation).map(
-  //   //   op => StructNode(
-  //   //       stuff here
-  //   //   )
-  //   ),
-  //   SPAttributes("isa" -> "VD")
-
-  val ops = resources.flatMap(_.abilities).map(APIAbilityHandler.abilityToOperation)
-  val cm = sp.models.APIModelMaker.CreateModel("unificationVD", SPAttributes("isa"->"VD"))
-
-  val rIDable = resources.map(r => VD.resourceToThing(r.resource))
-  val dIDable = resources.map(r => VD.driverToThing(r.driver))
-
-  val xs = rIDable ++ dIDable
-  val theVD = Struct(
-    "TheVD",
-     makeStructNodes(dIDable.map(StructWrapper):_*)
-     ++ makeStructNodes(rIDable.map(StructWrapper):_*)
-     ++ makeStructNodes(ops.map(StructWrapper):_*),
-
-    SPAttributes("isa"->"VD")
-  )
-
-  val addItems = APIModel.PutItems(theVD ::  ops ++ xs , SPAttributes("info"->"initial items"))
-  
-  context.system.scheduler.scheduleOnce(1 seconds){
-    println("GOO")
-    publish(
-      APIModelMaker.topicRequest,
-      SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm)
+  def setupToThing(setup : APIOperationRunner.Setup): Thing = {
+    Thing(
+      name = "setupRunnerAsThing",
+      id = ID.newID,
+      attributes = SPAttributes(
+        "name" -> setup.name,
+        "runnerID" -> setup.runnerID,
+        "ops" -> setup.ops,
+        "opAbilityMap" -> setup.opAbilityMap,
+        "initialState" -> setup.initialState,
+        "variableMap" -> setup.variableMap,
+        "abilityParameters" -> setup.abilityParameters.toList
+      )
     )
   }
 
-  context.system.scheduler.scheduleOnce(1.1 seconds){
-    println("Goo 2")
-    publish(
-      APIModel.topicRequest,
-      SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems)
-    )
+  def thingToSetup(thing : Thing): APIOperationRunner.Setup = {
+    val name = thing.attributes.getAs[String]("name").getOrElse("")
+    val runnerID = thing.attributes.getAs[ID]("runnerID").getOrElse(ID.newID)
+    val ops = thing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
+    val opAbilityMap = thing.attributes.getAs[Map[ID,ID]]("opAbilityMap").getOrElse(Map())
+    val initialState = thing.attributes.getAs[Map[ID,SPValue]]("initialState").getOrElse(Map())
+    val variableMap = thing.attributes.getAs[Map[ID,ID]]("variableMap").getOrElse(Map())
+    val abilityParameters = thing.attributes.getAs[List[(ID,Set[ID])]]("abilityParameters").getOrElse(List()).toMap
+    APIOperationRunner.Setup(name, runnerID,ops,opAbilityMap,initialState,variableMap,abilityParameters)
   }
 
-  
-
-
-  // Setting up the model
-  // Fix this soon
-  //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
-  // creating a model here
-
-  //  val ops = abs.map(APIAbilityHandler.abilityToOperation)
-  //  val rIDable = VD.resourceToThing(resource)
-  //  val dIDAble = VD.driverToThing(driver)
-  //  val xs = things ++ List(rIDable, dIDAble)
-  //  val theVD = Struct(
-  //    "TheVD",
-  //    makeStructNodes(
-  //      rIDable.children(
-  //        refPos, active, hasTool, currentPos
-  //      ),
-  //      dIDAble.children()
-  //    ) ++ makeStructNodes(ops.map(StructWrapper):_*),
-  //    SPAttributes("isa"->"VD")
-  //  )
-  //  // Probably add it to a struct as well
-  //
-  //  val cm = sp.models.APIModelMaker.CreateModel("unificationVD", SPAttributes("isa"->"VD"))
-  //  val addItems = APIModel.PutItems(theVD :: ops ++ xs , SPAttributes("info"->"initial items"))
-
-
-
-  //  context.system.scheduler.scheduleOnce(1 seconds){
-  //    println("GOO")
-  //    publish(APIModelMaker.topicRequest, SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm))
-  //  }
-  //  context.system.scheduler.scheduleOnce(1.1 seconds){
-  //    println("Goo 2")
-  //    publish(APIModel.topicRequest,SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems))}
-
-
-
-
-
-
-
-
-
-
-
-
-  // Not doing anything, creates the model on startup
   def receive = {
-    case x => //println("Ability creation for unification got: "+x)
+    case s : String =>
+      for { // unpack message
+        mess <- SPMessage.fromJson(s)
+        h <- mess.getHeaderAs[SPHeader] if  h.to == APIVDTracker.service
+        b <- mess.getBodyAs[APIVDTracker.Request]
+      } yield {
+        var spHeader = h.swapToAndFrom
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
+        b match { // Check if the body is any of the following classes, and execute program
+          case APIVDTracker.createModel(modelID) => saveModel()
+          case APIVDTracker.launchVDAbilities(idables) => launchVDAbilities(idables)
+          case APIVDTracker.launchOpRunner(idables) => launchOpRunner(idables)
+        }
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
+      }
   }
+  def sendAnswer(mess: String) = publish(APIVDTracker.topicResponse, mess)
 
 }

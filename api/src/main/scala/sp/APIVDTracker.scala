@@ -12,13 +12,15 @@ object APIVDTracker {
   val topicRequest = "VDTrackerRequests"
   val topicResponse = "VDTrackerResponse"
 
-  case class helloRequest( requestMessage:String) extends Request
-  case class helloResponse( responseMessage: String) extends Response
+  case class createModel(id :ID = ID.newID) extends  Request
+  case class launchVDAbilities(idables : List[IDAble]) extends  Request
+  case class launchOpRunner(idables : List[IDAble]) extends  Request
 
 
   object Formats {
-    implicit val fHelloRequest: JSFormat[helloRequest] = Json.format[helloRequest]
-    implicit val fHelloResponse: JSFormat[helloResponse] = Json.format[helloResponse]
+    implicit val fcreateModel: JSFormat[createModel] = Json.format[createModel]
+    implicit val flaunchVDAbilities: JSFormat[launchVDAbilities] = Json.format[launchVDAbilities]
+    implicit val flaunchOpRunner: JSFormat[launchOpRunner] = Json.format[launchOpRunner]
 
     def fExampleServiceRequest: JSFormat[Request] = Json.format[Request]
     def fExampleServiceResponse: JSFormat[Response] = Json.format[Response]
