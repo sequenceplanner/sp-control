@@ -25,11 +25,38 @@ object VolvoSimModel {
   val eStop = Thing("eStop")
   val homePosition = Thing("homePosition")
 
+
+  // a transport
+  val running = Thing("running")
+  val start = Thing("start")
+  val b1 = Thing("b1") // body b1 (hårdkodar en body)
+  val s1 = Thing("s1") // sensor s1
+  val s2 = Thing("s2") // sensor s2
+  val newBodyID = Thing("newBodyID")
+  val newBodyLength = Thing("newBodyLength")
+
+
+  // pressure
+  val act = Thing("act")
+  val ref = Thing("ref")
+  val atRef = Thing("atRef")
+  
+
   val theThings: List[Thing] = List(
     currentProgram,
     currentTime,
     eStop,
-    homePosition
+    homePosition,
+    running,
+    start,
+    b1,
+    s1,
+    s2,
+    newBodyID,
+    newBodyLength,
+    act,
+    ref,
+    atRef
   )
   val ids: Set[ID] = theThings.map(_.id).toSet
 
@@ -40,7 +67,7 @@ object VolvoSimModel {
     OneToOneMapper(t.id, driver.id, t.name)
   )
 
-  val resource = VD.Resource("VolvoSimulatedRobot", ID.newID, ids, driverResourceMapper, SPAttributes())
+  val resource = VD.Resource("VolvoSimulated", ID.newID, ids, driverResourceMapper, SPAttributes())
 
 
   // The ability hardcoded prog (this is so we can test by running abilities).
