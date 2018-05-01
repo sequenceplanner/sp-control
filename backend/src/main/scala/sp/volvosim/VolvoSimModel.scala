@@ -29,7 +29,8 @@ object VolvoSimModel {
   // a transport
   val running = Thing("running")
   val start = Thing("start")
-  val b1 = Thing("b1") // body b1 (hårdkodar en body)
+  val bodyID = Thing("bodyID") // body b1 (hårdkodar en body)
+  val bodyPos = Thing("bodyPos") // body b1 (hårdkodar en body)
   val s1 = Thing("s1") // sensor s1
   val s2 = Thing("s2") // sensor s2
   val newBodyID = Thing("newBodyID")
@@ -42,37 +43,78 @@ object VolvoSimModel {
   val atRef = Thing("atRef")
   
 
-  val theThings: List[Thing] = List(
-    currentProgram,
-    currentTime,
-    eStop,
-    homePosition,
-    running,
-    start,
-    b1,
-    s1,
-    s2,
-    newBodyID,
-    newBodyLength,
-    act,
-    ref,
-    atRef
+  val robdriver = VD.Driver("volvoSimulatedRobotDriver", ID.newID, DummyVolvoRobotDriver.driverType, SPAttributes())
+  val transpdriver = VD.Driver("volvoSimulatedTransportDriver", ID.newID, VolvoTransportSimulationDriver.driverType, SPAttributes())
+  val pressdriver = VD.Driver("volvoSimulatedPressureDriver", ID.newID, VolvoPressureSimulationDriver.driverType, SPAttributes())
+  val drivers = List(robdriver, transpdriver, pressdriver)
+
+  val theThingsMap: Map[Thing, ID] = Map(
+    currentProgram -> robdriver.id,
+    currentTime -> robdriver.id,
+    eStop -> robdriver.id,
+    homePosition -> robdriver.id,
+    running -> transpdriver.id,
+    start -> transpdriver.id,
+    bodyID -> transpdriver.id,
+    bodyPos -> transpdriver.id,
+    s1 -> transpdriver.id,
+    s2 -> transpdriver.id,
+    newBodyID -> transpdriver.id,
+    newBodyLength -> transpdriver.id,
+    act -> pressdriver.id,
+    ref -> pressdriver.id,
+    atRef -> pressdriver.id
   )
+  val theThings = theThingsMap.keySet.toList
   val ids: Set[ID] = theThings.map(_.id).toSet
 
-  val driver = VD.Driver("volvoSimulatedRobotDriver", ID.newID, DummyVolvoRobotDriver.driverType, SPAttributes())
 
-  val driverResourceMapper = theThings.map(t =>
+  val driverResourceMapper = theThingsMap.map { case (t, d) =>
     // Must have the same name as the state
-    OneToOneMapper(t.id, driver.id, t.name)
-  )
+    OneToOneMapper(t.id, d, t.name)
+  }.toList
 
   val resource = VD.Resource("VolvoSimulated", ID.newID, ids, driverResourceMapper, SPAttributes())
 
 
   // The ability hardcoded prog (this is so we can test by running abilities).
   // Change so the ability expect the prog name later
-  val command = APIAbilityHandler.Ability(
+  val transportStart = APIAbilityHandler.Ability(
+    name = s"transport.start",
+    parameters = List(),
+    preCondition = makeCondition(
+      "pre",
+      "!start",
+      "start := true")(theThings),
+    started = makeCondition("started",s"running")(theThings),
+    postCondition = makeCondition("post", "running")(theThings),
+    resetCondition = makeCondition("reset", "true")(theThings)
+  )
+  val transportStop = APIAbilityHandler.Ability(
+    name = s"transport.stop",
+    parameters = List(),
+    preCondition = makeCondition(
+      "pre",
+      "start",
+      "start := false")(theThings),
+    started = makeCondition("started",s"!running")(theThings),
+    postCondition = makeCondition("post", "!running")(theThings),
+    resetCondition = makeCondition("reset", "true")(theThings)
+  )
+
+  val transportAddNewCarB1 = APIAbilityHandler.Ability(
+    name = s"transport.newCar",
+    parameters = List(),
+    preCondition = makeCondition(
+      kind = "pre",
+      guard = "true",
+      actions = s"newBodyID := b1", "newBodyLength := 10")(theThings),
+    started = makeCondition("started",s"newBodyID == b1")(theThings),
+    postCondition = makeCondition("post", "true")(theThings),
+    resetCondition = makeCondition("reset", "true")(theThings)
+  )
+
+  val robotProg = APIAbilityHandler.Ability(
     name = s"robot.prog",
     parameters = List(),
     preCondition = makeCondition(
@@ -83,6 +125,9 @@ object VolvoSimModel {
     postCondition = makeCondition("post", "currentTime == 0")(theThings),
     resetCondition = makeCondition("reset", "true")(theThings)
   )
+
+
+  val commands = List(transportStart, transportStop, transportAddNewCarB1, robotProg)
 
 
 
@@ -183,26 +228,26 @@ class VolvoSimModel extends Actor with MessageBussSupport{
 
     val cm = sp.models.APIModelMaker.CreateModel("VolvoSimulationVD", SPAttributes("isa" -> "VD"))
 
-    val ops = APIAbilityHandler.abilityToOperation(command)
+    val ops = commands.map(APIAbilityHandler.abilityToOperation)
     val rIDable = VD.resourceToThing(resource)
-    val dIDable = VD.driverToThing(driver)
+    val dIDable = drivers.map(VD.driverToThing)
     val stateVars = theThings.map(StructWrapper)
     //val setup = setupToThing(opRunner)
 
     val theVD = Struct(
       "TheVD",
+      makeStructNodes(ops.map(StructWrapper):_*) ++
+      makeStructNodes(dIDable.map(StructWrapper):_*) ++
       makeStructNodes(
-        ops,
         rIDable.children(
           stateVars:_*
-        ),
-        dIDable
+        )
       ) ,
       SPAttributes("isa" -> "VD")
     )
-    val xs = List(rIDable, dIDable, ops) ++ theThings
+    val xs = rIDable :: dIDable ++ ops ++ theThings
 
-    val addItems = APIModel.PutItems(theVD :: List(ops) ++ xs, SPAttributes("info" -> "initial items"))
+    val addItems = APIModel.PutItems(theVD :: xs, SPAttributes("info" -> "initial items"))
 
     context.system.scheduler.scheduleOnce(0.1 seconds) {
       publish(

@@ -165,7 +165,14 @@ class VolvoTransportSimulationInstance(d: VD.Driver) extends Actor
   def stateToMap(state: TransporterState): Map[String, SPValue] = {
 
     val sensors = state.sensorList.map(s => s.id -> SPValue(s.active)).toMap
-    val bodies = state.bodies.map(b => b._1 -> SPValue(b._2.frontPos))
+
+    val getB = if (state.bodies.isEmpty)
+      Map("empty" -> BodyTracker("empty", -1, -1))
+    else state.bodies
+    
+    val bodies = getB.flatMap{b =>
+      Map("bodyID" -> SPValue(b._1), "bodyPos"->SPValue(b._2.frontPos))
+    }
 
     sensors ++ bodies ++  Map[String, SPValue](
       "running" -> state.run,
