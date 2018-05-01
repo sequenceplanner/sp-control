@@ -52,7 +52,7 @@ class Unification extends Actor with MessageBussSupport{
     val rTmp = things.filter(t => t.attributes.keys.contains("stateMap"))
     val setupRunnerThings = things.filter(t => t.name == "setupRunnerAsThing")
 
-    val exAbilities = ops.map(o=> APIAbilityHandler.operationToAbility(o))
+    val exAbilities = ops.map(o=> APIAbilityHandler.operationToAbility(o)).flatten
     val exResorces = rTmp.map(t => VD.thingToResource(t))
     val exDrivers = things.diff(rTmp).diff(setupRunnerThings).map(t=> VD.thingToDriver(t))
     val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(setupRunnerThings.head))
