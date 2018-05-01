@@ -4,6 +4,7 @@ import akka.actor._
 import sp.example._
 import sp.modelImport._
 import sp.virtcom._
+
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -21,13 +22,11 @@ object Launch extends App {
     //val rosh = system.actorOf(sp.drivers.ROSDriver.props, "ROSDriverH")
     val humanH = system.actorOf(sp.drivers.HumanDriver.props, "HumanDriverH")
     system.actorOf(sp.runners.OperationRunner.props, "oprunnerH")
-
-
   }
 
-  scala.io.StdIn.readLine("Press ENTER to run model\n")
-  system.actorOf(sp.unification.UnificationDummyVDModel.props, "UnificationAbilityMaker")
-
+  //scala.io.StdIn.readLine("Press ENTER to run model\n")
+  system.actorOf(sp.unification.Unification.props, "Unification")
+  sp.unification.UnificationModelsLaunch.launchModels
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
   cluster.leave(cluster.selfAddress)

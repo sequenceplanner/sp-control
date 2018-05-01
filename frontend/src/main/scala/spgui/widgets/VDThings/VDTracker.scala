@@ -6,7 +6,6 @@ import sp.devicehandler.VD
 import sp.devicehandler.VD.OneToOneMapper
 import spgui.circuit.{SPGUICircuit, SetTheme}
 import spgui.SPWidget
-import spgui.components.Icon
 import spgui.components.{SPWidgetElements => Comp}
 import spgui.communication._
 import sp.domain.SPAttributes._
@@ -18,26 +17,28 @@ import scalajs.js._
 import sp.domain._
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.models.{APIModel => mapi}
-import sp.vdtesting.APIVDTracker
+import sp.unification.APIUnification
 import spgui.widgets.virtcom.Style
+import spgui.widgets.virtcom.dropdownWithScroll.dropdownWScroll
 
 object VDTracker {
-  //import sp.devicehandler._
-  import sp.devicehandler.APIDeviceDriver
   import sp.runners.APIOperationRunner
   import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.APIVirtualDevice
 
-  case class State(latestEvent: Map[ID, SPValue] = Map(),
+
+  case class State(modelNames : Set[String] = Set(), // names of models that can be created
+                   latestEvent: Map[ID, SPValue] = Map(),
                    latestAbilityState: Map[ID, SPValue] = Map(),
                    latestVDeviceState: Map[ID, SPValue] = Map(),
-                   modelIdables : List[IDAble] = List(),
-                   modelID : ID = ID.newID
+                   modelIdables : List[IDAble] = List(), // Created model idables
+                   modelID : ID = ID.newID // Created model id
                   )
 
-
   private class Backend($: BackendScope[Unit, State]) {
-    
+
+    val unificationHandler =
+      BackendCommunication.getMessageObserver(onUnificationMessage, APIUnification.topicResponse)
     val operationRunnerHandler =
       BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
     val abilityHandler =
@@ -47,6 +48,13 @@ object VDTracker {
     val modelMessObs =
       BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
 
+    def onUnificationMessage(mess: SPMessage) : Unit = {
+      mess.body.to[APIUnification.Response].map {
+        case APIUnification.sendUnificationModelInfo(modelName, modelTags) => {
+          $.modState(s => s.copy(modelNames = (s.modelNames + modelName))).runNow()
+        }
+      }
+    }
 
     def onOperationRunnerMessage(mess: SPMessage): Unit = {
       mess.body.to[APIOperationRunner.Response].map{
@@ -86,27 +94,26 @@ object VDTracker {
       BackendCommunication.publish(json, mapi.topicRequest)
       Callback.empty
     }
-    def send(mess: APIVDTracker.Request): Callback = {
-      val h = SPHeader(from = "VDTrackerWidget", to = APIVDTracker.service, reply = SPValue("VDTracker"))
+    def send(mess: APIUnification.Request): Callback = {
+      val h = SPHeader(from = "VDTrackerWidget", to = APIUnification.service, reply = SPValue("VDTracker"))
       val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
-      BackendCommunication.publish(json, APIVDTracker.topicRequest)
+      BackendCommunication.publish(json, APIUnification.topicRequest)
       Callback.empty
     }
 
     def render(p:Unit, s:State) =
       <.div(
-        <.button(
-          ^.className := "btn btn-default",
-          ^.onClick --> send(APIVDTracker.createModel()), "Create model"
-        ),
+        <.div(^.onClick --> send(APIUnification.getUnificationModelsInfo()),
+          renderCreateableModels(s))
+        ,
         ModelChoiceDropdown(id => {$.modState(_.copy(modelID = id)); sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick --> send(APIVDTracker.launchVDAbilities(s.modelIdables)), "Launch VD and Abilities"
+          ^.onClick --> send(APIUnification.launchVDAbilities(s.modelIdables)), "Launch VD and Abilities"
         ),
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick --> send(APIVDTracker.launchOpRunner(s.modelIdables)), "Launch operation runner"
+          ^.onClick --> send(APIUnification.launchOpRunner(s.modelIdables)), "Launch operation runner"
         ),
         <.br(),
         renderInfo("Operation runner variables", s.latestEvent, s.modelIdables),
@@ -116,6 +123,12 @@ object VDTracker {
         renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables),
       )
 
+      def renderCreateableModels(s:State) = {
+        <.div( // find idables with robot schedule and put them in a dropdown menu
+          dropdownWScroll("Create model", s.modelNames.toList.map(m => <.div(m, ^.onClick --> {
+            send(APIUnification.getUnificationModel(m)); $.modState(_.copy(modelID = s.modelID))
+          }, ^.className := Style.schSelect.htmlClass))))
+      }
 
     def renderInfo(name : String, m: Map[ID , SPValue], ids : List[IDAble]) = {
       <.details(^.open := "open", ^.className := Style.collapsible.htmlClass,
@@ -136,6 +149,7 @@ object VDTracker {
     }
 
     def onUnmount(): Callback =  {
+      unificationHandler.kill()
       operationRunnerHandler.kill()
       abilityHandler.kill()
       virtualDeviceHandler.kill()

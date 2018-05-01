@@ -7,10 +7,10 @@ import sp.runners.APIOperationRunner
 
 // setup of model:
 
-object UnificationDummyVDModel { // used to set up the model as a service, add an entry in UnificationModelsLaunch as well
+object UnificationDummyVDModelCopy { // used to set up the model as a service, add an entry in UnificationModelsLaunch as well
   object model extends Modelfunctions  {
 
-  val name = "DummyVD" // Model name
+  val name = "DummyVDCopy" // Model name
   val tags = List("") // Model tags
 
   /** The operation model
@@ -137,3 +137,4 @@ object UnificationDummyVDModel { // used to set up the model as a service, add a
 }
   def props = Props(UnificationModelsComSupport(model.name ,model.tags, model.resources, model.setupRunner))
 }
+
