@@ -169,7 +169,7 @@ class VolvoTransportSimulationInstance(d: VD.Driver) extends Actor
     val getB = if (state.bodies.isEmpty)
       Map("empty" -> BodyTracker("empty", -1, -1))
     else state.bodies
-    
+
     val bodies = getB.flatMap{b =>
       Map("bodyID" -> SPValue(b._1), "bodyPos"->SPValue(b._2.frontPos))
     }

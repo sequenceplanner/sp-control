@@ -127,8 +127,94 @@ object VolvoSimModel {
   )
 
 
-  val commands = List(transportStart, transportStop, transportAddNewCarB1, robotProg)
 
+  val pressurize = APIAbilityHandler.Ability(
+    name = s"pressurize",
+    parameters = List(),
+    preCondition = makeCondition(
+      "pre",
+      "ref != 15",
+      "ref := 15")(theThings),
+    started = makeCondition("started",s"act != ref")(theThings),
+    postCondition = makeCondition("post", "act == 15")(theThings),
+    resetCondition = makeCondition("reset", "true")(theThings)
+  )
+
+  val depressurize = APIAbilityHandler.Ability(
+    name = s"depressurize",
+    parameters = List(),
+    preCondition = makeCondition(
+      "pre",
+      "ref != 0",
+      "ref := 0")(theThings),
+    started = makeCondition("started",s"act != ref")(theThings),
+    postCondition = makeCondition("post", "act == 0")(theThings),
+    resetCondition = makeCondition("reset", "true")(theThings)
+  )
+
+
+  val commands = List(transportStart, transportStop, transportAddNewCarB1, robotProg, pressurize, depressurize)
+
+
+
+
+
+  // operations
+
+  val sensor1 = Thing("sensor1")
+  val sensor2 = Thing("sensor2")
+
+  val theVars = List(sensor1, sensor2)
+  val startTransport = Operation(name = "startTransport", conditions = List())
+  val newBody = Operation(name = "newBody", conditions = List())
+  val startRobot = Operation(name = "startRobot", conditions = List())
+  val startPressure = Operation(name = "startPressure", conditions = List(
+    makeCondition(
+      kind = "pre",
+      guard = "s1 == true"
+    )(theVars)
+  ))
+
+  import sp.domain.logic.SOPLogic._
+
+  val theSOPStart = Sequence(List(
+    startTransport,
+    newBody,
+  ))
+
+  val theSOPRobot = Sequence(List(
+    startPressure,
+    startRobot,
+  ))
+
+
+  val ops = List(startTransport, newBody, startRobot, startPressure)
+  val conds = extractOperationConditions(List(theSOPStart, theSOPRobot), "sequence")
+  val updOps = for {
+    o <- ops
+    c <- conds.get(o.id)
+  } yield (o.copy(conditions = c :: o.conditions ))
+
+
+  val opRunner = APIOperationRunner.Setup(
+    name = "VolvoSim_Runner",
+    runnerID = ID.newID,
+    ops = updOps.toSet,
+    opAbilityMap = Map(
+      startTransport.id -> transportStart.id,
+      newBody.id -> transportAddNewCarB1.id,
+      startRobot.id -> robotProg.id,
+      startPressure.id -> pressurize.id
+    ),
+    initialState = Map(
+      sensor1.id -> SPValue(false),
+      sensor1.id -> SPValue(false)),
+    variableMap = Map(
+      sensor1.id -> s1.id,
+      sensor2.id -> s2.id
+    ),
+    abilityParameters = Map()
+  )
 
 
 
@@ -200,22 +286,22 @@ class VolvoSimModel extends Actor with MessageBussSupport{
 
   def launchOpRunner(ids : List[IDAble])= {
 
-//    // Extract setup data from IDAbles
-//    val setupRunnerThings = ids.find{t =>
-//      println(s"t: ${t.name}, isit: ${t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}")
-//      t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}.map(_.asInstanceOf[Thing])
-//
-//    println(setupRunnerThings)
-//
-//
-//    setupRunnerThings.map{s =>
-//      println("HOHO")
-//      val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(s))
-//
-//      publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
-//        SPHeader(from = "UnificationAbilities", to = APIOperationRunner.service), exSetupRunner))
-//
-//    }
+    // Extract setup data from IDAbles
+    val setupRunnerThings = ids.find{t =>
+      println(s"t: ${t.name}, isit: ${t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}")
+      t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}.map(_.asInstanceOf[Thing])
+
+    println(setupRunnerThings)
+
+
+    setupRunnerThings.map{s =>
+      println("HOHO")
+      val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(s))
+
+      publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
+        SPHeader(from = "VolvoSim", to = APIOperationRunner.service), exSetupRunner))
+
+    }
 
   }
 
@@ -232,7 +318,7 @@ class VolvoSimModel extends Actor with MessageBussSupport{
     val rIDable = VD.resourceToThing(resource)
     val dIDable = drivers.map(VD.driverToThing)
     val stateVars = theThings.map(StructWrapper)
-    //val setup = setupToThing(opRunner)
+    val setup = setupToThing(opRunner)
 
     val theVD = Struct(
       "TheVD",
@@ -241,11 +327,12 @@ class VolvoSimModel extends Actor with MessageBussSupport{
       makeStructNodes(
         rIDable.children(
           stateVars:_*
-        )
+        ),
+        setup
       ) ,
       SPAttributes("isa" -> "VD")
     )
-    val xs = rIDable :: dIDable ++ ops ++ theThings
+    val xs = setup :: rIDable :: dIDable ++ ops ++ theThings
 
     val addItems = APIModel.PutItems(theVD :: xs, SPAttributes("info" -> "initial items"))
 

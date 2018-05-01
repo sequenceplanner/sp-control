@@ -259,7 +259,7 @@ trait OperationRunnerLogic {
   def newAbilityState(ability: ID, abilityState: SPValue, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit): Unit = {
     runners.foreach{r =>
       if (r._2.setup.opAbilityMap.values.toSet.contains(ability)){
-        log.debug("An ability has an operation and was updated")
+        log.info("An ability has an operation and was updated")
         val cS = SPState(state = runners(r._1).currentState + (ability -> abilityState))
         setRunnerState(r._1, cS, startAbility, sendState(_,r._1))
       }
@@ -271,7 +271,7 @@ trait OperationRunnerLogic {
       val reMap = r._2.setup.variableMap.map(kv => kv._2 -> kv._1)
       val myThings = state.filter(kv => reMap.contains(kv._1))
       if (myThings.nonEmpty){
-        log.debug("A resource state with connected variables have been updated")
+        log.info("A resource state with connected variables have been updated")
         val remapState = myThings.map(kv => reMap(kv._1) -> kv._2)
         val cS = SPState(state = runners(r._1).currentState ++ remapState)
         setRunnerState(r._1, cS, startAbility, sendState(_,r._1), runOneAtTheTime)
@@ -284,7 +284,7 @@ trait OperationRunnerLogic {
     r.foreach { x =>
       val theS = x.currentState ++ s.state
       val theState = SPState(state = theS)
-      log.debug("set runner state from: " + x.currentState + " to " + theS)
+      log.info("set runner state from: " + x.currentState + " to " + theS)
       if (theS != x.currentState) sendState(theState)
       val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runOneAtTheTime)
       runners += runnerID -> x.copy(currentState = updS.state)
@@ -373,11 +373,11 @@ trait OperationRunnerLogic {
 
 
     if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("vv*************")
-    if (enabled.isEmpty && complete.isEmpty && reset.isEmpty) log.debug("runner no ops changing: ")
+    if (enabled.isEmpty && complete.isEmpty && reset.isEmpty) log.info("runner no ops changing: ")
     if (enabled.nonEmpty)  log.info("runner OP Started: " + enabled.head)
     if (complete.nonEmpty) log.info("runner compl: " + complete.head)
     if (reset.nonEmpty)    log.info("runner reset: " + reset.head)
-    if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty) log.debug(res.toString)
+    if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty) log.info(res.toString)
     if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("*************")
 
 
@@ -401,21 +401,21 @@ trait OperationRunnerLogic {
   def runOp(o: Operation, s: SPState) = {
       val filtered = filterConditions(o.conditions, Set("pre", "precondition"))
       val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
-      log.debug(s"${o.name} started")
+      log.info(s"${o.name} started")
       newState.next(o.id -> OperationState.executing)
   }
 
   def completeOP(o: Operation, s: SPState) = {
     val filtered = filterConditions(o.conditions, Set("post", "postcondition"))
     val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
-    log.debug(s"${o.name} completed")
+    log.info(s"${o.name} completed")
     newState.next(o.id -> OperationState.finished)
   }
 
   def resetOP(o: Operation, s: SPState) = {
     val filtered = filterConditions(o.conditions, Set("reset", "resetcondition"))
     val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
-    log.debug(s"${o.name} reset")
+    log.info(s"${o.name} reset")
     newState.next(o.id -> OperationState.init)
   }
 
