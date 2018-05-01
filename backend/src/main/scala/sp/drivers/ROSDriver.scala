@@ -24,19 +24,11 @@ object ROSDriver {
 
 
 
-/**
-  * The actual driver instance answering the commands
-  */
 object ROSDriverInstance {
   def props(d: VD.Driver) = Props(classOf[ROSDriverInstance], d)
 }
 
-/**
-  * This is  running one UR robot, but only as a dummy
-  * The driver creates a dummy UR robot, shown below
-  * you can set a reference and some states
-  * @param d APIVirtualDevice.Driver The name, id, and setup of the driver
-  */
+
 class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
   with ActorLogging
   with sp.service.MessageBussSupport {
@@ -45,14 +37,15 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
 
   subscribe(api.topicRequest)
 
-  val resourceName = "hmn_unidriver"
-  val command = "command"
-  val ur_state = "human"
 
-  var driverState = Map[String, SPValue](
-    command -> "",
-    ur_state -> ""
-  )
+
+
+  val resourceName = d.name
+  // Maybe have a possibility to define the state variables in
+  // the driver d. This can be used to check that the command
+  // and response is correct...
+
+  var driverState = Map[String, SPValue]()
 
 
   // We have started and is publishing that we exist
@@ -97,15 +90,14 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
 
   // All messages to the actor arrive here
   def receive = {
-    // the stream from the dummy UR
 
     case ROSState(xs) =>
       xs.get(resourceName).foreach { s =>
         driverState = driverState ++ s
+        println("OUR STATE HAS CHANGED:")
+        println(driverState)
+        publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, driverState)))
       }
-      println("OUR STATE HAS CHANGED:")
-      println(driverState)
-      publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, driverState)))
       sender() ! "ack"
 
 
@@ -119,7 +111,7 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
       println("**********      ***************")
       SPMessage.fromJson(x).foreach{mess =>
           for {
-            h <- mess.getHeaderAs[SPHeader]
+            h <- mess.getHeaderAs[SPHeader] //if h.to == d.id.toString
             b <- mess.getBodyAs[api.Request]
           } yield {
             log.debug(s"ROSDRIVER $resourceName  req: " +b)
@@ -152,14 +144,14 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
 
   }
 
-  // Keeping track of when the variables have been written to the dummy UR
+  // Keeping track of when the variables have been written to the ROS resource
   // This can only handle one command at the time. If more is needed, this should
   // be handled with another actor, an ask request or similar.
   var reqHeader: Option[SPHeader] = None
 
   // Mapping from state to actual dummy UR api
   def handleCmd(state: Map[String, SPValue], h: SPHeader) = {
-    // Setting up variables to check when the dummyUR is updated
+    // Setting up variables to check when the ros resource is updated
     reqHeader = Some(h)
 
     // send to kafka
@@ -172,22 +164,11 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
   }
 
 
-
-
-
-
-
-  /**
-    * Listens for the pong for the last ping
-    */
-
-
-
   // Sending a message to the bus
-  def sendStateToBus(state: Map[String, SPValue]) = {
-    val updH = SPHeader(from = d.name)
-    val b = api.DriverStateChange(d.name, d.id, state, false)
-    publish(api.topicResponse, SPMessage.makeJson(updH, b))
+  val defaultH = SPHeader(from = d.name)
+  def sendStateToBus(state: Map[String, SPValue], h: SPHeader = defaultH) = {
+    val b = api.DriverStateChange(d.name, d.id, state)
+    publish(api.topicResponse, SPMessage.makeJson(h, b))
 
   }
 
