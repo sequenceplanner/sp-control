@@ -41,12 +41,11 @@ object VolvoSimModel {
   val act = Thing("act")
   val ref = Thing("ref")
   val atRef = Thing("atRef")
-  
+
 
   val robdriver = VD.Driver("volvoSimulatedRobotDriver", ID.newID, DummyVolvoRobotDriver.driverType, SPAttributes())
   val transpdriver = VD.Driver("volvoSimulatedTransportDriver", ID.newID, VolvoTransportSimulationDriver.driverType, SPAttributes())
   val pressdriver = VD.Driver("volvoSimulatedPressureDriver", ID.newID, VolvoPressureSimulationDriver.driverType, SPAttributes())
-  val drivers = List(robdriver, transpdriver, pressdriver)
 
   val theThingsMap: Map[Thing, ID] = Map(
     currentProgram -> robdriver.id,
@@ -68,6 +67,9 @@ object VolvoSimModel {
   val theThings = theThingsMap.keySet.toList
   val ids: Set[ID] = theThings.map(_.id).toSet
 
+  val opcSetup = SPAttributes("url" -> "opc.tcp://129.16.37.101:8070", "identifiers" -> theThings.map(_.name))
+  val opc = VD.Driver("opclocal", ID.newID, "OPCUA", opcSetup)
+  val drivers = List(robdriver, transpdriver, pressdriver)
 
   val driverResourceMapper = theThingsMap.map { case (t, d) =>
     // Must have the same name as the state
@@ -75,6 +77,16 @@ object VolvoSimModel {
   }.toList
 
   val resource = VD.Resource("VolvoSimulated", ID.newID, ids, driverResourceMapper, SPAttributes())
+
+  val listenerMap: Map[ID, String] = Map(
+    newBodyID.id -> "newBodyID",
+    s1.id -> "s1",
+    running.id -> "running"
+  )
+
+  val listenerResource = VD.Resource("VolvoSimulatedListener", ID.newID, ids, driverResourceMapper, SPAttributes())
+
+
 
 
   // The ability hardcoded prog (this is so we can test by running abilities).
@@ -245,6 +257,9 @@ class VolvoSimModel extends Actor with MessageBussSupport{
   subscribe(APIVDTracker.topicRequest)
 
 
+  // hack for opcua
+  subscribe(APIVirtualDevice.topicResponse)
+
 
   def launchVDAbilities(ids : List[IDAble])= {
 
@@ -316,6 +331,7 @@ class VolvoSimModel extends Actor with MessageBussSupport{
 
     val ops = commands.map(APIAbilityHandler.abilityToOperation)
     val rIDable = VD.resourceToThing(resource)
+    val rListenerIDable = VD.resourceToThing(listenerResource)
     val dIDable = drivers.map(VD.driverToThing)
     val stateVars = theThings.map(StructWrapper)
     val setup = setupToThing(opRunner)
@@ -328,11 +344,14 @@ class VolvoSimModel extends Actor with MessageBussSupport{
         rIDable.children(
           stateVars:_*
         ),
+        rListenerIDable.children(
+          stateVars:_*
+        ),
         setup
       ) ,
       SPAttributes("isa" -> "VD")
     )
-    val xs = setup :: rIDable :: dIDable ++ ops ++ theThings
+    val xs = setup :: rListenerIDable :: rIDable :: dIDable ++ ops ++ theThings
 
     val addItems = APIModel.PutItems(theVD :: xs, SPAttributes("info" -> "initial items"))
 
@@ -379,6 +398,13 @@ class VolvoSimModel extends Actor with MessageBussSupport{
     APIOperationRunner.Setup(name, runnerID,ops,opAbilityMap,initialState,variableMap,abilityParameters)
   }
 
+  import sp.opcua._
+  import sp.milowrapper._
+  val opcclient = new MiloOPCUAClient()
+  val ok = opcclient.connect("opc.tcp://10.0.101.37:4870")
+  println("CLIENT CONNECTED OK? " + ok)
+
+
   def receive = {
     case s : String =>
       for { // unpack message
@@ -394,6 +420,33 @@ class VolvoSimModel extends Actor with MessageBussSupport{
           case APIVDTracker.launchOpRunner(idables) => launchOpRunner(idables)
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
+      }
+
+
+      for { // unpack message
+        mess <- SPMessage.fromJson(s)
+        h <- mess.getHeaderAs[SPHeader]
+        b <- mess.getBodyAs[APIVirtualDevice.Response]
+      } yield {
+        var spHeader = h.swapToAndFrom
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
+        b match { // Check if the body is any of the following classes, and execute program
+
+          case APIVirtualDevice.StateEvent(resource, id, state, diff) if resource == VolvoSimModel.listenerResource.name =>
+            val m = VolvoSimModel.listenerMap
+            println("****************************************")
+            println(s" GOT STATE EVENT FOR RESOURCE ${resource}")
+            println(s" state: " + state)
+            println("map: " + m)
+            val mapped = m.map { case (k,v) =>
+              for {
+                vv <- state.get(k)
+              } yield (v -> vv) }.flatten.toMap
+            println(s" mapping " + mapped)
+            mapped.foreach { case (node, value) => opcclient.write(node, value) }
+            println("****************************************")
+          case _ =>
+        }
       }
   }
   def sendAnswer(mess: String) = publish(APIVDTracker.topicResponse, mess)
