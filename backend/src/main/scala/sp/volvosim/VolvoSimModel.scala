@@ -81,7 +81,8 @@ object VolvoSimModel {
   val listenerMap: Map[ID, String] = Map(
     newBodyID.id -> "newBodyID",
     s1.id -> "s1",
-    running.id -> "running"
+    running.id -> "running",
+
   )
 
   val listenerResource = VD.Resource("VolvoSimulatedListener", ID.newID, ids, driverResourceMapper, SPAttributes())
@@ -119,7 +120,7 @@ object VolvoSimModel {
     parameters = List(),
     preCondition = makeCondition(
       kind = "pre",
-      guard = "true",
+      guard = "bodyID == empty",
       actions = s"newBodyID := b1", "newBodyLength := 10")(theThings),
     started = makeCondition("started",s"newBodyID == b1")(theThings),
     postCondition = makeCondition("post", "true")(theThings),
@@ -191,7 +192,6 @@ object VolvoSimModel {
   import sp.domain.logic.SOPLogic._
 
   val bodyOps = ((1 until 10).map { i => newBody.copy(name = newBody.name + i, id = ID.newID) }).toList
-
   val theSOPStart = Sequence((List(startTransport) ++ bodyOps).map(o=>OperationNode(o.id)))
 
   val robOps = ((1 until 10).map { i =>
@@ -215,15 +215,9 @@ object VolvoSimModel {
     name = "VolvoSim_Runner",
     runnerID = ID.newID,
     ops = updOps2.toSet,
-    opAbilityMap = Map(
-      startTransport.id -> transportStart.id
-//      newBody.id -> transportAddNewCarB1.id,
-//      startRobot.id -> robotProg.id,
-//      startPressure.id -> pressurize.id,
-//      startDepressurize.id -> depressurize.id,
-    ) ++ bodyOps.map(bo => (bo.id -> transportAddNewCarB1.id)).toMap
-      ++ robOps.map(ro => (ro._1.id -> ro._2))
-      ,
+    opAbilityMap = Map(startTransport.id -> transportStart.id)
+      ++ bodyOps.map(bo => (bo.id -> transportAddNewCarB1.id)).toMap
+      ++ robOps.map(ro => (ro._1.id -> ro._2)).toMap,
     initialState = Map(
       sensor1.id -> SPValue(false),
       sensor1.id -> SPValue(false)),
@@ -438,15 +432,15 @@ class VolvoSimModel extends Actor with MessageBussSupport{
         b match { // Check if the body is any of the following classes, and execute program
 
           case APIVirtualDevice.StateEvent(resource, id, state, diff) if resource == VolvoSimModel.listenerResource.name =>
-            val m = VolvoSimModel.listenerMap
+            val m = VolvoSimModel.theThings
             println("****************************************")
             println(s" GOT STATE EVENT FOR RESOURCE ${resource}")
             println(s" state: " + state)
             println("map: " + m)
-            val mapped = m.map { case (k,v) =>
+            val mapped = m.map { case t =>
               for {
-                vv <- state.get(k)
-              } yield (v -> vv) }.flatten.toMap
+                vv <- state.get(t.id)
+              } yield (t.name -> vv) }.flatten.toMap
             println(s" mapping " + mapped)
             mapped.foreach { case (node, value) => opcclient.write(node, value) }
             println("****************************************")
