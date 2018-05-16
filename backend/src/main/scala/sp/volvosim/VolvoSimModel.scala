@@ -191,14 +191,14 @@ object VolvoSimModel {
 
   import sp.domain.logic.SOPLogic._
 
-  val bodyOps = ((1 until 10).map { i => newBody.copy(name = newBody.name + i, id = ID.newID) }).toList
+  val bodyOps = ((1 until 10).map { i => newBody.copy(id = ID.newID) }).toList
   val theSOPStart = Sequence((List(startTransport) ++ bodyOps).map(o=>OperationNode(o.id)))
 
   val robOps = ((1 until 10).map { i =>
     List(
-      (startPressure.copy(name = startPressure.name + i, id = ID.newID) -> pressurize.id),
-      (startRobot.copy(name = startRobot.name + i, id = ID.newID) -> robotProg.id),
-      (startDepressurize.copy(name = startDepressurize.name + i, id = ID.newID) -> depressurize.id))}).toList.flatten
+      (startPressure.copy(id = ID.newID) -> pressurize.id),
+      (startRobot.copy(id = ID.newID) -> robotProg.id),
+      (startDepressurize.copy(id = ID.newID) -> depressurize.id))}).toList.flatten
 
   val theSOPRobot = Sequence(robOps.map(o=>OperationNode(o._1.id)))
 
@@ -259,6 +259,8 @@ class VolvoSimModel extends Actor with MessageBussSupport{
 
   // hack for opcua
   subscribe(APIVirtualDevice.topicResponse)
+  subscribe(APIOperationRunner.topicResponse)
+
 
 
   def launchVDAbilities(ids : List[IDAble])= {
@@ -447,6 +449,30 @@ class VolvoSimModel extends Actor with MessageBussSupport{
           case _ =>
         }
       }
+
+      for { // unpack message
+        mess <- SPMessage.fromJson(s)
+        h <- mess.getHeaderAs[SPHeader]
+        b <- mess.getBodyAs[APIOperationRunner.Response]
+      } yield {
+        var spHeader = h.swapToAndFrom
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
+        b match { // Check if the body is any of the following classes, and execute program
+          case APIOperationRunner.StateEvent(runnerID, state) =>
+            //Map[ID, SPValue]
+            val m = VolvoSimModel.ops
+
+            val mapped = m.map { case op =>
+              for {
+                vv <- state.get(op.id)
+              } yield (op.name -> vv) }.flatten.toMap
+            println(s" mapping " + mapped)
+            mapped.foreach { case (node, value) => opcclient.write(node, value) }
+            println("****************************************")
+          case _ =>
+        }
+      }
+
   }
   def sendAnswer(mess: String) = publish(APIVDTracker.topicResponse, mess)
 
