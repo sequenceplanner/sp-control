@@ -183,41 +183,47 @@ object VolvoSimModel {
   val startPressure = Operation(name = "startPressure", conditions = List(
     makeCondition(
       kind = "pre",
-      guard = "s1 == true"
+      guard = "sensor1 == true"
     )(theVars)
   ))
+  val startDepressurize = Operation(name = "startDepressurize", conditions = List())
 
   import sp.domain.logic.SOPLogic._
 
-  val theSOPStart = Sequence(List(
-    startTransport,
-    newBody,
-  ))
+  val bodyOps = ((1 until 10).map { i => newBody.copy(name = newBody.name + i, id = ID.newID) }).toList
 
-  val theSOPRobot = Sequence(List(
-    startPressure,
-    startRobot,
-  ))
+  val theSOPStart = Sequence((List(startTransport) ++ bodyOps).map(o=>OperationNode(o.id)))
+
+  val robOps = ((1 until 10).map { i =>
+    List(
+      (startPressure.copy(name = startPressure.name + i, id = ID.newID) -> pressurize.id),
+      (startRobot.copy(name = startRobot.name + i, id = ID.newID) -> robotProg.id),
+      (startDepressurize.copy(name = startDepressurize.name + i, id = ID.newID) -> depressurize.id))}).toList.flatten
+
+  val theSOPRobot = Sequence(robOps.map(o=>OperationNode(o._1.id)))
 
 
-  val ops = List(startTransport, newBody, startRobot, startPressure)
+  val ops = List(startTransport) ++ bodyOps ++ robOps.map(_._1)
   val conds = extractOperationConditions(List(theSOPStart, theSOPRobot), "sequence")
   val updOps = for {
     o <- ops
     c <- conds.get(o.id)
   } yield (o.copy(conditions = c :: o.conditions ))
-
+  val updOps2 = updOps ++ ops.filterNot(o => updOps.exists(o2=>o2.id == o.id))
 
   val opRunner = APIOperationRunner.Setup(
     name = "VolvoSim_Runner",
     runnerID = ID.newID,
-    ops = updOps.toSet,
+    ops = updOps2.toSet,
     opAbilityMap = Map(
-      startTransport.id -> transportStart.id,
-      newBody.id -> transportAddNewCarB1.id,
-      startRobot.id -> robotProg.id,
-      startPressure.id -> pressurize.id
-    ),
+      startTransport.id -> transportStart.id
+//      newBody.id -> transportAddNewCarB1.id,
+//      startRobot.id -> robotProg.id,
+//      startPressure.id -> pressurize.id,
+//      startDepressurize.id -> depressurize.id,
+    ) ++ bodyOps.map(bo => (bo.id -> transportAddNewCarB1.id)).toMap
+      ++ robOps.map(ro => (ro._1.id -> ro._2))
+      ,
     initialState = Map(
       sensor1.id -> SPValue(false),
       sensor1.id -> SPValue(false)),
@@ -315,7 +321,6 @@ class VolvoSimModel extends Actor with MessageBussSupport{
 
       publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
         SPHeader(from = "VolvoSim", to = APIOperationRunner.service), exSetupRunner))
-
     }
 
   }
