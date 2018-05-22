@@ -15,9 +15,13 @@ libraryDependencies ++= Seq(
   // instead I put a hacked version of both rosjava_core and
   // apache xmlrpc in lib/
   "org.ros.rosjava_messages" % "std_msgs" % "0.5.11",
+  "org.ros.rosjava_messages" % "geometry_msgs" % "1.12.5",
   "org.ros.rosjava_messages" % "rosgraph_msgs" % "1.11.2",
+  // "org.ros.rosjava_messages" % "turtlesim" % "0.5.5",
+
 
   // these are needed by our own rosjava_core in lib/
+  "dnsjava" % "dnsjava" % "2.1.1",
   "commons-logging" % "commons-logging" % "1.2",
   "org.apache.ws.commons.util" % "ws-commons-util" % "1.0.2",
   "org.apache.commons" % "com.springsource.org.apache.commons.codec" % "1.3.0",
