@@ -54,7 +54,7 @@ class ROSNode() extends NodeMain {
     import sp.domain.SPValue
 
     def rosValToSPVal(rostype: String, rv: Object): Option[SPValue] = {
-      println("type: " + rostype + " " + rv)
+      // println("type: " + rostype + " " + rv)
       rostype match {
         case "string" => Some(SPValue(rv.asInstanceOf[String]))
         case "float32" => Some(SPValue(rv.asInstanceOf[Float]))
@@ -78,7 +78,7 @@ class ROSNode() extends NodeMain {
     }
 
     def spValtoRosVal(rostype: String, sv: SPValue): Option[Any] = {
-      println("type: " + rostype + " " + sv)
+      // println("type: " + rostype + " " + sv)
       rostype match {
         case "string" => Some(sv.as[String])
         case "float32" => Some(sv.as[Float])
@@ -111,11 +111,6 @@ class ROSNode() extends NodeMain {
            } else dig(x::Nil, ys)
           case (x::xs,y::ys) =>
             if(x == y.getName()) {
-              println(" ****************** name match, digging on!       " + x)
-                // check for message...
-              val typ = y.getType().getName()
-                println(" +++++++ type is " + typ)
-              // instantiate that message...
               val v: Object = y.getValue()
               if(v.isInstanceOf[org.ros.internal.message.Message])
                 dig(xs, v.asInstanceOf[org.ros.internal.message.Message].toRawMessage().getFields().asScala.toList)
@@ -150,16 +145,12 @@ class ROSNode() extends NodeMain {
           } else dig(x::Nil, ys)
           case (x::xs,y::ys) =>
             if(x == y.getName()) {
-              println(" ****************** name match, digging on!       " + x)
-                // check for message...
-              val typ = y.getType().getName()
-                println(" +++++++ type is " + typ)
-              // instantiate that message...
               val v: Object = y.getValue()
               if(v.isInstanceOf[org.ros.internal.message.Message])
                 dig(xs, v.asInstanceOf[org.ros.internal.message.Message].toRawMessage().getFields().asScala.toList)
               else {
                 println(" Digging into a non-message field!")
+                None.get
                 false
               }
             }
@@ -174,125 +165,218 @@ class ROSNode() extends NodeMain {
       dig(digs, rxf)
     }
 
+    // to create empty ros messages
     val topicMessageFactory: MessageFactory = cn.getTopicMessageFactory();
-    val x: org.ros.internal.message.Message = topicMessageFactory.newFromType("geometry_msgs/Twist")
-    val res = getField("linear.y", x)
-    println("1 ******************         " + res)
-    val spval = SPValue(-1.0)
-    writeField("linear.y", spval, x)
-    val res2 = getField("linear.y", x)
-    println("2 ******************         " + res2)
 
+    val driverIdentifiers = List("geometry_msgs/Twist:/turtle1/cmd_vel:linear.x",
+      "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y")
 
+    case class RosVar(did: String, msgType: String, topic: String, field: String)
+    val rosVars = driverIdentifiers.map(s => {
+      val strs = s.split(":")
+      RosVar(s, strs(0), strs(1), strs(2)) })
 
-    var pp: Publisher[org.ros.internal.message.Message] = cn.newPublisher("/turtle1/cmd_vel", "geometry_msgs/Twist")
+    val didToVar = rosVars.map(r => r.did -> r).toMap
+    val topics: Map[String, Iterable[RosVar]] = rosVars.groupBy(_.topic)
 
-    var lastTurtleCmd: org.ros.internal.message.Message = null
+    // create blank start state
+    var rosState: Map[String, org.ros.internal.message.Message] =
+      topics.map { case (topic, r::rosVars) =>
+        // puke if not all topics have the same msg type
+        assert((r::rosVars).forall(_.msgType == r.msgType))
+        topic -> topicMessageFactory.newFromType(r.msgType) }
 
-    var ll: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber("/turtle1/cmd_vel", "geometry_msgs/Twist")
-    ll.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
-      override def onNewMessage(msg: org.ros.internal.message.Message) =  {
-        lastTurtleCmd = msg
+    var spState: Map[String, SPValue] = rosVars.map(rvar => {
+      val spval = getField(rvar.field, rosState(rvar.topic)).get // puke if we cant parse
+      rvar.did -> spval
+    }).toMap
 
-        val res = getField("linear.x", msg)
-        println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " + res)
+    // setup a listener to each topic
+    val pubsub = topics.map { case (topic, rosVars@r::rs) =>
+      val p: Publisher[org.ros.internal.message.Message] = cn.newPublisher(topic, r.msgType)
+      val s: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber(topic, r.msgType)
+      s.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
+        override def onNewMessage(msg: org.ros.internal.message.Message) =  {
+          // update internal ros state
+          rosState = rosState + (topic -> msg)
+          // update sp state
+          val updSpState = spState ++ rosVars.map(rvar => rvar.did -> getField(rvar.field, rosState(rvar.topic)).get).toMap
 
-        res.foreach { spval =>
-          val newZ = SPValue(spval.as[Double] * -1)
-          writeField("linear.y", newZ, msg)
-          pp.publish(msg)
+          if(updSpState != spState) {
+            // new state!
+            spState = updSpState
+            println("============================================================")
+            println("got new ros state: ")
+            println(spState.mkString("\n"))
+            println("============================================================")
+          }
         }
+      })
+      (topic -> (p,s))
+    }.toMap
+
+    def writeStateChange(newState: Map[String, SPValue]) = {
+      val toChange = (newState.toSet.diff(spState.toSet)).toMap
+      val rosVarsToChange = toChange.map { case (did,spval) =>
+        (didToVar(did) -> spval) }.toMap
+
+      val topicsToWrite = rosVarsToChange.groupBy { case (rv,spval) => rv.topic }
+
+      topicsToWrite.foreach { case (topic,state) =>
+        val msg = rosState(topic)
+        // mutate stored msg...
+        state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
+        val publisher = pubsub(topic)._1
+        // send updated state
+        println("Writing " + state.map(_._2).mkString(",") + " to " + topic)
+        publisher.publish(msg)
       }
-    })
+    }
+
+    Thread.sleep(5000)
+
+    val testState = Map(
+      "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x" -> SPValue(10)
+    )
+    writeStateChange(testState)
+
+    Thread.sleep(5000)
+
+    val testState2 = Map(
+      "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x" -> SPValue(10),
+      "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y" -> SPValue(10)
+    )
+    writeStateChange(testState2)
+
+    Thread.sleep(5000)
+
+    val testState3 = Map(
+      "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x" -> SPValue(0),
+      "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y" -> SPValue(0)
+    )
+    writeStateChange(testState3)
+
+    Thread.sleep(5000)
+
+
+    // val x: org.ros.internal.message.Message = topicMessageFactory.newFromType("geometry_msgs/Twist")
+    // val res = getField("linear.y", x)
+    // println("1 ******************         " + res)
+    // val spval = SPValue(-1.0)
+    // writeField("linear.y", spval, x)
+    // val res2 = getField("linear.y", x)
+    // println("2 ******************         " + res2)
 
 
 
-    var listener2: Subscriber[turtlesim.Pose] = cn.newSubscriber("/turtle1/pose", turtlesim.Pose._TYPE)
-    var exit = false
+    // var pp: Publisher[org.ros.internal.message.Message] = cn.newPublisher("/turtle1/cmd_vel", "geometry_msgs/Twist")
 
+    // var lastTurtleCmd: org.ros.internal.message.Message = null
 
-    var l3: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber("/turtle1/pose", "turtlesim/Pose")
+    // var ll: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber("/turtle1/cmd_vel", "geometry_msgs/Twist")
+    // ll.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
+    //   override def onNewMessage(msg: org.ros.internal.message.Message) =  {
+    //     lastTurtleCmd = msg
 
-    listener.addMessageListener(new MessageListener[std_msgs.String] {
-      override def onNewMessage(msg: std_msgs.String) {
-        println("GOT MESSAGE: " + msg.getData())
-        if (msg.getData() == "exit") exit = true
-      }
-    });
+    //     val res = getField("linear.x", msg)
+    //     println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: " + res)
 
-
-
-    l3.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
-      override def onNewMessage(msg: org.ros.internal.message.Message) =  {
-        val rm = msg.toRawMessage()
-
-        rm.getFields().asScala.find(f=>f.getName()=="x").foreach {f =>
-          println("xxxxxxxxxx: " + f.getType())
-        }
-        val digx = rm.getFields().asScala.find(f=>f.getName()=="x").foreach {f =>
-          println("xxxxxxxxxx: " + f.getValue())
-        }
-
-        println("GOT TURTLE POS: X: " + rm.getType() + " is equal to ") // + turtlesim.Pose._TYPE)
-        val fields = rm.getFields().asScala
-
-        println("GOT TURTLE POS: X: " + fields.map(f => f.getName() + " " + f.getType()).mkString(" "))
-
-        // val xrm = x.toRawMessage()
-        // val xfields = rm.getFields().asScala
-        // println("PROVIDE TURTLE POS: X: " + xrm.getType() + " is equal to " + rm.getType())
-        // println("PROVIDE TURTLE POS: X: " + xfields.map(f => f.getName() + " " + f.getType()).mkString(" "))
-
-      }
-    })
-
-    listener2.addMessageListener(new MessageListener[turtlesim.Pose] {
-      var left = false;
-      override def onNewMessage(msg: turtlesim.Pose) {
-        println("GOT TURTLE POS: X: " + msg.getX() + "Y: " + msg.getY())
-        println("GOT TURTLE POS: X: " + msg.toRawMessage().getType() + " is equal to " + turtlesim.Pose._TYPE)
-        val typ = msg.toRawMessage().getType()
-        val fields = msg.toRawMessage().getFields().asScala
-
-        println("GOT TURTLE POS: X: " + fields.map(f => f.getName() + " " + f.getType()).mkString(" "))
+    //     res.foreach { spval =>
+    //       val newZ = SPValue(spval.as[Double] * -1)
+    //       writeField("linear.y", newZ, msg)
+    //       pp.publish(msg)
+    //     }
+    //   }
+    // })
 
 
 
-        val twist: geometry_msgs.Twist = publisher2.newMessage();
-        if(msg.getX() > 7) {
-          left = true;
-        } else if(msg.getX() < 3) {
-          left = false;
-        }
-
-        val xvel = if (left) -1 else 1
-
-        twist.getLinear().setX(xvel);
-        publisher2.publish(twist);
-      }
-    });
+    // var listener2: Subscriber[turtlesim.Pose] = cn.newSubscriber("/turtle1/pose", turtlesim.Pose._TYPE)
+    // var exit = false
 
 
-    var sequenceNumber: Int = 0
+    // var l3: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber("/turtle1/pose", "turtlesim/Pose")
 
-    cn.executeCancellableLoop(new CancellableLoop() {
-      override def setup(): Unit = {
-        sequenceNumber = 0
-      }
+    // listener.addMessageListener(new MessageListener[std_msgs.String] {
+    //   override def onNewMessage(msg: std_msgs.String) {
+    //     println("GOT MESSAGE: " + msg.getData())
+    //     if (msg.getData() == "exit") exit = true
+    //   }
+    // });
 
-      override def loop(): Unit = {
-        if (exit) {
-          cn.shutdown()
-        } else {
-          val str: std_msgs.String = publisher.newMessage()
-          str.setData("Hello world! " + sequenceNumber)
-          println("publishing: " + str.getData())
-          publisher.publish(str)
-          sequenceNumber = sequenceNumber + 1
-          Thread.sleep(1000)
-        }
-      }
-    });
+
+
+    // l3.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
+    //   override def onNewMessage(msg: org.ros.internal.message.Message) =  {
+    //     val rm = msg.toRawMessage()
+
+    //     rm.getFields().asScala.find(f=>f.getName()=="x").foreach {f =>
+    //       println("xxxxxxxxxx: " + f.getType())
+    //     }
+    //     val digx = rm.getFields().asScala.find(f=>f.getName()=="x").foreach {f =>
+    //       println("xxxxxxxxxx: " + f.getValue())
+    //     }
+
+    //     println("GOT TURTLE POS: X: " + rm.getType() + " is equal to ") // + turtlesim.Pose._TYPE)
+    //     val fields = rm.getFields().asScala
+
+    //     println("GOT TURTLE POS: X: " + fields.map(f => f.getName() + " " + f.getType()).mkString(" "))
+
+    //     // val xrm = x.toRawMessage()
+    //     // val xfields = rm.getFields().asScala
+    //     // println("PROVIDE TURTLE POS: X: " + xrm.getType() + " is equal to " + rm.getType())
+    //     // println("PROVIDE TURTLE POS: X: " + xfields.map(f => f.getName() + " " + f.getType()).mkString(" "))
+
+    //   }
+    // })
+
+    // listener2.addMessageListener(new MessageListener[turtlesim.Pose] {
+    //   var left = false;
+    //   override def onNewMessage(msg: turtlesim.Pose) {
+    //     println("GOT TURTLE POS: X: " + msg.getX() + "Y: " + msg.getY())
+    //     println("GOT TURTLE POS: X: " + msg.toRawMessage().getType() + " is equal to " + turtlesim.Pose._TYPE)
+    //     val typ = msg.toRawMessage().getType()
+    //     val fields = msg.toRawMessage().getFields().asScala
+
+    //     println("GOT TURTLE POS: X: " + fields.map(f => f.getName() + " " + f.getType()).mkString(" "))
+
+
+
+    //     val twist: geometry_msgs.Twist = publisher2.newMessage();
+    //     if(msg.getX() > 7) {
+    //       left = true;
+    //     } else if(msg.getX() < 3) {
+    //       left = false;
+    //     }
+
+    //     val xvel = if (left) -1 else 1
+
+    //     twist.getLinear().setX(xvel);
+    //     publisher2.publish(twist);
+    //   }
+    // });
+
+
+    // var sequenceNumber: Int = 0
+
+    // cn.executeCancellableLoop(new CancellableLoop() {
+    //   override def setup(): Unit = {
+    //     sequenceNumber = 0
+    //   }
+
+    //   override def loop(): Unit = {
+    //     if (exit) {
+    //       cn.shutdown()
+    //     } else {
+    //       val str: std_msgs.String = publisher.newMessage()
+    //       str.setData("Hello world! " + sequenceNumber)
+    //       println("publishing: " + str.getData())
+    //       publisher.publish(str)
+    //       sequenceNumber = sequenceNumber + 1
+    //       Thread.sleep(1000)
+    //     }
+    //   }
+    // });
 
 
   }
