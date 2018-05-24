@@ -36,8 +36,8 @@ class OperationRunner extends Actor
     case x: String if sender() != self =>
       val mess = SPMessage.fromJson(x)
 
-      log.debug("OP RUNNER.........................")
-      log.debug(mess.toString)
+      // log.debug("OP RUNNER.........................")
+      // log.debug(mess.toString)
 
       matchRequests(mess)
       matchAbilityAPI(mess)

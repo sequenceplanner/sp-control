@@ -1,0 +1,285 @@
+package sp.unification
+
+import akka.actor._
+import sp.abilityhandler.APIAbilityHandler
+import sp.devicehandler.VD.DriverStateMapper
+import sp.devicehandler._
+import sp.domain.Logic._
+import sp.domain._
+import sp.domain.logic.{ActionParser, PropositionParser}
+import sp.drivers.ROSFlatStateDriver
+import sp.models.{APIModel, APIModelMaker}
+import sp.runners._
+import sp.service.MessageBussSupport
+import sp.vdtesting.APIVDTracker
+
+import scala.concurrent.duration._
+
+trait Helpers {
+  import sp.abilityhandler.APIAbilityHandler.Ability
+
+  def a(n:String, parameters: List[ID], pre:Condition, exec:Condition, post:Condition, reset:Condition=Condition(AlwaysTrue, List()),pairs: Map[String, SPValue] = Map()) = {
+    val p = pairs + ("name" -> SPValue(n))
+    Ability(n, ID.newID, pre, exec, post, reset, parameters, attributes = SPAttributes("pairs" -> p))
+  }
+  def v(name: String, drivername: String) = Thing(name, SPAttributes("drivername" -> drivername))
+  def makeCondition(kind: String, guard: String, actions: String*)(aList: List[IDAble]) = {
+    val g = if (guard == "true") Some(AlwaysTrue)
+    else if (guard == "false") Some(AlwaysFalse)
+    else PropositionParser(aList).parseStr(guard) match {
+      case Right(p) => Some(p)
+      case Left(err) => println(s"Parsing failed on condition: $guard: $err"); None
+    }
+    val xs = actions.flatMap { action =>
+      ActionParser(aList).parseStr(action) match {
+        case Right(a) => Some(a)
+        case Left(err) => println(s"Parsing failed on action: $action: $err"); None
+      }
+    }
+    Condition(g.get, xs.toList, attributes = SPAttributes("kind"->kind))
+  }
+
+  def driverMapper(driverID: ID, vars: List[Thing]): List[VD.OneToOneMapper] = vars.flatMap { v =>
+    v.attributes.getAs[String]("drivername").map(dn => VD.OneToOneMapper(v.id, driverID, dn))
+  }
+}
+
+object TurtleModel extends Helpers {
+  def props = Props(classOf[TurtleModel])
+
+  val name = "turtle"
+
+  val cmd_linear_x = v("turtle.cmd.linear.x", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x")
+  val cmd_linear_y = v("turtle.cmd.linear.y", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y")
+  val pos_x = v("turtle.pos.x", "turtlesim/Pose:/turtle1/pose:x")
+  val pos_y = v("turtle.pos.y", "turtlesim/Pose:/turtle1/pose:y")
+
+  val vars: List[Thing] = List(cmd_linear_x, cmd_linear_y, pos_x, pos_y)
+
+  val rosMaster = "http://localhost:11311/"
+  val driverID = ID.newID
+  val driverMap = driverMapper(driverID, vars)
+  val driverSetup = SPAttributes("masterHost" -> "localhost",
+    "masterURI" -> "http://localhost:11311/", "identifiers" -> driverMap.map(_.driverIdentifier))
+  val driver = VD.Driver("TurtleDriver", driverID, ROSFlatStateDriver.driverType, driverSetup)
+
+  val resource = VD.Resource(name, ID.newID, vars.map(_.id).toSet, driverMap, SPAttributes())
+
+  def p(kind: String, guard: String, actions: String*) =  makeCondition(kind,guard,actions:_*)(vars)
+
+  val moveForward = a("turtle.moveForward", List(),
+    p("pre", "true", "turtle.cmd.linear.x := 20"),
+    p("started", "turtle.cmd.linear.x == 20", "turtle.cmd.linear.y := -5e3"),
+    p("post", "true"),
+    p("reset", "true"))
+
+  val moveBackward = a("turtle.moveBackward", List(),
+    p("pre", "true", "turtle.cmd.linear.x := -20"),
+    p("started", "turtle.cmd.linear.x == -20"),
+    p("post", "true", "turtle.cmd.linear.y := 0"),
+    p("reset", "true"))
+
+  val abilities = List(moveForward, moveBackward)
+
+  // operations
+  val opPosX = Thing("PosX")
+  val opPosY = Thing("PosY")
+  // internal state
+  val opGoForward = Thing("goForward")
+
+
+  val initState: Map[ID, SPValue] = Map(
+    opPosX.id -> 0,
+    opPosY.id -> 0,
+    opGoForward.id -> true
+  )
+
+  val opvars = List(opPosX, opPosY, opGoForward)
+  def g(kind: String, guard: String, actions: String*) =  makeCondition(kind,guard,actions:_*)(opvars)
+
+  val opMoveForward = Operation(name = "moveForward",
+    conditions =  List(
+      g("pre", "PosX < 1 && goForward"),
+      g("post", "PosX > 9", "goForward := false")))
+
+  val opMoveBackward = Operation(name = "moveBackward",
+    conditions =  List(
+      g("pre", "PosX > 9 && !goForward"),
+      g("post", "PosX < 1", "goForward := true")))
+
+  val opRunner = APIOperationRunner.Setup(
+    name = "TurtleRunner",
+    runnerID = ID.newID,
+    ops = Set(opMoveForward, opMoveBackward),
+    opAbilityMap = Map(opMoveForward.id -> moveForward.id, opMoveBackward.id -> moveBackward.id),
+    initialState = initState,
+    variableMap = Map(
+      opPosX.id -> pos_x.id,
+      opPosY.id -> pos_y.id
+    ),
+    abilityParameters = Map()
+  )
+}
+
+
+
+class TurtleModel extends Actor with MessageBussSupport{
+  import context.dispatcher
+
+  subscribe(APIModel.topicResponse)
+  subscribe(APIModelMaker.topicResponse)
+  subscribe(APIVDTracker.topicRequest)
+
+
+  import TurtleModel._
+
+
+
+  def launchVDAbilities(ids : List[IDAble])= {
+
+    // Extract model data from IDAbles
+    val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
+    val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
+    val rTmp = things.filter(t => t.attributes.keys.contains("stateMap"))
+    val setupRunnerThings = things.filter(t => t.name == "setupRunnerAsThing")
+
+    val exAbilities = ops.flatMap(o=> APIAbilityHandler.operationToAbility(o))
+    val exResorces = rTmp.map(t => VD.thingToResource(t))
+    val exDrivers = things.diff(rTmp).diff(setupRunnerThings).map(t=> VD.thingToDriver(t))
+    val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(setupRunnerThings.head))
+
+    //Direct launch of the VD and abilities below
+    val vdID = ID.newID
+    val abID = ID.newID
+
+    publish(APIVirtualDevice.topicRequest,
+      SPMessage.makeJson(
+        SPHeader(from = "UnificationAbilities"),
+        APIVirtualDevice.SetUpVD(
+          name = "UnificationVD",
+          id = vdID,
+          exResorces, //= resources.map(_.resource),
+          exDrivers, // = resources.map(_.driver),
+          attributes = SPAttributes()
+        )))
+
+    publish(APIAbilityHandler.topicRequest,
+      SPMessage.makeJson(
+        SPHeader(from = "UnificationAbilities"),
+        APIAbilityHandler.SetUpAbilityHandler(
+          name = "UnificationAbilites",
+          id = abID,
+          exAbilities,
+          vd = vdID
+        )))
+  }
+
+  def launchOpRunner(ids : List[IDAble])= {
+
+    // Extract setup data from IDAbles
+    val setupRunnerThings = ids.find{t =>
+      println(s"t: ${t.name}, isit: ${t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}")
+      t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}.map(_.asInstanceOf[Thing])
+
+    println(setupRunnerThings)
+
+
+    setupRunnerThings.map{s =>
+      println("HOHO")
+      val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(s))
+
+      publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
+        SPHeader(from = "UnificationAbilities", to = APIOperationRunner.service), exSetupRunner))
+
+    }
+
+  }
+
+
+  def saveModel() = {
+
+    //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
+
+    val cm = sp.models.APIModelMaker.CreateModel("unificationROSVD", SPAttributes("isa" -> "VD"))
+
+    val abs = abilities.map(a=>APIAbilityHandler.abilityToOperation(a))
+    val rIDable = VD.resourceToThing(resource)
+    val dIDable = VD.driverToThing(driver)
+    val setup = setupToThing(opRunner)
+
+    val theVD = Struct(
+      "TheVD",
+      makeStructNodes(
+        rIDable,
+        dIDable,
+        setup
+      ),
+      SPAttributes("isa" -> "VD")
+    )
+    val xs = List(rIDable, dIDable,setup) ++ abs ++ vars ++ opvars ++ opRunner.ops
+
+    val addItems = APIModel.PutItems(theVD :: xs, SPAttributes("info" -> "initial items"))
+
+    context.system.scheduler.scheduleOnce(0.1 seconds) {
+      publish(
+        APIModelMaker.topicRequest,
+        SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = APIModelMaker.service), cm)
+      )
+    }
+
+    context.system.scheduler.scheduleOnce(0.2 seconds) {
+      publish(
+        APIModel.topicRequest,
+        SPMessage.makeJson(SPHeader(from = "UnificationAbilities", to = cm.id.toString), addItems)
+      )
+    }
+  }
+
+
+  def setupToThing(setup : APIOperationRunner.Setup): Thing = {
+    Thing(
+      name = "setupRunnerAsThing",
+      id = ID.newID,
+      attributes = SPAttributes(
+        "name" -> setup.name,
+        "runnerID" -> setup.runnerID,
+        "ops" -> setup.ops,
+        "opAbilityMap" -> setup.opAbilityMap,
+        "initialState" -> setup.initialState,
+        "variableMap" -> setup.variableMap,
+        "abilityParameters" -> setup.abilityParameters.toList
+      )
+    )
+  }
+
+  def thingToSetup(thing : Thing): APIOperationRunner.Setup = {
+    val name = thing.attributes.getAs[String]("name").getOrElse("")
+    val runnerID = thing.attributes.getAs[ID]("runnerID").getOrElse(ID.newID)
+    val ops = thing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
+    val opAbilityMap = thing.attributes.getAs[Map[ID,ID]]("opAbilityMap").getOrElse(Map())
+    val initialState = thing.attributes.getAs[Map[ID,SPValue]]("initialState").getOrElse(Map())
+    val variableMap = thing.attributes.getAs[Map[ID,ID]]("variableMap").getOrElse(Map())
+    val abilityParameters = thing.attributes.getAs[List[(ID,Set[ID])]]("abilityParameters").getOrElse(List()).toMap
+    APIOperationRunner.Setup(name, runnerID,ops,opAbilityMap,initialState,variableMap,abilityParameters)
+  }
+
+  def receive = {
+    case s : String =>
+      for { // unpack message
+        mess <- SPMessage.fromJson(s)
+        h <- mess.getHeaderAs[SPHeader] if  h.to == APIVDTracker.service
+        b <- mess.getBodyAs[APIVDTracker.Request]
+      } yield {
+        val spHeader = h.swapToAndFrom
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
+        b match { // Check if the body is any of the following classes, and execute program
+          case APIVDTracker.createModel(modelID) => saveModel()
+          case APIVDTracker.launchVDAbilities(idables) => launchVDAbilities(idables)
+          case APIVDTracker.launchOpRunner(idables) => launchOpRunner(idables)
+        }
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
+      }
+  }
+  def sendAnswer(mess: String) = publish(APIVDTracker.topicResponse, mess)
+
+}
