@@ -28,16 +28,17 @@ object VDTracker {
   import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.APIVirtualDevice
 
-  case class State(latestEvent: Map[ID, SPValue] = Map(),
-                   latestAbilityState: Map[ID, SPValue] = Map(),
-                   latestVDeviceState: Map[ID, SPValue] = Map(),
-                   modelIdables : List[IDAble] = List(),
-                   modelID : ID = ID.newID
-                  )
+  case class State(latestRunnerState: Map[ID, Map[ID, SPValue]] = Map(),
+    latestActiveRunner: Option[ID] = None,
+    latestAbilityState: Map[ID, SPValue] = Map(),
+    latestVDeviceState: Map[ID, SPValue] = Map(),
+    modelIdables : List[IDAble] = List(),
+    modelID : ID = ID.newID
+  )
 
 
   private class Backend($: BackendScope[Unit, State]) {
-    
+
     val operationRunnerHandler =
       BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
     val abilityHandler =
@@ -46,27 +47,39 @@ object VDTracker {
       BackendCommunication.getMessageObserver(onVirtualDeviceMessage, APIVirtualDevice.topicResponse)
     val modelMessObs =
       BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
+    val vdModelObs =
+      BackendCommunication.getMessageObserver(onVDTmsg, APIVDTracker.topicResponse)
 
+    def onVDTmsg(mess: SPMessage): Unit = {
+      mess.body.to[APIVDTracker.Response].map{
+        case APIVDTracker.OpRunnerCreated(id) => {
+          $.modState(s => s.copy(latestActiveRunner = Some(id))).runNow()
+        }
+      }
+    }
 
     def onOperationRunnerMessage(mess: SPMessage): Unit = {
       mess.body.to[APIOperationRunner.Response].map{
         case APIOperationRunner.StateEvent(runnerID, state) => {
-          $.modState(s => s.copy(latestEvent = state)).runNow()
+          $.modState{s =>
+            val updRs = s.latestRunnerState.get(runnerID).getOrElse(Map()) ++ state
+            s.copy(latestRunnerState = s.latestRunnerState ++ Map(runnerID -> updRs))
+          }.runNow()
         }
       }
-
     }
+
     def onAbilityMessage(mess: SPMessage): Unit = {
       mess.body.to[APIAbilityHandler.Response].map{
         case APIAbilityHandler.AbilityState(id, state) => {
-          $.modState(s => s.copy(latestAbilityState = state)).runNow()
+          $.modState(s => s.copy(latestAbilityState = s.latestAbilityState ++ state)).runNow()
         }
       }
     }
     def onVirtualDeviceMessage(mess: SPMessage): Unit = {
       mess.body.to[APIVirtualDevice.Response].map{
         case APIVirtualDevice.StateEvent(resource, id, state, diff) => {
-          $.modState(s => s.copy(latestVDeviceState = state)).runNow()
+          $.modState(s => s.copy(latestVDeviceState = s.latestVDeviceState ++ state)).runNow()
         }
       }
     }
@@ -89,7 +102,7 @@ object VDTracker {
     def send(mess: APIVDTracker.Request): Callback = {
       val h = SPHeader(from = "VDTrackerWidget", to = APIVDTracker.service, reply = SPValue("VDTracker"))
       val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
-      BackendCommunication.publish(json, APIVDTracker.topicRequest)
+        BackendCommunication.publish(json, APIVDTracker.topicRequest)
       Callback.empty
     }
 
@@ -109,13 +122,49 @@ object VDTracker {
           ^.onClick --> send(APIVDTracker.launchOpRunner(s.modelIdables)), "Launch operation runner"
         ),
         <.br(),
-        renderInfo("Operation runner variables", s.latestEvent, s.modelIdables),
+        <.br(),
+        renderRunners(s.latestActiveRunner, s.latestRunnerState, s.modelIdables),
         <.br(),
         renderInfo("Ability state", s.latestAbilityState, s.modelIdables),
         <.br(),
         renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables),
       )
 
+    def terminateRunner(id: ID): Callback = {
+      val h = SPHeader(from = "VDTrackerWidget", to = APIOperationRunner.service)
+      val json = SPMessage.make(h, APIOperationRunner.TerminateRunner(id))
+      BackendCommunication.publish(json, APIOperationRunner.topicRequest)
+      // todo: should wait for new state run runner service...
+      $.modState(s=>s.copy(latestRunnerState = s.latestRunnerState - id))
+    }
+
+    def renderRunners(active: Option[ID], runnerStates: Map[ID, Map[ID , SPValue]], ids : List[IDAble]) = {
+      runnerStates.map { case (r, state) =>
+        <.details(if (active.contains(r)) ^.open := "open" else EmptyVdom, ^.className := Style.collapsible.htmlClass,
+          <.summary(
+            s"Operation runner state ($r)",
+            <.button(
+              ^.className := "btn",
+              ^.title := "Kill runner",
+              ^.onClick --> terminateRunner(r),
+              <.i(^.className := "fa fa-bolt")
+            )
+          ),
+          <.table(
+            ^.className := "table table-striped", ^.className := "Table",
+            <.tbody(
+              state.map(is => {
+                val cI = ids.filter(i => i.id == is._1)
+                <.tr(
+                  <.td(if (cI.nonEmpty) cI.head.name else ""),
+                  <.td(is._1.toString),
+                  <.td(is._2.toString)
+                )
+              }).toTagMod
+            )), <.br()
+        ).when(state.nonEmpty)
+      }.toTagMod.when(runnerStates.nonEmpty)
+    }
 
     def renderInfo(name : String, m: Map[ID , SPValue], ids : List[IDAble]) = {
       <.details(^.open := "open", ^.className := Style.collapsible.htmlClass,

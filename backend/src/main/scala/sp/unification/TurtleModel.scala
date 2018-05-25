@@ -99,13 +99,13 @@ object TurtleModel extends Helpers {
 
   val opMoveForward = Operation(name = "moveForward",
     conditions =  List(
-      g("pre", "PosX < 1 && goForward"),
-      g("post", "PosX > 9", "goForward := false")))
+      g("pre", "PosX < 3 && goForward"),
+      g("post", "PosX > 7", "goForward := false")))
 
   val opMoveBackward = Operation(name = "moveBackward",
     conditions =  List(
-      g("pre", "PosX > 9 && !goForward"),
-      g("post", "PosX < 1", "goForward := true")))
+      g("pre", "PosX > 7 && !goForward"),
+      g("post", "PosX < 3", "goForward := true")))
 
   val opRunner = APIOperationRunner.Setup(
     name = "TurtleRunner",
@@ -174,7 +174,7 @@ class TurtleModel extends Actor with MessageBussSupport{
         )))
   }
 
-  def launchOpRunner(ids : List[IDAble])= {
+  def launchOpRunner(h: SPHeader, ids : List[IDAble])= {
 
     // Extract setup data from IDAbles
     val setupRunnerThings = ids.find{t =>
@@ -185,12 +185,13 @@ class TurtleModel extends Actor with MessageBussSupport{
 
 
     setupRunnerThings.map{s =>
-      println("HOHO")
-      val runnerSetup = thingToSetup(s)
-      val exSetupRunner = APIOperationRunner.CreateRunner(runnerSetup.copy(runnerID = ID.newID))
+      val runnerSetup = thingToSetup(s).copy(runnerID = ID.newID)
+      val exSetupRunner = APIOperationRunner.CreateRunner(runnerSetup)
 
       publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
         SPHeader(from = "UnificationAbilities", to = APIOperationRunner.service), exSetupRunner))
+
+      publish(APIVDTracker.topicResponse, SPMessage.makeJson(h, APIVDTracker.OpRunnerCreated(runnerSetup.runnerID)))
 
     }
 
@@ -276,9 +277,9 @@ class TurtleModel extends Actor with MessageBussSupport{
         b match { // Check if the body is any of the following classes, and execute program
           case APIVDTracker.createModel(modelID) => saveModel()
           case APIVDTracker.launchVDAbilities(idables) => launchVDAbilities(idables)
-          case APIVDTracker.launchOpRunner(idables) => launchOpRunner(idables)
+          case APIVDTracker.launchOpRunner(idables) => launchOpRunner(spHeader,idables)
         }
-        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
+        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPDone()))
       }
   }
   def sendAnswer(mess: String) = publish(APIVDTracker.topicResponse, mess)
