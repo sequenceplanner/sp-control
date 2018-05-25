@@ -186,7 +186,8 @@ class TurtleModel extends Actor with MessageBussSupport{
 
     setupRunnerThings.map{s =>
       println("HOHO")
-      val exSetupRunner = APIOperationRunner.CreateRunner(thingToSetup(s))
+      val runnerSetup = thingToSetup(s)
+      val exSetupRunner = APIOperationRunner.CreateRunner(runnerSetup.copy(runnerID = ID.newID))
 
       publish(APIOperationRunner.topicRequest, SPMessage.makeJson(
         SPHeader(from = "UnificationAbilities", to = APIOperationRunner.service), exSetupRunner))
