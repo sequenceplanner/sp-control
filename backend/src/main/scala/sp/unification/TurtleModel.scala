@@ -49,8 +49,8 @@ object TurtleModel extends Helpers {
 
   val name = "turtle"
 
-  val cmd_linear_x = v("turtle.cmd.linear.x", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x")
-  val cmd_linear_y = v("turtle.cmd.linear.y", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y")
+  val cmd_linear_x = v("turtle.cmd.linear.x", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x:250") // 250ms between writes
+  val cmd_linear_y = v("turtle.cmd.linear.y", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y:250")
   val pos_x = v("turtle.pos.x", "turtlesim/Pose:/turtle1/pose:x")
   val pos_y = v("turtle.pos.y", "turtlesim/Pose:/turtle1/pose:y")
 
@@ -68,14 +68,14 @@ object TurtleModel extends Helpers {
   def p(kind: String, guard: String, actions: String*) =  makeCondition(kind,guard,actions:_*)(vars)
 
   val moveForward = a("turtle.moveForward", List(),
-    p("pre", "true", "turtle.cmd.linear.x := 20"),
-    p("started", "turtle.cmd.linear.x == 20", "turtle.cmd.linear.y := -5e3"),
+    p("pre", "true", "turtle.cmd.linear.x := 5"),
+    p("started", "turtle.cmd.linear.x == 5", "turtle.cmd.linear.y := -5e3"),
     p("post", "true"),
     p("reset", "true"))
 
   val moveBackward = a("turtle.moveBackward", List(),
-    p("pre", "true", "turtle.cmd.linear.x := -20"),
-    p("started", "turtle.cmd.linear.x == -20"),
+    p("pre", "true", "turtle.cmd.linear.x := -5"),
+    p("started", "turtle.cmd.linear.x == -5"),
     p("post", "true", "turtle.cmd.linear.y := 0"),
     p("reset", "true"))
 
@@ -97,15 +97,18 @@ object TurtleModel extends Helpers {
   val opvars = List(opPosX, opPosY, opGoForward)
   def g(kind: String, guard: String, actions: String*) =  makeCondition(kind,guard,actions:_*)(opvars)
 
+  // should the op complete as soon as the ability completes (in this
+  // case, right away) or should it also wait for the post guard
+  // to become true?
   val opMoveForward = Operation(name = "moveForward",
     conditions =  List(
-      g("pre", "PosX < 3 && goForward"),
-      g("post", "PosX > 7", "goForward := false")))
+      g("pre", "PosX < 1 && goForward"),
+      g("post", "PosX > 9", "goForward := false")))
 
   val opMoveBackward = Operation(name = "moveBackward",
     conditions =  List(
-      g("pre", "PosX > 7 && !goForward"),
-      g("post", "PosX < 3", "goForward := true")))
+      g("pre", "PosX > 9 && !goForward"),
+      g("post", "PosX < 1", "goForward := true")))
 
   val opRunner = APIOperationRunner.Setup(
     name = "TurtleRunner",

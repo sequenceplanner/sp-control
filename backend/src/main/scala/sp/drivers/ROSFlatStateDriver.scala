@@ -5,6 +5,7 @@ import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler.{APIDeviceDriver => api}
+import scala.concurrent.duration._
 
 import org.ros.message.MessageListener
 import org.ros.namespace.GraphName
@@ -39,16 +40,19 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     with ActorLogging
     with sp.service.MessageBussSupport {
 
+  import context.dispatcher
+
   subscribe(api.topicRequest)
 
   val resourceName = d.name
   val header = SPHeader(from = d.name)
   val driverIdentifiers = d.setup.getAs[List[String]]("identifiers").getOrElse(List())
 
-  case class RosVar(did: String, msgType: String, topic: String, field: String)
+  case class RosVar(did: String, msgType: String, topic: String, field: String, rate: Int)
   val rosVars = driverIdentifiers.map(s => {
     val strs = s.split(":")
-    RosVar(s, strs(0), strs(1), strs(2)) })
+    RosVar(s, strs(0), strs(1), strs(2), if(strs.size == 4) strs(3).toInt else 0)
+  })
 
   val didToVar = rosVars.map(r => r.did -> r).toMap
   val topics: Map[String, Iterable[RosVar]] = rosVars.groupBy(_.topic)
@@ -57,7 +61,9 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   var rosState: Map[String, org.ros.internal.message.Message] = Map()
   var spState: Map[String, SPValue] = Map()
 
-  var pubsub: Map[String, (Publisher[org.ros.internal.message.Message],
+  case class PublishTicker(p: Publisher[org.ros.internal.message.Message], c: Option[Cancellable])
+  case class TickTopic(topic: String)
+  var pubsub: Map[String, (PublishTicker,
     Subscriber[org.ros.internal.message.Message])] = Map()
 
   val rosNodeMainExecutor = DefaultNodeMainExecutor.newDefault()
@@ -83,6 +89,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       // puke if not all topics have the same msg type
       val r = rosVars.head // we know we have head from groupBy
       assert(rosVars.forall(_.msgType == r.msgType))
+      assert(rosVars.forall(_.rate == r.rate))
       topic -> topicMessageFactory.newFromType(r.msgType) }
 
     spState = rosVars.map(rvar => {
@@ -96,6 +103,10 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     pubsub = topics.map { case (topic, rosVars) =>
       val r= rosVars.head // we know we have head from groupBy
       val p: Publisher[org.ros.internal.message.Message] = cn.newPublisher(topic, r.msgType)
+      // create ticker if needed
+      val pt = PublishTicker(p,
+        if(r.rate != 0) Some(context.system.scheduler.schedule(0 milliseconds, r.rate milliseconds, self, TickTopic(topic)))
+        else None)
       val s: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber(topic, r.msgType)
       s.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
         override def onNewMessage(msg: org.ros.internal.message.Message) =  {
@@ -118,7 +129,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
           }
         }
       })
-      (topic -> (p,s))
+      (topic -> (pt,s))
     }.toMap
 
   }
@@ -129,9 +140,10 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     println("ROS EXCEPTION: " + t.toString)
   }
 
-  override def onShutdown(n: Node): Unit = println("** Stopping ros node **")
+  override def onShutdown(n: Node): Unit = {
+    println("** Stopping ros node **")
+  }
   override def onShutdownComplete(n: Node): Unit = println("** ros node stopped **")
-
 
   def writeStateChange(newState: Map[String, SPValue]) = {
     val toChange = newState//(newState.toSet.diff(spState.toSet)).filter(x=>didToVar.contains(x._1)).toMap
@@ -144,9 +156,9 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       val msg = rosState(topic)
       // mutate stored msg...
       state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
-      val publisher = pubsub(topic)._1
       // send updated state
       println("ROS Node writing state: " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
+      val publisher = pubsub(topic)._1.p
       publisher.publish(msg)
     }
   }
@@ -264,6 +276,24 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   }
 
   def receive = {
+    case TickTopic(topic) =>
+      // push current state out on ros topic
+      // todo: refactor, this is a copy of the "normal" state writer
+      val rosVarsToChange = spState.map { case (did,spval) =>
+        (didToVar(did) -> spval) }.toMap
+      val topicsToWrite = rosVarsToChange.groupBy { case (rv,spval) => rv.topic }.filter { case (t,s) => t == topic }
+
+      topicsToWrite.foreach { case (topic,state) =>
+        val msg = rosState(topic)
+        // mutate stored msg...
+        state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
+        // send updated state
+        // println("ROS Node writing state (ticker): " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
+        val publisher = pubsub(topic)._1.p
+        publisher.publish(msg)
+      }
+
+
     case x: String =>
       SPMessage.fromJson(x).foreach{mess =>
         for {
