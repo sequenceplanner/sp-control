@@ -17,6 +17,8 @@ libraryDependencies ++= Seq(
   "org.ros.rosjava_messages" % "std_msgs" % "0.5.11",
   "org.ros.rosjava_messages" % "geometry_msgs" % "1.12.5",
   "org.ros.rosjava_messages" % "rosgraph_msgs" % "1.11.2",
+  "org.ros.rosjava_messages" % "nav_msgs" % "1.12.5",
+
   // "org.ros.rosjava_messages" % "turtlesim" % "0.5.5",
 
 

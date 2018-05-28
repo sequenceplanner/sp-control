@@ -53,14 +53,18 @@ object TurtleModel extends Helpers {
   val cmd_linear_y = v("turtle.cmd.linear.y", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y:250")
   val pos_x = v("turtle.pos.x", "turtlesim/Pose:/turtle1/pose:x")
   val pos_y = v("turtle.pos.y", "turtlesim/Pose:/turtle1/pose:y")
+  val test_str = v("test_str", "std_msgs/String:/hecu_hca_unistate:data")
+  val test_mir = v("mir_x", "nav_msgs/Odometry:/mir100_diff_drive_controller/odom:pose.pose.position.x")
 
-  val vars: List[Thing] = List(cmd_linear_x, cmd_linear_y, pos_x, pos_y)
+  val vars: List[Thing] = List(cmd_linear_x, cmd_linear_y, pos_x, pos_y, test_str, test_mir)
 
-  val rosMaster = "http://localhost:11311/"
   val driverID = ID.newID
   val driverMap = driverMapper(driverID, vars)
   val driverSetup = SPAttributes("masterHost" -> "localhost",
     "masterURI" -> "http://localhost:11311/", "identifiers" -> driverMap.map(_.driverIdentifier))
+  // val driverSetup = SPAttributes("masterHost" -> "endre",
+  //   "masterURI" -> "http://192.170.1.101:11311/", "identifiers" -> driverMap.map(_.driverIdentifier))
+
   val driver = VD.Driver("TurtleDriver", driverID, ROSFlatStateDriver.driverType, driverSetup)
 
   val resource = VD.Resource(name, ID.newID, vars.map(_.id).toSet, driverMap, SPAttributes())

@@ -72,15 +72,15 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   val nc = NodeConfiguration.newPublic(masterHost, new URI(masterURI))
   rosNodeMainExecutor.execute(this, nc)
 
-  println("******************** ROSNODE ********************")
-  println("trying to connect to master")
+  log.debug("******************** ROSNODE ********************")
+  log.debug("trying to connect to master: " + masterHost + " " + masterURI)
 
   override def getDefaultNodeName(): GraphName =
     GraphName.of("sp/" + d.name)
 
   override def onStart(cn: ConnectedNode): Unit = {
-    println("******************** ROSNODE ********************")
-    println("successfully connected to master " + masterHost + " @ " + masterURI)
+    log.debug("******************** ROSNODE ********************")
+    log.debug("successfully connected to master " + masterHost + " @ " + masterURI)
 
     // to create empty ros messages
     val topicMessageFactory: MessageFactory = cn.getTopicMessageFactory()
@@ -120,10 +120,10 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
             if(updSpState != spState) {
               // new state!
               spState = updSpState
-              println("============================================================")
-              println("got new ros state: ")
-              println(spState.mkString("\n"))
-              println("============================================================")
+              log.debug("============================================================")
+              log.debug("got new ros state: ")
+              log.debug(spState.mkString("\n"))
+              log.debug("============================================================")
               publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
             }
           }
@@ -135,15 +135,15 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   }
 
   override def onError(n: Node, t: Throwable): Unit = {
-    println("******************** ROSNODE ********************")
-    println("ROS ERROR NODE: " + n)
-    println("ROS EXCEPTION: " + t.toString)
+    log.debug("******************** ROSNODE ********************")
+    log.debug("ROS ERROR NODE: " + n)
+    log.debug("ROS EXCEPTION: " + t.toString)
   }
 
   override def onShutdown(n: Node): Unit = {
-    println("** Stopping ros node **")
+    log.debug("** Stopping ros node **")
   }
-  override def onShutdownComplete(n: Node): Unit = println("** ros node stopped **")
+  override def onShutdownComplete(n: Node): Unit = log.debug("** ros node stopped **")
 
   def writeStateChange(newState: Map[String, SPValue]) = {
     val toChange = newState//(newState.toSet.diff(spState.toSet)).filter(x=>didToVar.contains(x._1)).toMap
@@ -157,14 +157,14 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       // mutate stored msg...
       state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
       // send updated state
-      println("ROS Node writing state: " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
+      log.debug("ROS Node writing state: " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
       val publisher = pubsub(topic)._1.p
       publisher.publish(msg)
     }
   }
 
   def rosValToSPVal(rostype: String, rv: Object): Option[SPValue] = {
-    // println("type: " + rostype + " " + rv)
+    // log.debug("type: " + rostype + " " + rv)
     rostype match {
       case "string" => Some(SPValue(rv.asInstanceOf[String]))
       case "float32" => Some(SPValue(rv.asInstanceOf[Float]))
@@ -182,13 +182,13 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       case "uint64" => Some(SPValue(rv.asInstanceOf[Long]))
       case "time" => Some(SPValue(rv.toString))
       case _ =>
-        println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
+        log.debug("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
         None
     }
   }
 
   def spValtoRosVal(rostype: String, sv: SPValue): Option[Any] = {
-    // println("type: " + rostype + " " + sv)
+    // log.debug("type: " + rostype + " " + sv)
     rostype match {
       case "string" => Some(sv.as[String])
       case "float32" => Some(sv.as[Float])
@@ -206,7 +206,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       case "uint64" => Some(sv.as[Long])
       // case "time" => Some(sv.as[String])
       case _ =>
-        println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
+        log.debug("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
         None
     }
   }
@@ -225,7 +225,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
             if(v.isInstanceOf[org.ros.internal.message.Message])
               dig(xs, v.asInstanceOf[org.ros.internal.message.Message].toRawMessage().getFields().asScala.toList)
             else {
-              println(" Digging into a non-message field!")
+              log.debug(" Digging into a non-message field!")
               None
             }
           }
@@ -259,7 +259,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
             if(v.isInstanceOf[org.ros.internal.message.Message])
               dig(xs, v.asInstanceOf[org.ros.internal.message.Message].toRawMessage().getFields().asScala.toList)
             else {
-              println(" Digging into a non-message field!")
+              log.debug(" Digging into a non-message field!")
               None.get
               false
             }
@@ -283,16 +283,17 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
         (didToVar(did) -> spval) }.toMap
       val topicsToWrite = rosVarsToChange.groupBy { case (rv,spval) => rv.topic }.filter { case (t,s) => t == topic }
 
-      topicsToWrite.foreach { case (topic,state) =>
+      for {
+        (topic, state) <- topicsToWrite
+        msg <- rosState.get(topic)
+      } yield {
         val msg = rosState(topic)
         // mutate stored msg...
         state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
         // send updated state
-        // println("ROS Node writing state (ticker): " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
-        val publisher = pubsub(topic)._1.p
-        publisher.publish(msg)
+        // log.debug("ROS Node writing state (ticker): " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
+        pubsub.get(topic).foreach{ps=>ps._1.p.publish(msg) }
       }
-
 
     case x: String =>
       SPMessage.fromJson(x).foreach{mess =>
