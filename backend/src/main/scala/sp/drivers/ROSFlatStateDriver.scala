@@ -67,20 +67,27 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     Subscriber[org.ros.internal.message.Message])] = Map()
 
   val rosNodeMainExecutor = DefaultNodeMainExecutor.newDefault()
-  val masterHost = d.setup.getAs[String]("masterHost").getOrElse("localhost")
-  val masterURI = d.setup.getAs[String]("masterURI").getOrElse("http://localhost:11311/")
-  val nc = NodeConfiguration.newPublic(masterHost, new URI(masterURI))
+
+  // first check if we provided hosts, and uri as a setting,
+  // if not, check environment variables, if they don't extist
+  // default to localhost
+  val localHostname = d.setup.getAs[String]("localHostname").getOrElse(scala.util.Properties.envOrElse("ROS_HOSTNAME", "localhost"))
+  val masterURI = d.setup.getAs[String]("masterURI").getOrElse(scala.util.Properties.envOrElse("ROS_MASTER_URI", "http://localhost:11311/"))
+  val nc = NodeConfiguration.newPublic(localHostname, new URI(masterURI))
   rosNodeMainExecutor.execute(this, nc)
 
   log.debug("******************** ROSNODE ********************")
-  log.debug("trying to connect to master: " + masterHost + " " + masterURI)
+  log.debug("trying to connect to master: " + masterURI)
+  log.debug("client settings: ")
+  log.debug("-- ROS_HOST: " + localHostname)
+  log.debug("-- ROS_IP: " + nc.getTcpRosBindAddress())
 
   override def getDefaultNodeName(): GraphName =
     GraphName.of("sp/" + d.name)
 
   override def onStart(cn: ConnectedNode): Unit = {
     log.debug("******************** ROSNODE ********************")
-    log.debug("successfully connected to master " + masterHost + " @ " + masterURI)
+    log.debug("successfully connected to master " + masterURI)
 
     // to create empty ros messages
     val topicMessageFactory: MessageFactory = cn.getTopicMessageFactory()
@@ -291,7 +298,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
         // mutate stored msg...
         state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
         // send updated state
-        // log.debug("ROS Node writing state (ticker): " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
+        log.debug("ROS Node writing state (ticker): " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
         pubsub.get(topic).foreach{ps=>ps._1.p.publish(msg) }
       }
 

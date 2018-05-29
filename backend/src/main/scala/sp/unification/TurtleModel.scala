@@ -49,27 +49,39 @@ object TurtleModel extends Helpers {
 
   val name = "turtle"
 
-  val cmd_linear_x = v("turtle.cmd.linear.x", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x:250") // 250ms between writes
-  val cmd_linear_y = v("turtle.cmd.linear.y", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y:250")
+  val cmd_linear_x = v("turtle.cmd.linear.x", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.x") // 250ms between writes
+  val cmd_linear_y = v("turtle.cmd.linear.y", "geometry_msgs/Twist:/turtle1/cmd_vel:linear.y")
   val pos_x = v("turtle.pos.x", "turtlesim/Pose:/turtle1/pose:x")
   val pos_y = v("turtle.pos.y", "turtlesim/Pose:/turtle1/pose:y")
   val test_str = v("test_str", "std_msgs/String:/hecu_hca_unistate:data")
-  val test_mir = v("mir_x", "nav_msgs/Odometry:/mir100_diff_drive_controller/odom:pose.pose.position.x")
+//  val test_mir = v("mir_x", "nav_msgs/Odometry:/mir100_diff_drive_controller/odom:pose.pose.position.x")
+  val test_control = v("test_control", "std_msgs/String:/sp_to_fake_mir_unidriver:data:500")
 
-  val vars: List[Thing] = List(cmd_linear_x, cmd_linear_y, pos_x, pos_y, test_str, test_mir)
+  val vars: List[Thing] = List(cmd_linear_x, cmd_linear_y, pos_x, pos_y, test_str, test_control)
 
   val driverID = ID.newID
   val driverMap = driverMapper(driverID, vars)
-  val driverSetup = SPAttributes("masterHost" -> "localhost",
-    "masterURI" -> "http://localhost:11311/", "identifiers" -> driverMap.map(_.driverIdentifier))
-  // val driverSetup = SPAttributes("masterHost" -> "endre",
+  // val driverSetup = SPAttributes("localHostname" -> "ubuntu",
   //   "masterURI" -> "http://192.170.1.101:11311/", "identifiers" -> driverMap.map(_.driverIdentifier))
+  val driverSetup = SPAttributes("identifiers" -> driverMap.map(_.driverIdentifier))
 
   val driver = VD.Driver("TurtleDriver", driverID, ROSFlatStateDriver.driverType, driverSetup)
 
   val resource = VD.Resource(name, ID.newID, vars.map(_.id).toSet, driverMap, SPAttributes())
 
   def p(kind: String, guard: String, actions: String*) =  makeCondition(kind,guard,actions:_*)(vars)
+
+  val testControlOn = a("testRosControlOn", List(),
+    p("pre", "true", "test_control := move"),
+    p("started", "test_control == move"),
+    p("post", "true"),
+    p("reset", "true"))
+
+  val testControlOff = a("testRosControlOff", List(),
+    p("pre", "true", "test_control := dontmove"),
+    p("started", "test_control == dontmove"),
+    p("post", "true"),
+    p("reset", "true"))
 
   val moveForward = a("turtle.moveForward", List(),
     p("pre", "true", "turtle.cmd.linear.x := 5"),
@@ -83,7 +95,7 @@ object TurtleModel extends Helpers {
     p("post", "true", "turtle.cmd.linear.y := 0"),
     p("reset", "true"))
 
-  val abilities = List(moveForward, moveBackward)
+  val abilities = List(moveForward, moveBackward, testControlOn, testControlOff)
 
   // operations
   val opPosX = Thing("PosX")
