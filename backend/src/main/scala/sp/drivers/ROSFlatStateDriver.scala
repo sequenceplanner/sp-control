@@ -152,49 +152,59 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   }
 
   def rosValToSPVal(rostype: String, rv: Object): Option[SPValue] = {
-    // println("type: " + rostype + " " + rv)
-    rostype match {
-      case "string" => Some(SPValue(rv.asInstanceOf[String]))
-      case "float32" => Some(SPValue(rv.asInstanceOf[Float]))
-      case "float64" => Some(SPValue(rv.asInstanceOf[Double]))
-      case "bool" => Some(SPValue(rv.asInstanceOf[Boolean]))
-      case "byte" => Some(SPValue(rv.asInstanceOf[Byte]))
-      case "char" => Some(SPValue(rv.asInstanceOf[Byte]))
-      case "int8" => Some(SPValue(rv.asInstanceOf[Byte]))
-      case "uint8" => Some(SPValue(rv.asInstanceOf[Byte]))
-      case "int16" => Some(SPValue(rv.asInstanceOf[Short]))
-      case "uint16" => Some(SPValue(rv.asInstanceOf[Short]))
-      case "int32" => Some(SPValue(rv.asInstanceOf[Int]))
-      case "uint32" => Some(SPValue(rv.asInstanceOf[Int]))
-      case "int64" => Some(SPValue(rv.asInstanceOf[Long]))
-      case "uint64" => Some(SPValue(rv.asInstanceOf[Long]))
-      case "time" => Some(SPValue(rv.toString))
-      case _ =>
-        println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
+    try {
+      rostype match {
+        case "string" => Some(SPValue(rv.asInstanceOf[String]))
+        case "float32" => Some(SPValue(rv.asInstanceOf[Float]))
+        case "float64" => Some(SPValue(rv.asInstanceOf[Double]))
+        case "bool" => Some(SPValue(rv.asInstanceOf[Boolean]))
+        case "byte" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "char" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "int8" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "uint8" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "int16" => Some(SPValue(rv.asInstanceOf[Short]))
+        case "uint16" => Some(SPValue(rv.asInstanceOf[Short]))
+        case "int32" => Some(SPValue(rv.asInstanceOf[Int]))
+        case "uint32" => Some(SPValue(rv.asInstanceOf[Int]))
+        case "int64" => Some(SPValue(rv.asInstanceOf[Long]))
+        case "uint64" => Some(SPValue(rv.asInstanceOf[Long]))
+        case "time" => Some(SPValue(rv.toString))
+        case _ =>
+          println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
+          None
+      }
+    } catch {
+      case _: Throwable =>
+        println("******* ROS DRIVER: PROBLEM WITH CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
         None
     }
   }
 
   def spValtoRosVal(rostype: String, sv: SPValue): Option[Any] = {
-    // println("type: " + rostype + " " + sv)
-    rostype match {
-      case "string" => Some(sv.as[String])
-      case "float32" => Some(sv.as[Float])
-      case "float64" => Some(sv.as[Double])
-      case "bool" => Some(sv.as[Boolean])
-      case "byte" => Some(sv.as[Byte])
-      case "char" => Some(sv.as[Byte])
-      case "int8" => Some(sv.as[Byte])
-      case "uint8" => Some(sv.as[Byte])
-      case "int16" => Some(sv.as[Short])
-      case "uint16" => Some(sv.as[Short])
-      case "int32" => Some(sv.as[Int])
-      case "uint32" => Some(sv.as[Int])
-      case "int64" => Some(sv.as[Long])
-      case "uint64" => Some(sv.as[Long])
-      // case "time" => Some(sv.as[String])
-      case _ =>
-        println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
+    try {
+      rostype match {
+        case "string" => Some(sv.as[String])
+        case "float32" => Some(sv.as[Float])
+        case "float64" => Some(sv.as[Double])
+        case "bool" => Some(sv.as[Boolean])
+        case "byte" => Some(sv.as[Byte])
+        case "char" => Some(sv.as[Byte])
+        case "int8" => Some(sv.as[Byte])
+        case "uint8" => Some(sv.as[Byte])
+        case "int16" => Some(sv.as[Short])
+        case "uint16" => Some(sv.as[Short])
+        case "int32" => Some(sv.as[Int])
+        case "uint32" => Some(sv.as[Int])
+        case "int64" => Some(sv.as[Long])
+        case "uint64" => Some(sv.as[Long])
+        // case "time" => Some(sv.as[String])
+        case _ =>
+          println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
+          None
+      }
+    } catch {
+      case _: Throwable =>
+        println("******* ROS DRIVER: PROBLEM WITH CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
         None
     }
   }
