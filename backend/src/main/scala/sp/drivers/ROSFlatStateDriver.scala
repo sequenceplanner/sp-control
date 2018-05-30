@@ -44,6 +44,8 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
 
   subscribe(api.topicRequest)
 
+  val listenerTimeout = 5000l // after this many ms without new msgs we re-subscribe to the topic
+
   val resourceName = d.name
   val header = SPHeader(from = d.name)
   val driverIdentifiers = d.setup.getAs[List[String]]("identifiers").getOrElse(List())
@@ -63,8 +65,12 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
 
   case class PublishTicker(p: Publisher[org.ros.internal.message.Message], c: Option[Cancellable])
   case class TickTopic(topic: String)
+  case class TickTimeout(cn: ConnectedNode, timePassed: Long) // for now theres a global timeout
   var pubsub: Map[String, (PublishTicker,
     Subscriber[org.ros.internal.message.Message])] = Map()
+
+  var topicTimeouts: Map[String, (Long, Long)] = Map()
+  var n: Option[ConnectedNode] = None
 
   val rosNodeMainExecutor = DefaultNodeMainExecutor.newDefault()
 
@@ -76,18 +82,19 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   val nc = NodeConfiguration.newPublic(localHostname, new URI(masterURI))
   rosNodeMainExecutor.execute(this, nc)
 
-  log.debug("******************** ROSNODE ********************")
-  log.debug("trying to connect to master: " + masterURI)
-  log.debug("client settings: ")
-  log.debug("-- ROS_HOST: " + localHostname)
-  log.debug("-- ROS_IP: " + nc.getTcpRosBindAddress())
+  println("******************** ROSNODE ********************")
+  println("trying to connect to master: " + masterURI)
+  println("client settings: ")
+  println("-- ROS_HOST: " + localHostname)
+  println("-- ROS_IP: " + nc.getTcpRosBindAddress())
 
   override def getDefaultNodeName(): GraphName =
     GraphName.of("sp/" + d.name)
 
   override def onStart(cn: ConnectedNode): Unit = {
-    log.debug("******************** ROSNODE ********************")
-    log.debug("successfully connected to master " + masterURI)
+    n = Some(cn)
+    println("******************** ROSNODE ********************")
+    println("successfully connected to master " + masterURI)
 
     // to create empty ros messages
     val topicMessageFactory: MessageFactory = cn.getTopicMessageFactory()
@@ -106,51 +113,25 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     // start with publishing an empty state. perhaps we need support for initial state??
     publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
 
+    topicTimeouts = topics.map { case (topic, rosVars) => (topic, (0l,listenerTimeout)) }.toMap
+
     // setup a listener to each topic
-    pubsub = topics.map { case (topic, rosVars) =>
-      val r= rosVars.head // we know we have head from groupBy
-      val p: Publisher[org.ros.internal.message.Message] = cn.newPublisher(topic, r.msgType)
-      // create ticker if needed
-      val pt = PublishTicker(p,
-        if(r.rate != 0) Some(context.system.scheduler.schedule(0 milliseconds, r.rate milliseconds, self, TickTopic(topic)))
-        else None)
-      val s: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber(topic, r.msgType)
-      s.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
-        override def onNewMessage(msg: org.ros.internal.message.Message) =  {
-          // update internal ros state
-          this.synchronized { // perhaps we can block less than this.
-            rosState = rosState + (topic -> msg)
+    pubsub = topics.map { case (topic, rosVars) => createPublisherSubscriber(cn, topic, rosVars) }.toMap
 
-            // update sp state
-            val updSpState = spState ++ rosVars.map(rvar => rvar.did -> getField(rvar.field, rosState(rvar.topic)).get).toMap
-
-            if(updSpState != spState) {
-              // new state!
-              spState = updSpState
-              log.debug("============================================================")
-              log.debug("got new ros state: ")
-              log.debug(spState.mkString("\n"))
-              log.debug("============================================================")
-              publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
-            }
-          }
-        }
-      })
-      (topic -> (pt,s))
-    }.toMap
-
+    // start listener timeout ticker
+    context.system.scheduler.schedule(0 milliseconds, 100 milliseconds, self, TickTimeout(cn, 100l))
   }
 
   override def onError(n: Node, t: Throwable): Unit = {
-    log.debug("******************** ROSNODE ********************")
-    log.debug("ROS ERROR NODE: " + n)
-    log.debug("ROS EXCEPTION: " + t.toString)
+    println("******************** ROSNODE ********************")
+    println("ROS ERROR NODE: " + n)
+    println("ROS EXCEPTION: " + t.toString)
   }
 
   override def onShutdown(n: Node): Unit = {
-    log.debug("** Stopping ros node **")
+    println("** Stopping ros node **")
   }
-  override def onShutdownComplete(n: Node): Unit = log.debug("** ros node stopped **")
+  override def onShutdownComplete(n: Node): Unit = println("** ros node stopped **")
 
   def writeStateChange(newState: Map[String, SPValue]) = {
     val toChange = newState//(newState.toSet.diff(spState.toSet)).filter(x=>didToVar.contains(x._1)).toMap
@@ -164,14 +145,14 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       // mutate stored msg...
       state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
       // send updated state
-      log.debug("ROS Node writing state: " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
+      println("ROS Node writing state: " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
       val publisher = pubsub(topic)._1.p
       publisher.publish(msg)
     }
   }
 
   def rosValToSPVal(rostype: String, rv: Object): Option[SPValue] = {
-    // log.debug("type: " + rostype + " " + rv)
+    // println("type: " + rostype + " " + rv)
     rostype match {
       case "string" => Some(SPValue(rv.asInstanceOf[String]))
       case "float32" => Some(SPValue(rv.asInstanceOf[Float]))
@@ -189,13 +170,13 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       case "uint64" => Some(SPValue(rv.asInstanceOf[Long]))
       case "time" => Some(SPValue(rv.toString))
       case _ =>
-        log.debug("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
+        println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
         None
     }
   }
 
   def spValtoRosVal(rostype: String, sv: SPValue): Option[Any] = {
-    // log.debug("type: " + rostype + " " + sv)
+    // println("type: " + rostype + " " + sv)
     rostype match {
       case "string" => Some(sv.as[String])
       case "float32" => Some(sv.as[Float])
@@ -213,10 +194,45 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       case "uint64" => Some(sv.as[Long])
       // case "time" => Some(sv.as[String])
       case _ =>
-        log.debug("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
+        println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
         None
     }
   }
+
+  def createPublisherSubscriber(cn: ConnectedNode, topic: String, rosVars: Iterable[RosVar]) = {
+    assert(rosVars.nonEmpty) // we know we have head from groupBy
+    val r= rosVars.head
+    val p: Publisher[org.ros.internal.message.Message] = cn.newPublisher(topic, r.msgType)
+    // create ticker if needed
+    val pt = PublishTicker(p,
+      if(r.rate != 0) Some(context.system.scheduler.schedule(0 milliseconds, r.rate milliseconds, self, TickTopic(topic)))
+      else None)
+    val s: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber(topic, r.msgType)
+    s.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
+      override def onNewMessage(msg: org.ros.internal.message.Message) =  {
+        // update internal ros state
+        this.synchronized { // perhaps we can block less than this.
+          topicTimeouts = topicTimeouts + (topic -> (0l,listenerTimeout))
+          rosState = rosState + (topic -> msg)
+
+          // update sp state
+          val updSpState = spState ++ rosVars.map(rvar => rvar.did -> getField(rvar.field, rosState(rvar.topic)).get).toMap
+
+          if(updSpState != spState) {
+            // new state!
+            spState = updSpState
+            println("============================================================")
+            println("got new ros state: ")
+            println(spState.mkString("\n"))
+            println("============================================================")
+            publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
+          }
+        }
+      }
+    })
+    (topic -> (pt,s))
+  }
+
 
   def getField(fieldName: String, message: org.ros.internal.message.Message): Option[SPValue] = {
     def dig(digFor: List[String], toSearch: List[org.ros.internal.message.field.Field]): Option[SPValue] = {
@@ -232,7 +248,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
             if(v.isInstanceOf[org.ros.internal.message.Message])
               dig(xs, v.asInstanceOf[org.ros.internal.message.Message].toRawMessage().getFields().asScala.toList)
             else {
-              log.debug(" Digging into a non-message field!")
+              println(" Digging into a non-message field!")
               None
             }
           }
@@ -266,7 +282,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
             if(v.isInstanceOf[org.ros.internal.message.Message])
               dig(xs, v.asInstanceOf[org.ros.internal.message.Message].toRawMessage().getFields().asScala.toList)
             else {
-              log.debug(" Digging into a non-message field!")
+              println(" Digging into a non-message field!")
               None.get
               false
             }
@@ -283,6 +299,35 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   }
 
   def receive = {
+    case TickTimeout(cn, timePassed) =>
+      this.synchronized {
+        topicTimeouts = topicTimeouts.map { case (topic, (t, max)) =>
+          topic -> (t+timePassed, max)
+        }
+      }
+      val failed = topicTimeouts.filter { case (topic, (t, max)) => t > max }
+      if (failed.nonEmpty) {
+        println("****************************************")
+        println("FAILED TIMEOUT for: " + failed.map(_._1).mkString(","))
+        println("****************************************")
+
+        // recreate subscribers
+        this.synchronized {
+          val updPubSub = topics.filter(t=>failed.exists(f=>t._1==f._1)).map { case (topic, rosVars) =>
+            // kill old listeners/publishers
+            pubsub(topic)._2.removeAllMessageListeners()
+            pubsub(topic)._1.p.shutdown()
+            pubsub(topic)._1.c.foreach { c => c.cancel() }
+            createPublisherSubscriber(cn, topic, rosVars)
+          }.toMap
+
+          pubsub = pubsub ++ updPubSub
+
+          // reset timers
+          topicTimeouts = topicTimeouts ++ failed.map { case (topic, (t, max)) => (topic -> (0l, listenerTimeout)) }
+        }
+      }
+
     case TickTopic(topic) =>
       // push current state out on ros topic
       // todo: refactor, this is a copy of the "normal" state writer
@@ -298,7 +343,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
         // mutate stored msg...
         state.foreach { case (rv,spval) => writeField(rv.field, spval, msg) }
         // send updated state
-        log.debug("ROS Node writing state (ticker): " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
+        // println("ROS Node writing state (ticker): " + state.map(s=>s._1.field + " -> " + s._2.toString).mkString(",") + " to " + topic)
         pubsub.get(topic).foreach{ps=>ps._1.p.publish(msg) }
       }
 
