@@ -167,19 +167,24 @@ object VDTracker {
     }
 
     def renderInfo(name : String, m: Map[ID , SPValue], ids : List[IDAble]) = {
+      val state = (for {
+        (id,spval) <- m
+        thing <- ids.find(_.id==id)
+      } yield {
+        (thing -> spval)
+      }).toList.sortBy(tv => tv._1.name)
       <.details(^.open := "open", ^.className := Style.collapsible.htmlClass,
         <.summary(name),
         <.table(
           ^.className := "table table-striped", ^.className := "Table",
           <.tbody(
-            m.map(is => {
-              val cI = ids.filter(i => i.id == is._1)
+            state.map { case (t,v) => {
               <.tr(
-                <.td(if (cI.nonEmpty) cI.head.name else ""),
-                <.td(is._1.toString),
-                <.td(is._2.toString)
+                <.td(t.name),
+                <.td(t.id.toString),
+                <.td(v.toString)
               )
-            }).toTagMod
+            }}.toTagMod
           )), <.br()
       ).when(m.nonEmpty)
     }

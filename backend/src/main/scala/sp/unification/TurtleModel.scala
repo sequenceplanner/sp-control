@@ -54,10 +54,19 @@ object TurtleModel extends Helpers {
   val pos_x = v("turtle.pos.x", "turtlesim/Pose:/turtle1/pose:x")
   val pos_y = v("turtle.pos.y", "turtlesim/Pose:/turtle1/pose:y")
   val test_str = v("test_str", "std_msgs/String:/hecu_hca_unistate:data")
-//  val test_mir = v("mir_x", "nav_msgs/Odometry:/mir100_diff_drive_controller/odom:pose.pose.position.x")
-  val test_control = v("test_control", "std_msgs/String:/sp_to_fake_mir_unidriver:data:500")
+  val test_mir = v("mir_x", "nav_msgs/Odometry:/mir100_diff_drive_controller/odom:pose.pose.position.x")
+  val test_control = v("test_control", "std_msgs/String:/sp_to_fake_mir_unidriver:data:100")
 
-  val vars: List[Thing] = List(cmd_linear_x, cmd_linear_y, pos_x, pos_y, test_str, test_control)
+  // ur robot state
+  val ur_act_pos = v("ur_act_pos", "unification_roscontrol/URPose:/unification/ur_pose_unidriver/state:actPos")
+  val ur_executing = v("ur_executing", "unification_roscontrol/URPose:/unification/ur_pose_unidriver/state:executing")
+  val ur_ref_posD = v("ur_ref_pos_driver", "unification_roscontrol/URPose:/unification/ur_pose_unidriver/state:refPos")
+
+  // ur robot commands
+  val ur_ref_posSP = v("ur_ref_pos_sp", "unification_roscontrol/URPose:/unification/ur_pose_unidriver/cmd:refPos:250")
+
+  val vars: List[Thing] = List(cmd_linear_x, cmd_linear_y, pos_x, pos_y, test_str, test_control, test_mir,
+    ur_act_pos, ur_executing, ur_ref_posD, ur_ref_posSP)
 
   val driverID = ID.newID
   val driverMap = driverMapper(driverID, vars)
@@ -70,6 +79,14 @@ object TurtleModel extends Helpers {
   val resource = VD.Resource(name, ID.newID, vars.map(_.id).toSet, driverMap, SPAttributes())
 
   def p(kind: String, guard: String, actions: String*) =  makeCondition(kind,guard,actions:_*)(vars)
+
+  val urdummyabs = List("URDummyPose1", "URDummyPose2", "URDummyPose3", "URDummyPose4").map { pose =>
+    a("goto"+pose, List(),
+      p("pre", s"ur_act_pos != $pose", s"ur_ref_pos_sp := $pose"),
+      p("started", s"ur_ref_pos_driver == $pose && ur_executing"), // note that we check the driver state
+      p("post", s"ur_act_pos == $pose && !ur_executing"),
+      p("reset", "true"))
+  }
 
   val testControlOn = a("testRosControlOn", List(),
     p("pre", "true", "test_control := move"),
@@ -95,7 +112,7 @@ object TurtleModel extends Helpers {
     p("post", "true", "turtle.cmd.linear.y := 0"),
     p("reset", "true"))
 
-  val abilities = List(moveForward, moveBackward, testControlOn, testControlOff)
+  val abilities = List(moveForward, moveBackward, testControlOn, testControlOff) ++ urdummyabs
 
   // operations
   val opPosX = Thing("PosX")
