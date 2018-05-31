@@ -30,6 +30,7 @@ object LoadingWidgets {
       ("Ability Handler",             widgets.abilityhandler.AbilityHandlerWidget(), 3, 4),
       ("ServiceList",                 widgets.services.ServiceListWidget(),          3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
+      ("NewSopMaker",                    widgets.newSopmaker.SopMakerWidget(),             3, 4),
       ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
