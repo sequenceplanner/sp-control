@@ -161,5 +161,28 @@ trait VDHelper {
     }
   }
 
+  def use(other: VDHelper) = {
+    assert(!dthings.keys.toList.exists(dt=>other.dthings.keys.toList.contains(dt)))
+    assert(!things.keys.toList.exists(dt=>other.things.keys.toList.contains(dt)))
+    assert(!abilities.keys.toList.exists(dt=>other.abilities.keys.toList.contains(dt)))
+    assert(!operations.keys.toList.exists(dt=>other.operations.keys.toList.contains(dt)))
+    assert(!runners.keys.toList.exists(dt=>other.runners.keys.toList.contains(dt)))
+    assert(!resources.keys.toList.exists(dt=>other.resources.keys.toList.contains(dt)))
+    assert(!drivers.keys.toList.exists(dt=>other.drivers.keys.toList.contains(dt)))
+
+    dthings ++= other.dthings
+    things ++= other.things
+
+    thingDVThings ++= other.thingDVThings
+    opAbMap ++= other.opAbMap
+
+    abilities ++= other.abilities
+    operations ++= other.operations
+
+    runners ++= other.runners
+    resources ++= other.resources
+    drivers ++= other.drivers
+  }
+
 
 }

@@ -6,7 +6,7 @@ import sp.devicehandler._
 
 import sp.drivers.ROSFlatStateDriver
 
-class TurtleModel(n: String) extends VDHelper {
+class Turtle(n: String) extends VDHelper {
   val name = n
 
   // turtle state
@@ -39,14 +39,26 @@ class TurtleModel(n: String) extends VDHelper {
     oc("pre", "pos.x > 9"),
     oc("post", "false"))
 
-  // runner
-  r("turtlerunner", initState = Map())
-
   // drivers and resources
   driver("driver", ROSFlatStateDriver.driverType)
   resource("resource") // blank list of things = take everything
 }
 
+class TurtleModel(n: String) extends VDHelper {
+  val name = n
+
+  use(new Turtle("turtle1"))
+
+  v("forceX")
+  o("forceGoForward",
+    oc("pre", "forceX"),
+    oc("post", "false"), "turtle1.moveForward")
+
+  // runner
+  r("turtlerunner", initState = Map("forceX" -> true))
+
+}
+
 object TurtleModel {
-  def apply(name: String = "turtle1") = new TurtleModel(name)
+  def apply(name: String = "TurtleModel") = new TurtleModel(name)
 }
