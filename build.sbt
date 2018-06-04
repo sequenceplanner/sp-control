@@ -3,7 +3,7 @@ import SPSettings._
 lazy val projectName = "sp-control"
 lazy val projectVersion = "0.9.6-SNAPSHOT"
 
-lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.6-SNAPSHOT")
+lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.6")
 lazy val comm = Def.setting(PublishingSettings.orgNameFull %%% "sp-comm" % "0.9.6-SNAPSHOT")
 lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.6-SNAPSHOT")
 lazy val core = Def.setting(PublishingSettings.orgNameFull %%% "sp-core" % "0.9.6-SNAPSHOT")
