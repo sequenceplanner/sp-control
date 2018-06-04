@@ -27,6 +27,22 @@ case class DroppedOnStruct(struct: Struct, model: ID) extends DropData
 // case class DraggedIDAble(idAble: IDAble, model: Option[ID])
 // case class DraggedStructNode(node: StructNode, model: Option[ID])
 
+case class LazyNode(
+  item: ID,
+  parent: Option[ID] = None,
+  nodeID: ID,
+  attributes: Option[SPAttributes] = None
+)
+
+case class LazyStruct(
+  name: Option[String] = None,
+  items: Set[StructNode] = Set(),
+  attributes: Option[SPAttributes] = None,
+  id: ID
+)
+
+case class ItemInfo(name: String, typ: String)
+
 object ItemExplorer {
   case class State(
     currentMComm: Option[ModelAPIComm] = None,
@@ -35,7 +51,8 @@ object ItemExplorer {
     structs: List[Struct] = Nil,
     hiddenIDs: Map[ID, Set[ID]] = Map(), // structID -> structNodeIDs
     expanded: Boolean = false,
-    items: Map[ID, IDAble] = Map()
+    items: Map[ID, IDAble] = Map(),
+    itemInfo: Map[ID, ItemInfo] = Map()
   )
 
   class Backend($: BackendScope[Unit, State]) {
@@ -49,6 +66,20 @@ object ItemExplorer {
       mcomm.flatMap(_.request(req).takeFirstResponse.map(_._2))
     }
 
+    def requestItemInfo: Callback = {
+      Callback.empty
+      /*val mcomm = $.state.map(_.currentMComm.get).toFuture
+      val futureToRes = mcomm.flatMap(_.request(mapi.GetAllItemInfo).takeFirstResponse.map(_._2))
+      val res = futureToRes.flatMap(_)
+      resp {
+        case mapi.SPItemInfoList(info) => {
+          val itemInfo = info.map(i => i.id -> ItemInfo(i.name, i.typ)).toMap
+          $.modState(s => s.copy(itemInfo = itemInfo))
+        }
+        case _ => Callback.empty
+      }*/
+    }
+
     def itemRequest(ids: Set[ID]): Unit = {
       val mcomm = $.state.map(_.currentMComm.get).toFuture
       val futureToRes = mcomm.flatMap(_.request(mapi.GetItems(ids.toList)).takeFirstResponse.map(_._2))
@@ -59,6 +90,17 @@ object ItemExplorer {
         case _ => Unit
       }
     }
+
+    // def requestAllItems(): Callback = {
+    //   val mcomm = $.state.map(_.currentMComm.get).toFuture
+    //   val futureToRes = mcomm.flatMap(_.request(mapi.GetItems(ids.toList)).takeFirstResponse.map(_._2))
+    //   futureToRes.map {
+    //     case mapi.SPItems(items) => {
+    //       $.modState(s => s.copy(items = s.items ++ items))
+    //     }
+    //     case _ => Callback{}
+    //   }
+    // }
 
     def createItem(kind: String) = {
       val item = ItemKinds.create(kind)
@@ -84,7 +126,7 @@ object ItemExplorer {
           case _ => Callback.empty
         }
       }
-      modifyState >> requestStructs
+      modifyState >> requestStructs//> requestItemInfo
     }
 
     def filterAllStructs(query: String) = {
@@ -136,7 +178,10 @@ object ItemExplorer {
           val idNodeB = toNode.node.nodeID
           $.state.map{ s =>
             val nodesToMove = StructExtras(structA).getAllChildren(idNodeA) + nodeA.copy(parent = None)
+            println("nodes " + nodesToMove )
+            println("struct b "+ structB)
             val newStructB = StructExtras(structB).addTo(idNodeB, nodesToMove)
+            println("new struct b " + newStructB)
             replaceStruct(newStructB).runNow()
           }.runNow()
         }
@@ -150,25 +195,29 @@ object ItemExplorer {
       }
     }
     
-    def handleDragged(dragDropData: DragDropData) = {
+    def handleDragged(dragDropData: DragDropData): Unit = {
       dragDropData match {
         case DragDropData(fromNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
-          if(!toStruct.struct.items.contains(fromNode.node)) {
-            $.modState { s =>
-              s.copy(structs = s.structs.map(st => st.copy(items =
-                st.items.filter(it => it!= fromNode.node)
-              )))
-            }.runNow()
-          }
+          println("doing the thing")
+          println()
+
+        
+          // if(!toStruct.struct.items.contains(fromNode.node)) {
+          //   $.modState { s =>
+          //     s.copy(structs = s.structs.map(st => st.copy(items =
+          //       st.items.filter(it => it!= fromNode.node)
+          //     )))
+          //   }.runNow()
+          // }
         }
         case DragDropData(fromNode: DraggedStructNode, toNode: DroppedOnNode) => {
-          val structA = fromNode.parentStruct.get
-          val nodeA = fromNode.node
-          val idNodeA = fromNode.node.nodeID
+          // val structA = fromNode.parentStruct.get
+          // val nodeA = fromNode.node
+          // val idNodeA = fromNode.node.nodeID
 
-          val nodesToMove = StructExtras(structA).getAllChildren(idNodeA) + nodeA.copy(parent = None)
-          val newStructA = structA.copy(items = structA.items -- nodesToMove)
-          replaceStruct(newStructA).runNow()
+          // val nodesToMove = StructExtras(structA).getAllChildren(idNodeA) + nodeA.copy(parent = None)
+          // val newStructA = structA.copy(items = structA.items -- nodesToMove)
+          // replaceStruct(newStructA).runNow()
         }
       }
     }
@@ -178,7 +227,7 @@ object ItemExplorer {
       //   val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
       //   val structB = $.state.map(_.structs.find(_.id == idStructB).get)
       //   val changeStruct = structB.zip(nodeA).flatMap { case (s, n) => replaceStruct(s + n) }
-      //   val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA)))
+      //   val changeNewItems = $.modState(s => s.copy(newItems = s.newItems.filterNot(_._1.nodeID == idNodeA))) 
       //   changeStruct >> changeNewItems
       // case (DragMessage(idNodeA, None), DropMessage(Some(idNodeB), idStructB)) => // new item to node
       //   val nodeA = $.state.map(_.newItems.find(_._1.nodeID == idNodeA).get._1)
@@ -275,7 +324,3 @@ object ItemExplorer {
 
   def apply() = SPWidget(spwb => itemExplorerComponent())
 }
-
-
-
-
