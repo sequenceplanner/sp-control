@@ -31,12 +31,15 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
     // Extract model data from IDAbles
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
     val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
-    val rTmp = things.filter(t => t.attributes.keys.contains("stateMap"))
-    val setupRunnerThings = things.filter(t => t.name == "setupRunnerAsThing")
-
+    val setupRunnerThings = things.filter(t => t.attributes.keys.contains("runnerID"))
     val exAbilities = ops.flatMap(o=> APIAbilityHandler.operationToAbility(o))
+
+    val rTmp = things.filter(t => t.attributes.keys.contains("stateMap"))
     val exResorces = rTmp.map(t => VD.thingToResource(t))
-    val exDrivers = things.diff(rTmp).diff(setupRunnerThings).map(t=> VD.thingToDriver(t))
+
+    val dTmp = things.filter(t => t.attributes.keys.contains("driverType"))
+    val exDrivers = dTmp.map(t=> VD.thingToDriver(t))
+
     val exSetupRunner = setupRunnerThings.headOption.map(h=>APIOperationRunner.CreateRunner(thingToSetup(h)))
 
     //Direct launch of the VD and abilities below
@@ -47,7 +50,7 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
       SPMessage.makeJson(
         SPHeader(from = "ModelService"),
         APIVirtualDevice.SetUpVD(
-          name = "UnificationVD",
+          name = "VD",
           id = vdID,
           exResorces, //= resources.map(_.resource),
           exDrivers, // = resources.map(_.driver),
@@ -58,7 +61,7 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
       SPMessage.makeJson(
         SPHeader(from = "ModelService"),
         APIAbilityHandler.SetUpAbilityHandler(
-          name = "UnificationAbilites",
+          name = "Abilites",
           id = abID,
           exAbilities,
           vd = vdID
@@ -68,9 +71,9 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
   def launchOpRunner(h: SPHeader, ids : List[IDAble])= {
 
     // Extract setup data from IDAbles
-    val setupRunnerThings = ids.find{t =>
-      println(s"t: ${t.name}, isit: ${t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}")
-      t.name == "setupRunnerAsThing" && t.isInstanceOf[Thing]}.map(_.asInstanceOf[Thing])
+
+    val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
+    val setupRunnerThings = things.filter(t => t.attributes.keys.contains("runnerID"))
 
     println("CREATING RUNNERS" + setupRunnerThings)
 
@@ -105,19 +108,18 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
     val vars = model.dthings.values
     val opvars = model.things.values
     val ops = model.operations.values
-    val rIDable = VD.resourceToThing(model.resource)
-    val dIDable = VD.driverToThing(model.driver)
+    val rIDables = model.resources.values.map(r=>VD.resourceToThing(r))
+    val dIDables = model.drivers.values.map(d=>VD.driverToThing(d))
     val runnerSetups = model.runners.values.map(setupToThing)
 
-    val all = abs ++ vars ++ opvars ++ ops ++ runnerSetups
+    val all = rIDables ++ dIDables ++ abs ++ vars ++ opvars ++ ops ++ runnerSetups
 
     val theVD = Struct(
       "TheVD",
-      makeStructNodes(rIDable, dIDable) ++ makeStructNodes(all.toList),
+      makeStructNodes(all.toList),
       SPAttributes("isa" -> "VD")
     )
-    val xs = List(rIDable, dIDable) ++ all
-    val addItems = APIModel.PutItems(theVD :: xs, SPAttributes("info" -> "initial items"))
+    val addItems = APIModel.PutItems(theVD :: all.toList, SPAttributes("info" -> "initial items"))
 
     context.system.scheduler.scheduleOnce(0.1 seconds) {
       publish(
@@ -137,7 +139,7 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
 
   def setupToThing(setup : APIOperationRunner.Setup): Thing = {
     Thing(
-      name = "setupRunnerAsThing",
+      name = setup.name,
       id = ID.newID,
       attributes = SPAttributes(
         "name" -> setup.name,

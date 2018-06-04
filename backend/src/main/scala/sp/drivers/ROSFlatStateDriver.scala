@@ -90,7 +90,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   println("-- ROS_IP: " + nc.getTcpRosBindAddress())
 
   override def getDefaultNodeName(): GraphName =
-    GraphName.of("sp/" + d.name)
+    GraphName.of("sp/" + d.name.replace('.', '_'))
 
   override def onStart(cn: ConnectedNode): Unit = {
     n = Some(cn)

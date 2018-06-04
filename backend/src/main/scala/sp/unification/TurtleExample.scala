@@ -10,13 +10,14 @@ class TurtleModel(n: String) extends VDHelper {
   val name = n
 
   // turtle state
-  dv("pos.x", s"turtlesim/Pose:/$name/pose:x")
-  dv("pos.y", s"turtlesim/Pose:/$name/pose:y")
+  dv("pos.x", "driver", s"turtlesim/Pose:/$name/pose:x")
+  dv("pos.y", "driver", s"turtlesim/Pose:/$name/pose:y")
 
   // turtle commands
-  dv("cmd.linear.x", s"geometry_msgs/Twist:/$name/cmd_vel:linear.x:250") // 250ms between writes
-  dv("cmd.linear.y", s"geometry_msgs/Twist:/$name/cmd_vel:linear.y:250")
+  dv("cmd.linear.x", "driver", s"geometry_msgs/Twist:/$name/cmd_vel:linear.x:250") // 250ms between writes
+  dv("cmd.linear.y", "driver", s"geometry_msgs/Twist:/$name/cmd_vel:linear.y:250")
 
+  // turtle abilities
   a("moveForward", List(),
     ac("pre", "true", "cmd.linear.x := 5"),
     ac("started", "cmd.linear.x == 5", "cmd.linear.y := -5e3"),
@@ -42,10 +43,8 @@ class TurtleModel(n: String) extends VDHelper {
   r("turtlerunner", initState = Map())
 
   // drivers and resources
-  val driverID = ID.newID
-  val driverSetup = SPAttributes("identifiers" -> driverMapper(driverID).map(_.driverIdentifier))
-  val driver = VD.Driver(s"${name}.driver", driverID, ROSFlatStateDriver.driverType, driverSetup)
-  val resource = VD.Resource(s"${name}.resource", ID.newID, dthings.values.map(_.id).toSet, driverMapper(driverID).toList, SPAttributes())
+  driver("driver", ROSFlatStateDriver.driverType)
+  resource("resource") // blank list of things = take everything
 }
 
 object TurtleModel {
