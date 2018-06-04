@@ -32,6 +32,7 @@ object VDTracker {
     latestActiveRunner: Option[ID] = None,
     latestAbilityState: Map[ID, SPValue] = Map(),
     latestVDeviceState: Map[ID, SPValue] = Map(),
+    availableVDModels: List[String] = List("URModel"),
     modelIdables : List[IDAble] = List(),
     modelID : ID = ID.newID
   )
@@ -110,7 +111,7 @@ object VDTracker {
       <.div(
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick --> send(APIVDTracker.createModel()), "Create model"
+          ^.onClick --> send(APIVDTracker.createModel(s.availableVDModels.head)), "Create model"
         ),
         ModelChoiceDropdown(id => {$.modState(_.copy(modelID = id)); sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
         <.button(

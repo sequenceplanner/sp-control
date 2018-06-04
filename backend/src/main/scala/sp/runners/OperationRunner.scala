@@ -64,6 +64,10 @@ class OperationRunner extends Actor
             log.debug("Runner started. Init state: " + state)
             setRunnerState(setup.runnerID, SPState(state = state), startAbility, sendState(_, setup.runnerID), false)
 
+            // request vd state
+            val getVD = SPMessage.makeJson(SPHeader(from = api.service, to = sp.devicehandler.APIVirtualDevice.service),
+              sp.devicehandler.APIVirtualDevice.GetVD)
+            publish(sp.devicehandler.APIVirtualDevice.topicRequest, getVD)
           }
 
         case api.SetState(id, s) =>
