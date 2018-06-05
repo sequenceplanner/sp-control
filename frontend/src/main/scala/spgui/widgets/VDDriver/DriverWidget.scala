@@ -2,78 +2,57 @@ package spgui.widgets.VDDriver
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.APIDeviceDriver
 import sp.domain._
-import sp.devicehandler.VD
+
 
 
 
 object DriverWidget {
-  case class Props(
-                  //drivers: ModelProxy[SOMETHING?]
-                  )
   case class State(
-                    drivers:      List[Driver],
-                    idExpanded:   ID,   // the id of the driver expanded
-                    isExpanded:   Boolean // boolean if a driver is expanded
+                    driverCards:  List[DriverCardTrait],
+                    idExpanded:   ID,   // the id of the driver expanded. Useful?
+                    isExpanded:   Boolean // boolean if a driver is expanded. Useful?
                   )
 
-  private class Backend($: BackendScope[Props, State]) {
-
-    val driverListHandler =
-      BackendCommunication.getMessageObserver(onDriverListMessage, APIDeviceDriver.topicResponse)
-
-    /*
-        onDriverMessage see if drivers is added or removed from circuit/Backend
-     */
-    def onDriverListMessage(mess: SPMessage) = ???
-
-    /*
-        when mounted, search after the drivers in circuit/backend from model
-        update drivers in Props
-     */
-    def onMount() = {
-
-    }
-    def onUnmount() = {
-      driverListHandler.kill()
-      Callback.empty
-    }
+  private class Backend($: BackendScope[Unit, State]) {
 
     /*
           render all drivers from props
           call renderCards
       */
-    def render(p: Props, s: State) = {
+    def render(s: State) = {
       <.div(
         if (s.isExpanded) renderExpandedCard(s.idExpanded)
-        else renderCards()
+        else renderCards(s.driverCards)
       )
     }
 
-    // use DriverCard to visualize and create the different DriverCard:s from this widget
+    // use DriverCard to visualize and for all the different DriverCard:s in the list => print
     def renderCards(
-                    //List or Map of DriverCards
+                    cards: List[DriverCardTrait]
                    ) = {
       <.div(
 
       )
     }
 
-    // ToDo: Communicate with the specific DriverCard with the same driverID
+    // ToDo: Communicate with the specific DriverCard with the same driverID?
     def renderExpandedCard(driverID: ID) = ???
 
     /*
         ToDo: In the future we want the to create new drivers from this widget
      */
     def createDriver(): Unit = ???
+
+    def onUnmount() = {
+      Callback.empty
+    }
   }
 
 
-  val driverCardsComponent = ScalaComponent.builder[Props]("VDDriverCardsWidget")
+  val driverCardsComponent = ScalaComponent.builder[Unit]("VDDriverCardsWidget")
     .initialState(State())
     .renderBackend[Backend]
-    .componentDidMount(_.backend.onMount())
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
