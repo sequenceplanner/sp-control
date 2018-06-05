@@ -30,7 +30,8 @@ object StructView {
                     handleDragged: Option[DragDropData => Unit] = None,
                     filteredNodes: Set[ID],
                     expanded: Boolean,
-                    modelID: Option[UUID] = None
+                    modelID: Option[UUID] = None,
+                    itemInfo: Map[ID, ItemInfo]
                   )
   case class State(
                     expandedNodes: Set[ID] = Set() 
@@ -39,7 +40,8 @@ object StructView {
   class Backend($: BackendScope[Props, State]) {
     def toggle(id: ID, childrenIDs: Set[ID]) = {
       val modNodes = $.modState(s => s.copy(expandedNodes = s.expandedNodes + id -- s.expandedNodes.intersect(Set(id))))
-      retrieveItems(childrenIDs) >> modNodes
+      //retrieveItems(childrenIDs) >> modNodes
+      modNodes
     }
 
     def toggleAll() = {
@@ -120,8 +122,20 @@ object StructView {
 
     def renderNodeItem(node: StructNode, p: Props, s: State): TagMod = {      
       val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleRight else Icon.toggleDown
+/*
       val itemOp = p.items.get(node.item)
       val itemIcon = itemOp.map(ItemKinds.icon).getOrElse(Icon.question)
+      val shownName = itemOp.map(_.name).getOrElse({
+        node.item.toString
+      })
+      <.div(
+        itemIcon,
+        shownName
+      )
+      */
+
+      val itemOp = p.itemInfo.get(node.item)
+      val itemIcon = Icon.question
       val shownName = itemOp.map(_.name).getOrElse({
         node.item.toString
       })
@@ -139,14 +153,14 @@ object StructView {
       val nextExpanded = scope.nextProps.expanded
       val expandedChanged = scope.currentProps.expanded != nextExpanded
       if (expandedChanged) {
-        scope.backend.toggleAll() >>
-        {
-          if (nextExpanded) {
-            scope.backend.retrieveItems(scope.nextProps.items.keySet)
-          } else {
-            scope.modState(_.copy(expandedNodes = Set()))
-          }
-        }
+        scope.backend.toggleAll() >> Callback.empty // >>
+//        {
+//          if (nextExpanded) {
+//            scope.backend.retrieveItems(scope.nextProps.items.keySet)
+//          } else {
+//            scope.modState(_.copy(expandedNodes = Set()))
+//          }
+//        }
       }
       else {
         Callback.empty
@@ -162,6 +176,7 @@ object StructView {
              handleDragged: Option[DragDropData => Unit] = None,
              filteredNodes: Set[ID] = Set(),
              expanded: Boolean = false,
-             modelID: Option[UUID] = None
-           ) = component(Props(struct, items, retrieveItems, handleDrop, handleDragged, filteredNodes, expanded, modelID))
+             modelID: Option[UUID] = None,
+             itemInfo: Map[ID, ItemInfo] = Map()
+           ) = component(Props(struct, items, retrieveItems, handleDrop, handleDragged, filteredNodes, expanded, modelID, itemInfo))
 }

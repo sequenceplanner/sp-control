@@ -66,18 +66,18 @@ object ItemExplorer {
       mcomm.flatMap(_.request(req).takeFirstResponse.map(_._2))
     }
 
-    def requestItemInfo: Callback = {
-      Callback.empty
-      /*val mcomm = $.state.map(_.currentMComm.get).toFuture
-      val futureToRes = mcomm.flatMap(_.request(mapi.GetAllItemInfo).takeFirstResponse.map(_._2))
-      val res = futureToRes.flatMap(_)
-      resp {
-        case mapi.SPItemInfoList(info) => {
-          val itemInfo = info.map(i => i.id -> ItemInfo(i.name, i.typ)).toMap
-          $.modState(s => s.copy(itemInfo = itemInfo))
+    def requestItemInfo(modelID :ID): Callback = {
+      val mcomm = new ModelAPIComm(modelID)
+      val requestInfo = Callback.future {
+        val f = mcomm.request(mapi.GetAllItemInfo).takeFirstResponse
+        f.map(_._2).map {
+          case b: mapi.SPItemInfoList => $.modState { s => s.copy(
+            itemInfo = b.info.map(e => e.id -> ItemInfo(e.name, e.typ)).toMap
+          )}
+          case _ => Callback.empty
         }
-        case _ => Callback.empty
-      }*/
+      }
+      requestInfo
     }
 
     def itemRequest(ids: Set[ID]): Unit = {
@@ -126,7 +126,7 @@ object ItemExplorer {
           case _ => Callback.empty
         }
       }
-      modifyState >> requestStructs//> requestItemInfo
+      modifyState >> requestStructs >> requestItemInfo(id)
     }
 
     def filterAllStructs(query: String) = {
@@ -148,10 +148,13 @@ object ItemExplorer {
     def handleDrop(dragDropData: DragDropData): Unit =  {
       dragDropData match {
         case DragDropData(fromStructNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
-          println("node -> struct")
           val nodeA = fromStructNode.node
+          println("nodeA: " + nodeA)
           val structB = toStruct.struct
-          val newNode = nodeA.copy(nodeID = ID.newID)
+          val newNode = nodeA.copy(
+            nodeID = ID.newID,
+            parent = None
+          )
           $.state.map{ s =>
             val externalMComm = new ModelAPIComm(fromStructNode.model.get)
             val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
@@ -161,7 +164,8 @@ object ItemExplorer {
                   items = structB.items ++ Set(newNode)))
                 val addItemsRemote = sendToModel(mapi.PutItems(items))
                 val addItemsLocally = $.modState(s => s.copy(
-                  items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap
+                  items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap,
+                  itemInfo = s.itemInfo ++ items.map(i => Map(i.id -> ItemInfo(i.name, "sdf"))).flatten.toMap
                 ))
                   (replace >> addItemsRemote >> addItemsLocally).runNow()
               }
@@ -170,7 +174,6 @@ object ItemExplorer {
         }
 
         case DragDropData(fromNode: DraggedStructNode, toNode: DroppedOnNode) => {
-          println("node -> node")
           val structA = fromNode.parentStruct.get
           val structB = toNode.parentStruct.get
           val nodeA = fromNode.node
@@ -178,11 +181,21 @@ object ItemExplorer {
           val idNodeB = toNode.node.nodeID
           $.state.map{ s =>
             val nodesToMove = StructExtras(structA).getAllChildren(idNodeA) + nodeA.copy(parent = None)
-            println("nodes " + nodesToMove )
-            println("struct b "+ structB)
             val newStructB = StructExtras(structB).addTo(idNodeB, nodesToMove)
-            println("new struct b " + newStructB)
-            replaceStruct(newStructB).runNow()
+            val replace = replaceStruct(newStructB)
+            val externalMComm = new ModelAPIComm(fromNode.model.get)
+            val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
+            val items = req.takeFirstResponse.map(_._2).map {
+              case mapi.SPItems(items) => {
+                val addItemsRemote = sendToModel(mapi.PutItems(items))
+                val addItemsLocally = $.modState(s => s.copy(
+                  items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap,
+                  itemInfo = s.itemInfo ++ items.map(i => Map(i.id -> ItemInfo(i.name, "sdf"))).flatten.toMap
+                ))
+                  (replace >> addItemsRemote >> addItemsLocally).runNow()
+              }
+            }
+            //(replace >> updateInfo).runNow()
           }.runNow()
         }
         case DragDropData(a: DraggedStruct, b: DroppedOnStruct) => {
@@ -298,7 +311,7 @@ object ItemExplorer {
       <.div(
         ^.className := Style.structsView.htmlClass,
         <.ul(
-          ^.className := Style.ul.htmlClass, 
+          ^.className := Style.ul.htmlClass,
           s.structs.toTagMod { struct =>
             <.li(
               StructView(
@@ -309,7 +322,8 @@ object ItemExplorer {
                 handleDragged = Some(handleDragged),
                 filteredNodes = s.hiddenIDs(struct.id),
                 expanded = s.expanded,
-                modelID = s.currentModelID
+                modelID = s.currentModelID,
+                itemInfo = s.itemInfo
               )
             )
           }
