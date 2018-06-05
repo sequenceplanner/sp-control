@@ -4,6 +4,7 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.devicehandler.APIDeviceDriver
 import sp.domain._
+import sp.devicehandler.VD
 
 
 
@@ -12,6 +13,7 @@ object DriverWidget {
                   //drivers: ModelProxy[SOMETHING?]
                   )
   case class State(
+                    drivers:      List[Driver],
                     idExpanded:   ID,   // the id of the driver expanded
                     isExpanded:   Boolean // boolean if a driver is expanded
                   )

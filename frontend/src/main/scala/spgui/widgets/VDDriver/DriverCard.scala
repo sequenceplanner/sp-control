@@ -20,7 +20,7 @@ object DriverCard {
                     driverState:      DriverState,
                     driverIsOnline:   Boolean,
                     cardIsExpanded:   Boolean,
-                    driverIsEditalbe: Boolean
+                    driverIsEditable: Boolean
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -102,7 +102,7 @@ object DriverCard {
     }
 
     def invertEditable(s: State) = {
-      $.modState(s => s.copy(driverIsEditalbe = !s.driverIsEditalbe))
+      $.modState(s => s.copy(driverIsEditable = !s.driverIsEditable))
     }
 
     /**********CALLBACKS**********/
