@@ -1,5 +1,6 @@
 package spgui.widgets.itemexplorerincontrol
 
+import com.sun.net.httpserver.Authenticator.Success
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.domain._
@@ -21,25 +22,6 @@ case class DraggedStructNode(parentStruct: Option[Struct], node: StructNode, mod
 
 case class DroppedOnNode(parentStruct: Option[Struct], node: StructNode, model: ID) extends DropData
 case class DroppedOnStruct(struct: Struct, model: ID) extends DropData
-
-// case class MoveToStruct(struct: ID, model: ID) extends MoveInstruction
-// case class MoveToNode(struct: ID, node: ID, model: ID) extends MoveInstruction
-// case class DraggedIDAble(idAble: IDAble, model: Option[ID])
-// case class DraggedStructNode(node: StructNode, model: Option[ID])
-
-case class LazyNode(
-  item: ID,
-  parent: Option[ID] = None,
-  nodeID: ID,
-  attributes: Option[SPAttributes] = None
-)
-
-case class LazyStruct(
-  name: Option[String] = None,
-  items: Set[StructNode] = Set(),
-  attributes: Option[SPAttributes] = None,
-  id: ID
-)
 
 case class ItemInfo(name: String, typ: String)
 
@@ -213,7 +195,6 @@ object ItemExplorer {
         case DragDropData(fromNode: DraggedStructNode, toStruct: DroppedOnStruct) => {
           println("doing the thing")
           println()
-
         
           // if(!toStruct.struct.items.contains(fromNode.node)) {
           //   $.modState { s =>
