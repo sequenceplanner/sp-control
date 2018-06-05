@@ -14,7 +14,7 @@ object DriverWidget {
                     isExpanded:   Boolean // boolean if a driver is expanded. Useful?
                   )
 
-  private class Backend($: BackendScope[Unit, State]) {
+  class Backend($: BackendScope[Unit, State]) {
 
     /*
           render all drivers from props

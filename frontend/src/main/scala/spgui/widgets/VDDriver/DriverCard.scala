@@ -25,7 +25,7 @@ object DriverCard extends DriverCardTrait{
                     driverIsEditable: Boolean
                   )
 
-  private class Backend($: BackendScope[Unit, State]) {
+  class Backend($: BackendScope[Unit, State]) {
 
     /**********RENDERING**********/
     def render(s: State) = {
