@@ -14,7 +14,6 @@ object Launch extends App {
 
   val models = Map("URModel" -> sp.unification.URModel(),
     "TurtleModel" -> sp.unification.TurtleModel())
-
   cluster.registerOnMemberUp {
     // Start all you actors here.
     println("spcontrol node has joined the cluster")

@@ -27,6 +27,7 @@ object VDTracker {
   import sp.runners.APIOperationRunner
   import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.APIVirtualDevice
+  import spgui.widgets.virtcom.dropdownWithScroll.dropdownWScroll
 
   case class State(latestRunnerState: Map[ID, Map[ID, SPValue]] = Map(),
     latestActiveRunner: Option[ID] = None,
@@ -55,6 +56,10 @@ object VDTracker {
       mess.body.to[APIVDTracker.Response].map{
         case APIVDTracker.OpRunnerCreated(id) => {
           $.modState(s => s.copy(latestActiveRunner = Some(id))).runNow()
+        }
+        case APIVDTracker.sendModelsInfo(models) => {
+          println("models: " + models)
+          $.modState(s => s.copy(availableVDModels = models)).runNow()
         }
       }
     }
@@ -109,10 +114,17 @@ object VDTracker {
 
     def render(p:Unit, s:State) =
       <.div(
-        <.button(
+        <.div( // find idables with robot schedule and put them in a dropdown menu
+          //^.onClick --> send(APIVDTracker.getModelsInfo()),
+            dropdownWScroll("Create model", s.availableVDModels.map(m => <.div(m, ^.onClick --> {
+            send(APIVDTracker.createModel(m)); $.modState(_.copy(modelID = s.modelID))
+          }, ^.className := Style.schSelect.htmlClass)))),
+
+
+     /*   <.button(
           ^.className := "btn btn-default",
           ^.onClick --> send(APIVDTracker.createModel(s.availableVDModels.head)), "Create model"
-        ),
+        ), */
         ModelChoiceDropdown(id => {$.modState(_.copy(modelID = id)); sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
         <.button(
           ^.className := "btn btn-default",
@@ -190,6 +202,11 @@ object VDTracker {
       ).when(m.nonEmpty)
     }
 
+    def onMount(): Callback = {
+      send(APIVDTracker.getModelsInfo())
+      Callback.empty
+    }
+
     def onUnmount(): Callback =  {
       operationRunnerHandler.kill()
       abilityHandler.kill()
@@ -202,6 +219,7 @@ object VDTracker {
   private val component = ScalaComponent.builder[Unit]("VDTracker")
     .initialState(State())
     .renderBackend[Backend]
+      .componentDidMount(_.backend.onMount())
     .componentWillUnmount(_.backend.onUnmount())
     .build
 

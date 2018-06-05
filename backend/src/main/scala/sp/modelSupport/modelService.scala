@@ -174,9 +174,12 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
         val spHeader = h.swapToAndFrom
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
         b match { // Check if the body is any of the following classes, and execute program
-          case APIVDTracker.createModel(modelName, modelID) => createModel("TurtleModel",modelID)
+          case APIVDTracker.createModel(modelName, modelID) => createModel(modelName,modelID)
           case APIVDTracker.launchVDAbilities(idables) => launchVDAbilities(idables)
           case APIVDTracker.launchOpRunner(idables) => launchOpRunner(spHeader,idables)
+          case APIVDTracker.getModelsInfo(dummy) =>
+            sendAnswer(SPMessage.makeJson(spHeader, APIVDTracker.sendModelsInfo(sp.Launch.models.keys.toList)))
+          case x =>
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPDone()))
       }
