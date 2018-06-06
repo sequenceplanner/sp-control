@@ -153,7 +153,8 @@ object SPSettings {
     "co.fs2" %%% "fs2-core" % "0.10.0-M7"
   ))
 
-
+  val SPGUILocation = "../sp-gui"
+  val UseLocalSPGUI = true
 
   lazy val jsSettings = Seq(
     testFrameworks += new TestFramework("utest.runner.Framework"),

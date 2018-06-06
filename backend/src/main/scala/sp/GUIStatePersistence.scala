@@ -4,6 +4,7 @@ import akka.persistence.{PersistentActor, SnapshotOffer}
 import sp.modelImport.oldDomain.SPValue
 
 class GUIStatePersistence extends PersistentActor {
+
   override def receiveRecover: Receive = {
     case SnapshotOffer(metadata, snapshot) =>
       println("\n\n\n\n")

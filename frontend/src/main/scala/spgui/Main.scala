@@ -1,7 +1,9 @@
 package spgui
 
 import org.scalajs.dom.document
-import scala.scalajs.js.annotation.{JSExport,JSExportTopLevel}
+import spgui.dashboard.DashboardPresetsConnector
+
+import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
 
 object Main extends App {
   @JSExportTopLevel("spgui.Main")
@@ -10,6 +12,7 @@ object Main extends App {
   @JSExport
   def main(): Unit = {
     LoadingWidgets.loadWidgets
+    DashboardPresetsConnector.addPresetMenu()
     Layout().renderIntoDOM(document.getElementById("spgui-root"))
   }
 }
