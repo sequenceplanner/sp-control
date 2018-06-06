@@ -1,3 +1,5 @@
+import java.nio.file.{Files, Paths}
+
 import SPSettings._
 
 lazy val projectName = "sp-control"
@@ -60,13 +62,33 @@ lazy val spcontrol_backend = project.in(file("backend"))
   .dependsOn(spcontrol_api_jvm)
 
 
-lazy val spcontrol_frontend = project.in(file("frontend"))
-  .settings(
-    libraryDependencies ++= Seq(comm.value, gui.value),
-    libraryDependencies ++= guiDependencies.value,
-    defaultBuildSettings,
-    buildSettings,
-    jsSettings
-  )
-  .dependsOn(spcontrol_api_js)
-  .enablePlugins(ScalaJSPlugin)
+val SPGUILocation = "../sp-gui"
+val UseLocalSPGUI = true
+
+lazy val spcontrol_frontend = {
+  if (UseLocalSPGUI && Files.exists(Paths.get(SPGUILocation))) {
+    project.in(file("frontend"))
+      .settings(
+        libraryDependencies ++= guiDependencies.value,
+        defaultBuildSettings,
+        buildSettings,
+        jsSettings
+      )
+      .dependsOn(
+        spcontrol_api_js,
+        ProjectRef(file(SPGUILocation), "spguiJS") // This is where local version of spgui is set as dependency
+      )
+      .enablePlugins(ScalaJSPlugin)
+  } else {
+    project.in(file("frontend"))
+      .settings(
+        libraryDependencies ++= Seq(comm.value, gui.value),
+        libraryDependencies ++= guiDependencies.value,
+        defaultBuildSettings,
+        buildSettings,
+        jsSettings
+      )
+      .dependsOn(spcontrol_api_js)
+      .enablePlugins(ScalaJSPlugin)
+  }
+}

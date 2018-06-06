@@ -67,7 +67,7 @@ object APIOperationRunner {
     implicit lazy val fForceComplete: JSFormat[ForceComplete] = Json.format[ForceComplete]
     implicit lazy val fTerminateRunner: JSFormat[TerminateRunner] = Json.format[TerminateRunner]
     implicit lazy val fGetState: JSFormat[GetState] = Json.format[GetState]
-    implicit lazy val fGetRunners : JSFormat[GetRunners.type] = deriveCaseObject[GetRunners.type ]
+    implicit lazy val fGetRunners : JSFormat[GetRunners.type] = deriveCaseObject[GetRunners.type]
     implicit lazy val fStateEvent: JSFormat[StateEvent] = Json.format[StateEvent]
     implicit lazy val fRunners: JSFormat[Runners] = Json.format[Runners]
     def fOperationRunnerRequest: JSFormat[Request] = Json.format[Request]
