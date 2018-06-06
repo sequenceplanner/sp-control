@@ -1,4 +1,4 @@
-package spgui.widgets.VDDriver
+package spgui.widgets.VDDriverOld
 
 import sp.devicehandler.VD.DriverState
 import sp.domain._
@@ -17,7 +17,6 @@ object DriversLogic {
   }
 
   def removeDriverFromList(driverToRemove: VD.Driver): Unit = {
-
     drivers = drivers.filterNot(d => d.id == driverToRemove.id)
   }
 
