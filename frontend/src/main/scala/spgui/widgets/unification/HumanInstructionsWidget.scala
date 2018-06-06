@@ -80,6 +80,7 @@ object HumanInstructionsWidget {
 
     def onUnmount(): Callback =  {
       driverHandler.kill
+      println("SIMPLE TEST")
       Callback.empty
     }
 
@@ -88,7 +89,7 @@ object HumanInstructionsWidget {
         "ack" -> ack, "completed" ->  done
       )
 
-      val header = s.header.map(_.swapToAndFrom).getOrElse(SPHeader(from = "THE HUMAN WIDGET"))
+      val header = s.header.map(_.swapToAndFrom()).getOrElse(SPHeader(from = "THE HUMAN WIDGET"))
 
       val json = SPMessage.make(header, APIHumanDriver.HumanEvent(s.name, humanS)) // *(...) is a shorthand for toSpValue(...)
       BackendCommunication.publish(json, APIHumanDriver.topicFromHuman)

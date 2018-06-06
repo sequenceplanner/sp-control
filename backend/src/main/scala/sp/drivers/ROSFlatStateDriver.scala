@@ -371,25 +371,25 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
         } yield {
           b match {
             case api.GetDriver =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPACK()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPACK()))
               val body = api.TheDriver(d, spState)
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), body))
               publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
             case api.DriverCommand(driverid, state) if driverid == d.id  =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPACK()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPACK()))
               writeStateChange(state)
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
               // TODO: think about only sending done when change has been registered
 
             // Terminating the driver
             case api.TerminateDriver(driverid) if driverid == d.id =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPACK()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPACK()))
               rosNodeMainExecutor.shutdown()
               self ! PoisonPill
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), api.DriverTerminated(d.id)))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
 
             case _ =>

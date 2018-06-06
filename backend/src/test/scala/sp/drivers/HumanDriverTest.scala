@@ -106,7 +106,7 @@ class HumanMockUP extends Actor
         h <- mess.getHeaderAs[SPHeader]
         b <- mess.getBodyAs[APIHumanDriver.ToHuman]
       } yield {
-        val updH = h.swapToAndFrom
+        val updH = h.swapToAndFrom()
         val state = b match {
           case APIHumanDriver.StateChangeRequest(name, s) => s
         }

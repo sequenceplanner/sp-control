@@ -64,7 +64,7 @@ class DriverBase(driverType: String, theDriverActor: VD.Driver => Props) extends
           b match {
             case APIDeviceDriver.SetUpDeviceDriver(d) if d.driverType == driverType =>
               context.actorOf(theDriverActor(d), d.id.toString)
-              publish(APIDeviceDriver.topicResponse, SPMessage.makeJson(h.swapToAndFrom, APISP.SPDone()))
+              publish(APIDeviceDriver.topicResponse, SPMessage.makeJson(h.swapToAndFrom(), APISP.SPDone()))
             case _ =>
           }
         }

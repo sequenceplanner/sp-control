@@ -171,7 +171,7 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
         h <- mess.getHeaderAs[SPHeader] if  h.to == APIVDTracker.service
         b <- mess.getBodyAs[APIVDTracker.Request]
       } yield {
-        val spHeader = h.swapToAndFrom
+        val spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
         b match { // Check if the body is any of the following classes, and execute program
           case APIVDTracker.createModel(modelName, modelID) => createModel(modelName,modelID)

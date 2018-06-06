@@ -79,7 +79,7 @@ class AbilityHandlerMaker extends Actor
       } yield {
         log.debug("Setting up an ability handler")
         log.debug(setup.toString)
-        val updH = h.swapToAndFrom
+        val updH = h.swapToAndFrom()
         if (ahs.contains(setup.id)){
           publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"Abilityhandler with id ${setup.id} already exist")))
         } else {
@@ -207,7 +207,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
   def matchRequests(mess: Option[SPMessage]) = {
     extractRequest(mess, handlerID, name) foreach { case (h, b) =>
       log.debug("ABH req: " +b)
-      val updH = h.swapToAndFrom
+      val updH = h.swapToAndFrom()
 
       // Message was to me so i send an SPACK
       publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPACK()))
@@ -287,7 +287,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
       log.debug("ABH from OP matcher: " +b)
       b match {
         case omapi.Find(pairs: Map[String, SPValue]) =>
-          val updH = h.swapToAndFrom
+          val updH = h.swapToAndFrom()
           publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPACK()))
           val abs = abilities.map(_._2.ability).toSet
           val a = abs.filter{ a =>

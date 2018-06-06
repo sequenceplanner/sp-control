@@ -288,7 +288,7 @@
 //         h <- mess.getHeaderAs[SPHeader] if  h.to == APIVDTracker.service
 //         b <- mess.getBodyAs[APIVDTracker.Request]
 //       } yield {
-//         var spHeader = h.swapToAndFrom
+//         var spHeader = h.swapToAndFrom()
 //         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
 //         b match { // Check if the body is any of the following classes, and execute program
 //           case APIVDTracker.createModel(modelID) => saveModel()
