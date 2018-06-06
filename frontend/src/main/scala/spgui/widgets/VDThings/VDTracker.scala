@@ -33,7 +33,7 @@ object VDTracker {
     latestActiveRunner: Option[ID] = None,
     latestAbilityState: Map[ID, SPValue] = Map(),
     latestVDeviceState: Map[ID, SPValue] = Map(),
-    availableVDModels: List[String] = List("URModel"),
+    availableVDModels: List[String] = List(),
     modelIdables : List[IDAble] = List(),
     modelID : ID = ID.newID
   )
@@ -52,6 +52,10 @@ object VDTracker {
     val vdModelObs =
       BackendCommunication.getMessageObserver(onVDTmsg, APIVDTracker.topicResponse)
 
+    val vdtObs = BackendCommunication.getWebSocketStatusObserver(mess => {
+      if (mess) send(APIVDTracker.getModelsInfo())
+    }, APIVDTracker.topicResponse)
+
     def onVDTmsg(mess: SPMessage): Unit = {
       mess.body.to[APIVDTracker.Response].map{
         case APIVDTracker.OpRunnerCreated(id) => {
@@ -61,6 +65,7 @@ object VDTracker {
           println("models: " + models)
           $.modState(s => s.copy(availableVDModels = models)).runNow()
         }
+        case x =>
       }
     }
 
@@ -72,6 +77,7 @@ object VDTracker {
             s.copy(latestRunnerState = s.latestRunnerState ++ Map(runnerID -> updRs))
           }.runNow()
         }
+        case x =>
       }
     }
 
@@ -80,6 +86,7 @@ object VDTracker {
         case APIAbilityHandler.AbilityState(id, state) => {
           $.modState(s => s.copy(latestAbilityState = s.latestAbilityState ++ state)).runNow()
         }
+        case x =>
       }
     }
     def onVirtualDeviceMessage(mess: SPMessage): Unit = {
@@ -87,6 +94,7 @@ object VDTracker {
         case APIVirtualDevice.StateEvent(resource, id, state, diff) => {
           $.modState(s => s.copy(latestVDeviceState = s.latestVDeviceState ++ state)).runNow()
         }
+        case x =>
       }
     }
     def onModelObsMes(mess: SPMessage): Unit = {
@@ -94,6 +102,7 @@ object VDTracker {
         case mapi.SPItems(items) => {
           $.modState(_.copy(modelIdables = items)).runNow()
         }
+        case x =>
       }
     }
 
@@ -203,7 +212,6 @@ object VDTracker {
     }
 
     def onMount(): Callback = {
-      send(APIVDTracker.getModelsInfo())
       Callback.empty
     }
 
