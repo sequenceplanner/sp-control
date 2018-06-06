@@ -7,22 +7,23 @@ import sp.drivers.{ROSFlatStateDriver, URDriver}
 class DummyTurtle(n: String) extends VDHelper {
   val name = n
 
-  // turtle state
-  dv("currentPos", "driver","")
-  dv("refPos", "driver", "")
+  // state
+  dv("currentPos", "driver","currentPos")
+  dv("hasTool", "driver", "hasTool")
 
-  // turtle commands
-  dv("active", "driver", s"geometry_msgs/Twist:/$name/cmd_vel:linear.x:250") // 250ms between writes
+  // cmd
+  dv("active", "driver", "active")
+  dv("refPos", "driver", "refPos")
 
   // turtle abilities
   a("moveForward", List(),
-    ac("pre", "true", "refPos := 10"),
+    ac("pre", "true", "refPos := 10", "active := true"),
     ac("started", "currentPos != refPos"),
     ac("post", "currentPos == refPos"),
     ac("reset", "true"))
 
   a("moveBackward", List(),
-    ac("pre", "true", "refPos := 0"),
+    ac("pre", "true", "refPos := 0", "active := true"),
     ac("started", "currentPos != refPos"),
     ac("post", "currentPos == refPos"),
     ac("reset", "true"))
