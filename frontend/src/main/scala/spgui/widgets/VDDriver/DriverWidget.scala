@@ -1,6 +1,7 @@
 package spgui.widgets.VDDriver
 
 import sp.domain._
+import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.devicehandler.VD
@@ -15,7 +16,7 @@ object DriverWidget {
   case class State(
                     //driverIdExpanded: ID/driver/driverCard
                     //cardIsExpanded: Boolean
-                    //drivers:  List[VD.Driver], // maybe remove and only have a list of cards or vice verse
+                    drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
                     cards:    List[Card]
                   )
 
@@ -31,11 +32,36 @@ object DriverWidget {
     }
 
     def onDriverMessage(mess: SPMessage) = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map{
+        case apiDriver.TheDriver(driver, driverState) => {
+          $.modState{s =>
+            s.copy(drivers = s.drivers :+ (driver, driverState))
+          }
+        }
+        case apiDriver.DriverStateChange(name, id, state, diff) =>{ onDriverStateChange(name, id, state, diff)
+        }
+        case x => Callback.empty
+      }
+      callback.foreach(_.runNow())
+    }
 
+    def onDriverStateChange(name : String, id : ID , state : VD.DriverState, diff: Boolean) = {
+      $.modState(s => s.copy(drivers = s.drivers.map(d => if(d._1.id == id) (d._1, state) else d)))
+    }
+
+    
+    def sendToDeviceDriver(mess: apiDriver.Request): Callback = {
+      val h = SPHeader(from = "DriverWidget", to = "", reply = SPValue("DriverWidget"))
+      val json = SPMessage.make(h, mess)
+      BackendCommunication.publish(json, apiDriver.topicRequest)
+      Callback.empty
     }
 
     def render(s: State) = {
       <.div(
+        <.button( ^.className := "btn",
+          ^.onClick --> {sendToDeviceDriver(apiDriver.GetDriver)}, "Get Drivers"
+        ),
         <.h1("Driver Names"),
         s.cards.map { card: Card =>
           <.div(
