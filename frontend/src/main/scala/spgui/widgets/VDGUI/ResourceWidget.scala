@@ -1,4 +1,4 @@
-package spgui.widgets.VDThings
+package spgui.widgets.VDGUI
 
 import sp.domain._
 import sp.domain.Logic._

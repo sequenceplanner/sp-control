@@ -1,7 +1,5 @@
-package spgui.widgets.VDDriver
+package spgui.widgets.VDGUI
 
-import sp.domain._
-import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.devicehandler.{VD, APIDeviceDriver => apiDriver, APIVirtualDevice => apiVD}
