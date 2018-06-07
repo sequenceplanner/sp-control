@@ -1,7 +1,5 @@
-package spgui.widgets.VDDriver
+package spgui.widgets.VDGUI
 
-import sp.domain._
-import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.devicehandler.{VD, APIDeviceDriver => apiDriver, APIVirtualDevice => apiVD}
@@ -165,18 +163,6 @@ object DriverWidget {
       // callback to backend to restart the driver
       Callback("DriverWidget: Force the driver to restart") // dummy
     }
-
-    def terminateDriver(card: Card) = {
-      // callback to backend to send APIDeviceDriver.TerminateDriver(id)
-      Callback("DriverWidget: Force the driver to terminate") // dummy
-    }
-
-    //    def send(mess: apiVD.Request): Callback = {
-    //      val h = SPHeader(from = "DriverWidgetService", to = apiVD.service, reply = SPValue("DriverWidgetService"))
-    //      val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
-    //      BackendCommunication.publish(json, apiVD.topicRequest)
-    //      Callback.empty
-    //    }
 
     def onUnmount() = {
       println("DriverWidget Unmouting")

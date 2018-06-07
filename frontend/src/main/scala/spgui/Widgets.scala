@@ -2,6 +2,7 @@ package spgui
 
 import japgolly.scalajs.react.vdom.html_<^.VdomElement
 import spgui._
+import spgui.widgets.VDGUI.DriverWidget
 
 object LoadingWidgets {
 
@@ -36,7 +37,7 @@ object LoadingWidgets {
       ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),
       ("VDTracker",         widgets.vdtesting.VDTracker(),          5,5),
       ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5),
-        ("DriverWidget",         widgets.VDDriver.DriverWidget(),          5,5)
+        ("DriverWidget",         DriverWidget(),          5,5)
 
     )
 
