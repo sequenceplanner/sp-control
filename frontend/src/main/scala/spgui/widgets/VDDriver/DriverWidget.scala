@@ -73,9 +73,8 @@ object DriverWidget {
             "ID:     " + card.driver.id + "\n" +
             //"Online: " + (if (card.driver.driverIsOnline) "Driver Online" else "Driver Offline") + "\n" +
             "Type:   " + card.driver.driverType + "\n" +
-            "Setup   " + card.driver.setup + "\n"
-          //+
-          //renderDriverState(card.driver.state)
+            "Setup   " + card.driver.setup + "\n" +
+            renderDriverState(card)
         )
       )
     }
@@ -84,12 +83,11 @@ object DriverWidget {
       // for each element in driverState (Map[String, SPValue])
       // print String, SPValue and a box where we can change SPValue if driver is editable
       // Later: create new driverStates
-      val cardWithNewState: Card = card
       card.driverState.toList.map { state: (String, SPValue) =>
         <.div(
           state._1 + "  " + state._2.toString(),
           <.button(
-              ^.onClick --> onEditStateClicked(cardWithNewState),
+              ^.onClick --> onEditStateClicked(card),
               "Edit SPValue"
           )
         )
