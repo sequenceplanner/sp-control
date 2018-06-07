@@ -7,7 +7,6 @@ import sp.domain.{SPHeader, SPMessage}
 class GUIStatePersistence extends PersistentActor with sp.service.ServiceSupport {
   subscribe(PersistentGUIState.AkkaTopic)
 
-
   override def receiveRecover: Receive = {
     case SnapshotOffer(metadata, snapshot) =>
       println("\n\n\n\n")

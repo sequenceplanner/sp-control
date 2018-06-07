@@ -5,9 +5,15 @@ import SPSettings._
 lazy val projectName = "sp-control"
 lazy val projectVersion = "0.9.10"
 
+<<<<<<< HEAD
 lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.10")
 lazy val comm = Def.setting(PublishingSettings.orgNameFull %%% "sp-comm" % "0.9.10")
 lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.10")
+=======
+lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.6")
+lazy val comm = Def.setting(PublishingSettings.orgNameFull %%% "sp-comm" % "0.9.6-SNAPSHOT")
+lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.8")
+>>>>>>> 8b40be8a053c9979259fbf95f5b95cf774bfc7c8
 lazy val core = Def.setting(PublishingSettings.orgNameFull %%% "sp-core" % "0.9.6-SNAPSHOT")
 
 lazy val buildSettings = Seq(
@@ -69,7 +75,10 @@ lazy val spcontrol_frontend = {
   if (UseLocalSPGUI && Files.exists(Paths.get(SPGUILocation))) {
     project.in(file("frontend"))
       .settings(
+<<<<<<< HEAD
         libraryDependencies ++= Seq(comm.value),
+=======
+>>>>>>> 8b40be8a053c9979259fbf95f5b95cf774bfc7c8
         libraryDependencies ++= guiDependencies.value,
         defaultBuildSettings,
         buildSettings,
