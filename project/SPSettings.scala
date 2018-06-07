@@ -94,7 +94,7 @@ object SPSettings {
 
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
   object versions {
-    val scala = "2.12.3"
+    val scala = "2.12.4"
     val scalaDom = "0.9.3"
     val scalajsReact = "1.1.1"
     val scalaCSS = "0.5.3"
@@ -151,9 +151,6 @@ object SPSettings {
     "com.github.julien-truffaut" %%%  "monocle-macro" % "1.4.0",
     "co.fs2" %%% "fs2-core" % "0.10.0-M7"
   ))
-
-  val SPGUILocation = "../sp-gui"
-  val UseLocalSPGUI = true
 
   lazy val jsSettings = Seq(
     testFrameworks += new TestFramework("utest.runner.Framework"),

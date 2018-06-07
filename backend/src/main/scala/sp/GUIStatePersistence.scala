@@ -2,7 +2,7 @@ package sp
 
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import sp.PersistentGUIState.State
-import sp.domain.{SPHeader, SPMessage}
+import sp.domain.{SPHeader, SPMessage, SPValue}
 
 class GUIStatePersistence extends PersistentActor with sp.service.ServiceSupport {
   subscribe(PersistentGUIState.AkkaTopic)
@@ -18,16 +18,36 @@ class GUIStatePersistence extends PersistentActor with sp.service.ServiceSupport
   override def receiveCommand: Receive = handleCommand(State())
 
   def handleCommand(state: State): Receive = {
-    case PersistentGUIState.GUICommand(f, shouldSaveSnapshot) =>
-      val newState = state.update(f)
-      if (shouldSaveSnapshot) saveSnapshot(newState)
+    case command: PersistentGUIState.GUICommand =>
+      println("Received handleCommand(GUICommand)")
 
-      context become handleCommand(newState)
+      val nextState = command match {
+        case PersistentGUIState.SavePresetsCommand(presets) =>
+          state.update { s =>
+            val newStore = s.store + (PersistentGUIState.Keys.PersistPresets -> presets)
+            s.copy(store = newStore)
+          }
+        case PersistentGUIState.LoadPresetsCommand =>
+          val key = PersistentGUIState.Keys.PersistPresets
+          state.get(key) match {
+            case Some(res) => sendResponse(res)
+            case None => println(s"There was nothing in the store at key $key")
+          }
+
+          state
+      }
+
+      if (command.saveSnapshot) saveSnapshot(nextState)
+      context become handleCommand(nextState)
+
+    case x => println(s"handleCommand() received|: $x")
   }
 
-  def sendEvent[A](header: SPHeader, body: A): Unit = {
+
+  def sendResponse(body: SPValue): Unit = {
+    val header = SPHeader(from = "GUIStatePersistence", to = "DashboardPresetsComponent")
     val toSend = SPMessage.makeJson(header, body)
-    val TopicName = "" // TODO
+    val TopicName = "gui-snapshot"
     publish(TopicName, toSend)
   }
 

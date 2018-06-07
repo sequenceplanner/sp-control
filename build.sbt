@@ -5,15 +5,9 @@ import SPSettings._
 lazy val projectName = "sp-control"
 lazy val projectVersion = "0.9.10"
 
-<<<<<<< HEAD
 lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.10")
 lazy val comm = Def.setting(PublishingSettings.orgNameFull %%% "sp-comm" % "0.9.10")
-lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.10")
-=======
-lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.6")
-lazy val comm = Def.setting(PublishingSettings.orgNameFull %%% "sp-comm" % "0.9.6-SNAPSHOT")
-lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.8")
->>>>>>> 8b40be8a053c9979259fbf95f5b95cf774bfc7c8
+// lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.10")
 lazy val core = Def.setting(PublishingSettings.orgNameFull %%% "sp-core" % "0.9.6-SNAPSHOT")
 
 lazy val buildSettings = Seq(
@@ -44,7 +38,7 @@ lazy val root: Project = project.in(file("."))
     publishLocal         := {},
     publishArtifact      := false,
     Keys.`package`       := file("")
-    )
+  )
 
 
 lazy val spcontrol_api = crossProject.crossType(CrossType.Pure).in(file("api"))
@@ -56,29 +50,75 @@ lazy val spcontrol_api = crossProject.crossType(CrossType.Pure).in(file("api"))
 lazy val spcontrol_api_jvm = spcontrol_api.jvm
 lazy val spcontrol_api_js = spcontrol_api.js
 
-lazy val spcontrol_backend = project.in(file("backend"))
-  .settings(
-    libraryDependencies ++= commDependencies.value,
-    libraryDependencies ++= Seq(comm.value, core.value, gui.value),
-    defaultBuildSettings,
-    buildSettings,
-    serviceSettings,
-    mainClass in (Compile, run) := Some("sp.Launch")
-  )
-  .dependsOn(spcontrol_api_jvm)
-
-
 val SPGUILocation = "../sp-gui"
 val UseLocalSPGUI = true
+/*
+lazy val spcontrol_backend =
+  if (UseLocalSPGUI) {
+    project.in(file("backend"))
+      .settings(
+        libraryDependencies ++= commDependencies.value,
+        libraryDependencies ++= Seq(comm.value, core.value),
+        defaultBuildSettings,
+        buildSettings,
+        serviceSettings,
+        mainClass in (Compile, run) := Some("sp.Launch")
+      )
+      .dependsOn(
+        spcontrol_api_jvm,
+        ProjectRef(file(SPGUILocation), "spguiJS") // This is where local version of spgui is set as dependency
+      )
+  } else {
+    project.in(file("backend"))
+      .settings(
+        libraryDependencies ++= commDependencies.value,
+        libraryDependencies ++= Seq(comm.value, core.value, gui.value),
+        defaultBuildSettings,
+        buildSettings,
+        serviceSettings,
+        mainClass in (Compile, run) := Some("sp.Launch")
+      )
+      .dependsOn(spcontrol_api_jvm)
+  }
+  */
 
+lazy val spcontrol_backend =
+  project.in(file("backend"))
+    .settings(
+      libraryDependencies ++= commDependencies.value,
+      libraryDependencies ++= Seq(comm.value, core.value),
+      defaultBuildSettings,
+      buildSettings,
+      serviceSettings,
+      mainClass in (Compile, run) := Some("sp.Launch")
+    )
+    .dependsOn(
+      spcontrol_api_jvm,
+      ProjectRef(file(SPGUILocation), "spguiJS") // This is where local version of spgui is set as dependency
+    )
+
+
+lazy val spcontrol_frontend = project.in(file("frontend"))
+  .settings(
+    libraryDependencies ++= Seq(comm.value),
+    libraryDependencies ++= guiDependencies.value,
+    defaultBuildSettings,
+    buildSettings,
+    jsSettings
+  )
+  .dependsOn(
+    spcontrol_api_js,
+    ProjectRef(file(SPGUILocation), "spguiJS") // This is where local version of spgui is set as dependency
+  )
+  .enablePlugins(ScalaJSPlugin)
+
+
+/*
 lazy val spcontrol_frontend = {
-  if (UseLocalSPGUI && Files.exists(Paths.get(SPGUILocation))) {
+  if (UseLocalSPGUI) {
     project.in(file("frontend"))
       .settings(
-<<<<<<< HEAD
         libraryDependencies ++= Seq(comm.value),
-=======
->>>>>>> 8b40be8a053c9979259fbf95f5b95cf774bfc7c8
         libraryDependencies ++= guiDependencies.value,
         defaultBuildSettings,
         buildSettings,
@@ -102,3 +142,4 @@ lazy val spcontrol_frontend = {
       .enablePlugins(ScalaJSPlugin)
   }
 }
+*/
