@@ -52,11 +52,12 @@ object DriverWidget {
 
 
     def sendToDeviceDriver(mess: apiDriver.Request): Callback = {
-      val h = SPHeader(from = "DriverWidget", to = "Derp", reply = SPValue("DriverWidget"))
+      val h = SPHeader(from = "DriverWidget", to = "", reply = SPValue("DriverWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, apiDriver.topicRequest)
       Callback.empty
     }
+
 
     def render(s: State) = {
       <.div(
@@ -82,7 +83,7 @@ object DriverWidget {
      */
     def renderExpansion(card: Card) = {
       <.div(
-        ^.onClick --> onCardClick(card),
+        //^.onClick --> onCardClick(card),
         <.div(
           <.button(
             ^.className := "btn btn-default",
@@ -130,10 +131,14 @@ object DriverWidget {
     /**********ACTIONS**********/
 
     def onCardClick(card: Card)= {
+      <.div(renderExpansion(card))
       // send to widget api that card is clicked
       // handle in BackendComm.MessageObserver that the card should expand/contract
-      Callback("DriverWidget: Card has been clicked") // dummy
+      //Callback("DriverWidget: Card has been clicked") // dummy
+
+      Callback.empty
     }
+
 
 
     /**********CALLBACKS**********/
@@ -149,6 +154,8 @@ object DriverWidget {
      */
     def forceStop(card: Card) = {
       // callback to backend to stop the driver
+     sendToDeviceDriver(apiDriver.TerminateDriver(card.driver.id))
+
       Callback("DriverWidget: Force the driver to stop") // dummy
     }
     /*
