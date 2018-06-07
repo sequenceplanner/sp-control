@@ -1,7 +1,6 @@
 package sp
 
 import sp.domain.{JSFormat, SPValue}
-
 /**
   * Holds data types related to persisting GUI state.
   */
@@ -26,5 +25,5 @@ object PersistentGUIState {
     import play.api.libs.json._
   }
 
-  implicit lazy val fStore: JSFormat[Store] =
+  implicit lazy val fStore: JSFormat[Store] = FormatUtility
 }

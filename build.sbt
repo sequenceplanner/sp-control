@@ -69,6 +69,7 @@ lazy val spcontrol_frontend = {
   if (UseLocalSPGUI && Files.exists(Paths.get(SPGUILocation))) {
     project.in(file("frontend"))
       .settings(
+        libraryDependencies ++= Seq(comm.value),
         libraryDependencies ++= guiDependencies.value,
         defaultBuildSettings,
         buildSettings,
