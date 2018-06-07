@@ -49,7 +49,7 @@ object DriverWidget {
       $.modState(s => s.copy(drivers = s.drivers.map(d => if(d._1.id == id) (d._1, state) else d)))
     }
 
-    
+
     def sendToDeviceDriver(mess: apiDriver.Request): Callback = {
       val h = SPHeader(from = "DriverWidget", to = "", reply = SPValue("DriverWidget"))
       val json = SPMessage.make(h, mess)
