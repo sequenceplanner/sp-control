@@ -44,7 +44,7 @@ object BDDVerifier {
           h <- mess.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == APIBDDVerifier.service
           b <- mess.getBodyAs[APIBDDVerifier.Request]
         } yield {
-          var spHeader = h.swapToAndFrom
+          var spHeader = h.swapToAndFrom()
           sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
 
           b match {
