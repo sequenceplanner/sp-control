@@ -51,11 +51,8 @@ import spgui.components.Icon
 // case class DroppedOnSOP(sop: Any = Unit) extends DropData
 
 object SopMakerWidget {
-  object DropzoneDirection extends Enumeration {
-    val Left, Right, Up, Down = Value
-  }
 
-  var dropZones: scala.collection.mutable.Map[UUID, (UUID, DropzoneDirection.Value)] =
+  var dropZones: scala.collection.mutable.Map[UUID, (UUID, SopVisualiser.DropzoneDirection.Value)] =
     scala.collection.mutable.Map()
 
   val parallelBarHeight = 12f
@@ -96,26 +93,13 @@ object SopMakerWidget {
             SopMakerGraphics.menuOp("OP", newOpId)
           )
         ),
-        SopVisualiser(state.sop, ExampleSops.ops)
+        SopVisualiser(state.sop, ExampleSops.ops, Some(onDropEvent), Some(onDragEvent))
       )
-        // <.span(
-        //   ^.onMouseOver ==> handleMouseOver("sop_style"),
-        //   ^.onMouseOut ==> handleMouseOver("not_sop_style"),
-        //   SopMakerCSS.sopContainer,
-        //   getRenderTree(
-        //     traverseTree( state.sop ),
-        //     getTreeWidth( state.sop ) * 0.5f + paddingLeft,
-        //     paddingTop
-        //   ).toTagMod
-        // ))
     }
 
     def handleMouseOver(style:String)(e: ReactMouseEvent) = Callback {
       Dragging.setDraggingStyle(style)
     }
-
-    val paddingTop = 40f
-    val paddingLeft = 40f
 
     def op(opId: UUID, opname: String, x: Float, y: Float): TagMod = {
       <.span(
@@ -125,222 +109,29 @@ object SopMakerWidget {
       )
     }
 
-    // def dropZone(
-    //   direction: DropzoneDirection.Value, sop:Any, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
-    // {
-    //   println("making a dropzone " + id.toString)
-    //   SPWidgetElements.DragoverZoneRect(onDropEvent(id, direction), DroppedOnSOP(sop), x, y, w, h)
-    // }
-    // def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
-    //   println(node.nodeId.toString)
-    //   node match {
-    //     case n: RenderParallel => {
-    //       var w = 0f
-    //       var children = List[TagMod]()
-    //       for(e <- n.children) {
-    //         val child = getRenderTree(
-    //           e,
-    //           xOffset + w + e.w/2f - n.w/2f + opSpacingX + opSpacingXInsideGroup,
-    //           yOffset + parallelBarHeight + opSpacingY + opSpacingYInsideGroup
-    //         )
-    //         children = children ++ child ++ List(
-    //           SopMakerGraphics.sopConnectionLine(
-    //             xOffset + w + e.w/2f - n.w/2f + opSpacingX/2f + opSpacingXInsideGroup,
-    //             yOffset + parallelBarHeight,
-    //             opSpacingY + opSpacingYInsideGroup
-    //           ),
-    //           SopMakerGraphics.sopConnectionLine(
-    //             xOffset + w + e.w/2f - n.w/2f + opSpacingX/2f + opSpacingXInsideGroup,
-    //             yOffset + parallelBarHeight + opSpacingY + opSpacingYInsideGroup + e.h,
-    //             n.h - e.h - 2*parallelBarHeight - opSpacingYInsideGroup - opSpacingY
-    //           )
-    //         )
-    //         w += e.w
-    //       }
-    //       List(
-    //         dropZone(   // Left dropzone
-    //           direction = DropzoneDirection.Left,
-    //           sop = DroppedOnSOP(),
-    //           id = n.nodeId,
-    //           x = xOffset - n.w/2 + opWidth/2,
-    //           y = yOffset,
-    //           w = opSpacingXInsideGroup,
-    //           h = n.h - parallelBarHeight
-    //         ),
-    //         dropZone(   // Right dropzone
-    //           direction = DropzoneDirection.Right,
-    //           id = n.nodeId,
-    //           sop = DroppedOnSOP(),
-    //           x = xOffset + n.w/2 - opSpacingXInsideGroup - opSpacingX + opWidth/2,
-    //           y = yOffset,
-    //           w = opSpacingXInsideGroup,
-    //           h = n.h - parallelBarHeight
-    //         ),
-    //         dropZone(   // Top dropzone
-    //           direction = DropzoneDirection.Up,
-    //           sop = DroppedOnSOP(),
-    //           id = n.nodeId,
-    //           x = xOffset - n.w/2 + opWidth/2,
-    //           y = yOffset,
-    //           w = n.w,
-    //           h = parallelBarHeight
-    //         ),
-    //         dropZone(   // Bottom dropzone
-    //           direction = DropzoneDirection.Down,
-    //           sop = DroppedOnSOP(),
-    //           id = n.nodeId,
-    //           x = xOffset - n.w/2 + opWidth/2,
-    //           y = yOffset + n.h - parallelBarHeight,
-    //           w = n.w,
-    //           h = parallelBarHeight
-    //         )
-    //       ) ++
-    //       List(
-    //         SopMakerGraphics.parallelBars(xOffset - n.w/2, yOffset,n.w- opSpacingX)) ++
-    //       children ++
-    //       List(SopMakerGraphics.parallelBars(
-    //         xOffset - n.w/2,
-    //         yOffset + n.h - parallelBarHeight,
-    //         n.w - opSpacingX
-    //       ))
-    //     }
-    //     case n: RenderSequence =>  getRenderSequence(n.children, xOffset, yOffset)
-          
-    //     case n: RenderOperationNode => {
-    //       val opname = idm.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
 
-    //       List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
-    //       List(
-    //         dropZone(
-    //           direction = DropzoneDirection.Left,
-    //           id = n.nodeId,
-    //           sop = DroppedOnSOP(),
-    //           x = xOffset,
-    //           y = yOffset + opHorizontalBarOffset,
-    //           w = opVerticalBarOffset,
-    //           h = opHeight - 2*opHorizontalBarOffset
-    //         ),
-    //         dropZone(
-    //           direction = DropzoneDirection.Right,
-    //           sop = DroppedOnSOP(),
-    //           id = n.nodeId,
-    //           x = xOffset + opWidth - opVerticalBarOffset,
-    //           y = yOffset + opHorizontalBarOffset,
-    //           w = opVerticalBarOffset,
-    //           h = opHeight - 2*opHorizontalBarOffset
-    //         ),
-    //         dropZone(
-    //           direction = DropzoneDirection.Up,
-    //           id = n.nodeId,
-    //           sop = DroppedOnSOP(),
-    //           x = xOffset,
-    //           y = yOffset,
-    //           w = opWidth,
-    //           h = opHorizontalBarOffset
-    //         ),
-    //         dropZone(
-    //           direction = DropzoneDirection.Down,
-    //           sop = DroppedOnSOP(),
-    //           id = n.nodeId,
-    //           x = xOffset,
-    //           y = yOffset + opHeight - opVerticalBarOffset,
-    //           w = opWidth,
-    //           h = opVerticalBarOffset
-    //         )
-    //       )
-    //     }
-    //   }
-    // }
-
-    // def getRenderSequence(children: List[RenderSequenceElement], xOffset: Float, yOffset:Float ): List[TagMod] = {
-    //   val head = children.head
-    //   val tail = children.tail
-    //   tail match {
-    //     case Nil => {
-    //       getRenderTree( head.self, xOffset, yOffset )
-    //     }
-    //     case _ =>
-    //       getRenderTree( head.self, xOffset, yOffset ) ++
-    //       List(SopMakerGraphics.sopConnectionLine(
-    //         xOffset,
-    //         yOffset + head.h,
-    //         opSpacingY
-    //       )) ++
-    //       getRenderSequence(tail, xOffset, yOffset + head.h + opSpacingY )
-    //   }
-    // }
-
-    // def traverseTree(sop: SOP): RenderNode = {
-    //   sop match {
-    //     case s: Parallel => RenderParallel(
-    //       nodeId = s.nodeID,
-    //       w = getTreeWidth(s),
-    //       h = getTreeHeight(s),
-    //       children = sop.sop.collect{case e => traverseTree(e)}
-    //     )
-    //     case s: Sequence => traverseSequence(s)
-    //     case s: OperationNode => RenderOperationNode(
-    //       nodeId = s.nodeID,
-    //       w = getTreeWidth(s),
-    //       h = getTreeHeight(s),
-    //       sop = s
-    //     )
-    //   }
-    // }
-
-    // def traverseSequence(s: Sequence): RenderSequence = {
-    //   if(s.sop.isEmpty) null else RenderSequence(
-    //     nodeId = s.nodeID,
-    //     h = getTreeHeight(s),
-    //     w = getTreeWidth(s),
-    //     children = s.sop.collect{case e: SOP => {
-    //       RenderSequenceElement(
-    //         nodeId = e.nodeID,
-    //         getTreeWidth(e),
-    //         getTreeHeight(e),
-    //         traverseTree(e)
-    //       )
-    //     }}
-    //   )
-    // }
-
-    // def getTreeWidth(sop: SOP): Float = {
-    //   sop match {
-    //     // groups are as wide as the sum of all children widths + its own padding
-    //     case s: Parallel => s.sop.map(e => getTreeWidth(e)).sum + 2*opSpacingX + opSpacingXInsideGroup *2 + opSpacingX
-    //     case s: Sequence => { // sequences are as wide as their widest elements
-    //       if(s.sop.isEmpty) 0
-    //       else math.max(getTreeWidth(s.sop.head), getTreeWidth(Sequence(s.sop.tail)))
-    //     }
-    //     case s: OperationNode => {
-    //       opWidth + opSpacingX
-    //     }
-    //   }
-    // }
-
-    // def getTreeHeight(sop: SOP): Float = {
-    //   sop match  {
-    //     case s: Parallel => {
-    //       if(s.sop.isEmpty) 0
-    //       else math.max(
-    //         getTreeHeight(s.sop.head) + (2*parallelBarHeight + 2*opSpacingY + 2*opSpacingYInsideGroup),
-    //         getTreeHeight(Parallel(s.sop.tail))
-    //       )
-    //     }
-    //     case s: Sequence => {
-    //       s.sop.map(e => getTreeHeight(e)).foldLeft(opSpacingY)(_ + _)
-    //     }
-    //     case s: OperationNode => opHeight
-    //   }   
-    // }
-
-    def onDropEvent(id: UUID, direction: DropzoneDirection.Value)(e: DragDropData): Unit = {
+    def onDropEvent(id: UUID, direction: SopVisualiser.DropzoneDirection.Value)(e: DragDropData): Unit = {
       e.dragData match {
         case DraggedSOP(sop: SOP) => {
           val sopId = id
           $.modState(
             s => State(insertSop(s.sop, sopId, cloneSop(sop), direction ))
           ).runNow()
+        }
+        case _ => Unit
+      }
+    }
+
+    def onDragEvent(e:DragDropData) = {
+      e.dropData match {
+        case DroppedOnSOP(_) => {
+          e.dragData match {
+            case DraggedSOP(sop:SOP) => {
+              $.modState(
+                s => State(deleteSop(s.sop, sop.nodeID))
+              ).runNow()
+            }
+          }
         }
         case _ => Unit
       }
@@ -369,24 +160,24 @@ object SopMakerWidget {
       }
     }
 
-    def insertSop(root: SOP, targetId: UUID, sop: SOP, direction: DropzoneDirection.Value): SOP = {
+    def insertSop(root: SOP, targetId: UUID, sop: SOP, direction: SopVisualiser.DropzoneDirection.Value): SOP = {
       if(root.nodeID == targetId) {
         root match {
           case r: Parallel => {
             direction match {
-              case DropzoneDirection.Left => Parallel(sop = cloneSop(sop):: r.sop)
-              case DropzoneDirection.Right => Parallel(sop = r.sop :+ cloneSop(sop))
-              case DropzoneDirection.Up => Sequence(sop = List(cloneSop(sop), r))
-              case DropzoneDirection.Down => Sequence(sop = List(r, cloneSop(sop)))
+              case SopVisualiser.DropzoneDirection.Left => Parallel(sop = cloneSop(sop):: r.sop)
+              case SopVisualiser.DropzoneDirection.Right => Parallel(sop = r.sop :+ cloneSop(sop))
+              case SopVisualiser.DropzoneDirection.Up => Sequence(sop = List(cloneSop(sop), r))
+              case SopVisualiser.DropzoneDirection.Down => Sequence(sop = List(r, cloneSop(sop)))
             }
           }
           case r: Sequence => Sequence(sop = cloneSop(sop) :: r.sop)
           case r: OperationNode => {
             direction match {
-              case DropzoneDirection.Left => Parallel(sop = List(cloneSop(sop), r))
-              case DropzoneDirection.Right => Parallel(sop = List(r, cloneSop(sop)))
-              case DropzoneDirection.Up => Sequence(sop = List(cloneSop(sop), r))
-              case DropzoneDirection.Down => Sequence(sop = List(r, cloneSop(sop)))
+              case SopVisualiser.DropzoneDirection.Left => Parallel(sop = List(cloneSop(sop), r))
+              case SopVisualiser.DropzoneDirection.Right => Parallel(sop = List(r, cloneSop(sop)))
+              case SopVisualiser.DropzoneDirection.Up => Sequence(sop = List(cloneSop(sop), r))
+              case SopVisualiser.DropzoneDirection.Down => Sequence(sop = List(r, cloneSop(sop)))
             }
           }
         }
@@ -401,7 +192,23 @@ object SopMakerWidget {
       }
     }
   }
-  
+
+  def deleteSop(root: SOP, targetId: UUID): SOP = {
+    root match {
+      case r: Parallel => {
+        r.copy(sop = r.sop.filter(_.nodeID != targetId).map(deleteSop(_, targetId)))
+      }
+
+      case r: Sequence => {
+        r.copy(sop = r.sop.filter(_.nodeID != targetId).map(deleteSop(_, targetId)))
+      }
+
+      case r: OperationNode => {
+        r.copy(sop = r.sop.filter(_.nodeID != targetId).map(deleteSop(_, targetId)))
+      }
+    }
+  }
+
   private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
     .initialState(State(sop = ExampleSops.tinySop))
     .renderBackend[Backend]
