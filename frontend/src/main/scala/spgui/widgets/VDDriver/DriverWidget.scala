@@ -10,12 +10,12 @@ import spgui.communication._
 
 object DriverWidget {
 
-  case class Card(cardId: String, driver: VD.Driver, driverState: VD.DriverState, isExpanded: Boolean)
+  case class Card(driver: VD.Driver, driverState: VD.DriverState, isExpanded: Boolean)
 
   case class State(
                     //driverIdExpanded: ID/driver/driverCard
                     //cardIsExpanded: Boolean
-                    drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
+                    //drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
                     cards:    List[Card]
                   )
 
@@ -35,7 +35,7 @@ object DriverWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map {
         case apiDriver.TheDriver(driver, driverState) => {
           $.modState { s =>
-            s.copy(drivers = s.drivers :+ (driver, driverState))
+            s.copy(cards = s.cards :+ Card(driver, driverState, false))
           }
         }
         case apiDriver.DriverStateChange(name, id, state, diff) => {
@@ -47,7 +47,7 @@ object DriverWidget {
     }
 
     def onDriverStateChange(name : String, id : ID , state : VD.DriverState, diff: Boolean) = {
-      $.modState(s => s.copy(drivers = s.drivers.map(d => if(d._1.id == id) (d._1, state) else d)))
+      $.modState(s => s.copy(cards = s.cards.map(c => if(c.driver.id == id) c.copy(driverState = state) else c)))
     }
 
 
@@ -63,7 +63,6 @@ object DriverWidget {
         <.button( ^.className := "btn",
           ^.onClick --> {sendToDeviceDriver(apiDriver.GetDriver)}, "Get Drivers"
         ),
-        s.drivers.map(d => d.toString()).toTagMod,
         <.h1("Driver Names"),
         s.cards.map { card: Card =>
           <.div(
@@ -181,7 +180,7 @@ object DriverWidget {
   }
 
   private val driverWidgetComponent = ScalaComponent.builder[Unit]("DriverWidget")
-    .initialState(State(List(),List()))
+    .initialState(State(List()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build
