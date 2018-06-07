@@ -31,13 +31,15 @@ object DriverWidget {
     }
 
     def onDriverMessage(mess: SPMessage) = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map{
+
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map {
         case apiDriver.TheDriver(driver, driverState) => {
-          $.modState{s =>
+          $.modState { s =>
             s.copy(drivers = s.drivers :+ (driver, driverState))
           }
         }
-        case apiDriver.DriverStateChange(name, id, state, diff) =>{ onDriverStateChange(name, id, state, diff)
+        case apiDriver.DriverStateChange(name, id, state, diff) => {
+          onDriverStateChange(name, id, state, diff)
         }
         case x => Callback.empty
       }
@@ -50,7 +52,7 @@ object DriverWidget {
 
 
     def sendToDeviceDriver(mess: apiDriver.Request): Callback = {
-      val h = SPHeader(from = "DriverWidget", to = "", reply = SPValue("DriverWidget"))
+      val h = SPHeader(from = "DriverWidget", to = "Derp", reply = SPValue("DriverWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, apiDriver.topicRequest)
       Callback.empty
@@ -61,6 +63,7 @@ object DriverWidget {
         <.button( ^.className := "btn",
           ^.onClick --> {sendToDeviceDriver(apiDriver.GetDriver)}, "Get Drivers"
         ),
+        s.drivers.map(d => d.toString()).toTagMod,
         <.h1("Driver Names"),
         s.cards.map { card: Card =>
           <.div(
