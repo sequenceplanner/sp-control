@@ -74,7 +74,6 @@ object ResourceWidget {
         <.div(
           "Name:   " + card.resource.r.name + "\n" +
             "ID:     " + card.resource.r.id + "\n" +
-            //"Online: " + (if (card.driver.driverIsOnline) "Driver Online" else "Driver Offline") + "\n" +
             "Things:   " + card.resource.r.things + "\n" +
             "Setup   " + card.resource.r.setup + "\n" +
             renderResourceState(card)
@@ -89,30 +88,19 @@ object ResourceWidget {
       <.div("ID" + "      " + "SPValue")
       card.resource.state.toList.map { state: (ID, SPValue) =>
         <.div(
-          state._1 + "  " + state._2.toString(),
-          <.button(
-            ^.onClick --> onEditStateClicked(card),
-            "Edit SPValue"
-          )
+          state._1 + "  " + state._2.toString()
         )
       }
     }
 
-    def onEditStateClicked(card: Card) = {
-      Callback("Reo: Edit State-Button clicked") // dummy
-    }
-
     /**********ACTIONS**********/
-
     def onCardClick(card: Card)= {
       // send to widget api that card is clicked
       // handle in BackendComm.MessageObserver that the card should expand/contract
       Callback("ResourceWidget: Card has been clicked") // dummy
     }
 
-
     /**********CALLBACKS**********/
-
     /*
         force the driver to stop
      */
@@ -128,13 +116,13 @@ object ResourceWidget {
     }
   }
 
-  private val driverWidgetComponent = ScalaComponent.builder[Unit]("ResourceWidget")
+  private val resourceWidgetComponent = ScalaComponent.builder[Unit]("ResourceWidget")
     .initialState(State(List()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
-  def apply() = spgui.SPWidget(spwb => driverWidgetComponent())
+  def apply() = spgui.SPWidget(spwb => resourceWidgetComponent())
 }
 
 
