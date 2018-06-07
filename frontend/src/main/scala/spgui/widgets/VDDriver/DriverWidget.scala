@@ -15,6 +15,7 @@ object DriverWidget {
   case class State(
                     //driverIdExpanded: ID/driver/driverCard
                     //cardIsExpanded: Boolean
+                    expandedCard: Option[ID] = None,
                     drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
                     cards:    List[Card]
                   )
@@ -23,6 +24,7 @@ object DriverWidget {
 
     val deviceHandler = BackendCommunication.getMessageObserver(onDeviceMessage, apiVD.topicResponse)
     val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, apiDriver.topicResponse)
+
 
 
     //
@@ -56,27 +58,93 @@ object DriverWidget {
       Callback.empty
     }
 
+
+    val idA = ID.newID
+    val idB = ID.newID
+    val idC = ID.newID
+
     def render(s: State) = {
       <.div(
+        ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         <.button( ^.className := "btn",
           ^.onClick --> {sendToDeviceDriver(apiDriver.GetDriver)}, "Get Drivers"
         ),
-        <.h1("Driver Names"),
-        s.cards.map { card: Card =>
-          <.div(
-            ^.onClick --> onCardClick(card),
-            "" + card.driver.name
+        // <.h1("Driver Names"),
+        // s.cards.map { card: Card =>
+        //   <.div(
+        //     ^.onClick --> onCardClick(card),
+        //     "" + card.driver.name
+        //   )
+        // }.toTagMod,
+        cardGroup(
+          List(
+            renderCard(s.expandedCard,idA, "Nomen", true, false, "Lorem ipsum dolor sit amet",
+              List("a: yes", "b: maybe", "c: no")),
+            renderCard(s.expandedCard,idB, "Nomen", true, false, "Lorem ipsum dolor sit amet",
+              List("a: yes", "b: maybe", "c: no")),
+            renderCard(s.expandedCard,idC, "Nomen", true, false, "Lorem ipsum dolor sit amet",
+              List("a: yes", "b: maybe", "c: no")),
+
           )
-        }.toTagMod
+        )
       )
     }
 
     /*
-        send driverID to VDDriverCardsWidget and expand
-        When expanded you should be able to:
-        1. Force Restart
-        2. Force Stop
-        3. Force Write
+     Inner Components
+     •	Driver Name
+     •	Color
+     •	Green (if online)
+     •	Red (if offline)
+     •	(Driver info)
+     •	(Current State)
+     •	(Force restart/stop)
+     •	(Force Write)
+     */
+
+    def cardGroup(cards: List[TagMod]): TagMod = <.div(
+      ^.className := DriverWidgetCSS.cardGroup.htmlClass,
+      ^.className := "input-group",
+      cards.toTagMod
+    )
+
+    def renderCard(
+      expandedId: Option[ID],
+      cardId: ID,
+      name: String,
+      isOnline: Boolean,
+      isExpanded: Boolean,
+      driverInfo: String,
+      state: List[String]
+    ): TagMod = <.span(
+      ^.className := DriverWidgetCSS.cardOuter.htmlClass,
+      <.div(
+        ^.className := DriverWidgetCSS.cardTitle.htmlClass,
+        name
+      ),
+      ^.onClick --> $.modState(s =>
+        if(s.expandedCard == Some(cardId)) s.copy(expandedCard = None)
+        else s.copy(expandedCard = Some(cardId))
+      ),
+      {
+        if(!expandedId.isEmpty){
+          val exist = cardId == expandedId.get
+          exist match {
+            case true => ^.className := DriverWidgetCSS.cardExpanded.htmlClass
+            case false => ^.className := DriverWidgetCSS.cardCollapsed.htmlClass
+          }
+        }
+        else EmptyVdom
+      }
+    )
+
+
+    /*
+     send driverID to VDDriverCardsWidget and expand
+     When expanded you should be able to:
+     1. Force Restart
+     2. Force Stop
+     3. Force Write
      */
     def renderExpansion(card: Card) = {
       <.div(
@@ -178,7 +246,7 @@ object DriverWidget {
   }
 
   private val driverWidgetComponent = ScalaComponent.builder[Unit]("DriverWidget")
-    .initialState(State(List(),List()))
+    .initialState(State(None, List(),List()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build
