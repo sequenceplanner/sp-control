@@ -12,7 +12,7 @@ import Logic._
 
 
 
-import sp.devicehandler.{APIVirtualDevice => vdapi}
+import sp.devicehandler.{APIDeviceDriver => vdapi}
 
 object DriverHandler {
   def props = Props(classOf[DriverHandler])

@@ -7,27 +7,27 @@ import sp.virtcom._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
+
 object Launch extends App {
   implicit val system = ActorSystem("SP")
   val cluster = akka.cluster.Cluster(system)
 
-  println("Start**************************")
-  println("Getting resources")
-  println(this.getClass.getResource("/bundle.js"))
-  println("End**************************")
+  val models = Map("URModel" -> sp.unification.URModel(),
+    "TurtleModel" -> sp.unification.TurtleModel(),
+    "TurtleDummyModel" -> sp.unification.DummyTurtleModel("TurtleDummyModel")
+  )
 
   cluster.registerOnMemberUp {
-
     // Start all you actors here.
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
-    system.actorOf(ExampleService.props, APIExampleService.service)
-    system.actorOf(SPModelImport.props, APISPModelImport.service)
-    system.actorOf(VolvoScheduler.props, APIVolvoScheduler.service)
-    system.actorOf(BDDVerifier.props, APIBDDVerifier.service)
 
-    // patrik model dsl
-    system.actorOf(sp.patrikmodel.PatrikModelService.props, "PatrikModel")
+    system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
+    system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
+    system.actorOf(sp.drivers.ROSFlatStateDriver.props, "ROSFlatStateDriver")
+    system.actorOf(sp.drivers.URDriver.props, "URDriver")
+    system.actorOf(sp.runners.OperationRunner.props, "oprunner")
+    system.actorOf(sp.modelService.ModelService.props(models))
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
@@ -37,4 +37,5 @@ object Launch extends App {
   system.terminate()
 
   Await.ready(system.whenTerminated, Duration(30, SECONDS))
+  System.exit(0)
 }

@@ -19,13 +19,14 @@ object LoadingWidgets {
 //      ("Widget with data",            widgets.examples.WidgetWithData(),             3, 4),
 //      ("D3Example",                   widgets.examples.D3Example(),                  3, 4),
 //      ("D3ExampleServiceWidget",      widgets.examples.D3ExampleServiceWidget(),     3, 4),
-      ("ExampleServiceWidget",        widgets.examples.ExampleServiceWidget(),                        3, 4),
-      ("ExampleServiceWidgetState",   widgets.examples.ExampleServiceWidgetState(),                   3, 3),
+//      ("ExampleServiceWidget",        widgets.examples.ExampleServiceWidget(),                        3, 4),
+//      ("ExampleServiceWidgetState",   widgets.examples.ExampleServiceWidgetState(),                   3, 3),
       ("OpcUAWidget",                 widgets.examples.OpcUAWidget(),                                 5, 4),
       ("Item explorer",               widgets.itemexplorer.ItemExplorer(),           3, 4),
       ("Item explorer in control",    widgets.itemexplorerincontrol.ItemExplorer(),           3, 4),
       ("Item explorer tree", widgets.itemtree.ItemExplorer(), 2, 4),
       ("Live Gantt Example",          widgets.gantt.LiveGanttExample(), 10, 5),
+      ("Gantt Viewer",                widgets.ganttviewer.GanttViewerWidget(), 10, 5),
       ("Ability Handler",             widgets.abilityhandler.AbilityHandlerWidget(), 3, 4),
       ("ServiceList",                 widgets.services.ServiceListWidget(),          3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
@@ -33,7 +34,11 @@ object LoadingWidgets {
       ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
-      ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4)
+      ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),
+      ("VDTracker",         widgets.vdtesting.VDTracker(),          5,5),
+      ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5),
+        ("DriverWidget",         widgets.VDDriver.DriverWidget(),          5,5)
+
     )
 
 

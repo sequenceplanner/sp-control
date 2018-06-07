@@ -31,7 +31,7 @@ class SPModelImport extends Actor
         h <- mess.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == APISPModelImport.service
         b <- mess.getBodyAs[APISPModelImport.Request] // Get message body as Import (text string)
       } yield {
-        var spHeader = h.swapToAndFrom
+        var spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
 
         val toSend = commands(b)

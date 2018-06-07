@@ -85,10 +85,12 @@ object SPSettings {
   )
 
   lazy val projectResolvers: Seq[Resolver] = Seq(
-    Resolver.file("local", file(Path.userHome.absolutePath + "/.ivy2/local"))(Resolver.ivyStylePatterns),
-    "Sonatype OSS Snapshots" at "https://oss.sonatype.org/Releases",
-    "Typesafe Releases" at "http://repo.typesafe.com/typesafe/releases/",
-    "sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/")
+    Resolver.sonatypeRepo("public"),
+    Resolver.typesafeRepo("releases"),
+    Resolver.sonatypeRepo("snapshots"),
+    "rosjava repository" at "https://github.com/rosjava/rosjava_mvn_repo/raw/master",
+    "Spring plugins" at "http://repo.spring.io/plugins-release/"  // rosjava depend on apache packages from here
+  )
 
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
   object versions {

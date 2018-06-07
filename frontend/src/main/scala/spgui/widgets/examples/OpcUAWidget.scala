@@ -26,12 +26,32 @@ object APIOpcUARuntime {
   case class StateUpdate(state: Map[String, SPValue], timeStamp: String) extends Response
 
 
+  object Formats {
+    import play.api.libs.json._
+
+    implicit val fConnect: JSFormat[Connect] = Json.format[Connect]
+    implicit val fSubscribe: JSFormat[Subscribe] = Json.format[Subscribe]
+    implicit val fDisconnect: JSFormat[Disconnect.type] = deriveCaseObject[Disconnect.type]
+    implicit val fGetNodes: JSFormat[GetNodes.type] = deriveCaseObject[GetNodes.type]
+    implicit val fWrite: JSFormat[Write] = Json.format[Write]
+    implicit val fConnectionStatus: JSFormat[ConnectionStatus] = Json.format[ConnectionStatus]
+    implicit val fAvailableNodes: JSFormat[AvailableNodes] = Json.format[AvailableNodes]
+    implicit val fStateUpdate: JSFormat[StateUpdate] = Json.format[StateUpdate]
+
+    def fRequest: JSFormat[Request] = Json.format[Request]
+
+    def fResponse: JSFormat[Response] = Json.format[Response]
+  }
+
   object Request {
-    implicit lazy val fOPCUARuntimeRequest: JSFormat[Request] = deriveFormatISA[Request]
+    implicit lazy val fAPIOpcUARuntimeRequest: JSFormat[Request] = Formats.fRequest
   }
+
   object Response {
-    implicit lazy val fOPCUARuntimeResponse: JSFormat[Response] = deriveFormatISA[Response]
+    implicit lazy val fAPIOpcUARuntimeResponse: JSFormat[Response] = Formats.fResponse
   }
+
+
 }
 import spgui.widgets.examples.{APIOpcUARuntime => api}
 

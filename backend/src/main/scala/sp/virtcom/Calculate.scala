@@ -106,7 +106,7 @@ class RobotOptimization(ops: List[Operation], precedences: List[(ID,ID)],
 
 
 object Calculate extends cal
-trait cal  extends ExtendIDables{
+trait cal  extends ExtendIDables with RegBDD {
 
   def synthOpt(SopID : ID, ids : List[IDAble], neglectedCases : Set[ID]) ={
     val checkedTime = true
@@ -297,9 +297,10 @@ trait cal  extends ExtendIDables{
     //  run synthesis and get the optimization results
 
     // Run synthesis with Supremica
-    val (ids2,synthAttr) = sp.virtcom.Synthesize.synthesizeModel(hids)
+    val (ids2,synthAttr,bdd) = sp.patrikmodel.Synthesize.synthesizeModel(hids)
     val numstates =synthAttr.getAs[Int]("nbrOfStatesInSupervisor").getOrElse(-1)
     val bddName = synthAttr.getAs[String]("moduleName").getOrElse("")
+    RegisterBDD(bddName, bdd)
     val ids_merged = hids.filter(x => !ids2.exists(y => y.id == x.id)) ++ ids2
     for {
       //Get info about the CP solution
@@ -310,7 +311,6 @@ trait cal  extends ExtendIDables{
 
     } yield {
       val resAttr = SPAttributes("numStates" -> numstates, "cpCompleted" -> cpCompl, "cpTime" -> cpTime, "cpSops" -> sops, "bddName" -> bddName)
-      // Todo: return results
 
       val snids = ids_merged.map(i => StructNode(i.id)) ++ sops.map(_._2).map(s => StructNode(s.id))
       val newStruct = Struct("VRS_"+ "Solved" , snids.toSet)

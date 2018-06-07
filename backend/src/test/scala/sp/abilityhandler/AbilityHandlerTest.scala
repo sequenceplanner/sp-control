@@ -63,7 +63,7 @@ class AbilityHandlerTest(_system: ActorSystem) extends TestKit(_system) with Imp
     val h = SPHeader(from = "test", to = handlerID.toString, reply = "test")
 
     "create" in {
-      var mh: ActorRef = system.actorOf(AbilityHandler.props("kalle", handlerID, vdID))
+      var mh: ActorRef = system.actorOf(AbilityHandler.propsHandler("kalle", handlerID, vdID))
       val probeAnswers = TestProbe()
 
       mediator ! Subscribe("answers", probeAnswers.ref)

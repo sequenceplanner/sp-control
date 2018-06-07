@@ -1,4 +1,4 @@
-package sp.virtcom
+package sp.patrikmodel
 
 import akka.actor._
 import akka.io.Tcp.Register
@@ -13,9 +13,6 @@ import scala.concurrent.duration._
 import sp.domain.Logic._
 import scala.concurrent._
 import akka.pattern.ask
-import sp.patrikmodel._
-import sp.patrikmodel.ExtendIDablesWrapper
-
 
 /**
   * Creates a wmod module from existing operations, things (variables), and SOPspec (forbidden expressions/mutex operations).
@@ -26,8 +23,8 @@ import sp.patrikmodel.ExtendIDablesWrapper
 
 
 object Synthesize extends SynthesizeModel
-trait SynthesizeModel extends RegBDD{
-  def synthesizeModel(ids: List[IDAble]): (List[Operation], SPAttributes) = {
+trait SynthesizeModel {
+  def synthesizeModel(ids: List[IDAble]): (List[Operation], SPAttributes, Map[String, Int] => Option[Boolean]) = {
 
     // Extract from IDAbles
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
@@ -67,9 +64,7 @@ trait SynthesizeModel extends RegBDD{
       lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
       lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
 
-    RegisterBDD(moduleName, (x => ptmwModule.containsState(x)))
-
-    (updatedOps, spAttributes)
+    (updatedOps, spAttributes, (x => ptmwModule.containsState(x)))
   }
 }
 
@@ -330,6 +325,8 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   }
 
   private def stateEvalToSupremicaSyntax(se: StateEvaluator): String = se match {
+    case ValueHolder(play.api.libs.json.JsTrue) => "1"
+    case ValueHolder(play.api.libs.json.JsFalse) => "0"
     case ValueHolder(play.api.libs.json.JsString(v)) => v
     case ValueHolder(play.api.libs.json.JsNumber(v)) => v.toString()
     case other =>

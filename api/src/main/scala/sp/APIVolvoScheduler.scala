@@ -12,14 +12,14 @@ object APIVolvoScheduler {
   val topicRequest = "VolvoSchedulerRequests"
   val topicResponse = "VolvoSchedulerResponse"
 
-  case class generateSOPs(modelID : String, schedules : Set[ID], ids : List[IDAble] ) extends Request
+  case class generateSOPs(modelID : ID, schedules : Set[ID], ids : List[IDAble] ) extends Request
   case class generatedSopID(SopId :ID) extends Response
   case class calculateStructID(StructId :ID) extends Response
   case class cpResults(cpRes : SPAttributes) extends Response
 
   case class getCases(SopID : ID, ids : List[IDAble]) extends  Request
   case class gotCases(map: Map[String, List[Operation]]) extends Response
-  case class calculate(modelID : String, SopID : ID, ids : List[IDAble], neglectedCases : Set[ID]) extends Request
+  case class calculate(modelID : ID, SopID : ID, ids : List[IDAble], neglectedCases : Set[ID]) extends Request
 
 
   object Formats {
