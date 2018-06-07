@@ -4,6 +4,7 @@ import sp.domain._
 import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import sp.abilityhandler.APIAbilityHandler.Abilities
 import sp.devicehandler.{VD, APIVirtualDevice => apiVD}
 import sp.domain._
 import spgui.communication._
@@ -25,16 +26,18 @@ object ResourceWidget {
     def onDeviceMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiVD.Response].map {
         case apiVD.TheVD(_, _ , resources, _ , _) => {
+          println("got THE VD res :  "  + resources)
           $.modState { s =>
             s.copy(cards = s.cards ::: resources.map(resourceWithState => Card(resourceWithState)))
           }
         }
         case x => Callback.empty
       }
+      callback.foreach(_.runNow())
     }
 
     def sendToVirtualDeviec(mess: apiVD.Request): Callback = {
-      val h = SPHeader(from = "ResourceWidget", to = "Derp", reply = SPValue("ResourceWidget"))
+      val h = SPHeader(from = "ResourceWidget", to = "", reply = SPValue("ResourceWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, apiVD.topicRequest)
       Callback.empty
