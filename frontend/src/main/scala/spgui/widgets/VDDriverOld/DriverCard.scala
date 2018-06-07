@@ -1,4 +1,4 @@
-package spgui.widgets.VDDriver
+package spgui.widgets.VDDriverOld
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
@@ -6,12 +6,14 @@ import sp.devicehandler.APIDeviceDriver
 import sp.devicehandler.VD.DriverState
 import sp.domain._
 
+
+trait DriverCardTrait
 /*
 The driverCard shows the driver name, id and if its online.
 If clicked, send ID to VDDriverCardsWidget and expand.
 
  */
-object DriverCard {
+object DriverCard extends DriverCardTrait{
   case class State(
                     driverName:       String,
                     driverID:         ID,
@@ -23,7 +25,7 @@ object DriverCard {
                     driverIsEditable: Boolean
                   )
 
-  private class Backend($: BackendScope[Unit, State]) {
+  class Backend($: BackendScope[Unit, State]) {
 
     /**********RENDERING**********/
     def render(s: State) = {

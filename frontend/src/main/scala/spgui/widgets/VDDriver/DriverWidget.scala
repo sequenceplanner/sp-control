@@ -1,83 +1,152 @@
 package spgui.widgets.VDDriver
 
+import sp.domain._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.APIDeviceDriver
-import sp.domain._
 import sp.devicehandler.VD
+import spgui.communication._
 
-
+import sp.devicehandler.{ APIVirtualDevice => apiVD, APIDeviceDriver => apiDriver }
 
 object DriverWidget {
-  case class Props(
-                  //drivers: ModelProxy[SOMETHING?]
-                  )
+
+  case class Card(cardId: String, driver: VD.Driver, isExpanded: Boolean)
+
   case class State(
-                    drivers:      List[Driver],
-                    idExpanded:   ID,   // the id of the driver expanded
-                    isExpanded:   Boolean // boolean if a driver is expanded
+                    //driverIdExpanded: ID/driver/driverCard
+                    //cardIsExpanded: Boolean
+                    //drivers:  List[VD.Driver], // maybe remove and only have a list of cards or vice verse
+                    cards:    List[Card]
                   )
 
-  private class Backend($: BackendScope[Props, State]) {
+  private class Backend($: BackendScope[Unit, State]) {
 
-    val driverListHandler =
-      BackendCommunication.getMessageObserver(onDriverListMessage, APIDeviceDriver.topicResponse)
+    val deviceHandler = BackendCommunication.getMessageObserver(onDeviceMessage, apiVD.topicResponse)
+    val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, apiDriver.topicResponse)
 
-    /*
-        onDriverMessage see if drivers is added or removed from circuit/Backend
-     */
-    def onDriverListMessage(mess: SPMessage) = ???
 
-    /*
-        when mounted, search after the drivers in circuit/backend from model
-        update drivers in Props
-     */
-    def onMount() = {
+    //
+    def onDeviceMessage(mess: SPMessage) = {
 
     }
-    def onUnmount() = {
-      driverListHandler.kill()
+
+    def onDriverMessage(mess: SPMessage) = {
+
+    }
+
+    def render(s: State) = {
+      <.div(
+        <.h1("Driver Names"),
+        s.cards.map { card: Card =>
+          <.div(
+            ^.onClick --> onCardClick(card),
+            "" + card.driver.name
+          )
+        }.toTagMod
+      )
+    }
+
+    /*
+        send driverID to VDDriverCardsWidget and expand
+        When expanded you should be able to:
+        1. Force Restart
+        2. Force Stop
+        3. Force Write
+     */
+    def renderExpansion(card: Card) = {
+      <.div(
+        ^.onClick --> onCardClick(card),
+        <.div(
+          <.button(
+            ^.className := "btn btn-default",
+            ^.onClick --> forceStop(card), "Force Stop"
+          ),
+          <.button(
+            ^.className := "btn btn-default",
+            ^.onClick --> forceRestart(card), "Force Restart"
+          ),
+          <.button(
+            ^.className := "btn btn-default",
+            ^.onClick --> forceWrite(card), "Force Write"
+          )
+        ),
+        <.div(
+          "Name:   " + card.driver.name + "\n" +
+            "ID:     " + card.driver.id + "\n" +
+            //"Online: " + (if (card.driver.driverIsOnline) "Driver Online" else "Driver Offline") + "\n" +
+            "Type:   " + card.driver.driverType + "\n" +
+            "Setup   " + card.driver.setup + "\n"
+            //+
+            //renderDriverState(card.driver.state)
+        )
+      )
+    }
+
+    def renderDriverState(driverState: VD.DriverState) = {
+      // for each element in driverState (Map[String, SPValue])
+      // print String, SPValue and a box where we can change SPValue if driver is editable
+      // Later: create new driverStates
+      <.div(
+
+      )
+    }
+
+    /**********ACTIONS**********/
+
+    def onCardClick(card: Card)= {
+      // send to widget api that card is clicked
+      // handle in BackendComm.MessageObserver that the card should expand/contract
       Callback.empty
     }
 
+
+    /**********CALLBACKS**********/
     /*
-          render all drivers from props
-          call renderCards
-      */
-    def render(p: Props, s: State) = {
-      <.div(
-        if (s.isExpanded) renderExpandedCard(s.idExpanded)
-        else renderCards()
-      )
-    }
-
-    // use DriverCard to visualize and create the different DriverCard:s from this widget
-    def renderCards(
-                    //List or Map of DriverCards
-                   ) = {
-      <.div(
-
-      )
-    }
-
-    // ToDo: Communicate with the specific DriverCard with the same driverID
-    def renderExpandedCard(driverID: ID) = ???
-
-    /*
-        ToDo: In the future we want the to create new drivers from this widget
+        should return a message to circuit or backend
      */
-    def createDriver(): Unit = ???
+    def forceWrite(card: Card) = {
+      // callback to backend to write new SPValues to the driver
+      Callback()
+    }
+    /*
+        force the driver to stop
+     */
+    def forceStop(card: Card) = {
+      // callback to backend to stop the driver
+      Callback()
+    }
+    /*
+        force the driver to restart
+     */
+    def forceRestart(card: Card) = {
+      // callback to backend to restart the driver
+      Callback()
+    }
+
+    def terminateDriver(card: Card) = {
+      // callback to backend to send APIDeviceDriver.TerminateDriver(id)
+      Callback()
+    }
+
+    //    def send(mess: apiVD.Request): Callback = {
+    //      val h = SPHeader(from = "DriverWidgetService", to = apiVD.service, reply = SPValue("DriverWidgetService"))
+    //      val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
+    //      BackendCommunication.publish(json, apiVD.topicRequest)
+    //      Callback.empty
+    //    }
+
+    def onUnmount() = {
+      println("DriverWidget Unmouting")
+      Callback.empty
+    }
   }
 
-
-  val driverCardsComponent = ScalaComponent.builder[Props]("VDDriverCardsWidget")
-    .initialState(State())
+  private val driverWidgetComponent = ScalaComponent.builder[Unit]("DriverWidget")
+    .initialState(State(List()))
     .renderBackend[Backend]
-    .componentDidMount(_.backend.onMount())
-    .componentWillUnmount(_.backend.onUnmount())
+    .componentWillUnmount(_.backend.onUnmount)
     .build
 
-  def apply() = SPWidget(swpb => driverCardsComponent())
-
+  def apply() = spgui.SPWidget(spwb => driverWidgetComponent())
 }
 

@@ -124,9 +124,9 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
             b match {
               case api.GetDriver =>
                 val body = api.TheDriver(d, driverState)
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), body))
                 publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, driverState)))
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
 
               // The command to the driver
@@ -138,8 +138,8 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
               // Terminating the driver
               case api.TerminateDriver(driverid) if driverid == d.id =>
                 self ! PoisonPill
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), api.DriverTerminated(d.id)))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
 
               case _ =>

@@ -21,6 +21,7 @@ import org.ros.node.topic.Subscriber
 import org.ros.message.MessageFactory
 import java.net.URI;
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 /**
   * A driver for talking to ROS by mapping SP "flat state"
@@ -89,7 +90,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   println("-- ROS_IP: " + nc.getTcpRosBindAddress())
 
   override def getDefaultNodeName(): GraphName =
-    GraphName.of("sp/" + d.name)
+    GraphName.of("sp/" + d.name.replace('.', '_'))
 
   override def onStart(cn: ConnectedNode): Unit = {
     n = Some(cn)
@@ -116,7 +117,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     topicTimeouts = topics.map { case (topic, rosVars) => (topic, (0l,listenerTimeout)) }.toMap
 
     // setup a listener to each topic
-    pubsub = topics.map { case (topic, rosVars) => createPublisherSubscriber(cn, topic, rosVars) }.toMap
+    pubsub = topics.flatMap { case (topic, rosVars) => createPublisherSubscriber(cn, topic, rosVars).toOption }.toMap
 
     // start listener timeout ticker
     context.system.scheduler.schedule(0 milliseconds, 100 milliseconds, self, TickTimeout(cn, 100l))
@@ -130,6 +131,10 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
 
   override def onShutdown(n: Node): Unit = {
     println("** Stopping ros node **")
+    pubsub.foreach { case (t,ps) => ps._2.removeAllMessageListeners() }
+    pubsub.foreach { case (t,ps) => ps._1.p.shutdown() }
+    pubsub.foreach { case (t,ps) => ps._1.c.foreach { c => c.cancel() } }
+    println("** Killed pubs/subs **")
   }
   override def onShutdownComplete(n: Node): Unit = println("** ros node stopped **")
 
@@ -209,7 +214,8 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     }
   }
 
-  def createPublisherSubscriber(cn: ConnectedNode, topic: String, rosVars: Iterable[RosVar]) = {
+  def createPublisherSubscriber(cn: ConnectedNode, topic: String, rosVars: Iterable[RosVar]):
+  Try[(String, (PublishTicker, Subscriber[org.ros.internal.message.Message]))] = Try {
     assert(rosVars.nonEmpty) // we know we have head from groupBy
     val r= rosVars.head
     val p: Publisher[org.ros.internal.message.Message] = cn.newPublisher(topic, r.msgType)
@@ -219,7 +225,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       else None)
     val s: Subscriber[org.ros.internal.message.Message] = cn.newSubscriber(topic, r.msgType)
     s.addMessageListener(new MessageListener[org.ros.internal.message.Message] {
-      override def onNewMessage(msg: org.ros.internal.message.Message) =  {
+      override def onNewMessage(msg: org.ros.internal.message.Message) = try {
         // update internal ros state
         this.synchronized { // perhaps we can block less than this.
           topicTimeouts = topicTimeouts + (topic -> (0l,listenerTimeout))
@@ -235,10 +241,10 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
             println("got new ros state: ")
             println(spState.mkString("\n"))
             println("============================================================")
-            publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
+            publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, updSpState)))
           }
         }
-      }
+      } catch { case t: Throwable => println("ROS ERROR IN LISTENER: " + t.getMessage) }
     })
     (topic -> (pt,s))
   }
@@ -323,12 +329,12 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
 
         // recreate subscribers
         this.synchronized {
-          val updPubSub = topics.filter(t=>failed.exists(f=>t._1==f._1)).map { case (topic, rosVars) =>
+          val updPubSub = topics.filter(t=>failed.exists(f=>t._1==f._1)).flatMap { case (topic, rosVars) =>
             // kill old listeners/publishers
             pubsub(topic)._2.removeAllMessageListeners()
             pubsub(topic)._1.p.shutdown()
             pubsub(topic)._1.c.foreach { c => c.cancel() }
-            createPublisherSubscriber(cn, topic, rosVars)
+            createPublisherSubscriber(cn, topic, rosVars).toOption
           }.toMap
 
           pubsub = pubsub ++ updPubSub
@@ -365,25 +371,25 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
         } yield {
           b match {
             case api.GetDriver =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPACK()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPACK()))
               val body = api.TheDriver(d, spState)
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), body))
               publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
             case api.DriverCommand(driverid, state) if driverid == d.id  =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPACK()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPACK()))
               writeStateChange(state)
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
               // TODO: think about only sending done when change has been registered
 
             // Terminating the driver
             case api.TerminateDriver(driverid) if driverid == d.id =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPACK()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPACK()))
               rosNodeMainExecutor.shutdown()
               self ! PoisonPill
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), api.DriverTerminated(d.id)))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
 
             case _ =>

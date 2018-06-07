@@ -75,7 +75,7 @@ class VirtualDeviceMaker extends Actor
       } yield {
         log.debug("Setting up VD")
         log.debug(setup.toString)
-        val updH = h.swapToAndFrom
+        val updH = h.swapToAndFrom()
         if (vds.contains(setup.id)){
           publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"VD with id ${setup.id} already exist")))
         } else {
@@ -153,7 +153,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
               }
             }
           case APIVirtualDevice.GetVD =>
-            val updh = h.swapToAndFrom.copy(from = id.toString)
+            val updh = h.swapToAndFrom().copy(from = id.toString)
             publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updh, makeVDMessage))
             publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updh, APISP.SPDone()))
 
