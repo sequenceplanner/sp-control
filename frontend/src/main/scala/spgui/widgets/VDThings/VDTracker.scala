@@ -41,6 +41,8 @@ object VDTracker {
 
   private class Backend($: BackendScope[Unit, State]) {
 
+
+
     val operationRunnerHandler =
       BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
     val abilityHandler =
@@ -220,6 +222,8 @@ object VDTracker {
       abilityHandler.kill()
       virtualDeviceHandler.kill()
       modelMessObs.kill()
+      vdModelObs.kill()
+      vdtObs.kill()
       Callback.empty
     }
   }
