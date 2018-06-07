@@ -1,3 +1,4 @@
+/*
 package spgui.widgets.VDDriverOld
 
 import japgolly.scalajs.react._
@@ -8,13 +9,13 @@ import sp.domain._
 
 
 trait DriverCardTrait
-/*
+
 The driverCard shows the driver name, id and if its online.
 If clicked, send ID to VDDriverCardsWidget and expand.
 
- */
 object DriverCard extends DriverCardTrait{
   case class State(
+
                     driverName:       String,
                     driverID:         ID,
                     driverType:       String,
@@ -23,6 +24,7 @@ object DriverCard extends DriverCardTrait{
                     driverIsOnline:   Boolean,
                     cardIsExpanded:   Boolean,
                     driverIsEditable: Boolean
+
                   )
 
   class Backend($: BackendScope[Unit, State]) {
@@ -148,3 +150,4 @@ object DriverCard extends DriverCardTrait{
   def apply() = driverCardComponent()
 }
 
+*/

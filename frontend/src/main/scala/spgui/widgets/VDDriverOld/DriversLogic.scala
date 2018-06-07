@@ -1,3 +1,4 @@
+/*
 package spgui.widgets.VDDriverOld
 
 import sp.devicehandler.VD.DriverState
@@ -63,3 +64,4 @@ object DriversLogic {
 
 }
 
+*/
