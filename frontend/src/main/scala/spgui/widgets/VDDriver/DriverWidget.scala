@@ -159,18 +159,6 @@ object DriverWidget {
       Callback("DriverWidget: Force the driver to restart") // dummy
     }
 
-    def terminateDriver(card: Card) = {
-      // callback to backend to send APIDeviceDriver.TerminateDriver(id)
-      Callback("DriverWidget: Force the driver to terminate") // dummy
-    }
-
-    //    def send(mess: apiVD.Request): Callback = {
-    //      val h = SPHeader(from = "DriverWidgetService", to = apiVD.service, reply = SPValue("DriverWidgetService"))
-    //      val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
-    //      BackendCommunication.publish(json, apiVD.topicRequest)
-    //      Callback.empty
-    //    }
-
     def onUnmount() = {
       println("DriverWidget Unmouting")
       deviceHandler.kill()
