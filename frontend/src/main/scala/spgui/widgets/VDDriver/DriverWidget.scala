@@ -1,16 +1,14 @@
 package spgui.widgets.VDDriver
 
-import sp.domain._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.VD
+import sp.devicehandler.{VD, APIDeviceDriver => apiDriver, APIVirtualDevice => apiVD}
+import sp.domain._
 import spgui.communication._
-
-import sp.devicehandler.{ APIVirtualDevice => apiVD, APIDeviceDriver => apiDriver }
 
 object DriverWidget {
 
-  case class Card(cardId: String, driver: VD.Driver, isExpanded: Boolean)
+  case class Card(cardId: String, driver: VD.Driver, driverState: VD.DriverState, isExpanded: Boolean)
 
   case class State(
                     //driverIdExpanded: ID/driver/driverCard
@@ -76,19 +74,30 @@ object DriverWidget {
             //"Online: " + (if (card.driver.driverIsOnline) "Driver Online" else "Driver Offline") + "\n" +
             "Type:   " + card.driver.driverType + "\n" +
             "Setup   " + card.driver.setup + "\n"
-            //+
-            //renderDriverState(card.driver.state)
+          //+
+          //renderDriverState(card.driver.state)
         )
       )
     }
 
-    def renderDriverState(driverState: VD.DriverState) = {
+    def renderDriverState(card: Card) = {
       // for each element in driverState (Map[String, SPValue])
       // print String, SPValue and a box where we can change SPValue if driver is editable
       // Later: create new driverStates
-      <.div(
+      val cardWithNewState: Card = card
+      card.driverState.toList.map { state: (String, SPValue) =>
+        <.div(
+          state._1 + "  " + state._2.toString(),
+          <.button(
+              ^.onClick --> onEditStateClicked(cardWithNewState),
+              "Edit SPValue"
+          )
+        )
+      }
+    }
 
-      )
+    def onEditStateClicked(card: Card) = {
+      Callback("DriverWidget: Edit State-Button clicked") // dummy
     }
 
     /**********ACTIONS**********/
@@ -96,7 +105,7 @@ object DriverWidget {
     def onCardClick(card: Card)= {
       // send to widget api that card is clicked
       // handle in BackendComm.MessageObserver that the card should expand/contract
-      Callback.empty
+      Callback("DriverWidget: Card has been clicked") // dummy
     }
 
 
@@ -106,26 +115,26 @@ object DriverWidget {
      */
     def forceWrite(card: Card) = {
       // callback to backend to write new SPValues to the driver
-      Callback()
+      Callback("DriverWidget: Force the driver to write over past state") // dummy
     }
     /*
         force the driver to stop
      */
     def forceStop(card: Card) = {
       // callback to backend to stop the driver
-      Callback()
+      Callback("DriverWidget: Force the driver to stop") // dummy
     }
     /*
         force the driver to restart
      */
     def forceRestart(card: Card) = {
       // callback to backend to restart the driver
-      Callback()
+      Callback("DriverWidget: Force the driver to restart") // dummy
     }
 
     def terminateDriver(card: Card) = {
       // callback to backend to send APIDeviceDriver.TerminateDriver(id)
-      Callback()
+      Callback("DriverWidget: Force the driver to terminate") // dummy
     }
 
     //    def send(mess: apiVD.Request): Callback = {
@@ -144,7 +153,7 @@ object DriverWidget {
   private val driverWidgetComponent = ScalaComponent.builder[Unit]("DriverWidget")
     .initialState(State(List()))
     .renderBackend[Backend]
-    .componentWillUnmount(_.backend.onUnmount)
+    .componentWillUnmount(_.backend.onUnmount())
     .build
 
   def apply() = spgui.SPWidget(spwb => driverWidgetComponent())
