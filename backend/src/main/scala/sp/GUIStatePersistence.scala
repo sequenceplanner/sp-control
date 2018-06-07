@@ -1,9 +1,12 @@
 package sp
 
 import akka.persistence.{PersistentActor, SnapshotOffer}
-import sp.modelImport.oldDomain.SPValue
+import sp.PersistentGUIState.State
+import sp.domain.{SPHeader, SPMessage}
 
-class GUIStatePersistence extends PersistentActor {
+class GUIStatePersistence extends PersistentActor with sp.service.ServiceSupport {
+  subscribe(PersistentGUIState.AkkaTopic)
+
 
   override def receiveRecover: Receive = {
     case SnapshotOffer(metadata, snapshot) =>
@@ -13,29 +16,23 @@ class GUIStatePersistence extends PersistentActor {
       println("\n\n\n\n")
   }
 
-  trait WidgetId
-
-  trait Key
-  case class UniqueKey(id: String)
-  case class WidgetKey(widgetId: WidgetId)
-
-  type Store = Map[Key, SPValue]
-
-  case class State(store: Map[Key, SPValue] = Map()) {
-    def update(f: State => State): State = f(this)
-  }
-
   override def receiveCommand: Receive = handleCommand(State())
 
   def handleCommand(state: State): Receive = {
-    case GUICommand(f, shouldSaveSnapshot) =>
+    case PersistentGUIState.GUICommand(f, shouldSaveSnapshot) =>
       val newState = state.update(f)
       if (shouldSaveSnapshot) saveSnapshot(newState)
 
       context become handleCommand(newState)
   }
 
-  override def persistenceId: String = "gui-state-persistence-actor"
+  def sendEvent[A](header: SPHeader, body: A): Unit = {
+    val toSend = SPMessage.makeJson(header, body)
+    val TopicName = "" // TODO
+    publish(TopicName, toSend)
+  }
 
-  case class GUICommand(mapping: State => State, saveSnapshot: Boolean = false)
+  // val messObs = BackendCommunication.getMessageObserver(processMessage, topic = BackendTopic.PatientDataEvent)
+
+  override def persistenceId: String = "gui-state-persistence-actor"
 }
