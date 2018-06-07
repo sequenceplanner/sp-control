@@ -171,6 +171,8 @@ object DriverWidget {
 
     def onUnmount() = {
       println("DriverWidget Unmouting")
+      deviceHandler.kill()
+      driverHandler.kill()
       Callback.empty
     }
   }

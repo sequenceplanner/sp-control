@@ -35,7 +35,8 @@ object LoadingWidgets {
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
       ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),
       ("VDTracker",         widgets.vdtesting.VDTracker(),          5,5),
-      ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5)
+      ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5),
+        ("DriverWidget",         widgets.VDDriver.DriverWidget(),          5,5)
 
     )
 
