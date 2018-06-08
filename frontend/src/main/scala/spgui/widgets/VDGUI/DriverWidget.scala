@@ -5,18 +5,20 @@ import japgolly.scalajs.react.vdom.html_<^._
 import sp.devicehandler.{VD, APIDeviceDriver => apiDriver, APIVirtualDevice => apiVD}
 import sp.domain._
 import spgui.communication._
+import spgui.components.SPWidgetElements
+
 
 object DriverWidget {
 
-  case class Card(driver: VD.Driver, driverState: VD.DriverState, isExpanded: Boolean)
+  case class Card(driver: VD.Driver, driverState: VD.DriverState, cardId: ID = ID.newID)
 
   case class State(
-                    //driverIdExpanded: ID/driver/driverCard
-                    //cardIsExpanded: Boolean
-                    //drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
-                    expandedCard: Option[ID] = None,
-                    cards:    List[Card] = List()
-                  )
+    //driverIdExpanded: ID/driver/driverCard
+    //cardIsExpanded: Boolean
+    //drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
+    expandedCard: Option[ID] = None,
+    cards:    List[Card] = List()
+  )
 
   private class Backend($: BackendScope[Unit, State]) {
 
@@ -35,7 +37,7 @@ object DriverWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map {
         case apiDriver.TheDriver(driver, driverState) => {
           $.modState { s =>
-            s.copy(cards = s.cards :+ Card(driver, driverState, false))
+            s.copy(cards = s.cards :+ Card(driver, driverState))
           }
         }
         case apiDriver.DriverStateChange(name, id, state, diff) => {
@@ -50,41 +52,32 @@ object DriverWidget {
       $.modState(s => s.copy(cards = s.cards.map(c => if(c.driver.id == id) c.copy(driverState = state) else c)))
     }
 
-
-    def sendToDeviceDriver(mess: apiDriver.Request): Callback = {
+    def sendToDeviceDriver(mess: apiDriver.Request) = Callback{
       val h = SPHeader(from = "DriverWidget", to = "", reply = SPValue("DriverWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, apiDriver.topicRequest)
-      Callback.empty
     }
-
-
-    val idA = ID.newID
-    val idB = ID.newID
-    val idC = ID.newID
 
     def render(s: State) = {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        <.button( ^.className := "btn",
-          ^.onClick --> {sendToDeviceDriver(apiDriver.GetDriver)}, "Get Drivers"
-        ),
-        // <.h1("Driver Names"),
-        // s.cards.map { card: Card =>
-        //   <.div(
-        //     ^.onClick --> onCardClick(card),
-        //     "" + card.driver.name
-        //   )
-        // }.toTagMod,
+        SPWidgetElements.buttonGroup(Seq(
+          SPWidgetElements.button("Get drivers", sendToDeviceDriver(apiDriver.GetDriver))
+        )),
         cardGroup(
-          List(
-            renderCard(s.expandedCard,idA, "Nomen", true, false, "Lorem ipsum dolor sit amet",
-              List("a: yes", "b: maybe", "c: no")),
-            renderCard(s.expandedCard,idB, "Nomen", true, false, "Lorem ipsum dolor sit amet",
-              List("a: yes", "b: maybe", "c: no")),
-            renderCard(s.expandedCard,idC, "Nomen", true, false, "Lorem ipsum dolor sit amet",
-              List("a: yes", "b: maybe", "c: no")),
-
+          s.cards.map(
+            c => {
+              renderCard(
+                expandedId = s.expandedCard,
+                cardId = c.cardId,
+                name = c.driver.name,
+                isOnline = true,
+                driverInfo = List(
+                  "Driver Type: " +c.driver.driverType
+                ),
+                state = c.driverState.keys.map(k => k.toString + ":" + c.driverState.get(k).toString).toList
+              )
+            }
           )
         )
       )
@@ -103,8 +96,6 @@ object DriverWidget {
      */
 
     def cardGroup(cards: List[TagMod]): TagMod = <.div(
-      ^.className := DriverWidgetCSS.cardGroup.htmlClass,
-      ^.className := "input-group",
       cards.toTagMod
     )
 
@@ -113,30 +104,66 @@ object DriverWidget {
       cardId: ID,
       name: String,
       isOnline: Boolean,
-      isExpanded: Boolean,
-      driverInfo: String,
+      driverInfo: List[String],
       state: List[String]
-    ): TagMod = <.span(
-      ^.className := DriverWidgetCSS.cardOuter.htmlClass,
-      <.div(
-        ^.className := DriverWidgetCSS.cardTitle.htmlClass,
-        name
-      ),
-      ^.onClick --> $.modState(s =>
-        if(s.expandedCard == Some(cardId)) s.copy(expandedCard = None)
-        else s.copy(expandedCard = Some(cardId))
-      ),
-      {
-        if(!expandedId.isEmpty){
-          val exist = cardId == expandedId.get
-          exist match {
-            case true => ^.className := DriverWidgetCSS.cardExpanded.htmlClass
-            case false => ^.className := DriverWidgetCSS.cardCollapsed.htmlClass
-          }
-        }
-        else EmptyVdom
-      }
-    )
+    ): TagMod = {
+      val isExpanded = expandedId == Some(cardId)
+      List(
+        { isExpanded match {
+          case true  => ^.className := DriverWidgetCSS.cardGroupExpanded.htmlClass
+          case false => ^.className := DriverWidgetCSS.cardGroupCollapsed.htmlClass
+        }},
+        <.span(
+          ^.className := DriverWidgetCSS.cardPlaceholder.htmlClass,
+          expandedId match {
+            case None => EmptyVdom
+            case _ =>
+              if(expandedId == Some(cardId)) ^.className := DriverWidgetCSS.cardExpanded.htmlClass
+              else ^.className := DriverWidgetCSS.cardCollapsed.htmlClass
+          },
+          <.span(
+            ^.className := DriverWidgetCSS.cardOuter.htmlClass,
+            expandedId match {
+              case None => EmptyVdom
+              case _ =>
+                if(expandedId == Some(cardId)) ^.className := DriverWidgetCSS.unsetHeight.htmlClass
+                else EmptyVdom
+            },
+            {
+              isExpanded match {
+                case true => { List(
+                  <.div(
+                    <.div(
+                      ^.className := DriverWidgetCSS.cardTitle.htmlClass,
+                      name
+                    ),
+                    <.div(
+                      driverInfo.map(<.div(_)).toTagMod
+                    ),
+                    <.div(
+                      state.map(<.div(_)).toTagMod
+                    )
+                  )
+                ).toTagMod}
+
+                case false => { List(
+                  <.div(
+                    <.div(
+                      ^.className := DriverWidgetCSS.cardTitle.htmlClass,
+                      name
+                    )
+                  )
+                ).toTagMod}
+              }
+            },
+            ^.onClick --> $.modState(s =>
+              if(s.expandedCard == Some(cardId)) s.copy(expandedCard = None)
+              else s.copy(expandedCard = Some(cardId))
+            )
+          )
+        )
+      ).toTagMod
+    }
 
 
     /*
@@ -182,8 +209,8 @@ object DriverWidget {
         <.div(
           state._1 + "  " + state._2.toString(),
           <.button(
-              ^.onClick --> onEditStateClicked(card),
-              "Edit SPValue"
+            ^.onClick --> onEditStateClicked(card),
+            "Edit SPValue"
           )
         )
       }
@@ -208,23 +235,23 @@ object DriverWidget {
 
     /**********CALLBACKS**********/
     /*
-        should return a message to circuit or backend
+     should return a message to circuit or backend
      */
     def forceWrite(card: Card) = {
       // callback to backend to write new SPValues to the driver
       Callback("DriverWidget: Force the driver to write over past state") // dummy
     }
     /*
-        force the driver to stop
+     force the driver to stop
      */
     def forceStop(card: Card) = {
       // callback to backend to stop the driver
-     sendToDeviceDriver(apiDriver.TerminateDriver(card.driver.id))
+      sendToDeviceDriver(apiDriver.TerminateDriver(card.driver.id))
 
-      Callback("DriverWidget: Force the driver to stop") // dummy
+      //Callback("DriverWidget: Force the driver to stop") // dummy
     }
     /*
-        force the driver to restart
+     force the driver to restart
      */
     def forceRestart(card: Card) = {
       // callback to backend to restart the driver
