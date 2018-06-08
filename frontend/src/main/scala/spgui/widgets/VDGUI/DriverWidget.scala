@@ -235,10 +235,13 @@ object DriverWidget {
 
     /**********CALLBACKS**********/
     /*
-     should return a message to circuit or backend
+
+    // Todo: Test that the force does what we desire
+        should return a message to circuit or backend
      */
     def forceWrite(card: Card) = {
       // callback to backend to write new SPValues to the driver
+      sendToDeviceDriver(apiDriver.DriverCommand(card.driver.id, card.driverState))
       Callback("DriverWidget: Force the driver to write over past state") // dummy
     }
     /*
@@ -255,6 +258,7 @@ object DriverWidget {
      */
     def forceRestart(card: Card) = {
       // callback to backend to restart the driver
+      sendToDeviceDriver(apiDriver.SetUpDeviceDriver(card.driver))
       Callback("DriverWidget: Force the driver to restart") // dummy
     }
 
