@@ -1,9 +1,6 @@
 package sp
 
 import akka.actor._
-import sp.example._
-import sp.modelImport._
-import sp.virtcom._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -28,7 +25,7 @@ object Launch extends App {
     system.actorOf(sp.drivers.URDriver.props, "URDriver")
     system.actorOf(sp.runners.OperationRunner.props, "oprunner")
     system.actorOf(sp.modelService.ModelService.props(models))
-    system.actorOf(DashboardPresetsActor())
+    system.actorOf(dashboardpresets.DashboardPresetsActor())
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")

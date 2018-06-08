@@ -1,4 +1,4 @@
-package sp
+package sp.dashboardpresets
 
 import play.api.libs.json.{Format, JsObject}
 import sp.domain.{JSFormat, JSReads, JSWrites, SPValue}
@@ -10,11 +10,14 @@ object FormatUtility {
     JsObject(xs.map { case (k, v) => f(k) -> SPValue(v) })
   }
 
-  def mapReads[K, V](keyParser: String => Option[K])(implicit reads: JSReads[V]): JSReads[Map[K, V]] = _.validate[Map[String, SPValue]].map(
-    _.collect { case (k, v) =>
-      for (key <- keyParser(k); value <- v.to[V].toOption) yield key -> value
-    }.flatten.toMap
-  )
+  def mapReads[K, V](keyParser: String => Option[K])(implicit reads: JSReads[V]): JSReads[Map[K, V]] = { json =>
+     json.validate[Map[String, SPValue]]
+       .map {
+         _.collect { case (k, v) => for (key <- keyParser(k); value <- v.to[V].toOption) yield key -> value }
+           .flatten
+           .toMap
+       }
+  }
 
   /**
     *

@@ -1,17 +1,14 @@
-package sp
+package sp.dashboardpresets
 
 import akka.actor._
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import play.api.libs.json.Json
+import sp.dashboardpresets.FormatUtility.mapFormat
 import sp.domain._
 import sp.{APIDashboardPresets => API}
-import FormatUtility.mapFormat
 
 class DashboardPresetsActor extends PersistentActor with ActorLogging with sp.service.ServiceSupport {
-  //final case class State(patients: Map[String, Patient] = Map())
-
   subscribe(API.DashboardPresetsTopic)
-
 
   case class State(presets: Map[String, String] = Map()) {
     def serialize: String = Json.toJson(this).toString()
@@ -47,7 +44,7 @@ class DashboardPresetsActor extends PersistentActor with ActorLogging with sp.se
     case API.RemoveDashboardPreset(name: String) =>
       Some(state.copy(presets = state.presets.filterKeys(_ != name)))
 
-    case API.AllDashboardPresets(presets: Map[String, String]) => // A set of presets has been received. Save them.
+    case API.AllDashboardPresets(presets: Map[String, String]) =>
       val mergedPresets = presets.foldLeft(state.presets) { case (map, (k, v)) => map.updated(k, v) }
       Some(state.copy(presets = mergedPresets))
 
