@@ -11,7 +11,7 @@ import scala.util.{Failure, Success, Try}
 import sp.domain.logic.{PropositionParser, ActionParser}
 
 import sp.abilityhandler.APIAbilityHandler
-import sp.devicehandler.APIVirtualDevice
+import sp.devicehandler._
 
 
 
@@ -206,25 +206,26 @@ class Trucks(ahid: ID) extends Actor with Helpers {
 
   // setup driver
   val driverID = UUID.randomUUID()
-  def sm(vars: List[Thing]): List[APIVirtualDevice.OneToOneMapper] = vars.flatMap { v =>
-    v.attributes.getAs[String]("drivername").map(dn => APIVirtualDevice.OneToOneMapper(v.id, driverID, dn))
+  def sm(vars: List[Thing]): List[VD.OneToOneMapper] = vars.flatMap { v =>
+    v.attributes.getAs[String]("drivername").map(dn => VD.OneToOneMapper(v.id, driverID, dn))
   }
   val setup = SPAttributes("url" -> "opc.tcp://localhost:12686", "identifiers" -> sm(allVars).map(_.driverIdentifier))
-  val driver = APIVirtualDevice.Driver("opclocal", driverID, "OPCUA", setup)
-  mediator ! Publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpDeviceDriver](SPHeader(from = "hej"), APIVirtualDevice.SetUpDeviceDriver(driver)))
+  val driver = VD.Driver("opclocal", driverID, "OPCUA", setup)
+  mediator ! Publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIDeviceDriver.SetUpDeviceDriver](SPHeader(from = "hej"), APIDeviceDriver.SetUpDeviceDriver(driver)))
 
   // setup resources
-  val lf1 = APIVirtualDevice.Resource("loadFixture1", UUID.randomUUID(), lf1vars.map(_.id).toSet, sm(lf1vars), SPAttributes())
-  val lf2 = APIVirtualDevice.Resource("loadFixture2", UUID.randomUUID(), lf2vars.map(_.id).toSet, sm(lf2vars), SPAttributes())
-  val ar31 = APIVirtualDevice.Resource("ar31", UUID.randomUUID(), ar31vars.map(_.id).toSet, sm(ar31vars), SPAttributes())
-  val ar41 = APIVirtualDevice.Resource("ar41", UUID.randomUUID(), ar41vars.map(_.id).toSet, sm(ar41vars), SPAttributes())
+  val lf1 = VD.Resource("loadFixture1", UUID.randomUUID(), lf1vars.map(_.id).toSet, sm(lf1vars), SPAttributes())
+  val lf2 = VD.Resource("loadFixture2", UUID.randomUUID(), lf2vars.map(_.id).toSet, sm(lf2vars), SPAttributes())
+  val ar31 = VD.Resource("ar31", UUID.randomUUID(), ar31vars.map(_.id).toSet, sm(ar31vars), SPAttributes())
+  val ar41 = VD.Resource("ar41", UUID.randomUUID(), ar41vars.map(_.id).toSet, sm(ar41vars), SPAttributes())
 
   val resources = List(lf1, lf2, ar31, ar41)
 
-  resources.foreach { res =>
-    val body = APIVirtualDevice.SetUpResource(res)
-    mediator ! Publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpResource](SPHeader(from = "hej"), body))
-  }
+  // TODO: setup VD instead and load model
+//  resources.foreach { res =>
+//    val body = APIDeviceDriver.SetUpResource(res)
+//    mediator ! Publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpResource](SPHeader(from = "hej"), body))
+//  }
 
   // setup abilities
   abs.foreach { ab =>

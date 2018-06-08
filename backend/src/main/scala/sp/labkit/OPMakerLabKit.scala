@@ -18,6 +18,10 @@ import sp.devicehandler._
 import sp.devicehandler.{APIVirtualDevice => vdapi}
 import sp.labkit.{APILabkit => api}
 
+
+
+// TODO: Update this to load a model instead!
+
 class OPMakerLabKit extends PersistentActor
     with ActorLogging
     with OPMakerLogic
@@ -38,22 +42,22 @@ class OPMakerLabKit extends PersistentActor
   val vars = allPLCVars.map(v)
 
   val driverID = UUID.randomUUID()
-  def sm(vars: List[Thing]): List[vdapi.OneToOneMapper] = vars.flatMap { v =>
-    v.attributes.getAs[String]("drivername").map(dn => vdapi.OneToOneMapper(v.id, driverID, dn))
+  def sm(vars: List[Thing]): List[VD.OneToOneMapper] = vars.flatMap { v =>
+    v.attributes.getAs[String]("drivername").map(dn => VD.OneToOneMapper(v.id, driverID, dn))
   }
   val setup = SPAttributes("url" -> "opc.tcp://192.168.0.10:4840", "identifiers" -> sm(vars).map(_.driverIdentifier))
-  val driver = vdapi.Driver("codesys", driverID, "OPCUA", setup)
-  publish(vdapi.topicRequest, SPMessage.makeJson[SPHeader, vdapi.SetUpDeviceDriver](SPHeader(from = "hej"), vdapi.SetUpDeviceDriver(driver)))
+  val driver = VD.Driver("codesys", driverID, "OPCUA", setup)
+  publish(vdapi.topicRequest, SPMessage.makeJson[SPHeader, APIDeviceDriver.SetUpDeviceDriver](SPHeader(from = "hej"), APIDeviceDriver.SetUpDeviceDriver(driver)))
   val idmap = vars.map(v=>v.id -> v).toMap
 
   // setup resource
-  val labkit = vdapi.Resource("labkit", UUID.randomUUID(), vars.map(_.id).toSet, sm(vars), SPAttributes())
+  val labkit = VD.Resource("labkit", UUID.randomUUID(), vars.map(_.id).toSet, sm(vars), SPAttributes())
   val resources = List(labkit)
 
-  resources.foreach { res =>
-    val body = APIVirtualDevice.SetUpResource(res)
-    publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpResource](SPHeader(from = "hej"), body))
-  }
+//  resources.foreach { res =>
+//    val body = APIVirtualDevice.SetUpResource(res)
+//    publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpResource](SPHeader(from = "hej"), body))
+//  }
 
 
   def receiveCommand = {

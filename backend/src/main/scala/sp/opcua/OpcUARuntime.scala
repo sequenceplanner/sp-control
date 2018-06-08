@@ -13,7 +13,7 @@ import sp.domain._
 import sp.domain.Logic._
 import sp.milowrapper.{MiloOPCUAClient, StateUpdate}
 // the vd api
-import sp.devicehandler.{APIVirtualDevice => vdapi}
+import sp.devicehandler.{APIDeviceDriver => vdapi}
 
 
 object OpcUARuntime {
@@ -55,7 +55,7 @@ class OpcUARuntime(name: String, id: UUID, setup: SPAttributes) extends Actor {
             b <- mess.getBodyAs[vdapi.Request]
           } yield {
             b match {
-              case vdapi.DriverCommand(name, driverid, state) if client.isConnected && driverid == this.id =>
+              case vdapi.DriverCommand(driverid, state) if client.isConnected && driverid == this.id =>
                 val success = state.forall{case(node,value) => client.write(node, value)}
                 val header = SPHeader(from = name)
                 val body = vdapi.DriverCommandDone(h.reqID, success)

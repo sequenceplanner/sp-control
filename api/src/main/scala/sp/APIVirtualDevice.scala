@@ -3,6 +3,80 @@ package sp.devicehandler {
   import sp.domain._
   import sp.domain.Logic._
 
+
+  // shared
+  object VD {
+    type State = Map[ID, SPValue]
+    type DriverState =  Map[String, SPValue]
+
+    case class Resource(name: String, id: ID, things: Set[ID], stateMap: List[DriverStateMapper], setup: SPAttributes, sendOnlyDiffs: Boolean = false)
+    case class Driver(name: String, id: ID, driverType: String, setup: SPAttributes)
+    case class ResourceWithState(r: Resource, state: State)
+    case class DriverWithState(d: Driver, state: DriverState)
+
+    sealed trait DriverStateMapper
+    case class OneToOneMapper(thing: ID, driverID: ID, driverIdentifier: String) extends DriverStateMapper
+
+    def resourceToThing(r: Resource): Thing = {
+      Thing(
+        name = r.name,
+        id = r.id,
+        attributes = SPAttributes(
+          "things" -> r.things,
+          "setup" -> r.setup,
+          "sendOnlyDiffs" -> r.sendOnlyDiffs,
+          "stateMap" -> r.stateMap
+        )
+      )
+    }
+    def driverToThing(d: Driver): Thing = {
+      Thing(
+        name = d.name,
+        id = d.id,
+        attributes = SPAttributes(
+          "setup" -> d.setup,
+          "driverType" -> d.driverType
+        )
+      )
+    }
+    def thingToResource(t: Thing): Resource = {
+      val s = t.attributes.getAs[SPAttributes]("setup").getOrElse(SPAttributes())
+      val only = t.attributes.getAs[Boolean]("sendOnlyDiffs").getOrElse(false)
+      val sMap = t.attributes.getAs[List[DriverStateMapper]]("stateMap").getOrElse(List())
+      val things = t.attributes.getAs[Set[ID]]("things").getOrElse(Set())
+      Resource(t.name, t.id, things, sMap, s, only)
+    }
+    def thingToDriver(t: Thing): Driver = {
+      val s = t.attributes.getAs[SPAttributes]("setup").getOrElse(SPAttributes())
+      val dT = t.attributes.getAs[String]("driverType").getOrElse("")
+      Driver(t.name, t.id, dT, s)
+    }
+
+
+    // Json
+    import play.api.libs.json._
+    object Resource {
+      implicit lazy val fResource: JSFormat[Resource] = Json.format[Resource]
+    }
+    object Driver {
+      implicit lazy val fDriver: JSFormat[Driver] = Json.format[Driver]
+    }
+    object OneToOneMapper {
+      implicit lazy val fOneToOneMapper: JSFormat[OneToOneMapper] = Json.format[OneToOneMapper]
+    }
+    object DriverStateMapper {
+      implicit lazy val fDriverStateMapper: JSFormat[DriverStateMapper] = Json.format[DriverStateMapper]
+    }
+    object ResourceWithState {
+      implicit lazy val fResourceWithState: JSFormat[ResourceWithState] = Json.format[ResourceWithState]
+    }
+    object DriverWithState {
+      implicit lazy val fDriverWithState: JSFormat[DriverWithState] = Json.format[DriverWithState]
+    }
+  }
+
+
+
   object APIVirtualDevice {
     val service = "VirtualDevice"
     val topicRequest = "virtualDeviceRequests"
@@ -11,54 +85,49 @@ package sp.devicehandler {
     sealed trait Request
     sealed trait Response
 
-    sealed trait DriverStateMapper
-    case class OneToOneMapper(thing: ID, driverID: ID, driverIdentifier: String) extends DriverStateMapper
+    import VD._
 
-    // requests setup
-    case class SetUpDeviceDriver(driver: Driver) extends Request
-    case class SetUpResource(resource: Resource) extends Request
-    case object GetResources extends Request
+    // requests setup. Include the model id if it exist in the attributes
+    case class SetUpVD(name: String, id: ID, resources: List[Resource], drivers: List[Driver], attributes: SPAttributes = SPAttributes()) extends Request
+    // TODO: If needed, add a setup based on a struct and a model
+    case class TerminateVD(id: ID) extends Request
+    case object GetVD extends Request
     // requests command (gets a SPACK and when applied, SPDone (and indirectly a StateEvent))
-    case class ResourceCommand(resource: ID, stateRequest: Map[ID, SPValue], timeout: Int = 0) extends Request
+    case class VDCommand(resource: ID, stateRequest: Map[ID, SPValue], timeout: Int = 0) extends Request
 
-    // requests from driver
-    case class DriverStateChange(name: String, id: ID, state: Map[String, SPValue], diff: Boolean = false) extends Request
-    case class DriverCommand(name: String, id: ID, state: Map[String, SPValue]) extends Request
-    case class DriverCommandDone(requestID: ID, result: Boolean) extends Request
+    // TODO: Add below when needed
+    //case class AddResource(resource: Resource) extends Request
+    //case class AddDriver(driver: Driver) extends Request
+    //case class RemoveResource(id: ID) extends Request
+    //case class RemoveDriver(id: ID) extends Request
+
 
     // answers
-    case class StateEvent(resource: String, id: ID, state: Map[ID, SPValue], diff: Boolean = false) extends Response
-    case class Resources(xs: List[Resource]) extends Response
-    case class Drivers(xs: List[Driver]) extends Response
-    case class NewResource(x: Resource) extends Response
-    case class RemovedResource(x: Resource) extends Response
-    case class NewDriver(x: Driver) extends Response
-    case class RemovedDriver(x: Driver) extends Response
+    case class TheVD(name: String,
+                     id: ID,
+                     resources: List[ResourceWithState],
+                     drivers: List[DriverWithState],
+                     attributes: SPAttributes
+                    ) extends Response
 
-    case class Resource(name: String, id: ID, things: Set[ID], stateMap: List[DriverStateMapper], setup: SPAttributes, sendOnlyDiffs: Boolean = false)
-    case class Driver(name: String, id: ID, driverType: String, setup: SPAttributes)
+    // TODO: Probably only use the resource id, not the name...
+    case class StateEvent(resource: String, id: ID, state: Map[ID, SPValue], diff: Boolean = false) extends Response
+
+    // TODO: Add when needed
+    //case class NewResource(x: Resource) extends Response
+    //case class RemovedResource(id: ID) extends Response
+    //case class NewDriver(x: Driver) extends Response
+    //case class RemovedDriver(id: ID) extends Response
 
 
     object Formats {
       import play.api.libs.json._
-      implicit lazy val fDriver: JSFormat[Driver] = Json.format[Driver]
-      implicit lazy val fResource: JSFormat[Resource] = Json.format[Resource]
-      implicit lazy val fOneToOneMapper: JSFormat[OneToOneMapper] = Json.format[OneToOneMapper]
-      implicit lazy val fDriverStateMapper: JSFormat[DriverStateMapper] = Json.format[DriverStateMapper]
-      implicit lazy val fSetUpDeviceDriver: JSFormat[SetUpDeviceDriver] = Json.format[SetUpDeviceDriver]
-      implicit lazy val fSetUpResource:     JSFormat[SetUpResource]     = Json.format[SetUpResource]
-      implicit lazy val fGetResources:     JSFormat[GetResources.type]     = deriveCaseObject[GetResources.type]
-      implicit lazy val fResourceCommand:     JSFormat[ResourceCommand]     = Json.format[ResourceCommand]
-      implicit lazy val fDriverStateChange:     JSFormat[DriverStateChange]     = Json.format[DriverStateChange]
-      implicit lazy val fDriverCommand:     JSFormat[DriverCommand]     = Json.format[DriverCommand]
-      implicit lazy val fDriverCommandDone:     JSFormat[DriverCommandDone]     = Json.format[DriverCommandDone]
+      implicit lazy val fSetUpVD:     JSFormat[SetUpVD]     = Json.format[SetUpVD]
+      implicit lazy val fTerminateVD:     JSFormat[TerminateVD]     = Json.format[TerminateVD]
+      implicit lazy val fGetVD:     JSFormat[GetVD.type]     = deriveCaseObject[GetVD.type]
+      implicit lazy val fTheVD:     JSFormat[TheVD]     = Json.format[TheVD]
+      implicit lazy val fVDCommand:     JSFormat[VDCommand]     = Json.format[VDCommand]
       implicit lazy val fStateEvent:     JSFormat[StateEvent]     = Json.format[StateEvent]
-      implicit lazy val fResources:     JSFormat[Resources]     = Json.format[Resources]
-      implicit lazy val fDrivers:     JSFormat[Drivers]     = Json.format[Drivers]
-      implicit lazy val fNewResource:     JSFormat[NewResource]     = Json.format[NewResource]
-      implicit lazy val fRemovedResource:     JSFormat[RemovedResource]     = Json.format[RemovedResource]
-      implicit lazy val fNewDriver:     JSFormat[NewDriver]     = Json.format[NewDriver]
-      implicit lazy val fRemovedDriver:     JSFormat[RemovedDriver]     = Json.format[RemovedDriver]
       def fVirtualDeviceRequest: JSFormat[Request] = Json.format[Request]
       def fVirtualDeviceResponse: JSFormat[Response] = Json.format[Response]
     }
@@ -75,4 +144,109 @@ package sp.devicehandler {
 
   }
 
+
+  /**
+    * The driver API is only used by the virtual device and the comm with drivers
+    */
+  object APIDeviceDriver {
+    val topicRequest = "driverCommands"
+    val topicResponse = "driverEvents"
+
+    sealed trait Request
+    sealed trait Response
+
+    import VD._
+
+    /**
+      * A request to get the driver information and its current state.
+      * Will respond with [[APIDeviceDriver.TheDriver]]
+      */
+    case object GetDriver extends Request
+
+    case object GetDrivers extends Request
+
+    /**
+      * A request to set up a new driver instance. Sometimes this will also start the generic driver, but
+      * sometimes you have to start the generic driver in a SP node.
+      * Will respond with an [[APISP.SPDone]] or [[APISP.SPError]]
+      * @param driver
+      */
+    case class SetUpDeviceDriver(driver: Driver) extends Request
+
+    /**
+      * A request to change the state of the driver
+      * Will respond with [[APIDeviceDriver.DriverCommandDone]]
+      * @param driverID The id of the driver
+      * @param state The state to change. Only need to include the variables you would like to change
+      */
+    case class DriverCommand(driverID: ID, state: Map[String, SPValue]) extends Request
+
+    /**
+      * A request to terminate the driver instance.
+      * will respond with [[APIDeviceDriver.DriverTerminated]]
+      * @param id
+      */
+    case class TerminateDriver(id: ID) extends Request
+
+    /**
+      * The response from the driver that a command has been performed. The result is given in result
+      * @param requestID The id of the request given in the header when [[APIDeviceDriver.DriverCommand]] was given.
+      * @param result A boolean if the command was successful or not.
+      */
+    case class DriverCommandDone(requestID: ID, result: Boolean) extends Response
+
+    /**
+      * An event sent out by the driver when its state has changed.
+      * @param name The name of the driver
+      * @param id The ID of the driver
+      * @param state The new state of the driver
+      * @param diff a boolean variable saying if the given state only include the variables that changed. If true,
+      *             the complete state is retrieved by the GetDriver request
+      */
+    case class DriverStateChange(name: String, id: ID, state: Map[String, SPValue], diff: Boolean = false) extends Response
+
+    /**
+      * A response including the driver information and its current state
+      * @param x The Dreiver defined as [[VD.Driver]]
+      * @param driverState The driver state defined as a Map[String, SPValue]
+      */
+    case class TheDriver(x: Driver, driverState: DriverState) extends Response
+
+    case class TheDrivers(Drivers: Set[(Driver, DriverState)]) extends Response
+
+    /**
+      * A response that the driver has been terminated. The message is not guranteed to come, for example
+      * if the driver crashes.
+      * @param id
+      */
+    case class DriverTerminated(id: ID) extends Response
+
+    object Formats {
+      import play.api.libs.json._
+      implicit lazy val fGetDriver:     JSFormat[GetDriver.type]     = deriveCaseObject[GetDriver.type]
+      implicit lazy val fGetDrivers:     JSFormat[GetDrivers.type]     = deriveCaseObject[GetDrivers.type]
+      implicit lazy val fSetUpDeviceDriver: JSFormat[SetUpDeviceDriver] = Json.format[SetUpDeviceDriver]
+      implicit lazy val fDriverStateChange:     JSFormat[DriverStateChange]     = Json.format[DriverStateChange]
+      implicit lazy val fDriverCommand:     JSFormat[DriverCommand]     = Json.format[DriverCommand]
+      implicit lazy val fDriverCommandDone:     JSFormat[DriverCommandDone]     = Json.format[DriverCommandDone]
+      implicit lazy val fTheDriver:     JSFormat[TheDriver]     = Json.format[TheDriver]
+      implicit lazy val fTheDrivers:     JSFormat[TheDrivers]     = Json.format[TheDrivers]
+      implicit lazy val fDriverTerminated:     JSFormat[DriverTerminated]     = Json.format[DriverTerminated]
+      implicit lazy val fTerminateDriver:     JSFormat[TerminateDriver]     = Json.format[TerminateDriver]
+      def fDeviceDriverRequest: JSFormat[Request] = Json.format[Request]
+      def fDeviceDriverResponse: JSFormat[Response] = Json.format[Response]
+    }
+
+
+    object Request {
+      implicit lazy val fDeviceDriverRequest: JSFormat[Request] = Formats.fDeviceDriverRequest
+    }
+
+    object Response {
+      implicit lazy val fDeviceDriverResponse: JSFormat[Response] = Formats.fDeviceDriverResponse
+    }
+  }
+
 }
+
+

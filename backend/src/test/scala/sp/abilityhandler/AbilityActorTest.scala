@@ -69,6 +69,7 @@ class AbilityActorTest(_system: ActorSystem) extends TestKit(_system) with Impli
       mh.tell(NewState(Map(v1.id -> 2)), probe.ref)
 
       probe.fishForMessage(1 second){
+        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == notEnabled && cnt == 0 => false
         case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == enabled && cnt == 0 => false
         case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == executing && cnt == 1 => true
       }

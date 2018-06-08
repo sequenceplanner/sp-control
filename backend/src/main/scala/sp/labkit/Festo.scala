@@ -11,12 +11,16 @@ import scala.util.{Failure, Success, Try}
 import sp.domain.logic.{PropositionParser, ActionParser}
 
 import sp.abilityhandler.APIAbilityHandler
-import sp.devicehandler.APIVirtualDevice
+import sp.devicehandler._
 
 
 object Festo {
   def props(ahid: ID) = Props(classOf[Festo], ahid)
 }
+
+
+
+//TODO: Need to update this so it makes a model instead
 
 class Festo(ahid: ID) extends Actor with Helpers {
   import context.dispatcher
@@ -55,34 +59,34 @@ class Festo(ahid: ID) extends Actor with Helpers {
   val pi10url = "opc.tcp://129.16.37.101:10010"
   val driverID10 = UUID.randomUUID()
   val nodeprefix10 = "|var|CODESYS Control for Raspberry Pi SL.Application.POU."
-  def sm10(vars: List[Thing]): List[APIVirtualDevice.OneToOneMapper] = vars.flatMap { v =>
-    v.attributes.getAs[String]("drivername").map(dn => APIVirtualDevice.OneToOneMapper(v.id, driverID10, nodeprefix10+dn))
+  def sm10(vars: List[Thing]): List[VD.OneToOneMapper] = vars.flatMap { v =>
+    v.attributes.getAs[String]("drivername").map(dn => VD.OneToOneMapper(v.id, driverID10, nodeprefix10+dn))
   }
   val setup10 = SPAttributes("url" -> pi10url, "identifiers" -> sm10(pi10vars).map(_.driverIdentifier))
-  val driver10 = APIVirtualDevice.Driver("opclocal", driverID10, "OPCUA", setup10)
-  mediator ! Publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpDeviceDriver](SPHeader(from = "hej"), APIVirtualDevice.SetUpDeviceDriver(driver10)))
+  val driver10 = VD.Driver("opclocal", driverID10, "OPCUA", setup10)
+  mediator ! Publish(APIDeviceDriver.topicRequest, SPMessage.makeJson[SPHeader, APIDeviceDriver.SetUpDeviceDriver](SPHeader(from = "hej"), APIDeviceDriver.SetUpDeviceDriver(driver10)))
 
   // setup pi50 driver
   val pi50url = "opc.tcp://129.16.37.101:10050"
   val driverID50 = UUID.randomUUID()
   val nodeprefix50 = "|var|CODESYS Control for Raspberry Pi SL.Application.POU."
-  def sm50(vars: List[Thing]): List[APIVirtualDevice.OneToOneMapper] = vars.flatMap { v =>
-    v.attributes.getAs[String]("drivername").map(dn => APIVirtualDevice.OneToOneMapper(v.id, driverID50, nodeprefix50+dn))
+  def sm50(vars: List[Thing]): List[VD.OneToOneMapper] = vars.flatMap { v =>
+    v.attributes.getAs[String]("drivername").map(dn => VD.OneToOneMapper(v.id, driverID50, nodeprefix50+dn))
   }
   val setup50 = SPAttributes("url" -> pi50url, "identifiers" -> sm50(pi50vars).map(_.driverIdentifier))
-  val driver50 = APIVirtualDevice.Driver("opclocal", driverID50, "OPCUA", setup50)
-  mediator ! Publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpDeviceDriver](SPHeader(from = "hej"), APIVirtualDevice.SetUpDeviceDriver(driver50)))
+  val driver50 = VD.Driver("opclocal", driverID50, "OPCUA", setup50)
+  mediator ! Publish(APIDeviceDriver.topicRequest, SPMessage.makeJson[SPHeader, APIDeviceDriver.SetUpDeviceDriver](SPHeader(from = "hej"), APIDeviceDriver.SetUpDeviceDriver(driver50)))
 
   // setup resources
-  val pi10 = APIVirtualDevice.Resource("pi10", UUID.randomUUID(), pi10vars.map(_.id).toSet, sm10(pi10vars), SPAttributes())
-  val pi50 = APIVirtualDevice.Resource("pi50", UUID.randomUUID(), pi50vars.map(_.id).toSet, sm50(pi50vars), SPAttributes())
+  val pi10 = VD.Resource("pi10", UUID.randomUUID(), pi10vars.map(_.id).toSet, sm10(pi10vars), SPAttributes())
+  val pi50 = VD.Resource("pi50", UUID.randomUUID(), pi50vars.map(_.id).toSet, sm50(pi50vars), SPAttributes())
 
   val resources = List(pi10, pi50)
 
-  resources.foreach { res =>
-    val body = APIVirtualDevice.SetUpResource(res)
-    mediator ! Publish(APIVirtualDevice.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpResource](SPHeader(from = "hej"), body))
-  }
+//  resources.foreach { res =>
+//    val body = APIDeviceDriver.SetUpResource(res)
+//    mediator ! Publish(APIDeviceDriver.topicRequest, SPMessage.makeJson[SPHeader, APIVirtualDevice.SetUpResource](SPHeader(from = "hej"), body))
+//  }
 
   // setup abilities
   abs.foreach { ab =>

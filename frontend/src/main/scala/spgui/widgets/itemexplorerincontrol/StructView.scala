@@ -2,68 +2,88 @@ package spgui.widgets.itemexplorerincontrol
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.domain._
 import sp.domain.logic.AttributeLogic._
 import sp.domain.logic.StructLogic._
-import spgui.components.DragAndDrop.{DataOnDrag, OnDataDrop}
+// import spgui.components.DragAndDrop.{DataOnDrag, OnDataDrop}
 import spgui.components.Icon
+import spgui.components.SPWidgetElements
+import spgui.dragging._
+import java.util.UUID
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class DragMessage(node: ID, struct: Option[ID], idable: ID)
-case class DropMessage(node: Option[ID], struct: ID)
-case class DragNDropMessage(drag: DragMessage, drop: DropMessage)
-
-object DraggingTagMod {
-  implicit val fDragMessage: JSFormat[DragMessage] = play.api.libs.json.Json.format[DragMessage]
-  def onDrag(node: ID, struct: Option[ID], idable: ID) = DataOnDrag(SPValue(DragMessage(node, struct, idable)).toJson)
-  def onDrop(node: Option[ID], struct: ID, handleDrop: DragNDropMessage => Callback) =
-    OnDataDrop { str =>
-      val dragMsg = fromJsonAs[DragMessage](str)
-      val dragNDropMsg = dragMsg.map(msg => DragNDropMessage(msg, DropMessage(node, struct)))
-      val cb = dragNDropMsg.map(handleDrop)
-      cb.getOrElse(Callback.empty)
-    }
-}
+import spgui.communication._
+import sp.models.{APIModel => mapi}
+import sp.domain.SPMessage
+//import sp.domain.Logic._
+// import sp.domain.SPAttributes._
+// import sp.domain.SPValue
+import sp.domain._
 
 object StructView {
   case class Props(
                     struct: Struct,
                     items: Map[ID, IDAble],
-                    retrieveItems: Option[Set[ID] => Future[Set[IDAble]]],
-                    handleDrop: Option[DragNDropMessage => Callback],
+                    retrieveItems: Option[Set[ID] => Unit],
+                    handleDrop: Option[DragDropData => Unit] = None,
+                    handleDragged: Option[DragDropData => Unit] = None,
                     filteredNodes: Set[ID],
-                    expanded: Boolean
+                    expanded: Boolean,
+                    modelID: Option[UUID] = None,
+                    itemInfo: Map[ID, ItemInfo]
                   )
   case class State(
-                    items: Map[ID, IDAble],
-                    expandedNodes: Set[ID] = Set()
+                    expandedNodes: Set[ID] = Set() 
                   )
 
   class Backend($: BackendScope[Props, State]) {
-
     def toggle(id: ID, childrenIDs: Set[ID]) = {
       val modNodes = $.modState(s => s.copy(expandedNodes = s.expandedNodes + id -- s.expandedNodes.intersect(Set(id))))
-      retrieveItems(childrenIDs) >> modNodes
+      //retrieveItems(childrenIDs) >> modNodes
+      modNodes
+    }
+
+    def toggleAll() = {
+      def toggleRecursive(id: ID, struct: Struct): Unit = {
+        val directChildren = struct.getChildren(id).map(_.item)
+        val directChildrenNodes = struct.getChildren(id).map(_.nodeID)
+        toggle(id, directChildren).runNow()
+        directChildrenNodes.map{ c => toggleRecursive(c, struct) }
+      }
+
+      $.props.map{ p =>
+        val directChildren = p.struct.items.filter(_.parent.isEmpty).map(_.item)
+        val directChildrenNodes = p.struct.items.filter(_.parent.isEmpty).map(_.nodeID)
+        toggle(p.struct.id, directChildren).runNow()
+        directChildrenNodes.map{ c => toggleRecursive(c, p.struct)}
+      }
     }
 
     def retrieveItems(ids: Set[ID]) = {
-      def addToState(items: Set[IDAble]) =
-        $.modState(s => s.copy(items = s.items ++ items.map(item => item.id -> item)))
-      val future = $.props.map(_.retrieveItems.map(_(ids).map(addToState)).getOrElse(Future(Callback.empty)))
-      future.flatMap(Callback.future(_))
+      $.props.map(p => p.retrieveItems.get(ids))
     }
 
     def render(p: Props, s: State) = {
-      val dragHandling = p.handleDrop.map { handleDropFunction =>
-        DraggingTagMod.onDrop(None, p.struct.id, handleDropFunction)
-      }.getOrElse(EmptyVdom)
       val rootItemsToRender = p.struct.items.filter(sn => sn.parent.isEmpty && !p.filteredNodes.contains(sn.nodeID))
       lazy val directChildren = p.struct.items.filter(_.parent.isEmpty).map(_.item)
-
       <.div(
-        <.div(^.onClick --> toggle(p.struct.id, directChildren), dragHandling, Icon.folder, p.struct.name),
+        SPWidgetElements.DragoverZoneWithChild(
+          p.handleDrop.get,
+          DroppedOnStruct(p.struct, p.modelID.get),
+          <.div(
+            ^.className := Style.nodeOuter.htmlClass,
+            if(directChildren.isEmpty) EmptyVdom
+            else {
+              <.span(
+                 if (s.expandedNodes.contains(p.struct.id)) Icon.toggleDown else Icon.toggleRight,
+                ^.onClick --> toggle(p.struct.id, directChildren)
+              )
+            },
+            Icon.folder,
+            p.struct.name
+          )
+        ),
         <.ul(
           ^.className := Style.ul.htmlClass,
           rootItemsToRender.toTagMod(node => <.li(renderNode(node, p, s)))
@@ -72,16 +92,27 @@ object StructView {
     }
 
     def renderNode(node: StructNode, p: Props, s: State): TagMod = {
-      val dragHandling = p.handleDrop.map { handleDropFunction =>
-        List(
-          DraggingTagMod.onDrag(node.nodeID, Some(p.struct.id), node.item),
-          DraggingTagMod.onDrop(Some(node.nodeID), p.struct.id, handleDropFunction)
-        ).toTagMod
-      }.getOrElse(EmptyVdom)
       val childrenToRender = p.struct.getChildren(node.nodeID).filterNot(sn => p.filteredNodes.contains(sn.nodeID))
-
+      lazy val directChildren = p.struct.getChildren(node.nodeID).map(_.item)
+      val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleDown else Icon.toggleRight
       <.div(
-        <.div(renderNodeItem(node, p, s), dragHandling),
+        SPWidgetElements.DragoverZoneWithChild(
+          p.handleDrop.get,
+          DroppedOnNode(Some(p.struct), node, p.modelID.get),
+          <.div(
+            ^.className := Style.nodeOuter.htmlClass,
+            if(childrenToRender.isEmpty) EmptyVdom
+            else {
+              <.span(
+                arrowIcon,
+                ^.onClick --> toggle(node.nodeID, directChildren)
+              )
+            },
+            <.span(renderNodeItem(node, p, s),
+              SPWidgetElements.draggable(p.struct.name, DraggedStructNode(Some(p.struct), node, p.modelID), "todo", p.handleDragged.get),
+            )
+          )
+        ),
         <.ul(
           ^.className := Style.ul.htmlClass,
           childrenToRender.toTagMod(sn => <.li(renderNode(sn, p, s)))
@@ -89,34 +120,47 @@ object StructView {
       )
     }
 
-    def renderNodeItem(node: StructNode, p: Props, s: State) = {
+    def renderNodeItem(node: StructNode, p: Props, s: State): TagMod = {      
       val arrowIcon = if (s.expandedNodes.contains(node.nodeID)) Icon.toggleRight else Icon.toggleDown
-      val itemOp = s.items.get(node.item)
+/*
+      val itemOp = p.items.get(node.item)
       val itemIcon = itemOp.map(ItemKinds.icon).getOrElse(Icon.question)
-      val shownName = itemOp.map(_.name).getOrElse(node.item.toString)
-      lazy val directChildren = p.struct.getChildren(node.nodeID).map(_.item)
+      val shownName = itemOp.map(_.name).getOrElse({
+        node.item.toString
+      })
+      <.div(
+        itemIcon,
+        shownName
+      )
+      */
 
-      <.div(<.span(arrowIcon, ^.onClick --> toggle(node.nodeID, directChildren)), itemIcon, shownName)
+      val itemOp = p.itemInfo.get(node.item)
+      val itemIcon = Icon.question
+      val shownName = itemOp.map(_.name).getOrElse({
+        node.item.toString
+      })
+      <.div(
+        itemIcon,
+        shownName
+      )
     }
   }
 
   val component = ScalaComponent.builder[Props]("StructView")
-    .initialStateFromProps(p => State(p.items))
+    .initialState(State())
     .renderBackend[Backend]
     .componentWillReceiveProps { scope =>
       val nextExpanded = scope.nextProps.expanded
       val expandedChanged = scope.currentProps.expanded != nextExpanded
       if (expandedChanged) {
-        if (nextExpanded) {
-          val allNodeIDs = scope.nextProps.struct.items.map(_.nodeID)
-          val struct = scope.nextProps.struct
-          val unretrievedItems = struct.items.map(_.item) -- scope.state.items.keySet
-          val retrieveItems = scope.backend.retrieveItems(unretrievedItems)
-          val modifyState = scope.modState(_.copy(expandedNodes = allNodeIDs + struct.id))
-          modifyState >> retrieveItems
-        } else {
-          scope.modState(_.copy(expandedNodes = Set()))
-        }
+        scope.backend.toggleAll() >> Callback.empty // >>
+//        {
+//          if (nextExpanded) {
+//            scope.backend.retrieveItems(scope.nextProps.items.keySet)
+//          } else {
+//            scope.modState(_.copy(expandedNodes = Set()))
+//          }
+//        }
       }
       else {
         Callback.empty
@@ -127,9 +171,12 @@ object StructView {
   def apply(
              struct: Struct,
              items: Map[ID, IDAble] = Map(),
-             retrieveItems: Option[Set[ID] => Future[Set[IDAble]]] = None,
-             handleDrop: Option[DragNDropMessage => Callback] = None,
+             retrieveItems: Option[Set[ID] => Unit] = None,
+             handleDrop: Option[DragDropData => Unit] = None,
+             handleDragged: Option[DragDropData => Unit] = None,
              filteredNodes: Set[ID] = Set(),
-             expanded: Boolean = false
-           ) = component(Props(struct, items, retrieveItems, handleDrop, filteredNodes, expanded))
+             expanded: Boolean = false,
+             modelID: Option[UUID] = None,
+             itemInfo: Map[ID, ItemInfo] = Map()
+           ) = component(Props(struct, items, retrieveItems, handleDrop, handleDragged, filteredNodes, expanded, modelID, itemInfo))
 }

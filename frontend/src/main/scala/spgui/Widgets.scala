@@ -19,8 +19,8 @@ object LoadingWidgets {
 //      ("Widget with data",            widgets.examples.WidgetWithData(),             3, 4),
 //      ("D3Example",                   widgets.examples.D3Example(),                  3, 4),
 //      ("D3ExampleServiceWidget",      widgets.examples.D3ExampleServiceWidget(),     3, 4),
-      ("ExampleServiceWidget",        widgets.examples.ExampleServiceWidget(),                        3, 4),
-      ("ExampleServiceWidgetState",   widgets.examples.ExampleServiceWidgetState(),                   3, 3),
+//      ("ExampleServiceWidget",        widgets.examples.ExampleServiceWidget(),                        3, 4),
+//      ("ExampleServiceWidgetState",   widgets.examples.ExampleServiceWidgetState(),                   3, 3),
       ("OpcUAWidget",                 widgets.examples.OpcUAWidget(),                                 5, 4),
       ("Item explorer",               widgets.itemexplorer.ItemExplorer(),           3, 4),
       ("Item explorer in control",    widgets.itemexplorerincontrol.ItemExplorer(),           3, 4),
@@ -30,10 +30,16 @@ object LoadingWidgets {
       ("Ability Handler",             widgets.abilityhandler.AbilityHandlerWidget(), 3, 4),
       ("ServiceList",                 widgets.services.ServiceListWidget(),          3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
+      ("SopRunner",                   widgets.sopmaker.SopRunnerWidget(),             3, 4),
       ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
-      ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4)
+      ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),
+      ("VDTracker",         widgets.vdtesting.VDTracker(),          5,5),
+      ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5),
+      ("DriverWidget",         spgui.widgets.VDGUI.DriverWidget(),          5,5),
+      ("ResourceWidget",         spgui.widgets.VDGUI.ResourceWidget(),          5,5)
+
     )
 
 

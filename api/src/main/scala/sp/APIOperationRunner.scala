@@ -5,6 +5,8 @@ import sp.domain.Logic._
 
 object APIOperationRunner {
   val service = "OperationRunner"
+  val topicRequest = "operationRunnerRequest"
+  val topicResponse = "operationRunnerResponse"
   sealed trait Request
   sealed trait Response
 
@@ -20,11 +22,43 @@ object APIOperationRunner {
   case class StateEvent(runnerID: ID, state: Map[ID, SPValue]) extends Response
   case class Runners(ids: List[Setup]) extends Response
 
-  case class Setup(name: String, runnerID: ID, ops: Set[Operation], opAbilityMap: Map[ID, ID], initialState: Map[ID, SPValue])
+  /**
+    * Defining an operation runner
+    * @param name The name of the runner
+    * @param runnerID The if of the runner
+    * @param ops The operations
+    * @param opAbilityMap operation id -> ability id
+    * @param initialState The initial state of the runner
+    * @param variableMap operationModel variable id -> vd model variable id
+    * @param abilityParameters ability id -> liat of operation model variable id, must be mapped
+    *                          in variableMap
+    */
+  case class Setup(name: String,
+                   runnerID: ID,
+                   ops: Set[Operation],
+                   opAbilityMap: Map[ID, ID] = Map(),
+                   initialState: Map[ID, SPValue],
+                   variableMap: Map[ID, ID] = Map(),
+                   abilityParameters: Map[ID, Set[ID]] = Map()
+                  )
+
 
 
   object Formats {
     import play.api.libs.json._
+
+    implicit lazy val idSetidReads: JSReads[Map[ID, Set[ID]]] = new JSReads[Map[ID, Set[ID]]] {
+      override def reads(json: JsValue): JsResult[Map[ID, Set[ID]]] = {
+        json.validate[Map[String, Set[String]]].map(xs => xs.collect{case (k, v) if ID.isID(k)  => ID.makeID(k).get -> v.flatMap(ID.makeID)})
+      }
+    }
+    implicit lazy val idSetidWrites: JSWrites[Map[ID, Set[ID]]] = new OWrites[Map[ID, Set[ID]]] {
+      override def writes(xs: Map[ID, Set[ID]]): JsObject = {
+        val toFixedMap = xs.map{case (k, v) => k.toString -> SPValue(v)}
+        JsObject(toFixedMap)
+      }
+    }
+
     implicit lazy val fSetup: JSFormat[Setup] = Json.format[Setup]
     implicit lazy val fCreateRunner: JSFormat[CreateRunner] = Json.format[CreateRunner]
     implicit lazy val fSetState: JSFormat[SetState] = Json.format[SetState]
