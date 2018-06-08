@@ -40,5 +40,9 @@ object Style extends StyleSheet.Inline {
     whiteSpace.nowrap // make li:s take up as much horizontal space as they wish
   )
 
+  val nodeOuter = style(
+    display.flex
+  )
+
   this.addToDocument()
 }
