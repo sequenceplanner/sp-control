@@ -16,7 +16,6 @@ object DriverWidget {
     //driverIdExpanded: ID/driver/driverCard
     //cardIsExpanded: Boolean
     //drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
-    expandedCard: Option[ID] = None,
     cards:    List[Card] = List()
   )
 
@@ -25,15 +24,11 @@ object DriverWidget {
     val deviceHandler = BackendCommunication.getMessageObserver(onDeviceMessage, apiVD.topicResponse)
     val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, apiDriver.topicResponse)
 
-
-
-    //
     def onDeviceMessage(mess: SPMessage) = {
 
     }
 
     def onDriverMessage(mess: SPMessage) = {
-
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map {
         case apiDriver.TheDrivers(drivers) => {
           $.modState { s =>
@@ -64,107 +59,17 @@ object DriverWidget {
         SPWidgetElements.buttonGroup(Seq(
           SPWidgetElements.button("Get drivers", sendToDeviceDriver(apiDriver.GetDrivers))
         )),
-        cardGroup(
-          s.cards.map(
-            c => {
-              renderCard(
-                expandedId = s.expandedCard,
-                cardId = c.cardId,
-                name = c.driver.name,
-                isOnline = true,
-                driverInfo = List(
-                  "Driver Type: " +c.driver.driverType
-                ),
-                state = c.driverState.keys.map(k => k.toString + ":" + c.driverState.get(k).toString).toList
-              )
-            }
-          )
-        )
+        SPCardGrid(s.cards.map(c => SPCardGrid.DriverCard(
+          cardId = c.cardId,
+          name = c.driver.name,
+          isOnline = true,
+          driverInfo = List(
+            "Driver Type: " +c.driver.driverType
+          ),
+          state = c.driverState.keys.map(k => k.toString + ":" + c.driverState.get(k).toString).toList
+        )))
       )
     }
-
-    /*
-     Inner Components
-     •	Driver Name
-     •	Color
-     •	Green (if online)
-     •	Red (if offline)
-     •	(Driver info)
-     •	(Current State)
-     •	(Force restart/stop)
-     •	(Force Write)
-     */
-
-    def cardGroup(cards: List[TagMod]): TagMod = <.div(
-      cards.toTagMod
-    )
-
-    def renderCard(
-      expandedId: Option[ID],
-      cardId: ID,
-      name: String,
-      isOnline: Boolean,
-      driverInfo: List[String],
-      state: List[String]
-    ): TagMod = {
-      val isExpanded = expandedId == Some(cardId)
-      List(
-        { isExpanded match {
-          case true  => ^.className := DriverWidgetCSS.cardGroupExpanded.htmlClass
-          case false => ^.className := DriverWidgetCSS.cardGroupCollapsed.htmlClass
-        }},
-        <.span(
-          ^.className := DriverWidgetCSS.cardPlaceholder.htmlClass,
-          expandedId match {
-            case None => EmptyVdom
-            case _ =>
-              if(expandedId == Some(cardId)) ^.className := DriverWidgetCSS.cardExpanded.htmlClass
-              else ^.className := DriverWidgetCSS.cardCollapsed.htmlClass
-          },
-          <.span(
-            ^.className := DriverWidgetCSS.cardOuter.htmlClass,
-            expandedId match {
-              case None => EmptyVdom
-              case _ =>
-                if(expandedId == Some(cardId)) ^.className := DriverWidgetCSS.unsetHeight.htmlClass
-                else EmptyVdom
-            },
-            {
-              isExpanded match {
-                case true => { List(
-                  <.div(
-                    <.div(
-                      ^.className := DriverWidgetCSS.cardTitle.htmlClass,
-                      name
-                    ),
-                    <.div(
-                      driverInfo.map(<.div(_)).toTagMod
-                    ),
-                    <.div(
-                      state.map(<.div(_)).toTagMod
-                    )
-                  )
-                ).toTagMod}
-
-                case false => { List(
-                  <.div(
-                    <.div(
-                      ^.className := DriverWidgetCSS.cardTitle.htmlClass,
-                      name
-                    )
-                  )
-                ).toTagMod}
-              }
-            },
-            ^.onClick --> $.modState(s =>
-              if(s.expandedCard == Some(cardId)) s.copy(expandedCard = None)
-              else s.copy(expandedCard = Some(cardId))
-            )
-          )
-        )
-      ).toTagMod
-    }
-
 
     /*
      send driverID to VDDriverCardsWidget and expand
