@@ -14,6 +14,8 @@ package sp.devicehandler {
     case class ResourceWithState(r: Resource, state: State)
     case class DriverWithState(d: Driver, state: DriverState)
 
+
+
     sealed trait DriverStateMapper
     case class OneToOneMapper(thing: ID, driverID: ID, driverIdentifier: String) extends DriverStateMapper
 
