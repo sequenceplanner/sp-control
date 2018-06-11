@@ -1,4 +1,3 @@
-/*
 package sp.drivers
 
 import akka.actor.{Actor, ActorLogging, Props}
@@ -13,33 +12,60 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
   val statusResponse = DriverServiceInfo.attributes.copy( instanceID = Some(this.instanceID) )
   triggerServiceRequestComm(statusResponse)
   subscribe(api.topicRequest)
+  subscribe(api.topicResponse)
 
-  var drivers = Set[(Driver, DriverState)]()
+
+  var drivers = Map[ID , (Driver, DriverState)]()
+  var driversTmp = Map[ID , (Driver, DriverState)]()
+  var firstTick = true
+
   def receive = {
-
     case x: String =>
       for {
         mess <- SPMessage.fromJson(x)
-        h <- mess.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == "DriverService"
-        b <- mess.getBodyAs[api.Request]
+        h  <- mess.getHeaderAs[SPHeader]
+        b <- if(mess.getBodyAs[api.Request].nonEmpty) mess.getBodyAs[api.Request] else mess.getBodyAs[api.Response]
       } yield {
-        var spHeader = h.swapToAndFrom
+        val spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
 
         b match {
-          case api.GetDrivers =>
-            publish(api.topicRequest, SPMessage.makeJson(spHeader, api.GetDriver))
-          case api.TheDriver(x, driverState) =>
-            drivers ++=  Set((x, driverState))
-            // för den sista...
-            sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers)))
-          case x =>
+              case api.GetDrivers=>
+                publish(api.topicRequest, SPMessage.makeJson(spHeader, api.GetDriver))
+              case api.TheDriver(driver, driverState) =>
+                drivers += driver.id -> (driver, driverState)
+              case api.DriverTerminated(id) =>
+                drivers -= id
+              case other =>
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
       }
+
+    case Tick =>
+      val spHeader = SPHeader(from = DriverServiceInfo.attributes.service, reqID = instanceID)
+      if(!firstTick) {
+        if (drivers.keySet != driversTmp.keySet) {
+          driversTmp = drivers
+          sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers.values.toList)))
+        }
+      }
+      else
+        firstTick = false
+
+      publish(api.topicRequest, SPMessage.makeJson(spHeader, api.GetDriver))
+
+    case other =>
   }
   def sendAnswer(mess: String) = publish(api.topicResponse, mess)
+
+  // A "ticker" that sends a "tick" string to self every 4 second
+  import scala.concurrent.duration._
+  import context.dispatcher
+  val ticker = context.system.scheduler.schedule(4 seconds, 4 seconds, self, Tick)
+
 }
+case object Tick
+
 
 object DriverService {
   def props = Props(classOf[DriverService])
@@ -69,4 +95,4 @@ object DriverServiceInfo {
     attributes = SPAttributes.empty
   )
 }
-*/
+

@@ -36,7 +36,7 @@ object ResourceWidget {
       callback.foreach(_.runNow())
     }
 
-    def sendToVirtualDeviec(mess: apiVD.Request): Callback = {
+    def sendToVirtualDevice(mess: apiVD.Request): Callback = {
       val h = SPHeader(from = "ResourceWidget", to = "", reply = SPValue("ResourceWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, apiVD.topicRequest)
@@ -46,7 +46,7 @@ object ResourceWidget {
     def render(s: State) = {
       <.div(
         <.button( ^.className := "btn",
-          ^.onClick --> {sendToVirtualDeviec(apiVD.GetVD)}, "Get Virtual Device"
+          ^.onClick --> {sendToVirtualDevice(apiVD.GetVD)}, "Get Virtual Device"
         ),
         <.h1("Resources"),
         s.cards.map { card: Card =>
