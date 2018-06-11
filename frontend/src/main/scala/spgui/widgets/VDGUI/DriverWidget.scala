@@ -13,12 +13,12 @@ object DriverWidget {
   case class Card(driver: VD.Driver, driverState: VD.DriverState, cardId: ID = ID.newID)
 
   case class State(
-    //driverIdExpanded: ID/driver/driverCard
-    //cardIsExpanded: Boolean
-    //drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
-    expandedCard: Option[ID] = None,
-    cards:    List[Card] = List()
-  )
+                    //driverIdExpanded: ID/driver/driverCard
+                    //cardIsExpanded: Boolean
+                    //drivers:  List[(VD.Driver, VD.DriverState)], // maybe remove and only have a list of cards or vice verse
+                    expandedCard: Option[ID] = None,
+                    cards:    List[Card] = List()
+                  )
 
   private class Backend($: BackendScope[Unit, State]) {
 
@@ -72,9 +72,7 @@ object DriverWidget {
                 cardId = c.cardId,
                 name = c.driver.name,
                 isOnline = true,
-                driverInfo = List(
-                  "Driver Type: " +c.driver.driverType
-                ),
+                driverType = c.driver.driverType,
                 state = c.driverState.keys.map(k => k.toString + ":" + c.driverState.get(k).toString).toList
               )
             }
@@ -100,13 +98,13 @@ object DriverWidget {
     )
 
     def renderCard(
-      expandedId: Option[ID],
-      cardId: ID,
-      name: String,
-      isOnline: Boolean,
-      driverInfo: List[String],
-      state: List[String]
-    ): TagMod = {
+                    expandedId: Option[ID],
+                    cardId: ID,
+                    name: String,
+                    isOnline: Boolean,
+                    driverType: String,
+                    state: List[String]
+                  ): TagMod = {
       val isExpanded = expandedId == Some(cardId)
       List(
         { isExpanded match {
@@ -132,16 +130,39 @@ object DriverWidget {
             {
               isExpanded match {
                 case true => { List(
+                  /*<.div(
+                    <.div( ^.className :="card",
+                      <.div( ^.className := "card-body",
+                        <.h5( ^.className := "card-title","Card title"),
+                        <.h6( ^.className := "card-subtitle mb-2 text-muted", "Card subtitle"),
+                        <.p( ^.className := "card-text", "Some quick example text to build on the card title and make up the bulk of the card's content"),
+                        <.a( ^.className := "card-link","Card link"),
+                        <.a( ^.className := "card-link","Another Card link")
+                      )
+                  ),*/
                   <.div(
+                    ^.className := "card",
                     <.div(
-                      ^.className := DriverWidgetCSS.cardTitle.htmlClass,
-                      name
-                    ),
-                    <.div(
-                      driverInfo.map(<.div(_)).toTagMod
-                    ),
-                    <.div(
-                      state.map(<.div(_)).toTagMod
+                      ^.className := "card-body",
+                      <.div(
+                        ^.className := "card-title",
+                        ^.className := DriverWidgetCSS.cardTitleExpanded.htmlClass,
+                        name
+                      ),
+                      <.div(
+                        ^.className := "card-subtitle",
+                        ^.className := DriverWidgetCSS.cardSubtitle.htmlClass,
+                        "Driver Type: " +  driverType
+                      ),
+                      <.div(
+                        ^.className := "card-text",
+                        "State:"
+                      ),
+                      <.div(
+                          ^.className := "card-text",
+                        ^.className := DriverWidgetCSS.cardState.htmlClass,
+                        state.map(<.div(_)).toTagMod
+                      )
                     )
                   )
                 ).toTagMod}
@@ -149,7 +170,7 @@ object DriverWidget {
                 case false => { List(
                   <.div(
                     <.div(
-                      ^.className := DriverWidgetCSS.cardTitle.htmlClass,
+                      ^.className := DriverWidgetCSS.cardGroupTitle.htmlClass,
                       name
                     )
                   )
