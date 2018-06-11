@@ -12,10 +12,10 @@ object DriverWidgetCSS extends StyleSheet.Inline {
    )
 
   val cardGroupExpanded = style(
-    display.flex
+    display.flex,
+    flexGrow(1)
   )
   
-
   val rootDiv = style(
     height(100.%%),
     width(100.%%),
@@ -50,7 +50,9 @@ object DriverWidgetCSS extends StyleSheet.Inline {
 
   val cardTitle = style(
     fontSize(20.px),
-    textAlign.center
+    textAlign.center,
+    textOverflow:= ("ellipsis"),
+    overflow.hidden
   )
 
   val unsetHeight = style(
