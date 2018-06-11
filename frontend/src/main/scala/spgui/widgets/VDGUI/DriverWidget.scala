@@ -24,15 +24,11 @@ object DriverWidget {
     val deviceHandler = BackendCommunication.getMessageObserver(onDeviceMessage, apiVD.topicResponse)
     val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, apiDriver.topicResponse)
 
-
-
-    //
     def onDeviceMessage(mess: SPMessage) = {
 
     }
 
     def onDriverMessage(mess: SPMessage) = {
-
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map {
         case apiDriver.TheDriver(driver, driverState) => {
           $.modState { s =>
@@ -74,7 +70,6 @@ object DriverWidget {
         )))
       )
     }
-
 
     /*
      send driverID to VDDriverCardsWidget and expand
@@ -146,8 +141,8 @@ object DriverWidget {
     /**********CALLBACKS**********/
     /*
 
-    // Todo: Test that the force does what we desire
-        should return a message to circuit or backend
+     // Todo: Test that the force does what we desire
+     should return a message to circuit or backend
      */
     def forceWrite(card: Card) = {
       // callback to backend to write new SPValues to the driver

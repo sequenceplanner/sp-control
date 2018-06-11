@@ -11,11 +11,9 @@ import spgui.communication._
 
 object ResourceWidget {
 
-  case class Card(resource: VD.ResourceWithState)
+  case class Card(resource: VD.ResourceWithState, cardId: ID)
 
-  case class State(
-                    cards:    List[Card]
-                  )
+  case class State(cards: List[Card])
 
   private class Backend($: BackendScope[Unit, State]) {
 
@@ -27,9 +25,13 @@ object ResourceWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiVD.Response].map {
         case apiVD.TheVD(_, _ , resources, _ , _) => {
           println("got THE VD res :  "  + resources)
-          $.modState { s =>
-            s.copy(cards = s.cards ::: resources.map(resourceWithState => Card(resourceWithState)))
-          }
+          $.modState { s => s.copy(cards = 
+            s.cards ++ resources.filter(
+              res => s.cards.filter(card => card.cardId == res.r.id).isEmpty
+            ).map(
+              newRes => Card(newRes, newRes.r.id)
+            )
+          )}
         }
         case x => Callback.empty
       }
@@ -45,16 +47,21 @@ object ResourceWidget {
 
     def render(s: State) = {
       <.div(
+        ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         <.button( ^.className := "btn",
           ^.onClick --> {sendToVirtualDeviec(apiVD.GetVD)}, "Get Virtual Device"
         ),
-        <.h1("Resources"),
-        s.cards.map { card: Card =>
-          <.div(
-            ^.onClick --> onCardClick(card),
-            "" + card.resource.r.name
-          )
-        }.toTagMod
+        SPCardGrid(
+          s.cards.map { card: Card =>
+            SPCardGrid.ResourceCard(
+              card.cardId,
+              card.resource.r.name,
+              card.resource.r.stateMap.map {case mapper: VD.OneToOneMapper =>
+                mapper.driverIdentifier.toString + ": " +  card.resource.state.get(mapper.thing).get.toString
+              }
+            )
+          }
+        )
       )
     }
 
