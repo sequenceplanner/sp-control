@@ -38,7 +38,7 @@ object ResourceWidget {
       callback.foreach(_.runNow())
     }
 
-    def sendToVirtualDeviec(mess: apiVD.Request): Callback = {
+    def sendToVirtualDevice(mess: apiVD.Request): Callback = {
       val h = SPHeader(from = "ResourceWidget", to = "", reply = SPValue("ResourceWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, apiVD.topicRequest)
@@ -49,7 +49,7 @@ object ResourceWidget {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         <.button( ^.className := "btn",
-          ^.onClick --> {sendToVirtualDeviec(apiVD.GetVD)}, "Get Virtual Device"
+          ^.onClick --> {sendToVirtualDevice(apiVD.GetVD)}, "Get Virtual Device"
         ),
         SPCardGrid(
           s.cards.map { card: Card =>

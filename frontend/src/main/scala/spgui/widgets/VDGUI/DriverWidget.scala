@@ -30,9 +30,9 @@ object DriverWidget {
 
     def onDriverMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map {
-        case apiDriver.TheDriver(driver, driverState) => {
+        case apiDriver.TheDrivers(drivers) => {
           $.modState { s =>
-            s.copy(cards = s.cards :+ Card(driver, driverState, driver.id))
+            s.copy(cards = drivers.map(d => Card(d._1, d._2, d._1.id)))
           }
         }
         case apiDriver.DriverStateChange(name, id, state, diff) => {
@@ -48,7 +48,7 @@ object DriverWidget {
     }
 
     def sendToDeviceDriver(mess: apiDriver.Request) = Callback{
-      val h = SPHeader(from = "DriverWidget", to = "", reply = SPValue("DriverWidget"))
+      val h = SPHeader(from = "DriverWidget", to = "DriverService", reply = SPValue("DriverWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, apiDriver.topicRequest)
     }
@@ -57,7 +57,7 @@ object DriverWidget {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         SPWidgetElements.buttonGroup(Seq(
-          SPWidgetElements.button("Get drivers", sendToDeviceDriver(apiDriver.GetDriver))
+          SPWidgetElements.button("Get drivers", sendToDeviceDriver(apiDriver.GetDrivers))
         )),
         SPCardGrid(s.cards.map(c => SPCardGrid.DriverCard(
           cardId = c.cardId,
@@ -141,8 +141,8 @@ object DriverWidget {
     /**********CALLBACKS**********/
     /*
 
-     // Todo: Test that the force does what we desire
-     should return a message to circuit or backend
+    // Todo: Test that the force does what we desire
+        should return a message to circuit or backend
      */
     def forceWrite(card: Card) = {
       // callback to backend to write new SPValues to the driver
