@@ -4,38 +4,112 @@ import sp.domain._
 import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.abilityhandler._
+import sp.abilityhandler.APIAbilityHandler
+import sp.abilityhandler.APIAbilityHandler.AbilityState
 import sp.domain._
+import sp.runners.APIOperationRunner
+import sp.runners.APIOperationRunner.Setup
 import spgui.communication._
 
 object OperationRunnerWidget {
 
-  // In OperationRunnerWidget, we want to visualize the pairs of abilites/operations
-  case class OpAbPair(ability: APIAbilityHandler.Ability, operation: Operation)
+  case class AbilityState(state: Map[ID, SPValue])
+  case class OperationState(state: Map[ID, SPValue])
+  // In OperationRunnerWidget, we want to visualize the pairs of abilities/operations
+  case class OpAbPair(
+                       abilityID:       ID,
+                       operationID:     ID
+                     )
 
-  // we need to seperate the activeCards (the pairs the runner is using)
+  // we need to separate the activeCards (the pairs the runner is using)
   // and the Operation/Ability-pair available, which we later can activate to the runner
   case class State(
-                    activeOpAbPairs:    List[OpAbPair], // in the runner
-                    availableOpAbPairs: List[OpAbPair]  //
+                    activeRunnerID:       ID,
+                    activeSetup:          APIOperationRunner.Setup,
+                    abilityStateMapper:   Map[ID, AbilityState],
+                    operationStateMapper: Map[ID, OperationState],
+                    activeOpAbPairs:      List[OpAbPair], // in the runner
+                    availableOpAbPairs:   List[OpAbPair]  // in the model with possibility to add to runner
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
+    val operationRunnerHandler =
+      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
+    val abilityHandler =
+      BackendCommunication.getMessageObserver(onAbilityMessage, APIAbilityHandler.topicResponse)
+
+    def onOperationRunnerMessage(mess: SPMessage) = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIOperationRunner.Response].map {
+        // case Runners-message: create new opAbPairs
+        case APIOperationRunner.Runners(ids) => {
+          $.modState { state =>
+            // with a setup, go through the ops: Set[Operation] and map the operationId with a abilityID
+            def parseSetup(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
+              setup.opAbilityMap
+                .get(operation.id)
+                .map { abilityID => OpAbPair(abilityID, operation.id) }
+            }
+            // find the setup with the same runner-id as the widgets activeRunnerId
+            //
+            ids.find { setup => setup.runnerID == state.activeRunnerID}
+              .map { setup =>
+                state.copy(activeOpAbPairs = parseSetup(setup).toList, activeSetup = setup)
+              }.getOrElse(state)
+          }
+        }
+        case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap) => {
+          $.modState{ state =>
+            // if StateEvent occur, check if the state is for the same Runner-id as the widgets activeRunnerId
+            if (state.activeRunnerID == runnerID) {
+              newRunnerStateMap.map {newRunnerState =>
+                println(newRunnerState._1 +": " + newRunnerState._2)
+              }
+              state
+            }
+            else state // if the StateEvent is for another Runner, do not modify state
+          }
+        }
+
+        case x => Callback.empty
+      }
+      callback.foreach(_.runNow())
+    }
+
+    def onAbilityMessage(mess: SPMessage) = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIAbilityHandler.Response].map {
+        // case Runners-message: create new opAbPairs
+        case APIAbilityHandler.AbilityState(id, newState) => {
+
+        }
+        case x => Callback.empty
+      }
+      callback.foreach(_.runNow())
+    }
+
+    def sentToRunner(mess: APIOperationRunner.Request) = Callback{
+      val h = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
+      val json = SPMessage.make(h, mess)
+      BackendCommunication.publish(json, APIOperationRunner.topicRequest)
+    }
+
+    def render(state: State) = {
+
+    }
 
 
-    def onUnmount() = {
-      println("AbilityWidget Unmouting")
-      Callback.empty
+    def onUnmount() = Callback{
+      println("OperationRunnerWidget Unmouting")
+      operationRunnerHandler.kill()
     }
   }
 
-  private val driverWidgetComponent = ScalaComponent.builder[Unit]("AbilityWidget")
-    .initialState(State(List(), List()))
+  private val operationRunnerComponent = ScalaComponent.builder[Unit]("OperationRunnerWidget")
+    .initialState(State(ID.newID,_, Map(), Map(), List(), List()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
-  def apply() = spgui.SPWidget(spwb => driverWidgetComponent())
+  def apply() = spgui.SPWidget(spwb => operationRunnerComponent())
 }
 
 
