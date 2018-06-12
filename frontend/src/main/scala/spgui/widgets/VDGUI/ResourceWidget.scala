@@ -54,9 +54,10 @@ object ResourceWidget {
         SPCardGrid(
           s.cards.map { card: Card =>
             SPCardGrid.ResourceCard(
-              card.cardId,
-              card.resource.r.name,
-              card.resource.r.stateMap.map {case mapper: VD.OneToOneMapper =>
+              cardId = card.cardId,
+              name = card.resource.r.name,
+              driverIds = card.resource.r.stateMap.map{case mapper:VD.OneToOneMapper => mapper.driverID}.toList.distinct,
+              state = card.resource.r.stateMap.map {case mapper: VD.OneToOneMapper =>
                 mapper.driverIdentifier.toString + ": " +  card.resource.state.get(mapper.thing).get.toString
               }
             )
