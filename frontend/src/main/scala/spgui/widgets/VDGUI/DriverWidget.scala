@@ -10,7 +10,7 @@ import spgui.components.SPWidgetElements
 
 object DriverWidget {
 
-  case class Card(driver: VD.Driver, driverState: VD.DriverState, cardId: ID = ID.newID)
+  case class Card(driver: VD.Driver, driverState: VD.DriverState, cardId: ID)
 
   case class State(
     //driverIdExpanded: ID/driver/driverCard
@@ -32,7 +32,7 @@ object DriverWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[apiDriver.Response].map {
         case apiDriver.TheDriver(driver, driverState) => {
           $.modState { s =>
-            s.copy(cards = s.cards :+ Card(driver, driverState))
+            s.copy(cards = s.cards :+ Card(driver, driverState, driver.id))
           }
         }
         case apiDriver.DriverStateChange(name, id, state, diff) => {

@@ -10,7 +10,7 @@ object SPCardGrid {
 
   trait RenderCard{val cardId: ID}
   case class DriverCard(cardId: ID, name: String, isOnline: Boolean, driverInfo: List[String], state: List[String]) extends RenderCard
-  case class ResourceCard(cardId: ID, name: String, state: List[String]) extends RenderCard
+  case class ResourceCard(cardId: ID, name: String, driverIds: List[ID], state: List[String]) extends RenderCard
 
 
   class Backend($: BackendScope[Props, State]) {
@@ -92,6 +92,7 @@ object SPCardGrid {
 
   def driverCardExpanded(card: DriverCard) = {
     <.div(
+      <.div("testing id here also: " + card.cardId.toString),
       <.div(
         ^.className := DriverWidgetCSS.cardTitle.htmlClass,
         card.name
@@ -116,6 +117,7 @@ object SPCardGrid {
 
   def resourceCardExpanded(card: ResourceCard) = {
     <.div(
+      <.div("testing id thing: " + card.driverIds.map{_.toString}.toString),
       <.div(
         ^.className := DriverWidgetCSS.cardTitle.htmlClass,
         card.name
