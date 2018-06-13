@@ -1,42 +1,51 @@
 package sp.unification
 
+import sp.modelSupport._
 import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler._
 
 import sp.drivers.ROSFlatStateDriver
 
-class URModel(n: String) extends VDHelper {
-  val name = n
-  // ur robot state
-  dv("ur_act_pos", "driver", "unification_roscontrol/URPose1:/unification/ur_pose_unidriver/state:actPos")
-  dv("ur_executing", "driver", "unification_roscontrol/URPose1:/unification/ur_pose_unidriver/state:executing")
-  dv("ur_ref_pos_driver", "driver", "unification_roscontrol/URPose1:/unification/ur_pose_unidriver/state:refPos")
+class UR extends ModelDSL {
+  use("pose", new URPose)
 
-  // ur robot commands
-  dv("ur_ref_pos_sp", "driver", "unification_roscontrol/URPose2:/unification/ur_pose_unidriver/cmd:refPos:250")
+  // runner (for now runners take everything and must be on the top level of the model)
+  runner("runner")
+}
+
+class URPose extends ModelDSL {
+  // UrSubscriber helper - use the same sp name as the ros msg field
+  def us(field: String) = dv(field, "ROSdriver", s"unification_roscontrol/URPoseUniToSP:/unification_roscontrol/ur_pose_unidriver_to_sp:$field")
+
+  List("ur_pose_unidriver_got_msg_from_sp", "got_cmd_should_plan", "got_cmd_ref_pos", "ur_pose_unidriver_got_msg_from_ur_pose_smaster",
+    "act_pos", "executing", "planning").foreach(us)
+
+  // UrPublisher helper - use the same sp name as the ros msg field
+  def up(field: String, rate: Int = 250) = dv(field, "ROSdriver", s"unification_roscontrol/URPoseSPToUni:/unification//unification_roscontrol/ur_pose_sp_to_unidriver:$field:$rate")
+
+  List("should_plan", "ref_pos").foreach(f=>up(f))
 
   // ur abilities
   List("URDummyPose1", "URDummyPose2", "URDummyPose3", "URDummyPose4").foreach { pose =>
     a("goto"+pose, List(),
-      ac("pre", "true", s"ur_ref_pos_sp := '$pose'"),
-      ac("started", s"ur_ref_pos_driver == '$pose' && ur_executing"), // note that we check the driver state
-      ac("post", s"ur_act_pos == '$pose' && !ur_executing"),
-      ac("reset", "true"))
+      c("pre", "true", s"ref_pos := '$pose'"),
+      c("started", s"got_cmd_ref_pos == '$pose' && executing"), // note that we check the driver state
+      c("post", s"act_pos == '$pose' && !executing"),
+      c("reset", "true"))
   }
   // add a sequence
-  o("gotoURDummyPose2", oc("pre", "ur_act_pos == 'URDummyPose1'"))
-  o("gotoURDummyPose3", oc("pre", "ur_act_pos == 'URDummyPose2'"))
-  o("gotoURDummyPose4", oc("pre", "ur_act_pos == 'URDummyPose3'"))
+  o("gotoURDummyPose2", c("pre", "ur_act_pos == 'URDummyPose1'"))
+  o("gotoURDummyPose3", c("pre", "ur_act_pos == 'URDummyPose2'"))
+  o("gotoURDummyPose4", c("pre", "ur_act_pos == 'URDummyPose3'"))
 
   // drivers and resources
-  driver("driver", ROSFlatStateDriver.driverType)
-  resource("resource") // blank list of things = take everything
+  driver("ROSdriver", ROSFlatStateDriver.driverType)
 
-  // runner
-  r("runner", initState = Map("ur_act_pos" -> "unknown?"))
+  // blank list of things = take everything
+  resource("resource")
 }
 
-object URModel {
-  def apply(name: String = "UR") = new URModel(name)
+object UR {
+  def apply() = new UR
 }
