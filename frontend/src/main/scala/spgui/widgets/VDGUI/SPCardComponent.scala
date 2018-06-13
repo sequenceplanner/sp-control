@@ -38,7 +38,7 @@ object SPCardGrid {
               case orc: OperationRunnerCard => {
                 val smallCard = operationRunnerCardSmall(orc)
                 val expandedCard = operationRunnerCardExpanded(orc)
-                renderCard(orc.operationName, s.expandedId, expandedCard, smallCard)
+                renderCard(orc.cardId, s.expandedId, expandedCard, smallCard)
               }
             }
           ).toTagMod
@@ -167,9 +167,11 @@ object SPCardGrid {
       //outer card / container
       <.div(
         // operation Card
+        card.operationName
       ),
       <.div(
         // ability card
+        card.abilityName
       )
     )
   }

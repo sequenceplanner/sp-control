@@ -115,7 +115,9 @@ object OperationRunnerWidget {
     }
 
     def render(state: State) = {
-
+      <.div(
+        "Dummy"
+      )
     }
 
 
@@ -126,7 +128,7 @@ object OperationRunnerWidget {
   }
 
   private val operationRunnerComponent = ScalaComponent.builder[Unit]("OperationRunnerWidget")
-    .initialState(State(ID.newID,_, Map(), Map(), List(), List()))
+    .initialState(State(ID.newID, Setup("dummyOperationRunnerName", ID.newID, Set(), Map(), Map()), Map(), Map(), List(), List()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build
