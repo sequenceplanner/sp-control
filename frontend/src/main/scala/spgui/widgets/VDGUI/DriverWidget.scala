@@ -29,15 +29,6 @@ object DriverWidget {
           }
         }
         /**
-          * if a [[APIDeviceDriver.TheDriver]] response is noticed
-          * add the drivers to a card if it not already exist in cards
-          */
-        case APIDeviceDriver.TheDriver(d: VD.Driver, driverState: VD.DriverState) => {
-          $.modState { s =>
-            s.copy(cards = s.cards.filter(c => c.cardId != d.id) :+ Card(d, driverState, d.id))
-          }
-        }
-        /**
           * if a [[APIDeviceDriver.DriverStateChange]] response is noticed
           * update the driver in the cards with the help method onDriverStateChange()
           */
@@ -45,7 +36,7 @@ object DriverWidget {
           onDriverStateChange(name, id, state, diff)
         }
         case x => {
-          println(x)
+          //println(x)
           Callback.empty
         }
       }
@@ -65,9 +56,6 @@ object DriverWidget {
     def render(s: State) = {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        /*SPWidgetElements.buttonGroup(Seq(
-          SPWidgetElements.button("Get drivers", sendToDeviceDriver(APIDeviceDriver.GetDrivers))
-        )),*/
         SPCardGrid(s.cards.map(c => SPCardGrid.DriverCard(
           cardId = c.cardId,
           name = c.driver.name,
@@ -121,11 +109,16 @@ object DriverWidget {
       driverHandler.kill()
       Callback.empty
     }
+
+    def onMount() = {
+      sendToDeviceDriver(APIDeviceDriver.GetDrivers)
+    }
   }
 
   private val driverWidgetComponent = ScalaComponent.builder[Unit]("DriverWidget")
     .initialState(State())
     .renderBackend[Backend]
+    .componentDidMount(_.backend.onMount())
     .componentWillUnmount(_.backend.onUnmount())
     .build
 

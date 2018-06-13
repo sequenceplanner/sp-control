@@ -31,7 +31,7 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
 
         b match {
               case api.GetDrivers=>
-                publish(api.topicRequest, SPMessage.makeJson(spHeader, api.GetDriver))
+                sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers.values.toList)))
               case api.TheDriver(driver, driverState) =>
                 drivers += driver.id -> (driver, driverState, true) // if a new or already existing driver is received, the map should be updated with the driver, state and active status: true
               case api.DriverTerminated(id) =>
