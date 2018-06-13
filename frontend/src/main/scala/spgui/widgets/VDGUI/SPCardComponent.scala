@@ -10,7 +10,7 @@ object SPCardGrid {
 
   trait RenderCard{val cardId: ID}
   case class DriverCard(cardId: ID, name: String, status: String, typ: String, state: List[(String, SPValue)]) extends RenderCard
-  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, Boolean)], state: List[(String, SPValue)]) extends RenderCard
+  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, String)], state: List[(String, SPValue)]) extends RenderCard
 
 
   class Backend($: BackendScope[Props, State]) {
@@ -164,30 +164,34 @@ object SPCardGrid {
         ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
         card.name
       ),
-      <.div(
-        card.driverStatuses.map{
-          ds => <.div(
-            ^.className := DriverWidgetCSS.driverStatus.htmlClass,
-            <.span(ds._1),
-            {
-              val isActive = ds._2
-              isActive match {
-                case true => <.span(
+      {
+        card.driverStatuses.map(driverStatus =>
+          <.div(
+            ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
+            <.span(driverStatus._1 + ": "),
+            <.span(
+              driverStatus._2 match {
+                case "Online" => <.span(
                   ^.className := DriverWidgetCSS.driverOnline.htmlClass,
                   "Online"
                 )
-                case false => <.span(
+                case "Offline" => <.span(
                   ^.className := DriverWidgetCSS.driverOffline.htmlClass,
                   "Offline"
                 )
+                case "Unresponsive" => <.span(
+                  ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                  "Unresponsive"
+                )
+                case s: String => <.span(s)
               }
-            }
+            )
           )
-        }.toTagMod
-      )
+        )
+      }.toTagMod
     )
   }
-
+  
   def resourceCardExpanded(card: ResourceCard) = {
     <.div(
       ^.className := DriverWidgetCSS.resourceCard.htmlClass,
@@ -195,11 +199,31 @@ object SPCardGrid {
         ^.className := DriverWidgetCSS.cardTitleExpanded.htmlClass,
         card.name
       ),
-      <.div(
-        card.driverStatuses.map{
-          s => s._1 + s._2.toString
-        }.toTagMod
-      ),
+      {
+        card.driverStatuses.map(driverStatus =>
+          <.div(
+            ^.className := DriverWidgetCSS.driverStatus.htmlClass,
+            <.span(driverStatus._1 + ": "),
+            <.span(
+              driverStatus._2 match {
+                case "Online" => <.span(
+                  ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+                  "Online"
+                )
+                case "Offline" => <.span(
+                  ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+                  "Offline"
+                )
+                case "Unresponsive" => <.span(
+                  ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                  "Unresponsive"
+                )
+                case s: String => <.span(s)
+              }
+            )
+          )
+        )
+      }.toTagMod,
       <.div(
         ^.className := DriverWidgetCSS.stateList.htmlClass,
          card.state.map( s => 

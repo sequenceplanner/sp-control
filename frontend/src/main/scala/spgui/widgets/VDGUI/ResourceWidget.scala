@@ -13,7 +13,10 @@ object ResourceWidget {
 
   case class Card(resource: VD.ResourceWithState, cardId: ID)
 
-  case class State(cards: List[Card] = List(), activeDrivers: List[VD.Driver] = List())
+  case class State(
+    resources: List[VD.ResourceWithState] = List(),
+    theDrivers: List[(VD.Driver, VD.DriverState, String)] = List()
+  )
 
   private class Backend($: BackendScope[Unit, State]) {
 
@@ -24,7 +27,7 @@ object ResourceWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
         case APIDeviceDriver.TheDrivers(drivers) => {
           $.modState { s =>
-            s.copy(activeDrivers = drivers.map(d => d._1))
+            s.copy(theDrivers = drivers.map(d => (d._1, d._2, d._3)))
           }
         }
         case _ => Callback.empty
@@ -35,7 +38,13 @@ object ResourceWidget {
     def onDeviceMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
         case APIVirtualDevice.TheVD(_, _ , resources, _ , _) => {
-          $.modState { s => s.copy(cards = resources.map(res => Card(res, res.r.id)))}
+          $.modState { s => s.copy(resources = resources.map(r => r).toList)}
+        }
+        case APIVirtualDevice.StateEvent(resourceName, id, newState, diff) => {
+          $.modState { s => s.copy(resources = s.resources.map { res => 
+            if(res.r.id == id) res.copy(state = res.state ++ newState)
+            else res
+          })}
         }
         case x => Callback.empty
       }
@@ -51,22 +60,22 @@ object ResourceWidget {
     def render(s: State) = {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        <.button( ^.className := "btn",
-          ^.onClick --> {sendToVirtualDevice(APIVirtualDevice.GetVD)},
-        ),
         SPCardGrid(
-          s.cards.map { card: Card =>
+          s.resources.map { rws: VD.ResourceWithState =>
             SPCardGrid.ResourceCard(
-              cardId = card.cardId,
-              name = card.resource.r.name,
+              cardId = rws.r.id,
+              name = rws.r.name,
               driverStatuses = {
-                // val relatedDrivers = card.resource.r.stateMap.map{
-                //   case mapper:VD.OneToOneMapper => mapper.driverID
-                // }.distinct
-                s.activeDrivers.map{d => (d.name, true)}
+                val relatedDrivers = rws.r.stateMap.map{
+                  case mapper:VD.OneToOneMapper => mapper.driverID
+                }.distinct
+                val selectDrivers = s.theDrivers.filter(ad => relatedDrivers.contains(ad._1.id))
+                selectDrivers.map{
+                  d => (d._1.name, d._3)
+                }.toList
               },
-              state = card.resource.r.stateMap.map {case mapper: VD.OneToOneMapper =>
-                (mapper.driverIdentifier.toString, card.resource.state.get(mapper.thing).get)
+              state = rws.r.stateMap.map {case mapper: VD.OneToOneMapper =>
+                (mapper.driverIdentifier.toString, rws.state.get(mapper.thing).get)
               }.toList
             )
           }
@@ -81,36 +90,36 @@ object ResourceWidget {
         2. Force Stop
         3. Force Write
      */
-    def renderExpansion(card: Card) = {
-      <.div(
-        ^.onClick --> onCardClick(card),
-        <.div(
-          <.button(
-            ^.className := "btn btn-default",
-            ^.onClick --> forceStop(card), "Force Stop"
-          )
-        ),
-        <.div(
-          "Name:   " + card.resource.r.name + "\n" +
-            "ID:     " + card.resource.r.id + "\n" +
-            "Things:   " + card.resource.r.things + "\n" +
-            "Setup   " + card.resource.r.setup + "\n" +
-            renderResourceState(card)
-        )
-      )
-    }
+    // def renderExpansion(card: Card) = {
+    //   <.div(
+    //     ^.onClick --> onCardClick(card),
+    //     <.div(
+    //       <.button(
+    //         ^.className := "btn btn-default",
+    //         ^.onClick --> forceStop(card), "Force Stop"
+    //       )
+    //     ),
+    //     <.div(
+    //       "Name:   " + card.resource.r.name + "\n" +
+    //         "ID:     " + card.resource.r.id + "\n" +
+    //         "Things:   " + card.resource.r.things + "\n" +
+    //         "Setup   " + card.resource.r.setup + "\n" +
+    //         renderResourceState(card)
+    //     )
+    //   )
+    // }
 
-    def renderResourceState(card: Card) = {
-      // for each element in driverState (Map[String, SPValue])
-      // print String, SPValue and a box where we can change SPValue if driver is editable
-      // Later: create new driverStates
-      <.div("ID" + "      " + "SPValue")
-      card.resource.state.toList.map { state: (ID, SPValue) =>
-        <.div(
-          state._1 + "  " + state._2.toString()
-        )
-      }
-    }
+    // def renderResourceState(card: Card) = {
+    //   // for each element in driverState (Map[String, SPValue])
+    //   // print String, SPValue and a box where we can change SPValue if driver is editable
+    //   // Later: create new driverStates
+    //   <.div("ID" + "      " + "SPValue")
+    //   card.resource.state.toList.map { state: (ID, SPValue) =>
+    //     <.div(
+    //       state._1 + "  " + state._2.toString()
+    //     )
+    //   }
+    // }
 
     /**********ACTIONS**********/
     def onCardClick(card: Card)= {
@@ -128,21 +137,19 @@ object ResourceWidget {
       Callback("ResourceWidget: Force the vd to stop") // dummy
     }
 
-    def onUnmount() = {
+    def onUnmount() = Callback{
       //println("ResourceWidget Unmouting")
       deviceHandler.kill()
-      Callback.empty
+      driverHandler.kill()
     }
   }
 
   private val resourceWidgetComponent = ScalaComponent.builder[Unit]("ResourceWidget")
     .initialState(State())
     .renderBackend[Backend]
+    .componentDidMount(_.backend.sendToVirtualDevice(APIVirtualDevice.GetVD))
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
   def apply() = spgui.SPWidget(spwb => resourceWidgetComponent())
 }
-
-
-
