@@ -78,6 +78,22 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
     val ops = Set(o1, o2, o3)
 
 
+    "do correct condition filtering" in {
+      val test1 = prop(ids, "o1 == i", List(), "pre", "goodGroup")
+      val test2 = prop(ids, "t1 == 2", List(), "post", "badGroup")
+      val test3 = prop(ids, "t1 == 2", List(), "post", "goodGroup")
+
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val xs = List(test1, test2, test3)
+
+      logic.filterConditions(xs, Set(), Set()) shouldEqual xs
+      logic.filterConditions(xs, Set("pre"), Set()) shouldEqual List(test1)
+      logic.filterConditions(xs, Set(), Set("badGroup")) shouldEqual List(test1, test3)
+
+    }
+
+
     "evaluate ops" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       val res = logic.evaluateOps(List(o1, o2, o3), initState)
@@ -95,6 +111,21 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       assert(res2 == List(o2, o3))
     }
 
+    "evaluate ops with groupds" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val o1Pre2 = prop(ids, "t1 == 1", List("t1 := 2"), "pre", "badGroup")
+      val o1Upd = o1.copy(conditions = o1.conditions :+ o1Pre2)
+
+      val res = logic.evaluateOps(List(o1Upd, o2, o3), initState)
+      assert(res == List())
+
+      val res2 = logic.evaluateOps(List(o1Upd, o2, o3), initState, Set("badGroup"))
+      assert(res2 == List(o1Upd))
+
+
+    }
+
     "upd state" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       logic.addRunner(setup)
@@ -110,7 +141,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       var states = List[SPState]()
       val f2 = (o: SPState) => states = o :: states
 
-      val upd = logic.newState(s, ops, r, f,  f2, false)
+      val upd = logic.newState(s, ops, r, f,  f2, true)
       println("jhsfd")
       println(upd)
       println(starting)
@@ -354,7 +385,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 import sp.domain.logic.{PropositionParser, ActionParser}
 trait Parsing {
   def v(name: String, drivername: String) = Thing(name, SPAttributes("drivername" -> drivername))
-  def prop(vars: List[IDAble], cond: String, actions: List[String] = List(), kind: String = "pre") = {
+  def prop(vars: List[IDAble], cond: String, actions: List[String] = List(), kind: String = "pre", group: String = "") = {
     def c(condition: String): Option[Proposition] = {
       PropositionParser(vars).parseStr(condition) match {
         case Right(p) => Some(p)
@@ -374,7 +405,10 @@ trait Parsing {
     val cRes = if (cond.isEmpty) AlwaysTrue else c(cond).get
     val aRes = a(actions)
 
-    Condition(cRes, aRes, SPAttributes("kind" -> kind))
+    val attr = SPAttributes("kind" -> kind) ++ {
+      if (group.nonEmpty) SPAttributes("group" -> group) else SPAttributes()}
+
+    Condition(cRes, aRes, attr)
   }
 
 }

@@ -100,7 +100,15 @@ class OperationRunner extends Actor
 
         case api.ForceComplete(id) =>
           newAbilityState(id, sp.abilityhandler.AbilityState.finished, startAbility, sendState)
-       }
+
+        case api.RunnerControl(id, auto, groups) =>
+
+        case api.ManualControl(id, opToStart, bwd) =>
+          // bwd not implemented yet
+
+
+      }
+
 
       publish(APIOperationRunner.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
 
@@ -190,16 +198,20 @@ object OperationRunner {
 
 
 
+
 /*
  * The logic for running the operations
  *
- * TODO: 180308: maybe update to use the OperationLogic in sp-domain and OperationStateDefinition
  */
 trait OperationRunnerLogic {
   def log: akka.event.LoggingAdapter
 
 
-  case class Runner(setup: api.Setup, currentState: Map[ID, SPValue]) {
+  case class Runner(setup: api.Setup,
+                    currentState: Map[ID, SPValue],
+                    runInAuto: Boolean = true,
+                    disableConditionGroups: Set[SPValue] = Set()
+                   ) {
     val noAbilityOps = setup.ops.filter(o => !setup.opAbilityMap.contains(o.id))
   }
   var runners: Map[ID, Runner] = Map()
@@ -270,7 +282,7 @@ trait OperationRunnerLogic {
     }
   }
 
-  def newResourceState(state: Map[ID, SPValue], startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit, runOneAtTheTime: Boolean = false) = {
+  def newResourceState(state: Map[ID, SPValue], startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit, runInAuto: Boolean = true) = {
     runners.foreach{r =>
       val reMap = r._2.setup.variableMap.map(kv => kv._2 -> kv._1)
       val myThings = state.filter(kv => reMap.contains(kv._1))
@@ -278,27 +290,27 @@ trait OperationRunnerLogic {
         log.debug("A resource state with connected variables have been updated")
         val remapState = myThings.map(kv => reMap(kv._1) -> kv._2)
         val cS = SPState(state = runners(r._1).currentState ++ remapState)
-        setRunnerState(r._1, cS, startAbility, sendState(_,r._1), runOneAtTheTime)
+        setRunnerState(r._1, cS, startAbility, sendState(_,r._1), runInAuto)
       }
     }
   }
 
-  def setRunnerState(runnerID: ID, s: SPState, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): Unit = {
+  def setRunnerState(runnerID: ID, s: SPState, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runInAuto: Boolean = true): Unit = {
     val r = runners.get(runnerID)
     r.foreach { x =>
       val theS = x.currentState ++ s.state
       val theState = SPState(state = theS)
       log.debug("set runner state from: " + x.currentState + " to " + theS)
       if (theS != x.currentState) sendState(theState)
-      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runOneAtTheTime)
+      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runInAuto)
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
 
-  def tickRunner(runnerID: ID, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): Unit = {
+  def tickRunner(runnerID: ID, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runInAuto: Boolean = true): Unit = {
     runners.get(runnerID).foreach { x =>
       val theState = SPState(state = x.currentState)
-      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runOneAtTheTime)
+      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runInAuto)
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
@@ -326,25 +338,35 @@ trait OperationRunnerLogic {
     * @param r The runner, since we need to know the mapping to abilities
     * @param startAbility A function from the actor side for starting the abilities
     * @param sendState A function from the actor side to send the state of the runner
-    * @param runOneAtTheTime A flag to use if only one operation should start at the time.
-    *                        If false, every operation that can will start (or end or reset).
-    *                        If true, the first operation will start and then the next one will start at the next
-    *                        state change
+    * @param runInAuto is the runner in auto mode or do we need to force it. Always completes and rests ops
+    * @param tryToStartOP if not in auto, try to start the given op, if it is enabled
+    * @param disableConditionGroups If some conditions should be disabled
     * @return The updated state
     */
-  @tailrec final def newState(s: SPState, ops: Set[Operation], r: Runner, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runOneAtTheTime: Boolean = false): SPState = {
+  @tailrec
+  final def newState(s: SPState,
+                     ops: Set[Operation],
+                     r: Runner,
+                     startAbility: (ID, Map[ID, SPValue]) => Unit,
+                     sendState: SPState => Unit,
+                     runInAuto: Boolean = true,
+                     tryToStartOP: Option[ID]= None,
+                     disableConditionGroups: Set[SPValue] = Set()
+                    ): SPState = {
 
     val filterOps = ops.foldLeft((List[Operation](), List[Operation](), List[Operation]())){case (aggr, o) =>
-      if (isEnabled(o, s)) {
+      if (isEnabled(o, s, disableConditionGroups)) {
         (aggr._1 :+ o, aggr._2, aggr._3)
-      } else if (canComplete(o, s, r.setup.opAbilityMap)) {
+      } else if (canComplete(o, s, r.setup.opAbilityMap, disableConditionGroups)) {
         (aggr._1, aggr._2  :+ o, aggr._3)
-      } else if (canReset(o, s)){
+      } else if (canReset(o, s, disableConditionGroups)){
         (aggr._1, aggr._2, aggr._3 :+ o)
       } else aggr
     }
 
-    val enabled = filterOps._1
+    val enabled: List[Operation] = if (runInAuto) filterOps._1 else {
+      List() ++ filterOps._1.find(o => tryToStartOP.contains(o.id))
+    }
     val complete = filterOps._2
     val reset = filterOps._3
 
@@ -352,21 +374,21 @@ trait OperationRunnerLogic {
 
     val resRes = reset.headOption.map{o =>
       opsToGo -= o
-      val updS = resetOP(o, s)
+      val updS = resetOP(o, s, disableConditionGroups)
       sendState(updS)
       updS
     }.getOrElse(s)
 
     val resCompl = complete.headOption.map{o =>
       opsToGo -= o
-      val updS = completeOP(o, resRes)
+      val updS = completeOP(o, resRes, disableConditionGroups)
       sendState(updS)
       updS
     }.getOrElse(resRes)
 
     val res = enabled.headOption.map{o =>
       opsToGo -= o
-      val updS = runOp(o, resCompl)
+      val updS = runOp(o, resCompl, disableConditionGroups)
       sendState(updS)
 
       // TODO: Use another mechanism to send parameters. Maybe use names or a trait with predefined parameter names. It should be up to the ability to map the parameters into the resource state...
@@ -385,10 +407,10 @@ trait OperationRunnerLogic {
     if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("*************")
 
 
-    if (runOneAtTheTime || res == s)
+    if (!runInAuto || res == s)
       res
     else
-      newState(res, opsToGo, r, startAbility, sendState, runOneAtTheTime)
+      newState(res, opsToGo, r, startAbility, sendState, runInAuto, None, disableConditionGroups)
 
   }
 
@@ -402,57 +424,64 @@ trait OperationRunnerLogic {
   }
 
 
-  def runOp(o: Operation, s: SPState) = {
-      val filtered = filterConditions(o.conditions, Set("pre", "precondition"))
+  def runOp(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()) = {
+      val filtered = filterConditions(o.conditions, Set("pre", "precondition"), disabledGroups)
       val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
       log.debug(s"${o.name} started")
       newState.next(o.id -> OperationState.executing)
   }
 
-  def completeOP(o: Operation, s: SPState) = {
-    val filtered = filterConditions(o.conditions, Set("post", "postcondition"))
+  def completeOP(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()) = {
+    val filtered = filterConditions(o.conditions, Set("post", "postcondition"), disabledGroups)
     val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
     log.debug(s"${o.name} completed")
     newState.next(o.id -> OperationState.finished)
   }
 
-  def resetOP(o: Operation, s: SPState) = {
-    val filtered = filterConditions(o.conditions, Set("reset", "resetcondition"))
+  def resetOP(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()) = {
+    val filtered = filterConditions(o.conditions, Set("reset", "resetcondition"), disabledGroups)
     val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
     log.debug(s"${o.name} reset")
     newState.next(o.id -> OperationState.init)
   }
 
-  def evaluateOps(ops: List[Operation], s: SPState) = {
-    ops.filter(o => isEnabled(o, s))
+  def evaluateOps(ops: List[Operation], s: SPState, disabledGroups: Set[SPValue] = Set()) = {
+    ops.filter(o => isEnabled(o, s, disabledGroups))
   }
 
-  def isEnabled(o: Operation, s: SPState): Boolean = {
+  def isEnabled(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()): Boolean = {
     (s(o.id) == OperationState.init) &&
-      filterConditions(o.conditions, Set("pre", "precondition")).forall(_.eval(s)) // Always true if no precond
+      filterConditions(o.conditions, Set("pre", "precondition"), disabledGroups).forall(_.eval(s)) // Always true if no precond
 
   }
 
-  def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID]): Boolean = {
+  def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID], disabledGroups: Set[SPValue] = Set()): Boolean = {
     s(o.id) == OperationState.executing &&
-      ((!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition")).forall(_.eval(s))) || // always true if no postcond
+      ((!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition"), disabledGroups).forall(_.eval(s))) || // always true if no postcond
         s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityState.finished)))
 
 
   }
 
-  def canReset(o: Operation, s: SPState): Boolean = {
+  def canReset(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()): Boolean = {
     (s(o.id) == OperationState.finished) && {
-      val xs = filterConditions(o.conditions, Set("reset", "resetcondition"))
+      val xs = filterConditions(o.conditions, Set("reset", "resetcondition"), disabledGroups)
       xs.forall(_.eval(s)) && xs.nonEmpty // always false if no resetcond
     }
   }
 
-
-  def filterConditions(conds: List[Condition], set: Set[String]) = {
+  /**
+    * Filters a list of conditions based on its kind and group.
+    * @param conds The list of conditions
+    * @param set The kinds that we want (i.e. "pre")
+    * @param disabledGroups The groups we do NOT want (usually defined as a string)
+    * @return the filtered list
+    */
+  def filterConditions(conds: List[Condition], set: Set[String], disabledGroups: Set[SPValue] = Set())  = {
     conds filter(c => {
+      val notDisabledGroup = c.attributes.get("group").forall(g => !disabledGroups.contains(g))
       val res = c.attributes.getAs[String]("kind").getOrElse("")
-      (set contains res) || set.isEmpty
+      ((set contains res) || set.isEmpty) && notDisabledGroup
     })
   }
 

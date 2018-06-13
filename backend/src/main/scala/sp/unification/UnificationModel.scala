@@ -26,6 +26,12 @@ class URPose extends ModelDSL {
 
   List("should_plan", "ref_pos").foreach(f=>up(f))
 
+
+
+  //
+
+
+
   // ur abilities
   List("URDummyPose1", "URDummyPose2", "URDummyPose3", "URDummyPose4").foreach { pose =>
     a("goto"+pose, List(),
@@ -34,6 +40,9 @@ class URPose extends ModelDSL {
       c("post", s"act_pos == '$pose' && !executing"),
       c("reset", "true"))
   }
+
+
+
   // add a sequence
   o("gotoURDummyPose2", c("pre", "ur_act_pos == 'URDummyPose1'"))
   o("gotoURDummyPose3", c("pre", "ur_act_pos == 'URDummyPose2'"))
