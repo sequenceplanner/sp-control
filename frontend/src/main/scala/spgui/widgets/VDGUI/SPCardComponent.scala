@@ -3,6 +3,9 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.domain._
 import spgui.communication._
+import sendMessages._
+import sp.devicehandler.APIDeviceDriver
+
 
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
@@ -153,7 +156,8 @@ object SPCardGrid {
         card.state.map( s =>
           <.div(s._1 + ": " + s._2)
         ).toTagMod
-      )
+      ),
+      <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver")
     )
   }
 

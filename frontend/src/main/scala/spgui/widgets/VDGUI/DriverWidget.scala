@@ -6,6 +6,8 @@ import sp.devicehandler.{VD, APIDeviceDriver}
 import sp.domain._
 import spgui.communication._
 import spgui.components.SPWidgetElements
+import sendMessages._
+
 
 object DriverWidget {
 
@@ -51,11 +53,6 @@ object DriverWidget {
       $.modState(s => s.copy(cards = s.cards.map(c => if(c.driver.id == id) c.copy(driverState = state) else c)))
     }
 
-    def sendToDeviceDriver(mess: APIDeviceDriver.Request) = Callback{
-      val h = SPHeader(from = "DriverWidget", to = "DriverService", reply = SPValue("DriverWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, APIDeviceDriver.topicRequest)
-    }
 
     def render(s: State) = {
       <.div(
