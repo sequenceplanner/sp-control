@@ -14,9 +14,14 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
   subscribe(api.topicRequest)
   subscribe(api.topicResponse)
 
+  val Online = "Online"
+  val Offline  = "Offline"
+  val Unresponsive  = "Unresponsive"
 
-  var drivers = Map[ID , (Driver, DriverState, Boolean)]()
-  var driversTmp = Map[ID , (Driver, DriverState, Boolean)]()
+
+
+  var drivers = Map[ID , (Driver, DriverState, String)]()
+  var driversTmp = Map[ID , (Driver, DriverState, String)]()
   var firstTick = true
 
   def receive = {
@@ -33,9 +38,9 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
               case api.GetDrivers=>
                 sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers.values.toList)))
               case api.TheDriver(driver, driverState) =>
-                drivers += driver.id -> (driver, driverState, true) // if a new or already existing driver is received, the map should be updated with the driver, state and active status: true
+                drivers += driver.id -> (driver, driverState, Online) // if a new or already existing driver is received, the map should be updated with the driver, state and active status: Online
               case api.DriverTerminated(id) =>
-                drivers += id -> drivers(id).copy(_3 = false) // if the driver is terminated, its active status is set to false
+                drivers += id -> drivers(id).copy(_3 = Offline) // if the driver is terminated, its active status is set to Offline
               case other =>
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
@@ -48,7 +53,7 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
           driversTmp = drivers
           sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers.values.toList)))
         }
-        drivers.map(d => d._1 -> (d._2.copy(_3 = false))) // Set all active drivers status to false, (the active drivers should be updated between ticks)
+        drivers.map(d => d._1 -> (d._2.copy(_3 = if(d._2._3 == Online) Unresponsive else d._2._3))) // Set all active drivers status to Unresponsive, (the active drivers should be updated between ticks)
       }
       else
         firstTick = false
@@ -59,7 +64,7 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
   }
   def sendAnswer(mess: String) = publish(api.topicResponse, mess)
 
-  def theSame(M1 : Map[ID , (Driver, DriverState, Boolean)] , M2 : Map[ID , (Driver, DriverState, Boolean)]) : Boolean = {
+  def theSame(M1 : Map[ID , (Driver, DriverState, String)] , M2 : Map[ID , (Driver, DriverState, String)]) : Boolean = {
     if (M1.keySet != M2.keySet) // check if driver IDs are different
       return false
     else {

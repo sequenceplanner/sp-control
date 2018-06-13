@@ -215,7 +215,7 @@ package sp.devicehandler {
       */
     case class TheDriver(x: Driver, driverState: DriverState) extends Response
 
-    case class TheDrivers(Drivers: List[(Driver, DriverState, Boolean)]) extends Response
+    case class TheDrivers(Drivers: List[(Driver, DriverState, String)]) extends Response
 
     /**
       * A response that the driver has been terminated. The message is not guranteed to come, for example
