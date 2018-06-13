@@ -18,13 +18,15 @@ trait VDHelper {
   def nn(n: String) = s"$name.$n"
   def unnn(n: String) = n.stripPrefix(s"$name.")
 
-  var dthings: Map[String, Thing] = Map() // driver things
+  var driverThings: Map[String, Thing] = Map() // driver things
   var things: Map[String, Thing] = Map() // operation things
 
   var abilities: Map[String, Ability] = Map() // driver abilities
   var operations: Map[String, Operation] = Map() // operations
 
-  var opAbMap: Map[ID,ID] = Map()
+  type OperationID = ID
+  type AbilityID = ID
+  var opAbMap: Map[OperationID, AbilityID] = Map()
   var thingDVThings: Map[ID,ID] = Map()
 
   var runners: Map[String, APIOperationRunner.Setup] = Map()
@@ -33,8 +35,8 @@ trait VDHelper {
   var drivers: Map[String, VD.Driver] = Map()
 
   def ac(kind: String, guard: String, actions: String*) = {
-    val dt = dthings.values.toList.map(t=>t.copy(name = unnn(t.name)))
-    c(kind, guard, actions:_*)(dthings.values.toList++dt)
+    val dt = driverThings.values.toList.map(t=>t.copy(name = unnn(t.name)))
+    c(kind, guard, actions:_*)(driverThings.values.toList++dt)
   }
 
   def oc(kind: String, guard: String, actions: String*) = {
@@ -63,7 +65,7 @@ trait VDHelper {
 
   def dv(n: String, driverName: String, driverIdentifier: String) = {
     val name = nn(n)
-    dthings += (name -> Thing(name, SPAttributes("driverName" -> nn(driverName), "driverIdentifier" -> driverIdentifier)))
+    driverThings += (name -> Thing(name, SPAttributes("driverName" -> nn(driverName), "driverIdentifier" -> driverIdentifier)))
     v(n) // driver things get an operation thing by default
   }
 
@@ -71,7 +73,7 @@ trait VDHelper {
     val name = nn(n)
     val thing = Thing(name)
     things += (name -> thing)
-    dthings.get(name).foreach { t => thingDVThings += thing.id -> t.id }
+    driverThings.get(name).foreach { t => thingDVThings += thing.id -> t.id }
   }
 
   def a(n:String, parameters: List[ID], pre:Condition, exec:Condition, post:Condition, reset:Condition=Condition(AlwaysTrue, List()),pairs: Map[String, SPValue] = Map()) = {
@@ -111,7 +113,7 @@ trait VDHelper {
 
     println("initstate*****: " + init)
     println("var map: " + thingDVThings)
-    println("dvs: " + dthings.map(_._2))
+    println("dvs: " + driverThings.map(_._2))
     println("things: " + things.map(_._2))
 
     runners += (name->APIOperationRunner.Setup(
@@ -131,7 +133,7 @@ trait VDHelper {
 
     // below is probably not generally applicable. either move out to model or add
     // identifiers to vd driver api
-    val driverIdentifiers = dthings.values.flatMap { v => for {
+    val driverIdentifiers = driverThings.values.flatMap { v => for {
       driverName <- v.attributes.getAs[String]("driverName") if driverName == name
       driverIdentifier <- v.attributes.getAs[String]("driverIdentifier")
     } yield {
@@ -142,11 +144,11 @@ trait VDHelper {
     drivers += (name -> driver)
   }
 
-  def resource(n: String, things: List[String] = dthings.values.map(_.name).toList,
-    attr: SPAttributes = SPAttributes()) = {
+  def resource(n: String, things: List[String] = driverThings.values.map(_.name).toList,
+               attr: SPAttributes = SPAttributes()) = {
     val name = nn(n)
     val checkThings = things ++ things.map(nn) // check both long and short names
-    val ids = dthings.filterKeys(dtn=>checkThings.contains(dtn)).values.toList
+    val ids = driverThings.filterKeys(dtn=>checkThings.contains(dtn)).values.toList
     val resource = VD.Resource(name, ID.newID, ids.map(_.id).toSet, driverMapper(ids), SPAttributes())
     resources += name -> resource
   }
@@ -162,7 +164,7 @@ trait VDHelper {
   }
 
   def use(other: VDHelper) = {
-    assert(!dthings.keys.toList.exists(dt=>other.dthings.keys.toList.contains(dt)))
+    assert(!driverThings.keys.toList.exists(dt=>other.driverThings.keys.toList.contains(dt)))
     assert(!things.keys.toList.exists(dt=>other.things.keys.toList.contains(dt)))
     assert(!abilities.keys.toList.exists(dt=>other.abilities.keys.toList.contains(dt)))
     assert(!operations.keys.toList.exists(dt=>other.operations.keys.toList.contains(dt)))
@@ -170,7 +172,7 @@ trait VDHelper {
     assert(!resources.keys.toList.exists(dt=>other.resources.keys.toList.contains(dt)))
     assert(!drivers.keys.toList.exists(dt=>other.drivers.keys.toList.contains(dt)))
 
-    dthings ++= other.dthings
+    driverThings ++= other.driverThings
     things ++= other.things
 
     thingDVThings ++= other.thingDVThings

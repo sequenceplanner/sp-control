@@ -31,7 +31,7 @@ object LoadingWidgets {
       ("ServiceList",                 widgets.services.ServiceListWidget(),          3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
       ("SopRunner",                   widgets.sopmaker.SopRunnerWidget(),             3, 4),
-      ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
+      ("ModelsWidget",                widgets.examples.ModelsWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
       ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),
