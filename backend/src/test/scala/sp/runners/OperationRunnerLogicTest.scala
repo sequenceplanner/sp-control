@@ -141,7 +141,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       var states = List[SPState]()
       val f2 = (o: SPState) => states = o :: states
 
-      val upd = logic.newState(s, ops, r, f,  f2, true)
+      val upd = logic.newState(s, ops, r, f,  f2, true, Set(), None)
       println("jhsfd")
       println(upd)
       println(starting)
@@ -187,6 +187,34 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
 
     "run ops, one ability" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+      val newS = setup.copy(opAbilityMap = Map(o1.id -> a1.id))
+      logic.addRunner(newS)
+
+
+      var starting = List[ID]()
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState, id: ID) => states = o :: states
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
+
+      logic.newAbilityState(a1.id, SPValue("enabled"), f, f2)
+      logic.newAbilityState(a1.id, SPValue("finished"), f, f2)
+
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+
+
+      //println("sfdsdf")
+      //println(starting)
+      //println(states)
+
+      starting shouldEqual List(a1.id)
+      states.head.get(o3.id).get shouldEqual  SPValue(OperationState.finished)
+    }
+
+    "run op in manual" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       val newS = setup.copy(opAbilityMap = Map(o1.id -> a1.id))
       logic.addRunner(newS)

@@ -62,7 +62,7 @@ class OperationRunner extends Actor
             val state = runners(setup.runnerID).currentState
 
             log.debug("Runner started. Init state: " + state)
-            setRunnerState(setup.runnerID, SPState(state = state), startAbility, sendState(_, setup.runnerID), false)
+            setRunnerState(setup.runnerID, SPState(state = state), startAbility, sendState(_, setup.runnerID))
 
             // request vd state
             val getVD = SPMessage.makeJson(SPHeader(from = api.service, to = sp.devicehandler.APIVirtualDevice.service),
@@ -77,10 +77,10 @@ class OperationRunner extends Actor
               publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
 
         case api.AddOperations(id, ops, map) =>
-          updRunner(id, ops, Set(), map, startAbility, sendState(_, id) )
+          updRunner(id, ops, Set(), map, startAbility, sendState(_, id), None, None )
 
         case api.RemoveOperations(id, ops) =>
-          updRunner(id, Set(), ops, Map(), startAbility, sendState(_, id) )
+          updRunner(id, Set(), ops, Map(), startAbility, sendState(_, id), None, None)
 
         case api.TerminateRunner(id) =>
           val xs = removeRunner(id)
@@ -102,6 +102,7 @@ class OperationRunner extends Actor
           newAbilityState(id, sp.abilityhandler.AbilityState.finished, startAbility, sendState)
 
         case api.RunnerControl(id, auto, groups) =>
+          updRunner(id, Set(), Set(), Map(), startAbility, sendState(_, id), Some(auto), Some(groups))
 
         case api.ManualControl(id, opToStart, bwd) =>
           // bwd not implemented yet
@@ -246,12 +247,15 @@ trait OperationRunnerLogic {
     }
   }
 
+
   def updRunner(runner: ID,
                 add: Set[Operation],
                 remove: Set[ID],
                 opAbilityMap: Map[ID, ID],
                 startAbility: (ID, Map[ID, SPValue]) => Unit,
-                sendState: SPState => Unit
+                sendState: SPState => Unit,
+                runInAuto: Option[Boolean],
+                disableConditionGroups: Option[Set[SPValue]]
                ) = {
     val updR = runners.get(runner).map {runner =>
       val updMap = (runner.setup.opAbilityMap ++ opAbilityMap).filter(kv => !remove.contains(kv._1))
@@ -259,8 +263,10 @@ trait OperationRunnerLogic {
       val updSetup = runner.setup.copy(ops = updOps, opAbilityMap = updMap)
       val updState = (runner.currentState ++ add.map(o => o.id -> SPValue(OperationState.init))).filter(kv => !remove.contains(kv._1)) ++
         updMap.values.toList.map(id => id -> SPValue("notEnabled"))
+      val auto = runInAuto.getOrElse(runner.runInAuto)
+      val dis = disableConditionGroups.getOrElse(runner.disableConditionGroups)
 
-      Runner(updSetup, updState)
+      Runner(updSetup, updState, auto, dis)
     }
     updR.foreach{r =>
       runners += runner -> r
@@ -282,7 +288,7 @@ trait OperationRunnerLogic {
     }
   }
 
-  def newResourceState(state: Map[ID, SPValue], startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit, runInAuto: Boolean = true) = {
+  def newResourceState(state: Map[ID, SPValue], startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: (SPState, ID) => Unit) = {
     runners.foreach{r =>
       val reMap = r._2.setup.variableMap.map(kv => kv._2 -> kv._1)
       val myThings = state.filter(kv => reMap.contains(kv._1))
@@ -290,27 +296,38 @@ trait OperationRunnerLogic {
         log.debug("A resource state with connected variables have been updated")
         val remapState = myThings.map(kv => reMap(kv._1) -> kv._2)
         val cS = SPState(state = runners(r._1).currentState ++ remapState)
-        setRunnerState(r._1, cS, startAbility, sendState(_,r._1), runInAuto)
+        setRunnerState(r._1, cS, startAbility, sendState(_,r._1))
       }
     }
   }
 
-  def setRunnerState(runnerID: ID, s: SPState, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runInAuto: Boolean = true): Unit = {
+  def setRunnerState(runnerID: ID, s: SPState, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit): Unit = {
     val r = runners.get(runnerID)
     r.foreach { x =>
       val theS = x.currentState ++ s.state
       val theState = SPState(state = theS)
       log.debug("set runner state from: " + x.currentState + " to " + theS)
       if (theS != x.currentState) sendState(theState)
-      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runInAuto)
+      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, x.runInAuto, x.disableConditionGroups, None)
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
 
-  def tickRunner(runnerID: ID, startAbility: (ID, Map[ID, SPValue]) => Unit, sendState: SPState => Unit, runInAuto: Boolean = true): Unit = {
+  def tickRunner(runnerID: ID,
+                 startAbility: (ID, Map[ID, SPValue]) => Unit,
+                 sendState: SPState => Unit,
+                 tryToStartOP: Option[ID] = None): Unit = {
     runners.get(runnerID).foreach { x =>
       val theState = SPState(state = x.currentState)
-      val updS = newState(theState, x.setup.ops, x, startAbility, sendState, runInAuto)
+      val updS = newState(
+        theState,
+        x.setup.ops,
+        x,
+        startAbility,
+        sendState,
+        x.runInAuto,
+        x.disableConditionGroups,
+        tryToStartOP)
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
@@ -339,8 +356,8 @@ trait OperationRunnerLogic {
     * @param startAbility A function from the actor side for starting the abilities
     * @param sendState A function from the actor side to send the state of the runner
     * @param runInAuto is the runner in auto mode or do we need to force it. Always completes and rests ops
-    * @param tryToStartOP if not in auto, try to start the given op, if it is enabled
     * @param disableConditionGroups If some conditions should be disabled
+    * @param tryToStartOP if not in auto, try to start the given op, if it is enabled
     * @return The updated state
     */
   @tailrec
@@ -349,9 +366,9 @@ trait OperationRunnerLogic {
                      r: Runner,
                      startAbility: (ID, Map[ID, SPValue]) => Unit,
                      sendState: SPState => Unit,
-                     runInAuto: Boolean = true,
-                     tryToStartOP: Option[ID]= None,
-                     disableConditionGroups: Set[SPValue] = Set()
+                     runInAuto: Boolean,
+                     disableConditionGroups: Set[SPValue],
+                     tryToStartOP: Option[ID]
                     ): SPState = {
 
     val filterOps = ops.foldLeft((List[Operation](), List[Operation](), List[Operation]())){case (aggr, o) =>
@@ -410,7 +427,7 @@ trait OperationRunnerLogic {
     if (!runInAuto || res == s)
       res
     else
-      newState(res, opsToGo, r, startAbility, sendState, runInAuto, None, disableConditionGroups)
+      newState(res, opsToGo, r, startAbility, sendState, runInAuto, disableConditionGroups, None)
 
   }
 
