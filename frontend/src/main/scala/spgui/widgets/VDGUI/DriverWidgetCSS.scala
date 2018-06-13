@@ -48,11 +48,18 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     width(100.%%)
   )
 
-  val cardTitle = style(
-    fontSize(20.px),
-    textAlign.center,
+
+  val marginCTS = 3.px
+  val cardTitleSmall = style(
+    fontSize(12.px),
     textOverflow:= ("ellipsis"),
-    overflow.hidden
+    overflow.hidden,
+    marginTop(marginCTS),
+    marginLeft(marginCTS),
+    marginRight(marginCTS),
+    borderBottom(1.px),
+    borderBottomStyle.solid,
+    fontFamily:=!"'Arial'"
   )
 
   val unsetHeight = style(
@@ -64,15 +71,34 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
   val cardGroupTitle = style(
     fontSize(20 px),
-    textAlign.center
   )
 
+  val resourceCard = style(
+    fontFamily:=!"'Courier New', Courier, monospace",
+    width(100.%%),
+    backgroundColor :=! "#ffffff"
+  )
+
+  val driverCard = style(
+    fontFamily:=!"'Courier New', Courier, monospace",
+    width(100.%%),
+    backgroundColor :=! "#ffffff"
+  )
+
+  val marginCTE = 10.px
   val cardTitleExpanded = style(
     fontSize(20 px),
     fontWeight._500,
-    margin(0 px, 0 px,5 px, 0 px),
-    textAlign.right,
-    color.rgb(0, 0, 0)
+    borderBottom(1.px),
+    borderBottomStyle.solid,
+    marginTop(marginCTE),
+    marginLeft(marginCTE),
+    marginRight(marginCTE),
+    fontFamily:=!"'Arial'"
+  )
+
+  val stateList = style(
+    padding(10.px)
   )
 
   val cardSubtitle = style(
@@ -82,6 +108,20 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     margin(10 px, 0 px, 10 px, 0 px),
     color.rgb(119, 119, 119)
   )
+
+
+  val driverStatus = style(
+
+  )
+
+  val driverOffline = style(
+
+  )
+
+  val driverOnline = style(
+
+  )
+
 
   this.addToDocument()
 }
