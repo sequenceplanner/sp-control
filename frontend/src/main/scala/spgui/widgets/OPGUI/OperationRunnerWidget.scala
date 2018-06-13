@@ -13,8 +13,8 @@ import spgui.communication._
 
 object OperationRunnerWidget {
 
-  case class AbilityState(state: Map[ID, SPValue])
-  case class OperationState(state: Map[ID, SPValue])
+  case class AbilityWithState(ability: APIAbilityHandler.Ability, state: Map[ID, SPValue])
+  case class OperationWithState(operation: Operation, state: Map[ID, SPValue])
   // In OperationRunnerWidget, we want to visualize the pairs of abilities/operations
   case class OpAbPair(
                        abilityID:       ID,
@@ -26,8 +26,8 @@ object OperationRunnerWidget {
   case class State(
                     activeRunnerID:       ID,
                     activeSetup:          APIOperationRunner.Setup,
-                    abilityStateMapper:   Map[ID, AbilityState],
-                    operationStateMapper: Map[ID, OperationState],
+                    abilityStateMapper:   Map[ID, AbilityWithState],
+                    operationStateMapper: Map[ID, OperationWithState],
                     activeOpAbPairs:      List[OpAbPair], // in the runner
                     availableOpAbPairs:   List[OpAbPair]  // in the model with possibility to add to runner
                   )
@@ -61,10 +61,22 @@ object OperationRunnerWidget {
           $.modState{ state =>
             // if StateEvent occur, check if the state is for the same Runner-id as the widgets activeRunnerId
             if (state.activeRunnerID == runnerID) {
-              newRunnerStateMap.map {newRunnerState =>
-                println(newRunnerState._1 +": " + newRunnerState._2)
-              }
-              state
+              // filter newRunnerStateMap on the operationStateMapperKeys
+              // This way we sure we only update the new operation states
+              val existingOperations = newRunnerStateMap.filterKeys(k => state.operationStateMapper.keySet.contains(k))
+              // for each object in operationStateMapper
+              // update the state for the operation,
+              // if it has been changed with newRunnerStateMap
+              // else keep old value
+              val updatedOperationStateMapper = state.operationStateMapper.map(osm =>
+                osm._1 -> osm._2.copy(
+                  state = if(existingOperations.keySet.contains(osm._1))
+                    Map(osm._1 -> existingOperations(osm._1))
+                  else
+                    osm._2.state)
+              )
+              // copy the state with the updated operationStateMapper
+              state.copy(operationStateMapper = updatedOperationStateMapper)
             }
             else state // if the StateEvent is for another Runner, do not modify state
           }

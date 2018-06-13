@@ -11,6 +11,7 @@ object SPCardGrid {
   trait RenderCard{val cardId: ID}
   case class DriverCard(cardId: ID, name: String, isOnline: Boolean, driverInfo: List[String], state: List[String]) extends RenderCard
   case class ResourceCard(cardId: ID, name: String, driverIds: List[ID], state: List[String]) extends RenderCard
+  //case class OperationRunnerCard()
 
 
   class Backend($: BackendScope[Props, State]) {
