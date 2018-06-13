@@ -5,7 +5,6 @@ import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.abilityhandler.APIAbilityHandler
-import sp.abilityhandler.APIAbilityHandler.AbilityState
 import sp.domain._
 import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup

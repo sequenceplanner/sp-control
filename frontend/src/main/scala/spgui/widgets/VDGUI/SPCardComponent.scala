@@ -11,11 +11,11 @@ object SPCardGrid {
   trait RenderCard{val cardId: ID}
   case class DriverCard(cardId: ID, name: String, isOnline: Boolean, driverInfo: List[String], state: List[String]) extends RenderCard
   case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, Boolean)], state: List[String]) extends RenderCard
-  //case class OperationRunnerCard()
+  case class OperationRunnerCard(cardId: ID, operationName: String, abilityName: String, operationStates: List[String], abilityStates: List[String]) extends RenderCard
 
   class Backend($: BackendScope[Props, State]) {
     def render(p:Props, s: State) = {
-      val isExpanded = !s.expandedId.isEmpty
+      val isExpanded = s.expandedId.isDefined
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         <.div(
@@ -35,6 +35,11 @@ object SPCardGrid {
                 val expandedCard = resourceCardExpanded(rc)
                 renderCard(rc.cardId, s.expandedId, expandedCard, smallCard)
               }
+              case orc: OperationRunnerCard => {
+                val smallCard = operationRunnerCardSmall(orc)
+                val expandedCard = operationRunnerCardExpanded(orc)
+                renderCard(orc.operationName, s.expandedId, expandedCard, smallCard)
+              }
             }
           ).toTagMod
         )
@@ -42,11 +47,11 @@ object SPCardGrid {
     }
 
     def renderCard(
-      cardId: ID,
-      expandedId: Option[ID],
-      cardContentsExpanded: TagMod,
-      cardContentsCollapsed: TagMod
-    ): TagMod = {
+                    cardId: ID,
+                    expandedId: Option[ID],
+                    cardContentsExpanded: TagMod,
+                    cardContentsCollapsed: TagMod
+                  ): TagMod = {
       val isExpanded = expandedId == Some(cardId)
       List(
         <.span(
@@ -147,12 +152,48 @@ object SPCardGrid {
       ),
       <.div(
         card.driverStatuses.map{
-          s => s._1 + s._2.toString
+          s => <.div(s._1 + s._2.toString)
         }.toTagMod
       ),
       <.div(
         ^.className := DriverWidgetCSS.stateList.htmlClass,
         card.state.map(<.div(_)).toTagMod
+      )
+    )
+  }
+
+  def operationRunnerCardSmall(card: OperationRunnerCard) = {
+    <.div(
+      //outer card / container
+      <.div(
+        // operation Card
+      ),
+      <.div(
+        // ability card
+      )
+    )
+  }
+
+  def operationRunnerCardExpanded(card: OperationRunnerCard) = {
+    <.div(
+      ^.className := DriverWidgetCSS.resourceCard.htmlClass,
+      <.div(
+        // operation name + states
+        <.div(
+          card.operationName
+        ),
+        <.div(
+          card.operationStates.map(<.div(_)).toTagMod
+        )
+      ),
+      <.div(
+        // ability name + states
+        <.div(
+          card.abilityName
+        ),
+        <.div(
+          card.abilityStates.map(<.div(_)).toTagMod
+        )
       )
     )
   }
