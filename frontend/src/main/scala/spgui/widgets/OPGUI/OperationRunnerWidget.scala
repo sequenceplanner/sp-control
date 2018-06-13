@@ -13,8 +13,8 @@ import spgui.communication._
 
 object OperationRunnerWidget {
 
-  case class AbilityWithState(ability: APIAbilityHandler.Ability, state: Map[ID, SPValue])
-  case class OperationWithState(operation: Operation, state: Map[ID, SPValue])
+  case class AbilityWithState(ability: APIAbilityHandler.Ability, abilityState: Map[ID, SPValue])
+  case class OperationWithState(operation: Operation, operationState: Map[ID, SPValue])
   // In OperationRunnerWidget, we want to visualize the pairs of abilities/operations
   case class OpAbPair(
                        abilityID:       ID,
@@ -59,21 +59,21 @@ object OperationRunnerWidget {
         }
         case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap) => {
           $.modState{ state =>
-            // if StateEvent occur, check if the state is for the same Runner-id as the widgets activeRunnerId
+            // if StateEvent occur, check if the operationState is for the same Runner-id as the widgets activeRunnerId
             if (state.activeRunnerID == runnerID) {
               // filter newRunnerStateMap on the operationStateMapperKeys
               // This way we sure we only update the new operation states
               val existingOperations = newRunnerStateMap.filterKeys(k => state.operationStateMapper.keySet.contains(k))
               // for each object in operationStateMapper
-              // update the state for the operation,
+              // update the operationState for the operation,
               // if it has been changed with newRunnerStateMap
               // else keep old value
               val updatedOperationStateMapper = state.operationStateMapper.map(osm =>
                 osm._1 -> osm._2.copy(
-                  state = if(existingOperations.keySet.contains(osm._1))
+                  operationState = if(existingOperations.keySet.contains(osm._1))
                     Map(osm._1 -> existingOperations(osm._1))
                   else
-                    osm._2.state)
+                    osm._2.operationState)
               )
               // copy the state with the updated operationStateMapper
               state.copy(operationStateMapper = updatedOperationStateMapper)
@@ -89,9 +89,20 @@ object OperationRunnerWidget {
 
     def onAbilityMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIAbilityHandler.Response].map {
-        // case Runners-message: create new opAbPairs
-        case APIAbilityHandler.AbilityState(id, newState) => {
-
+        // case AbilityState-message: update the abilityState in the AbilityWithState-map
+        case APIAbilityHandler.AbilityState(id, newAbilityState) => {
+          // if AbilityState occur, check if the abilityState is for the same Runner-id as the widgets activeRunnerId
+          $.modState { state =>
+            val updateAbilityStateMapper = state.abilityStateMapper.map { asm =>
+              if (asm._1 == id ) asm._1 -> asm._2.copy(abilityState = newAbilityState)
+              else {
+                println ("Could not update abilityState in 'onAbilityMessage()'. ID: "+ asm._1 + " , abilityWithState: " + asm._2.toString)
+                asm._1 -> asm._2
+              }
+            }
+            // copy the state with the updated abilityStateMapper
+            state.copy(abilityStateMapper = updateAbilityStateMapper)
+          }
         }
         case x => Callback.empty
       }
