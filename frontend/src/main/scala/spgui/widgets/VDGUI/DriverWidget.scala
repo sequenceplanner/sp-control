@@ -9,7 +9,7 @@ import spgui.components.SPWidgetElements
 
 object DriverWidget {
 
-  case class Card(driver: VD.Driver, driverState: VD.DriverState, cardId: ID)
+  case class Card(driver: VD.Driver, driverState: VD.DriverState, status: String, cardId: ID)
 
   case class State(cards:  List[Card] = List())
 
@@ -23,10 +23,14 @@ object DriverWidget {
           * add the drivers to a card
           */
         case APIDeviceDriver.TheDrivers(drivers) => {
-          println(drivers.toString)
-          $.modState { s =>
-            s.copy(cards = drivers.map(d => Card(d._1, d._2, d._1.id)))
-          }
+          $.modState { _.copy(
+            cards = drivers.map(d => Card(
+              driver = d._1,
+              driverState = d._2,
+              status = d._3,
+              cardId = d._1.id
+            ))
+          )}
         }
         /**
           * if a [[APIDeviceDriver.DriverStateChange]] response is noticed
@@ -59,7 +63,7 @@ object DriverWidget {
         SPCardGrid(s.cards.map(c => SPCardGrid.DriverCard(
           cardId = c.cardId,
           name = c.driver.name,
-          isOnline = true,
+          status = c.status,
           typ = c.driver.driverType,          
           state = c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
         )))

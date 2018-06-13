@@ -75,12 +75,12 @@ object DriverWidgetCSS extends StyleSheet.Inline {
 
   val resourceCard = style(
     width(100.%%),
-    backgroundColor :=! "#ffffff"
+    backgroundColor :=! "#cccccc"
   )
 
   val driverCard = style(
     width(100.%%),
-    backgroundColor :=! "#ffffff"
+    backgroundColor :=! "#cccccc"
   )
 
   val marginCTE = 10.px
@@ -143,6 +143,11 @@ object DriverWidgetCSS extends StyleSheet.Inline {
 
   val driverOnline = style(
     color :=! "#00ff00",
+    fontWeight :=! "bold"
+  )
+
+  val driverUnresponsive = style(
+    color :=! "#ffff00",
     fontWeight :=! "bold"
   )
 

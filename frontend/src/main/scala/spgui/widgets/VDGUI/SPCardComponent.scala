@@ -9,7 +9,7 @@ object SPCardGrid {
   case class Props(cards: List[RenderCard])
 
   trait RenderCard{val cardId: ID}
-  case class DriverCard(cardId: ID, name: String, isOnline: Boolean, typ: String, state: List[(String, SPValue)]) extends RenderCard
+  case class DriverCard(cardId: ID, name: String, status: String, typ: String, state: List[(String, SPValue)]) extends RenderCard
   case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, Boolean)], state: List[(String, SPValue)]) extends RenderCard
 
 
@@ -96,15 +96,20 @@ object SPCardGrid {
         ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
         <.span("Status: "),
         <.span(
-          card.isOnline match {
-            case true => <.span(
+          card.status match {
+            case "Online" => <.span(
               ^.className := DriverWidgetCSS.driverOnline.htmlClass,
               "Online"
             )
-            case false => <.span(
+            case "Offline" => <.span(
               ^.className := DriverWidgetCSS.driverOffline.htmlClass,
               "Offline"
             )
+            case "Unresponsive" => <.span(
+              ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+              "Unresponsive"
+            )
+            case s: String => <.span(s)
           }
         )
       )
@@ -126,21 +131,26 @@ object SPCardGrid {
         ^.className := DriverWidgetCSS.driverStatus.htmlClass,
         <.span("Status: "),
         <.span(
-          card.isOnline match {
-            case true => <.span(
+          card.status match {
+            case "Online" => <.span(
               ^.className := DriverWidgetCSS.driverOnline.htmlClass,
               "Online"
             )
-            case false => <.span(
+            case "Offline" => <.span(
               ^.className := DriverWidgetCSS.driverOffline.htmlClass,
               "Offline"
             )
+            case "Unresponsive" => <.span(
+              ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+              "Unresponsive"
+            )
+            case s: String => <.span(s)
           }
         )
       ),
       <.div(
         ^.className := DriverWidgetCSS.driverStates.htmlClass,
-        card.state.map( s => 
+        card.state.map( s =>
           <.div(s._1 + ": " + s._2)
         ).toTagMod
       )
