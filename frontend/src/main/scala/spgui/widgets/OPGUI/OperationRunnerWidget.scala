@@ -24,7 +24,6 @@ object OperationRunnerWidget {
   // and the Operation/Ability-pair available, which we later can activate to the runner
   case class State(
                     activeRunnerID:       ID,
-                    activeSetup:          APIOperationRunner.Setup,
                     abilityStateMapper:   Map[ID, AbilityWithState],
                     operationStateMapper: Map[ID, OperationWithState],
                     activeOpAbPairs:      List[OpAbPair], // in the runner
@@ -52,7 +51,7 @@ object OperationRunnerWidget {
             //
             ids.find { setup => setup.runnerID == state.activeRunnerID}
               .map { setup =>
-                state.copy(activeOpAbPairs = parseSetup(setup).toList, activeSetup = setup)
+                state.copy(activeOpAbPairs = parseSetup(setup).toList)
               }.getOrElse(state)
           }
         }
@@ -92,16 +91,24 @@ object OperationRunnerWidget {
         case APIAbilityHandler.AbilityState(id, newAbilityState) => {
           // if AbilityState occur, check if the abilityState is for the same Runner-id as the widgets activeRunnerId
           $.modState { state =>
-            val updateAbilityStateMapper = state.abilityStateMapper.map { asm =>
-              if (asm._1 == id ) asm._1 -> asm._2.copy(abilityState = newAbilityState)
-              else {
-                println ("Could not update abilityState in 'onAbilityMessage()'. ID: "+ asm._1 + " , abilityWithState: " + asm._2.toString)
-                asm._1 -> asm._2
-              }
-            }
-            // copy the state with the updated abilityStateMapper
-            state.copy(abilityStateMapper = updateAbilityStateMapper)
+            /*  for each object in abilityStateMapper
+                if the updated ability have the same id as the object
+                true - map it against the newAbilityState
+                false - map it against the old
+
+              */
+            if (state.abilityStateMapper.contains(id)) {
+              val updatedAbility = state.abilityStateMapper(id).copy(abilityState = newAbilityState)
+              state.copy(abilityStateMapper = state.abilityStateMapper + (id -> updatedAbility))
+            } else
+              state
           }
+        }
+        case APIAbilityHandler.Abilities(xs) => {
+          $.modState(state =>
+
+            state
+          )
         }
         case x => Callback.empty
       }
@@ -116,7 +123,7 @@ object OperationRunnerWidget {
 
     def render(state: State) = {
       <.div(
-        "Dummy"
+
       )
     }
 
@@ -128,7 +135,7 @@ object OperationRunnerWidget {
   }
 
   private val operationRunnerComponent = ScalaComponent.builder[Unit]("OperationRunnerWidget")
-    .initialState(State(ID.newID, Setup("dummyOperationRunnerName", ID.newID, Set(), Map(), Map()), Map(), Map(), List(), List()))
+    .initialState(State(ID.newID, Map(), Map(), List(), List()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build
