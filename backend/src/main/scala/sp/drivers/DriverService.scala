@@ -15,8 +15,8 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
   subscribe(api.topicResponse)
 
 
-  var drivers = Map[ID , (Driver, DriverState)]()
-  var driversTmp = Map[ID , (Driver, DriverState)]()
+  var drivers = Map[ID , (Driver, DriverState, Boolean)]()
+  var driversTmp = Map[ID , (Driver, DriverState, Boolean)]()
   var firstTick = true
 
   def receive = {
@@ -33,9 +33,9 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
               case api.GetDrivers=>
                 publish(api.topicRequest, SPMessage.makeJson(spHeader, api.GetDriver))
               case api.TheDriver(driver, driverState) =>
-                drivers += driver.id -> (driver, driverState)
+                drivers += driver.id -> (driver, driverState, true) // if a new or already existing driver is received, the map should be updated with the driver, state and active status: true
               case api.DriverTerminated(id) =>
-                drivers -= id
+                drivers += id -> drivers(id).copy(_3 = false) // if the driver is terminated, its active status is set to false
               case other =>
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
@@ -44,10 +44,11 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
     case Tick =>
       val spHeader = SPHeader(from = DriverServiceInfo.attributes.service, reqID = instanceID)
       if(!firstTick) {
-        if (drivers.keySet != driversTmp.keySet) {
+        if (! theSame(drivers, driversTmp)) { // Check if the maps have the same keys and active drivers.. Todo: Do we need to compare driver and state as well?
           driversTmp = drivers
           sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers.values.toList)))
         }
+        drivers.map(d => d._1 -> (d._2.copy(_3 = false))) // Set all active drivers status to false, (the active drivers should be updated between ticks)
       }
       else
         firstTick = false
@@ -58,6 +59,16 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
   }
   def sendAnswer(mess: String) = publish(api.topicResponse, mess)
 
+  def theSame(M1 : Map[ID , (Driver, DriverState, Boolean)] , M2 : Map[ID , (Driver, DriverState, Boolean)]) : Boolean = {
+    if (M1.keySet != M2.keySet) // check if driver IDs are different
+      return false
+    else {
+      if (M1.values.map(_._3).toList != M2.values.map(_._3).toList) // Check if the driver active status is different
+        return false
+      else
+        return true
+    }
+  }
   // A "ticker" that sends a "tick" string to self every 4 second
   import scala.concurrent.duration._
   import context.dispatcher
