@@ -72,11 +72,8 @@ object DriverWidget {
           cardId = c.cardId,
           name = c.driver.name,
           isOnline = true,
-          driverInfo = List(
-            "Driver Type: " +c.driver.driverType
-          ),
-          state = c.driverState.keys.map(k =>
-            k.toString + ": " + c.driverState.get(k).getOrElse("Invalid id").toString).toList
+          typ = c.driver.driverType,          
+          state = c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
         )))
       )
     }

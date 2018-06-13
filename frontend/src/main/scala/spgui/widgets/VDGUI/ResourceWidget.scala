@@ -66,8 +66,8 @@ object ResourceWidget {
                 s.activeDrivers.map{d => (d.name, true)}
               },
               state = card.resource.r.stateMap.map {case mapper: VD.OneToOneMapper =>
-                mapper.driverIdentifier.toString + ": " +  card.resource.state.get(mapper.thing).get.toString
-              }
+                (mapper.driverIdentifier.toString, card.resource.state.get(mapper.thing).get)
+              }.toList
             )
           }
         )

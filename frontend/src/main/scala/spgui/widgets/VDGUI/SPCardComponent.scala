@@ -9,8 +9,8 @@ object SPCardGrid {
   case class Props(cards: List[RenderCard])
 
   trait RenderCard{val cardId: ID}
-  case class DriverCard(cardId: ID, name: String, isOnline: Boolean, driverInfo: List[String], state: List[String]) extends RenderCard
-  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, Boolean)], state: List[String]) extends RenderCard
+  case class DriverCard(cardId: ID, name: String, isOnline: Boolean, typ: String, state: List[(String, SPValue)]) extends RenderCard
+  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, Boolean)], state: List[(String, SPValue)]) extends RenderCard
 
 
   class Backend($: BackendScope[Props, State]) {
@@ -87,6 +87,26 @@ object SPCardGrid {
       <.div(
         ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
         card.name
+      ),
+      <.div(
+        ^.className := DriverWidgetCSS.driverTypeSmall.htmlClass,
+        <.div("Type: " + card.typ)
+      ),
+      <.div(
+        ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
+        <.span("Status: "),
+        <.span(
+          card.isOnline match {
+            case true => <.span(
+              ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+              "Online"
+            )
+            case false => <.span(
+              ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+              "Offline"
+            )
+          }
+        )
       )
     )
   }
@@ -99,10 +119,30 @@ object SPCardGrid {
         card.name
       ),
       <.div(
-        card.driverInfo.map(<.div(_)).toTagMod
+        ^.className := DriverWidgetCSS.driverType.htmlClass,
+        <.div("Type: " + card.typ)
       ),
       <.div(
-        card.state.map(<.div(_)).toTagMod
+        ^.className := DriverWidgetCSS.driverStatus.htmlClass,
+        <.span("Status: "),
+        <.span(
+          card.isOnline match {
+            case true => <.span(
+              ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+              "Online"
+            )
+            case false => <.span(
+              ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+              "Offline"
+            )
+          }
+        )
+      ),
+      <.div(
+        ^.className := DriverWidgetCSS.driverStates.htmlClass,
+        card.state.map( s => 
+          <.div(s._1 + ": " + s._2)
+        ).toTagMod
       )
     )
   }
@@ -152,7 +192,9 @@ object SPCardGrid {
       ),
       <.div(
         ^.className := DriverWidgetCSS.stateList.htmlClass,
-        card.state.map(<.div(_)).toTagMod
+         card.state.map( s => 
+          <.div(s._1 + ": " + s._2)
+        ).toTagMod
       )
     )
   }
