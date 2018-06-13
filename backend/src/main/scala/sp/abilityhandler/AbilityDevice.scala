@@ -145,7 +145,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
   override def receive = {
 
     case x: String => handleRequests(x)
-    case x if {log.debug(s"ABH from an ability got: $x"); false} => false
+    case x if {log.debug(s"ABH from an ability got: $x"); false} => Unit
 
     case CanNotStart(req, abID, error) =>
       val h = SPHeader(from = handlerID.toString)

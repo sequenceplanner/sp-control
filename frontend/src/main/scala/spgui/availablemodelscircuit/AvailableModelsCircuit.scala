@@ -2,8 +2,8 @@ package spgui.availablemodelscircuit
 
 import diode._
 import diode.react._
-
-import sp.domain.{ ID, SPHeader }
+import sp.domain.{ID, SPHeader}
+import sp.models.{APIModel, APIModelMaker}
 import spgui.communication.APIComm._
 import spgui.communication._
 
@@ -32,38 +32,49 @@ object AvailableModelsCircuit extends Circuit[AvailableModels] with ReactConnect
 
 object AvailableModelsHelper {
   val from = "AvailableModelsCircuit"
-  import sp.models.{ APIModelMaker => apimm }
-  val mmcomm = new APIComm[apimm.Request, apimm.Response](
-    apimm.topicRequest, apimm.topicResponse, from, apimm.service, Some(() => onUp()), Some(onChange)
-  )
+  private val modelMakerCommunication = {
+    import sp.models.{APIModelMaker => api}
+    new APIComm[api.Request, api.Response](
+      requestTopic = api.topicRequest,
+      responseTopic = api.topicResponse,
+      from = from,
+      to = api.service,
+      onChannelUp = Some(() => onUp()),
+      onMessage = Some(onChange)
+    )
+  }
 
-  import sp.models.{ APIModel => apim }
-  val mcomm = new APIComm[apim.Request, apim.Response](
-    apim.topicRequest, apim.topicResponse, from, apim.service, None, None
-  )
+  private val modelCommunication = {
+    import sp.models.{ APIModel => api }
+
+    new APIComm[api.Request, api.Response](
+      api.topicRequest, api.topicResponse, from, api.service, None, None
+    )
+  }
 
   import spgui.availablemodelscircuit.{AvailableModelsCircuit => avmc}
 
-  def onChange(header: SPHeader, body: apimm.Response): Unit = {
+  def onChange(header: SPHeader, body: APIModelMaker.Response): Unit = {
+    println(s"Received onChange() in AvailableModelsHelper. Header: $header,\nMessage: $body")
     body match {
-      case apimm.ModelCreated(name, attr, modelid) =>
+      case APIModelMaker.ModelCreated(name, attr, modelid) =>
         avmc.dispatch(AddModels(Map(modelid -> name)))
-      case apimm.ModelDeleted(modelid) =>
+      case APIModelMaker.ModelDeleted(modelid) =>
         avmc.dispatch(RemoveModels(Set(modelid)))
       case _ => ()
     }
   }
 
   def onUp(): Unit = {
-    mmcomm.request(apimm.GetModels).takeFirstResponse.foreach {
-      case (_, apimm.ModelList(models)) =>
+    modelMakerCommunication.request(APIModelMaker.GetModels).takeFirstResponse.foreach {
+      case (_, APIModelMaker.ModelList(models)) =>
         // add previously unknown models
         val newModels = models.toSet.diff(avmc.zoom(_.models).value.keySet).toSeq
         avmc.dispatch(AddModels(newModels.map(id => id -> "fetching").toMap))
         // ask for model names
         newModels.foreach { id =>
-          mcomm.request(SPHeader(from = from, to = id.toString), apim.GetModelInfo).takeFirstResponse.foreach {
-            case (_, apim.ModelInformation(name, id, _, _, _)) =>
+          modelCommunication.request(SPHeader(from = from, to = id.toString), APIModel.GetModelInfo).takeFirstResponse.foreach {
+            case (_, APIModel.ModelInformation(name, id, _, _, _)) =>
               avmc.dispatch(AddModels(Map(id -> name)))
             case _ => ()
           }

@@ -32,7 +32,7 @@ object LoadingWidgets {
       ("ServiceList",                 widgets.services.ServiceListWidget(),               3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),                  3, 4),
       ("SopRunner",                   widgets.sopmaker.SopRunnerWidget(),                 3, 4),
-      ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),           3, 4),
+      ("ModelsWidget",                widgets.examples.ModelsWidget(),           3, 4),
       ("Item Editor",                 widgets.itemeditorincontrol.ItemEditorInControl(),  3, 4),
       ("DummyLiveGantt",              widgets.ganttviewer.DummyLiveGantt(),               10, 5),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
