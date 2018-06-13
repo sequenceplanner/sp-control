@@ -65,9 +65,9 @@ object DriverWidget {
     def render(s: State) = {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        SPWidgetElements.buttonGroup(Seq(
+        /*SPWidgetElements.buttonGroup(Seq(
           SPWidgetElements.button("Get drivers", sendToDeviceDriver(APIDeviceDriver.GetDrivers))
-        )),
+        )),*/
         SPCardGrid(s.cards.map(c => SPCardGrid.DriverCard(
           cardId = c.cardId,
           name = c.driver.name,
