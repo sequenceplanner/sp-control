@@ -32,17 +32,18 @@ object SPCardGrid {
               case dc: DriverCard => {
                 val smallCard = driverCardSmall(dc)
                 val expandedCard = driverCardExpanded(dc)
-                renderCard(dc.cardId, s.expandedId, expandedCard, smallCard)
+                <.div(renderCard(dc.cardId, s.expandedId, expandedCard, smallCard))
               }
               case rc: ResourceCard => {
                 val smallCard = resourceCardSmall(rc)
                 val expandedCard = resourceCardExpanded(rc)
-                renderCard(rc.cardId, s.expandedId, expandedCard, smallCard)
+                <.div(renderCard(rc.cardId, s.expandedId, expandedCard, smallCard))
               }
               case orc: OperationRunnerCard => {
+                println(s"SPCardComponent got $orc")
                 val smallCard = operationRunnerCardSmall(orc)
                 val expandedCard = operationRunnerCardExpanded(orc)
-                renderCard(orc.cardId, s.expandedId, expandedCard, smallCard)
+                <.div(renderCard(orc.cardId, s.expandedId, expandedCard, smallCard))
               }
             }
           ).toTagMod
