@@ -61,7 +61,7 @@ object OperationRunnerWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIOperationRunner.Response].map {
         // case Runners-message: create new opAbPairs
         case APIOperationRunner.Runners(ids) => {
-          println(s"got API.Runners with $ids")
+          //println(s"got API.Runners with $ids")
           $.modState { state =>
             // if current runner is defined update opAbPairs, else do nothing
             if (state.activeRunnerID.isDefined) {
@@ -69,15 +69,23 @@ object OperationRunnerWidget {
               val setup: Setup = ids.find { setup => setup.runnerID == state.activeRunnerID.get }.get
               val newState: State = {
                 // with a setup, go through the ops: Set[Operation] and map the operationId with a abilityID
-                def parseSetup(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
+                def opAbPairs(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
                   setup.opAbilityMap.get(operation.id).map { abilityID =>
-                    println(s"Send Ability id $abilityID")
+                    //println(s"Send Ability id $abilityID")
                     sendToAbilityHandler(APIAbilityHandler.GetAbility(abilityID))
                     OpAbPair(abilityID, operation.id)
                   }
                 }
-                // update
-                state.copy(activeOpAbPairs = parseSetup(setup).toList)
+
+                def opStateMapper(setup: Setup) = {
+                  setup.ops.map(op => op.id -> OperationWithState(op, Map())).toMap
+                }
+
+                // update state with operationStateMapper and opAbPairs
+                state.copy(
+                  activeOpAbPairs = opAbPairs(setup).toList,
+                  operationStateMapper = opStateMapper(setup)
+                )
               }
               newState
             }
@@ -132,15 +140,15 @@ object OperationRunnerWidget {
           // if AbilityState occur, check if the abilityState is for the same Runner-id as the widgets activeRunnerId
           $.modState { state =>
             /*  for each object in abilityStateMapper
-                if the updated ability have the same id as the object
-                true - map it against the newAbilityState
-                false - map it against the old
-              */
+             if the updated ability have the same id as the object
+             true - map it against the newAbilityState
+             false - map it against the old
+             */
             if (state.abilityStateMapper.contains(id)) {
               val updatedAbility = state.abilityStateMapper(id).copy(abilityState = newAbilityState)
               state.copy(abilityStateMapper = state.abilityStateMapper + (id -> updatedAbility))
             } else
-              state
+                state
           }
         }
         case APIAbilityHandler.TheAbility(ability) =>
@@ -159,6 +167,12 @@ object OperationRunnerWidget {
               state
             }
           }
+        case APIAbilityHandler.Abilities(abilities) =>
+          $.modState( state => {
+            println("ability tiem")
+            println(abilities)
+            state.copy(abilityStateMapper = abilities.map(ab => ab.id -> AbilityWithState(ab, Map())).toMap)
+          })
         case x => Callback.empty
       }
       callback.foreach(_.runNow())
@@ -169,6 +183,7 @@ object OperationRunnerWidget {
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, APIOperationRunner.topicRequest)
     }
+
     def sendToAbilityHandler(mess: APIAbilityHandler.Request) = Callback{
       val h = SPHeader(from = "OperationRunnerWidget", to = "OperationRunnerWidget", reply = SPValue("OperationRunnerWidget"))
       val json = SPMessage.make(h, mess)
@@ -176,16 +191,27 @@ object OperationRunnerWidget {
     }
 
     def render(state: State) = {
+      println("dflkhadslkgjdsflkgjdsflgkjhdsfglkjdsfhglsdkfjhsdflkj")
+      println(state)
       <.div(
-        SPCardGrid(
-          state.activeOpAbPairs.map{ operationAbilityPair =>
-            val a: AbilityWithState = state.abilityStateMapper(operationAbilityPair.abilityID)
-            val o: OperationWithState = state.operationStateMapper(operationAbilityPair.operationID)
-            SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
-          }
-        )
+        state.activeOpAbPairs.map{ operationAbilityPair =>
+          <.div(
+            <.span(state.operationStateMapper.get(operationAbilityPair.operationID).get.operation.name),
+            <.span("         ")
+            <.span(state.abilityStateMapper.get(operationAbilityPair.abilityID).get.ability.name),
+          )
+        }.toTagMod
       )
+        // SPCardGrid(
+        //   state.activeOpAbPairs.map{ operationAbilityPair =>
+        //     val a: AbilityWithState = state.abilityStateMapper(operationAbilityPair.abilityID)
+        //     val o: OperationWithState = state.operationStateMapper(operationAbilityPair.operationID)
+        //     SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
+        //   }
     }
+
+
+    def onMount() = sendToAbilityHandler(APIAbilityHandler.GetAbilities)
 
 
     def onUnmount() = Callback{
@@ -197,13 +223,9 @@ object OperationRunnerWidget {
   private val operationRunnerComponent = ScalaComponent.builder[Unit]("OperationRunnerWidget")
     .initialState(State())
     .renderBackend[Backend]
+    .componentDidMount(_.backend.onMount())
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
   def apply() = spgui.SPWidget(spwb => operationRunnerComponent())
 }
-
-
-
-
-
