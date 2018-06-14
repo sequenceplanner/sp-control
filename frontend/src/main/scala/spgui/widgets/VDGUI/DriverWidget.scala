@@ -35,8 +35,6 @@ object DriverWidget {
           )}
         }
 
-
-
         /**
           * if a [[APIDeviceDriver.DriverStateChange]] response is noticed
           * update the driver in the cards with the help method onDriverStateChange()

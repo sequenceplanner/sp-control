@@ -5,6 +5,7 @@ import sp.domain._
 import spgui.communication._
 import sendMessages._
 import sp.devicehandler.APIDeviceDriver
+import spgui.widgets.OPGUI.OperationRunnerWidget.{AbilityWithState, OperationWithState}
 
 
 object SPCardGrid {
@@ -14,7 +15,7 @@ object SPCardGrid {
   trait RenderCard{val cardId: ID}
   case class DriverCard(cardId: ID, name: String, status: String, typ: String, state: List[(String, SPValue)]) extends RenderCard
   case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, String)], state: List[(String, SPValue)]) extends RenderCard
-  case class OperationRunnerCard(cardId: ID, operationName: String, abilityName: String, operationStates: List[String], abilityStates: List[String]) extends RenderCard
+  case class OperationRunnerCard(cardId: ID, abilityWithState: AbilityWithState, operationWithState: OperationWithState) extends RenderCard
 
   class Backend($: BackendScope[Props, State]) {
     def render(p:Props, s: State) = {
@@ -235,7 +236,7 @@ object SPCardGrid {
       }.toTagMod,
       <.div(
         ^.className := DriverWidgetCSS.stateList.htmlClass,
-         card.state.map( s =>
+        card.state.map( s =>
           <.div(s._1 + ": " + s._2)
         ).toTagMod
       )
@@ -247,11 +248,11 @@ object SPCardGrid {
       //outer card / container
       <.div(
         // operation Card
-        card.operationName
+        card.operationWithState.operation.name
       ),
       <.div(
         // ability card
-        card.abilityName
+        card.abilityWithState.ability.name
       )
     )
   }
@@ -262,19 +263,25 @@ object SPCardGrid {
       <.div(
         // operation name + states
         <.div(
-          card.operationName
+          card.operationWithState.operation.name
         ),
         <.div(
-          card.operationStates.map(<.div(_)).toTagMod
+          {
+            val opStateList = card.operationWithState.operationState.map { state => (state._1, state._2) }.toList
+            opStateList.map(opState => <.div(opState._1 + " : " + opState._2)).toTagMod
+          }
         )
       ),
       <.div(
         // ability name + states
         <.div(
-          card.abilityName
+          card.abilityWithState.ability.name
         ),
         <.div(
-          card.abilityStates.map(<.div(_)).toTagMod
+          {
+            val abStateList = card.operationWithState.operationState.map { state => (state._1, state._2) }.toList
+            abStateList.map(abState => <.div(abState._1 + " : " + abState._2)).toTagMod
+          }
         )
       )
     )
