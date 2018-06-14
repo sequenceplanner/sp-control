@@ -11,6 +11,7 @@ object APIOperationRunner {
   sealed trait Response
 
   case class CreateRunner(setup: Setup) extends Request
+
   case class SetState(runnerID: ID, state: Map[ID, SPValue]) extends Request
   case class AddOperations(runnerID: ID, ops: Set[Operation], opAbilityMap: Map[ID, ID]) extends Request
   case class RemoveOperations(runnerID: ID, ops: Set[ID]) extends Request
@@ -19,7 +20,36 @@ object APIOperationRunner {
   case class GetState(runnerID: ID) extends Request
   case object GetRunners extends Request
 
+  /**
+    * This command changes the mode of the runner and can pause the execution to allow to execute one op at the time
+    * @param runnerID The id of the runner to change mode
+    * @param runInAuto Set to true to run in full auto, if false, it is possible to run in steps or run manually
+    *                  When changing to pause, the current operations will complete their execution
+    * @param disableConditionGroups Conditions that belong to a group defined in the set will not be evaluated.
+    *                               The group property is defined in the operation attribute with the key "group"
+    */
+  case class RunnerControl(runnerID: ID,
+                           runInAuto: Boolean = true,
+                           disableConditionGroups: Set[SPValue] = Set()
+                          ) extends Request
+
+  /**
+    * To start operations when not in auto mode and to step backward to previous states
+    *
+    * @param runnerID The id of the runner to change mode*
+    * @param startOperation if not in auto, tries to start the operation if it is enabled
+    * @param stepBackward in not in auto, will change the complete runner state to when the last operation started.
+    */
+  case class ManualControl(runnerID: ID,
+                           startOperation: Option[ID] = None,
+                           stepBackward: Boolean = false
+                          ) extends Request
+
+
   case class StateEvent(runnerID: ID, state: Map[ID, SPValue]) extends Response
+  case class RunnerMode(runnerID: ID,
+                        runInAuto: Boolean = true,
+                        disableConditionGroups: Set[SPValue] = Set()) extends Response
   case class Runners(ids: List[Setup]) extends Response
 
   /**
@@ -67,8 +97,11 @@ object APIOperationRunner {
     implicit lazy val fForceComplete: JSFormat[ForceComplete] = Json.format[ForceComplete]
     implicit lazy val fTerminateRunner: JSFormat[TerminateRunner] = Json.format[TerminateRunner]
     implicit lazy val fGetState: JSFormat[GetState] = Json.format[GetState]
+    implicit lazy val fRunnerControl: JSFormat[RunnerControl] = Json.format[RunnerControl]
+    implicit lazy val fManualControl: JSFormat[ManualControl] = Json.format[ManualControl]
     implicit lazy val fGetRunners : JSFormat[GetRunners.type] = deriveCaseObject[GetRunners.type ]
     implicit lazy val fStateEvent: JSFormat[StateEvent] = Json.format[StateEvent]
+    implicit lazy val fRunnerMode: JSFormat[RunnerMode] = Json.format[RunnerMode]
     implicit lazy val fRunners: JSFormat[Runners] = Json.format[Runners]
     def fOperationRunnerRequest: JSFormat[Request] = Json.format[Request]
     def fOperationRunnerResponse: JSFormat[Response] = Json.format[Response]

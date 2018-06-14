@@ -1,4 +1,4 @@
-package sp.modelService
+package sp.modelSupport
 
 import akka.actor._
 import sp.abilityhandler.APIAbilityHandler
@@ -16,10 +16,10 @@ import scala.concurrent.duration._
 
 
 object ModelService {
-  def props(models: Map[String, VDHelper]) = Props(classOf[ModelService], models)
+  def props(models: Map[String, ModelDSL]) = Props(classOf[ModelService], models)
 }
 
-class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBussSupport{
+class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBussSupport{
   import context.dispatcher
 
   subscribe(APIModel.topicResponse)
@@ -100,26 +100,19 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
   def createModel(modelType: String, modelID: ID) = {
     //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
 
+    val name = modelType
     val model = models(modelType)
 
-    val cm = sp.models.APIModelMaker.CreateModel(model.name, SPAttributes("isa" -> "VD"), id = modelID)
+    val idables = model.buildModel(modelType)
 
-    val abs = model.abilities.values.map(a=>APIAbilityHandler.abilityToOperation(a))
-    val vars = model.dthings.values
-    val opvars = model.things.values
-    val ops = model.operations.values
-    val rIDables = model.resources.values.map(r=>VD.resourceToThing(r))
-    val dIDables = model.drivers.values.map(d=>VD.driverToThing(d))
-    val runnerSetups = model.runners.values.map(setupToThing)
-
-    val all = rIDables ++ dIDables ++ abs ++ vars ++ opvars ++ ops ++ runnerSetups
+    val cm = sp.models.APIModelMaker.CreateModel(name, SPAttributes("isa" -> "VD"), id = modelID)
 
     val theVD = Struct(
-      "TheVD",
-      makeStructNodes(all.toList),
+      name,
+      makeStructNodes(idables),
       SPAttributes("isa" -> "VD")
     )
-    val addItems = APIModel.PutItems(theVD :: all.toList, SPAttributes("info" -> "initial items"))
+    val addItems = APIModel.PutItems(theVD :: idables.toList, SPAttributes("info" -> "initial items"))
 
     context.system.scheduler.scheduleOnce(0.1 seconds) {
       publish(
