@@ -38,8 +38,8 @@ object LoadingWidgets {
       ("VDTracker",         widgets.vdtesting.VDTracker(),          5,5),
       ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5),
       ("DriverWidget",         spgui.widgets.VDGUI.DriverWidget(),          5,5),
-      ("ResourceWidget",         spgui.widgets.VDGUI.ResourceWidget(),          5,5)
-
+      ("ResourceWidget",         spgui.widgets.VDGUI.ResourceWidget(),          5,5),
+      ("Operation Runner", spgui.widgets.OPGUI.OperationRunnerWidget(), 6, 6)
     )
 
 

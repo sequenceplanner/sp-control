@@ -32,8 +32,6 @@ object OperationRunnerWidgetCSS extends StyleSheet.Inline {
     boxShadow:= "0px 1px 5px 0px rgba(0, 0, 0, 0.2), 0px 2px 2px 0px rgba(0, 0, 0, 0.14), 0px 3px 1px -2px rgba(0, 0, 0, 0.12)",
     display.flex,
     flexGrow(1),
-    width(150.px),
-    height(100.px),
     overflow.auto
   )
 
@@ -75,8 +73,25 @@ object OperationRunnerWidgetCSS extends StyleSheet.Inline {
 
   val card = style(
     width(100.%%),
-    backgroundColor :=! "#cccccc"
+    backgroundColor :=! "#cccccc",
+    display.flex
   )
+
+  val sopComponent = style(
+    overflow.visible.important,
+    touchAction:="none",
+    userSelect := "none",
+    position.relative,
+    zIndex := "1",
+    width(80 px),
+    height(120 px),
+    margin(10 px)
+  )
+
+  val sopOuter = style(
+    margin(10.px)
+  )
+
 
   this.addToDocument()
 }

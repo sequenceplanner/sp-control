@@ -4,6 +4,8 @@ import japgolly.scalajs.react.vdom.html_<^._
 import sp.domain._
 import spgui.communication._
 import sp.devicehandler.APIDeviceDriver
+import japgolly.scalajs.react.vdom.all.svg
+import scala.scalajs.js
 
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
@@ -40,27 +42,29 @@ object SPCardGrid {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
-          opab.op.name
+          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
+          sop(opab.op.name, 0, 0)
         ),
         <.span(
-          opab.ab.name
+          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
+          sop(opab.ab.name, 0, 0)
         )
       )
     }
-
 
     def cardExpanded(opab: RenderCard) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
-          opab.op.name
+          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
+          sop(opab.op.name, 0, 0)
         ),
         <.span(
-          opab.ab.name
+          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
+          sop(opab.ab.name, 0, 0)
         )
       )
     }
-
 
     def renderCard(
       cardId: ID,
@@ -101,6 +105,84 @@ object SPCardGrid {
       ).toTagMod
     }
   }
+
+
+  trait Rect extends js.Object {
+    var left: Float = js.native
+    var top: Float = js.native
+    var width: Float = js.native
+    var height: Float = js.native
+  }
+
+  val opHeight = 80f
+  val opWidth = 120f
+  val opHorizontalBarOffset = 12f
+  def sop(label: String, x: Int, y: Int) =
+    <.span(
+      // ^.className := OperationRunnerWidgetCSS.sopComponent.htmlClass,
+      // ^.style := {
+      //   var rect =  (js.Object()).asInstanceOf[Rect]
+      //   rect.left = x
+      //   rect.top = y
+      //   rect.height = opHeight
+      //   rect.width = opWidth
+      //   rect
+      // },
+      svg.svg(
+        svg.width := opWidth.toInt,
+        svg.height:= opHeight.toInt,
+        svg.svg(
+          svg.width := opWidth.toInt,
+          svg.height:= opHeight.toInt,
+          svg.x := 0,
+          svg.y := 0,
+          svg.rect(
+            svg.x := 0,
+            svg.y := 0,
+            svg.width := opWidth.toInt,
+            svg.height:= opHeight.toInt,
+            svg.rx := 6, svg.ry := 6,
+            svg.fill := "white",
+            svg.stroke := "black",
+            svg.strokeWidth := 1
+          ),
+          // Top horizontal line
+          svg.rect(
+            svg.x := 0,
+            svg.y := opHorizontalBarOffset.toInt,
+            svg.width := opWidth.toInt,
+            svg.height:= 1,
+            svg.rx := 0, svg.ry := 0,
+            svg.fill := "black",
+            svg.stroke := "black",
+            svg.strokeWidth := 1
+          ),
+          // Bottom horizontal line
+          svg.rect(
+            svg.x := 0,
+            svg.y :=  (opHeight - opHorizontalBarOffset).toInt,
+            svg.width := opWidth.toInt,
+            svg.height:= 1,
+            svg.rx := 0, svg.ry := 0,
+            svg.fill := "black",
+            svg.stroke := "black",
+            svg.strokeWidth := 1
+          ),
+          svg.svg(
+            svg.text(
+              svg.x := "50%",
+              svg.y := "50%",
+              svg.textAnchor := "middle",
+              svg.dy := ".3em",
+              label
+            )
+          )
+        )
+      )
+    )
+
+
+
 
   private val component = ScalaComponent.builder[Props]("OperationAbilityCardGrid")
     .initialState(State())

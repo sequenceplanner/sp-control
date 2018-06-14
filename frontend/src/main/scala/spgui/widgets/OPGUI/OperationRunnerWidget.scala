@@ -134,8 +134,14 @@ object OperationRunnerWidget {
     }
 
     def render(state: State) = {
+      // test code; remove whenever
+      val test = List("sdf", "sdfsdf", "dff")
       <.div(
-
+        SPCardGrid(test.map(t => {
+          val op = SPCardGrid.RenderOperation("opopop")
+          val ab = SPCardGrid.RenderAbility("ababab")
+          SPCardGrid.RenderCard(ID.newID, op, ab)
+        }))
       )
     }
 
