@@ -35,16 +35,21 @@ object OperationRunnerWidget {
       BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
     val abilityHandler =
       BackendCommunication.getMessageObserver(onAbilityMessage, APIAbilityHandler.topicResponse)
-    // TODO: Listen for "global" runner instead of latest
+    // TODO: Listen for "global" runner instead of latest?
     val vdTrackerHandler =
       BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicResponse)
 
+    // TODO: Listen for "global" runner instead of latest?
+    /**
+      * When a runner is launched in VDTracker with [[APIVDTracker.OpRunnerCreated]]
+      * trigger [[APIOperationRunner.GetRunners]] request
+      * Update the state with the activeRunnerID from the runner that is created
+      * @param mess sp.domain.SPMessage
+      */
     def onVDTrackerMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVDTracker.Response].map {
         case APIVDTracker.OpRunnerCreated(id) => {
-          println(s"Publish GetRunners")
-          sentToRunner(APIOperationRunner.GetRunners)
-          println(s"opRunnerCreated by VDTracker with $id")
+          sendToRunner(APIOperationRunner.GetRunners)
           $.modState { state => state.copy(activeRunnerID = Some(id)) }
         }
         case x => Callback.empty
@@ -62,8 +67,7 @@ object OperationRunnerWidget {
             if (state.activeRunnerID.isDefined) {
               // find the setup with the same runner-id as the widgets activeRunnerId
               val setup: Setup = ids.find { setup => setup.runnerID == state.activeRunnerID.get }.get
-              val s: State =
-              {
+              val newState: State = {
                 // with a setup, go through the ops: Set[Operation] and map the operationId with a abilityID
                 def parseSetup(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
                   setup.opAbilityMap.get(operation.id).map { abilityID =>
@@ -72,9 +76,10 @@ object OperationRunnerWidget {
                     OpAbPair(abilityID, operation.id)
                   }
                 }
+                // update
                 state.copy(activeOpAbPairs = parseSetup(setup).toList)
               }
-              s
+              newState
             }
             else {
               println("ActiveRunner is not defined in Runners")
@@ -159,7 +164,7 @@ object OperationRunnerWidget {
       callback.foreach(_.runNow())
     }
 
-    def sentToRunner(mess: APIOperationRunner.Request) = Callback{
+    def sendToRunner(mess: APIOperationRunner.Request) = Callback{
       val h = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, APIOperationRunner.topicRequest)

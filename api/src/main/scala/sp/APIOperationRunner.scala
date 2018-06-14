@@ -60,7 +60,7 @@ object APIOperationRunner {
     * @param opAbilityMap operation id -> ability id
     * @param initialState The initial state of the runner
     * @param variableMap operationModel variable id -> vd model variable id
-    * @param abilityParameters ability id -> liat of operation model variable id, must be mapped
+    * @param abilityParameters ability id -> list of operation model variable id, must be mapped
     *                          in variableMap
     */
   case class Setup(name: String,
