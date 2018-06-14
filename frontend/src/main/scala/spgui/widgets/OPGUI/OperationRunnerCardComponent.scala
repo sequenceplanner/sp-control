@@ -9,11 +9,9 @@ import scala.scalajs.js
 
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
-  case class Props(cards: List[RenderCard])
+  case class Props(cards: List[OperationRunnerCard])
 
-  case class RenderCard(cardId: ID, op: RenderOperation, ab: RenderAbility)
-  case class RenderOperation(name: String)
-  case class RenderAbility(name: String)
+  case class OperationRunnerCard(cardId: ID, ab: OperationRunnerWidget.AbilityWithState, op: OperationRunnerWidget.OperationWithState)
 
   class Backend($: BackendScope[Props, State]) {
     def render(p:Props, s: State) = {
@@ -27,7 +25,7 @@ object SPCardGrid {
           }},
           p.cards.map(
             c => c match {
-              case opab: RenderCard => {
+              case opab: OperationRunnerCard => {
                 val smallCard = cardSmall(opab)
                 val expandedCard = cardExpanded(opab)
                 renderCard(opab.cardId, s.expandedId, expandedCard, smallCard)
@@ -38,30 +36,30 @@ object SPCardGrid {
       )
     }
     
-    def cardSmall(opab: RenderCard) = {
+    def cardSmall(opab: OperationRunnerCard) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
           ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.op.name, 0, 0)
+          sop(opab.op.operation.name, 0, 0)
         ),
         <.span(
           ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.ab.name, 0, 0)
+          sop(opab.ab.ability.name, 0, 0)
         )
       )
     }
 
-    def cardExpanded(opab: RenderCard) = {
+    def cardExpanded(opab: OperationRunnerCard) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
           ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.op.name, 0, 0)
+          sop(opab.op.operation.name, 0, 0)
         ),
         <.span(
           ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.ab.name, 0, 0)
+          sop(opab.ab.ability.name, 0, 0)
         )
       )
     }
@@ -106,28 +104,11 @@ object SPCardGrid {
     }
   }
 
-
-  trait Rect extends js.Object {
-    var left: Float = js.native
-    var top: Float = js.native
-    var width: Float = js.native
-    var height: Float = js.native
-  }
-
   val opHeight = 80f
   val opWidth = 120f
   val opHorizontalBarOffset = 12f
   def sop(label: String, x: Int, y: Int) =
     <.span(
-      // ^.className := OperationRunnerWidgetCSS.sopComponent.htmlClass,
-      // ^.style := {
-      //   var rect =  (js.Object()).asInstanceOf[Rect]
-      //   rect.left = x
-      //   rect.top = y
-      //   rect.height = opHeight
-      //   rect.width = opWidth
-      //   rect
-      // },
       svg.svg(
         svg.width := opWidth.toInt,
         svg.height:= opHeight.toInt,
@@ -181,13 +162,10 @@ object SPCardGrid {
       )
     )
 
-
-
-
   private val component = ScalaComponent.builder[Props]("OperationAbilityCardGrid")
     .initialState(State())
     .renderBackend[Backend]
     .build
 
-  def apply(cards: List[RenderCard]) = component(Props(cards))
+  def apply(cards: List[OperationRunnerCard]) = component(Props(cards))
 }

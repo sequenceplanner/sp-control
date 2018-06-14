@@ -181,10 +181,6 @@ object OperationRunnerWidget {
     }
 
     def render(state: State) = {
-      val pairs = state.activeOpAbPairs
-      println(s" Render OperationRunner with the opabpairs $pairs")
-      // test code; remove whenever
-      val test = List("sdf", "sdfsdf", "dff")
       <.div(
         SPCardGrid(
           state.activeOpAbPairs.map{ operationAbilityPair =>
@@ -193,11 +189,6 @@ object OperationRunnerWidget {
             SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
           }
         )
-        SPCardGrid(test.map(t => {
-          val op = SPCardGrid.RenderOperation("opopop")
-          val ab = SPCardGrid.RenderAbility("ababab")
-          SPCardGrid.RenderCard(ID.newID, op, ab)
-        }))
       )
     }
 
