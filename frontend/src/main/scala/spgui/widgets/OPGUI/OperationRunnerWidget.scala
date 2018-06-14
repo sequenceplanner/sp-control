@@ -196,9 +196,9 @@ object OperationRunnerWidget {
       <.div(
         state.activeOpAbPairs.map{ operationAbilityPair =>
           <.div(
-            <.span(state.operationStateMapper.get(operationAbilityPair.operationID).get.operation.name),
-            <.span("         ")
-            <.span(state.abilityStateMapper.get(operationAbilityPair.abilityID).get.ability.name),
+            <.span(state.operationStateMapper(operationAbilityPair.operationID).operation.name),
+            <.span("         "),
+            <.span(state.abilityStateMapper(operationAbilityPair.abilityID).ability.name)
           )
         }.toTagMod
       )
