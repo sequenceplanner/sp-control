@@ -41,7 +41,7 @@ import sp.domain._
     final case class AbilityCompleted(id: ID, result: Map[ID, SPValue]) extends Response
     final case class AbilityState(id: ID, state: Map[ID, SPValue]) extends Response
     final case class Abilities(xs: List[Ability]) extends Response
-    final case class Abs(a: List[(ID,String)]) extends Response
+    final case class AbilitiesByIdAndName(a: List[(ID,String)]) extends Response
 
     final case class Ability(name: String,
                              id: ID = ID.newID,
@@ -49,8 +49,8 @@ import sp.domain._
                              started: Condition = Condition(AlwaysTrue, List()),
                              postCondition: Condition = Condition(AlwaysTrue, List()),
                              resetCondition: Condition = Condition(AlwaysTrue, List()),
-                             parameters: List[ID] = List(),
-                             result: List[ID] = List(),
+                             parameterIDs: List[ID] = List(),
+                             resultIDs: List[ID] = List(),
                              attributes: SPAttributes = SPAttributes())
 
 
@@ -76,7 +76,7 @@ import sp.domain._
       implicit lazy val fAbilityCompleted: JSFormat[AbilityCompleted] = Json.format[AbilityCompleted]
       implicit lazy val fAbilityState: JSFormat[AbilityState] = Json.format[AbilityState]
       implicit lazy val fAbilities: JSFormat[Abilities] = Json.format[Abilities]
-      implicit lazy val fAbs: JSFormat[Abs] = Json.format[Abs]
+      implicit lazy val fAbs: JSFormat[AbilitiesByIdAndName] = Json.format[AbilitiesByIdAndName]
       def fAbilityHandlerRequest: JSFormat[Request] = Json.format[Request]
       def fAbilityHandlerResponse: JSFormat[Response] = Json.format[Response]
     }
@@ -105,8 +105,8 @@ import sp.domain._
         id = a.id,
         attributes = a.attributes ++ SPAttributes(
           "isa" -> "Ability",
-          "parameters" -> a.parameters,
-          "result" -> a.result
+          "parameters" -> a.parameterIDs,
+          "result" -> a.resultIDs
         ),
         conditions = List(
           a.preCondition.copy(attributes = a.attributes ++ SPAttributes("kind" -> "pre")),
@@ -130,8 +130,8 @@ import sp.domain._
         Ability(
           name = o.name,
           id = o.id,
-          parameters = p,
-          result = r,
+          parameterIDs = p,
+          resultIDs = r,
           preCondition = mergeConditions(extractCondition(o, "pre")),
           started = mergeConditions(extractCondition(o, "started")),
           postCondition = mergeConditions(extractCondition(o, "post")),
