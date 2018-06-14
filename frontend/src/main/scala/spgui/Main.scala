@@ -9,8 +9,9 @@ object Main extends App {
 
   @JSExport
   def main(): Unit = {
-    LoadingWidgets.loadWidgets
+    Widgets.loadWidgets()
     new DashboardPresetsHandler()
+    ModelCommunication.run()
     Layout().renderIntoDOM(document.getElementById("spgui-root"))
   }
 }
