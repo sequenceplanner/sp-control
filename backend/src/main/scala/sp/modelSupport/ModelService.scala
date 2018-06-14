@@ -2,16 +2,13 @@ package sp.modelSupport
 
 import akka.actor._
 import sp.abilityhandler.APIAbilityHandler
-import sp.devicehandler.VD.DriverStateMapper
 import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
-import sp.drivers.ROSFlatStateDriver
 import sp.models.{APIModel, APIModelMaker}
 import sp.runners._
 import sp.service.MessageBussSupport
 import sp.vdtesting.APIVDTracker
-import sp.abilityhandler.APIAbilityHandler.Ability
 
 import scala.concurrent.duration._
 
@@ -30,48 +27,51 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
   def launchVDAbilities(ids : List[IDAble]): Unit = {
 
     // Extract model data from IDAbles
-    val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
-    val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
-    val setupRunnerThings = things.filter(t => t.attributes.keys.contains("runnerID"))
-    val exAbilities = ops.flatMap(o=> APIAbilityHandler.operationToAbility(o))
+    val operations = ids.collect { case op: Operation => op }
+    val things = ids.collect { case thing: Thing => thing }
+    val setupRunnerThings = things.filter(_.attributes.keys.contains("runnerID"))
+    val exAbilities = operations.flatMap(APIAbilityHandler.operationToAbility)
 
-    val rTmp = things.filter(t => t.attributes.keys.contains("stateMap"))
-    val exResorces = rTmp.map(t => VD.thingToResource(t))
+    val resourceThings = things.filter(_.attributes.keys.contains("stateMap"))
+    val resources = resourceThings.map(VD.thingToResource)
 
-    val dTmp = things.filter(t => t.attributes.keys.contains("driverType"))
-    val exDrivers = dTmp.map(t=> VD.thingToDriver(t))
+    val driverThings = things.filter(_.attributes.keys.contains("driverType"))
+    val drivers = driverThings.map(VD.thingToDriver)
 
-    val exSetupRunner = setupRunnerThings.headOption.map(thing => APIOperationRunner.CreateRunner(runnerSetupFor(thing)))
+    // TODO Why is this unused?
+    val runnerSetup = setupRunnerThings.headOption.map(thing => APIOperationRunner.CreateRunner(runnerSetupFor(thing)))
 
     //Direct launch of the VD and abilities below
-    val vdID = ID.newID
-    val abID = ID.newID
+    val (virtualDeviceId, abilityId) = (ID.newID, ID.newID)
 
     publish(APIVirtualDevice.topicRequest,
       SPMessage.makeJson(
         SPHeader(from = "ModelService"),
         APIVirtualDevice.SetUpVD(
           name = "VD",
-          id = vdID,
-          exResorces, //= resources.map(_.resource),
-          exDrivers, // = resources.map(_.driver),
+          id = virtualDeviceId,
+          resources, //= resources.map(_.resource),
+          drivers, // = resources.map(_.driver),
           attributes = SPAttributes()
-        )))
+        )
+      )
+    )
 
     publish(APIAbilityHandler.topicRequest,
       SPMessage.makeJson(
         SPHeader(from = "ModelService"),
         APIAbilityHandler.SetUpAbilityHandler(
           name = "Abilites",
-          id = abID,
+          id = abilityId,
           exAbilities,
-          vd = vdID
-        )))
+          vd = virtualDeviceId
+        ))
+    )
   }
 
   def launchOpRunner(h: SPHeader, ids : List[IDAble]): Unit = {
     // Extract setup data from IDAbles
-    val things = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
+    val things = ids.collect { case thing: Thing => thing }
     val setupRunnerThings = things.filter(_.attributes.keys.contains("runnerID"))
 
     println("CREATING RUNNERS" + setupRunnerThings)
@@ -87,7 +87,8 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
         APIOperationRunner.topicRequest,
         SPMessage.makeJson(
           SPHeader(from = "ModelService", to = APIOperationRunner.service),
-          exSetupRunner)
+          exSetupRunner
+        )
       )
 
       println("RUNNER STARTED")
@@ -106,15 +107,23 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
 
     val createModelRequest = sp.models.APIModelMaker.CreateModel(model.name, SPAttributes("isa" -> "VD"), id = modelID)
 
-    val abs = model.abilities.values.map(APIAbilityHandler.abilityToOperation)
+    val abilities = model.abilities.values.map(APIAbilityHandler.abilityToOperation)
     val vars = model.driverThings.values
     val opvars = model.things.values
-    val ops = model.operations.values
-    val rIDables = model.resources.values.map(VD.resourceToThing)
-    val dIDables = model.drivers.values.map(VD.driverToThing)
+    val operations = model.operations.values
+    val resourceIdAbles = model.resources.values.map(VD.resourceToThing)
+    val driverIdAbles = model.drivers.values.map(VD.driverToThing)
     val runnerSetups = model.runners.values.map(setupToThing)
 
-    val allIdAbles: List[IDAble] = (rIDables ++ dIDables ++ abs ++ vars ++ opvars ++ ops ++ runnerSetups).toList
+    val allIdAbles: List[IDAble] = List(
+      resourceIdAbles,
+      driverIdAbles,
+      abilities,
+      vars,
+      opvars,
+      operations,
+      runnerSetups
+    ).flatten
 
     val virtualDevice = Struct(
       "TheVD",
@@ -156,18 +165,21 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
     )
   }
 
-  def runnerSetupFor(thing : Thing): APIOperationRunner.Setup = {
-    val name = thing.attributes.getAs[String]("name").getOrElse("")
-    val runnerID = thing.attributes.getAs[ID]("runnerID").getOrElse(ID.newID)
-    val ops = thing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
-    val opAbilityMap = thing.attributes.getAs[Map[ID,ID]]("opAbilityMap").getOrElse(Map())
-    val initialState = thing.attributes.getAs[Map[ID,SPValue]]("initialState").getOrElse(Map())
-    val variableMap = thing.attributes.getAs[Map[ID,ID]]("variableMap").getOrElse(Map())
-    val abilityParameters = thing.attributes.getAs[List[(ID,Set[ID])]]("abilityParameters").getOrElse(List()).toMap
-    APIOperationRunner.Setup(name, runnerID,ops,opAbilityMap,initialState,variableMap,abilityParameters)
+  def runnerSetupFor(thing: Thing): APIOperationRunner.Setup = {
+    val attrs = thing.attributes
+
+    val name = attrs.getWithDefault("name", "")
+    val runnerID = attrs.getWithDefault("runnerID", ID.newID)
+    val ops = attrs.getWithDefault("ops", Set[Operation]())
+    val opAbilityMap = attrs.getWithDefault("opAbilityMap", Map[ID, ID]())
+    val initialState = attrs.getWithDefault("initialState", Map[ID, SPValue]())
+    val variableMap = attrs.getWithDefault("variableMap", Map[ID, ID]())
+    val abilityParameters = attrs.getWithDefault("abilityParameters", List[(ID,Set[ID])]()).toMap
+
+    APIOperationRunner.Setup(name, runnerID, ops, opAbilityMap, initialState, variableMap, abilityParameters)
   }
 
-  def receive = {
+  def receive: Receive = {
     case s : String =>
       for { // unpack message
         mess <- SPMessage.fromJson(s)
@@ -178,15 +190,18 @@ class ModelService(models: Map[String, VDHelper]) extends Actor with MessageBuss
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
         b match { // Check if the body is any of the following classes, and execute program
           case APIVDTracker.createModel(modelName, modelID) => createModel(modelName, modelID)
-          case APIVDTracker.launchVDAbilities(idables) => launchVDAbilities(idables)
-          case APIVDTracker.launchOpRunner(idables) => launchOpRunner(spHeader,idables)
-          case APIVDTracker.getModelsInfo(dummy) =>
+          case APIVDTracker.launchVDAbilities(idAbles) => launchVDAbilities(idAbles)
+          case APIVDTracker.launchOpRunner(idAbles) => launchOpRunner(spHeader,idAbles)
+          case APIVDTracker.getModelsInfo(_) =>
             sendAnswer(SPMessage.makeJson(spHeader, APIVDTracker.sendModelsInfo(models.keys.toList)))
-          case x =>
+          case _ => Unit
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPDone()))
       }
   }
-  def sendAnswer(mess: String) = publish(APIVDTracker.topicResponse, mess)
+  def sendAnswer(mess: String): Unit = publish(APIVDTracker.topicResponse, mess)
 
+  implicit class EnhancedSPAttributes(attributes: SPAttributes) {
+    def getWithDefault[A](key: String, default: => A)(implicit reads: JSReads[A]): A = attributes.getAs[A](key).getOrElse(default)
+  }
 }

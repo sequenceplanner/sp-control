@@ -99,7 +99,7 @@ class OperationRunner extends Actor
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
 
         case api.ForceComplete(id) =>
-          newAbilityState(id, sp.abilityhandler.AbilityState.finished, startAbility, sendState)
+          newAbilityState(id, sp.abilityhandler.AbilityStatus.Finished, startAbility, sendState)
        }
 
       publish(APIOperationRunner.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
@@ -122,7 +122,7 @@ class OperationRunner extends Actor
             val ops = getOPFromAbility(id).flatMap(_._2)
             log.debug(s"The ability with id $id completed for operations: $ops")
 
-            newAbilityState(id, sp.abilityhandler.AbilityState.finished, startAbility, sendState)
+            newAbilityState(id, sp.abilityhandler.AbilityStatus.Finished, startAbility, sendState)
 
           case abilityAPI.AbilityState(id, s) =>
             //val ops = getOPFromAbility(id).flatMap(_._2)
@@ -436,7 +436,7 @@ trait OperationRunnerLogic {
   def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID]): Boolean = {
     s(o.id) == OperationState.executing &&
       ((!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition")).forall(_.eval(s))) || // always true if no postcond
-        s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityState.finished)))
+        s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished)))
 
 
   }

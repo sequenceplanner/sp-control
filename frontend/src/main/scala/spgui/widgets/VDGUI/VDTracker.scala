@@ -110,8 +110,8 @@ object VDTracker {
 
 
     def sendToModel(model: ID, mess: mapi.Request): Callback = { //  Send message to model
-      val h = SPHeader(from = "VolvoSchedulerWidget", to = model.toString,
-        reply = SPValue("VolvoSchedulerWidget"))
+      val h = SPHeader(from = "VDTrackerWidget", to = model.toString,
+        reply = SPValue("VDTrackerWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, mapi.topicRequest)
       Callback.empty
