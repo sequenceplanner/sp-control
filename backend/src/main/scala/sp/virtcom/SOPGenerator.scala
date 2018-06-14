@@ -150,12 +150,7 @@ trait SOPGen {
             var robotCommandsInChild = List[String]() // Init a new robot command list, to use in recursion of this function
             var newOp = caseOp // Init a new Operation, could be anything just needs the correct type here.
             var zMaptmp = Map[String, List[List[Operation]]]() // This is the place zones and operations will be mapped for each new case.
-              println("\n case :  \n" + caseOp.name)
-              println("\n Does the case have a Robot schedule: "  + caseOp.attributes.getAs[List[String]]("robotcommands").getOrElse(List()).nonEmpty)
-              println("\nCase child ops : \n" + operationChildOps.map(_.name).mkString("\n"))
-              println("\n Child nodes : \n" + activeStruct.getChildren(opNode.nodeID).map(_.nodeID).mkString("\n"))
 
-              println("\n\n Availible filtered\n   "    + availableOperations.filter(_.name == caseOp.name).map(_.name).mkString("\n"))
               operationChildOps.foreach(opChild => {
                 if (opChild.name == caseString) { // The first operation within the case has the same name as the actual Case, and may contain a robot schedule, at least for the PS model in this project
                   robotCommandsInChild = opChild.attributes.getAs[List[String]]("robotcommands").getOrElse(List()) // Get the robot commands as a list of strings, if there are none, then empty list.

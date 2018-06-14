@@ -1,18 +1,12 @@
 package sp.patrikmodel
 
-import akka.actor._
-import akka.io.Tcp.Register
 import play.api.libs.json.Json
 import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.domain.logic.AttributeLogic.SPValueLogic
 import sp.domain._
 import sp.supremicaStuff.base._
-//import sp.system.messages._
-import akka.util.Timeout
-import scala.concurrent.duration._
 import sp.domain.Logic._
-import scala.concurrent._
-import akka.pattern.ask
+
 
 /**
   * Creates a wmod module from existing operations, things (variables), and SOPspec (forbidden expressions/mutex operations).
@@ -24,23 +18,19 @@ import akka.pattern.ask
 
 object Synthesize extends SynthesizeModel
 trait SynthesizeModel {
-  def synthesizeModel(ids: List[IDAble]): (List[Operation], SPAttributes, Map[String, Int] => Option[Boolean]) = {
+  def synthesizeModel(ids: List[IDAble], moduleName : String = "dummy"): (List[Operation], SPAttributes, Map[String, Int] => Option[Boolean]) = {
 
     // Extract from IDAbles
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
     val vars = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
 
-
-    val moduleName = "dummy" // I just hardcoded this for now, to make things work.. Todo: Maybe improve on this, see old version
-    //import scala.concurrent.ExecutionContext.Implicits.global
-    //moduleNameF.foreach { moduleName =>
       //Create Supremica Module and synthesize guards.
       val ptmw = ParseToModuleWrapper(moduleName, vars, ops, sopSpecs)
       val ptmwModule = {
         ptmw.addVariables()
         ptmw.saveToWMODFile("./testFiles/gitIgnore/")
-        ptmw.addOperations()
+        ptmw.addOperations() // add operations, with transitions and guards as events to the EFA for the later synthesis
         ptmw.saveToWMODFile("./testFiles/gitIgnore/")
         ptmw.addForbiddenExpressions()
         ptmw.saveToWMODFile("./testFiles/gitIgnore/")
@@ -78,6 +68,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
   lazy val mModule = SimpleModuleFactory(moduleName)
 
+  // These two functions extract transition conditions from operations
   private def directAttrValues(o: Operation, directAttr: Set[String]) = directAttr.flatMap(attr => o.attributes.getAs[Set[String]](attr)).flatten
 
   private def nestedAttrValues(o: Operation, nestedAttr: Set[TransformationPatternInAttributes => Option[String]], operator: String) = {
@@ -100,13 +91,13 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
   private def addTransition(o: Operation, event: String, directGuardAttr: Set[String], nestedGuardAttr: Set[TransformationPatternInAttributes => Option[String]],
                             directActionAttr: Set[String], nestedActionAttr: Set[TransformationPatternInAttributes => Option[String]]) = {
-
-
+    // The guards & actions of the operation can be stored directly in the operation's attributes as "pre(Guard/Action)" or "post(Guard/Action)"
+    // They can also be part of a so called resource transition or carrier transition, which is the case in the Volvo Scheduler service, in which case the extraction is a bit more complicated as in nestedAttrValues
     val allGuards = directAttrValues(o, directGuardAttr) ++ nestedAttrValues(o, nestedGuardAttr, "==")
     val guardAsString = if (allGuards.isEmpty) "" else allGuards.mkString("(", ")&(", ")")
-
     val actionsAsStrings = directAttrValues(o, directActionAttr) ++ nestedAttrValues(o, nestedActionAttr, "=")
 
+    // This will add the event to an EFA. Before doing so, the guards and actions are converted to supremica syntax (The variable string values are replaced by corresponding numbers ( idle = "0" ..etc. .))
     addLeaf(event, stringPredicateToSupremicaSyntax(guardAsString),
       actionsAsStrings.map(stringActionToSupremicaSyntax).mkString("; "))
   }
@@ -120,6 +111,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
       //post
       val compEvent = s"$UNCONTROLLABLE_PREFIX$startEvent"
+
       addEventIfNeededElseReturnExistingEvent(compEvent, unControllable = true)
       addTransition(o, compEvent, Set("postGuard"), Set(_.atExecute), Set("postAction"), Set(_.atComplete))
 
@@ -137,7 +129,9 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
         println(s"Problem with variable ${v.name}, attribute keys init and idleValue do not point to the same value")
         None
       }
-      intInit <- getFromVariableDomain(v.name, init, "Problem with init")
+      intInit <- getFromVariableDomain(v.name, init, "Problem with init") // get index value of the init variable
+
+      // Todo: Here, the marked state is the same as the initial state, and no more than 1 marked state is allowed. This needs investigating..
       idleValueAttr = v.attributes.getAs[String]("idleValue").map(Set(_))
       markingsAttr = v.attributes.getAs[Set[String]]("markings")
       allMarkings = Set(idleValueAttr, markingsAttr).flatten
@@ -147,6 +141,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
         None
       }
       intMarkings = markings.flatMap(m => getFromVariableDomain(v.name, m, "Problem with marking"))
+
     } yield {
       addVariable(v.name, 0, domain.size - 1, intInit, intMarkings)
       //Add variable values to module comment

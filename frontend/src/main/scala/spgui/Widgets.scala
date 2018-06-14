@@ -27,15 +27,19 @@ object LoadingWidgets {
       ("Item explorer tree", widgets.itemtree.ItemExplorer(), 2, 4),
       ("Live Gantt Example",          widgets.gantt.LiveGanttExample(), 10, 5),
       ("Gantt Viewer",                widgets.ganttviewer.GanttViewerWidget(), 10, 5),
+      ("DummyLiveGantt",              widgets.ganttviewer.DummyLiveGantt(),               10, 5),
       ("Ability Handler",             widgets.abilityhandler.AbilityHandlerWidget(), 3, 4),
       ("ServiceList",                 widgets.services.ServiceListWidget(),          3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
+      ("SopRunner",                   widgets.sopmaker.SopRunnerWidget(),             3, 4),
       ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
       ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),
       ("VDTracker",         widgets.vdtesting.VDTracker(),          5,5),
-      ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5)
+      ("HumanInstructions",         widgets.unification.HumanInstructionsWidget(),          5,5),
+      ("DriverWidget",         spgui.widgets.VDGUI.DriverWidget(),          5,5),
+      ("ResourceWidget",         spgui.widgets.VDGUI.ResourceWidget(),          5,5)
 
     )
 
