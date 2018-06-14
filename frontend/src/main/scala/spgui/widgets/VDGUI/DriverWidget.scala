@@ -65,7 +65,7 @@ object DriverWidget {
           status = c.status,
           typ = c.driver.driverType,
           setup = c.driver.setup,
-          state = c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
+          state = c.driverState//c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
         )))
       )
     }
@@ -75,34 +75,12 @@ object DriverWidget {
        TODO: Should edit one state of the driver */
     def onEditStateClicked(card: Card) = ???
 
-    /**********BACKEND CALLS**********/
-    /*
 
-        Todo: Test that the force does what we desire
-        should return a message to circuit or backend
-     */
     def forceWrite(card: Card) = ???
     /*{
       // callback to backend to write new SPValues to the driver
       sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.driver.id, card.driverState))
       Callback("DriverWidget: Force the driver to write over past state") // dummy
-    }*/
-    /*
-      TODO: force the driver to go offline/terminate
-     */
-    def forceStop(card: Card) = ???
-    /*{
-      // callback to backend to stop the driver
-      sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.driver.id))
-    }*/
-    /*
-       TODO: force the driver to restart
-     */
-    def forceRestart(card: Card) = ???
-    /*{
-      // callback to backend to restart the driver
-      sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(card.driver))
-      Callback("DriverWidget: Force the driver to restart") // dummy
     }*/
 
     def onUnmount() = {

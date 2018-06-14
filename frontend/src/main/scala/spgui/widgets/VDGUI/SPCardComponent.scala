@@ -13,7 +13,7 @@ object SPCardGrid {
   case class Props(cards: List[RenderCard])
 
   trait RenderCard{val cardId: ID}
-  case class DriverCard(cardId: ID, name: String, status: String, typ: String, setup : SPAttributes, state: List[(String, SPValue)]) extends RenderCard
+  case class DriverCard(cardId: ID, name: String, status: String, typ: String, setup : SPAttributes, state: Map[String, SPValue]) extends RenderCard
   case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, String)], state: List[(String, SPValue)]) extends RenderCard
 
 
@@ -155,11 +155,17 @@ object SPCardGrid {
       <.div(
         ^.className := DriverWidgetCSS.driverStates.htmlClass,
         card.state.map( s =>
-          <.div(s._1 + ": " + s._2)
+          <.div(s._1 + ": " + s._2, <.input(^.defaultValue := "new value", ^.onChange --> {sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.cardId, card.state.updated(s._1, s._2)))} ))
+
         ).toTagMod
       ),
       <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver"),
       <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(Driver(card.name, card.cardId, card.typ, card.setup))), "Start Driver")
+    )
+  }
+
+  def editDriverState (string: String, sPValue: SPValue) = {
+    <.div(
     )
   }
 
