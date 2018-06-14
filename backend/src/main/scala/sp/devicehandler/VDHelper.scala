@@ -111,10 +111,12 @@ trait VDHelper {
       k.id -> v
     }
 
+    /*
     println("initstate*****: " + init)
     println("var map: " + thingDVThings)
     println("dvs: " + driverThings.map(_._2))
     println("things: " + things.map(_._2))
+    */
 
     runners += (name->APIOperationRunner.Setup(
       name = name,
