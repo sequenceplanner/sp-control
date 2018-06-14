@@ -87,9 +87,9 @@ class OperationRunner extends Actor
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
 
         case api.GetState(id) =>
-          getRunnerState(id) match {
-            case Some(s) =>
-              publish(api.topicResponse, OperationRunnerComm.makeMess(updH, api.StateEvent(id, s)))
+          runners.get(id) match {
+            case Some(r) =>
+              publish(api.topicResponse, OperationRunnerComm.makeMess(updH, api.StateEvent(id, r.currentState, r.runInAuto, r.disableConditionGroups)))
             case None =>
               publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
           }
@@ -176,12 +176,19 @@ class OperationRunner extends Actor
     publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id, params)))
   }
 
+  // todo: Update this to make it simpler. Fix when simplifying the handling of multiple runners
   val sendState = (s: SPState, id: ID) => {
     log.debug("")
     log.debug(s"new state for $id: ")
     s.state.foreach(x => log.debug(x.toString))
+
+    // hacky way. Probably include runner in call instead?
+    val r = runners.get(id)
+    val auto = r.exists(_.runInAuto)
+    val groups = r.map(_.disableConditionGroups).getOrElse(Set())
+
     val myH = SPHeader(from = api.service)
-    publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state)))
+    publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state, auto, groups)))
 
   }
 

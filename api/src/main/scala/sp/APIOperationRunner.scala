@@ -39,6 +39,7 @@ object APIOperationRunner {
     * @param runnerID The id of the runner to change mode*
     * @param startOperation if not in auto, tries to start the operation if it is enabled
     * @param stepBackward in not in auto, will change the complete runner state to when the last operation started.
+    *                     backward is not implemented yet
     */
   case class ManualControl(runnerID: ID,
                            startOperation: Option[ID] = None,
@@ -46,10 +47,7 @@ object APIOperationRunner {
                           ) extends Request
 
 
-  case class StateEvent(runnerID: ID, state: Map[ID, SPValue]) extends Response
-  case class RunnerMode(runnerID: ID,
-                        runInAuto: Boolean = true,
-                        disableConditionGroups: Set[SPValue] = Set()) extends Response
+  case class StateEvent(runnerID: ID, state: Map[ID, SPValue], runInAuto: Boolean, disableConditionGroups: Set[SPValue]) extends Response
   case class Runners(ids: List[Setup]) extends Response
 
   /**
@@ -126,7 +124,6 @@ object APIOperationRunner {
     implicit lazy val fManualControl: JSFormat[ManualControl] = Json.format[ManualControl]
     implicit lazy val fGetRunners : JSFormat[GetRunners.type] = deriveCaseObject[GetRunners.type ]
     implicit lazy val fStateEvent: JSFormat[StateEvent] = Json.format[StateEvent]
-    implicit lazy val fRunnerMode: JSFormat[RunnerMode] = Json.format[RunnerMode]
     implicit lazy val fRunners: JSFormat[Runners] = Json.format[Runners]
     def fOperationRunnerRequest: JSFormat[Request] = Json.format[Request]
     def fOperationRunnerResponse: JSFormat[Response] = Json.format[Response]
