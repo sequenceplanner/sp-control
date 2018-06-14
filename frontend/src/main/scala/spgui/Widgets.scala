@@ -39,7 +39,7 @@ object LoadingWidgets {
       ("HumanInstructions",           widgets.unification.HumanInstructionsWidget(),      5, 5),
       ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 5),
       ("ResourceWidget",              widgets.VDGUI.ResourceWidget(),                     5, 5),
-      ("OperationRunnerWidget",       widgets.OPGUI.OperationRunnerWidget(),              5, 6)
+      ("OperationRunnerWidget",       widgets.OPGUI.OperationRunnerWidget(),              6, 6)
 
     )
 
