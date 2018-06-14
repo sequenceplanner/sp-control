@@ -9,6 +9,7 @@ import sp.domain._
 import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import sp.vdtesting.APIVDTracker
+import spgui.widgets.VDGUI
 import spgui.communication._
 import spgui.widgets.VDGUI._
 
@@ -61,39 +62,28 @@ object OperationRunnerWidget {
           $.modState { state =>
             // if current runner is defined update opAbPairs, else do nothing
             if (state.activeRunnerID.isDefined) {
-              val isDef = state.activeRunnerID.isDefined; val runnerId = state.activeRunnerID
-              println(s"runner is $isDef with value $runnerId ")
-              // with a setup, go through the ops: Set[Operation] and map the operationId with a abilityID
-              def parseSetup(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
-                setup.opAbilityMap
-                  .get(operation.id)
-                  .map { abilityID =>
-                    println(s"Publish GetAbility with abilityId: $abilityID")
-                    sendToAbilityHandler(APIAbilityHandler.GetAbility(abilityID))
-                    val a = OpAbPair(abilityID, operation.id)
-                    println(s"OpAbPair Created $a")
-                    a
-                  }
-              }
               // find the setup with the same runner-id as the widgets activeRunnerId
-              //
-              ids.find { setup => setup.runnerID == state.activeRunnerID.get }
-                .map { setup =>
-                  val opAbPairs = state.activeOpAbPairs
-                  println(s"ActiveOpAbPairs is $opAbPairs")
-                  state.copy(activeOpAbPairs = {
-                    val set = parseSetup(setup)
-                    val list = set.toList
-                    println(s"parseSetup Returned $set")
-                    println(s"parseSetup Returned $list")
-                    parseSetup(setup).toList
-                  })
-                }.getOrElse(state)
+              val setup: Setup = ids.find { setup => setup.runnerID == state.activeRunnerID.get }.get
+              val s: State =
+              {
+                // with a setup, go through the ops: Set[Operation] and map the operationId with a abilityID
+                def parseSetup(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
+                  setup.opAbilityMap.get(operation.id).map { abilityID =>
+                    println(s"Send Ability id $abilityID")
+                    sendToAbilityHandler(APIAbilityHandler.GetAbility(abilityID))
+                    OpAbPair(abilityID, operation.id)
+                  }
+                }
+                state.copy(activeOpAbPairs = parseSetup(setup).toList)
+              }
+              s
             }
-            else
+            else {
               println("ActiveRunner is not defined in Runners")
-            state
+              state
+            }
           }
+
         }
 
         case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap) => {
@@ -152,8 +142,10 @@ object OperationRunnerWidget {
         }
         case APIAbilityHandler.TheAbility(ability) =>
           $.modState { state =>
+            println(s"The Ability")
             if (ability.isDefined) {
-              println(s"ability is defined: $ability")
+              val abID = ability.get.id
+              println(s"Get the ability with this ID $abID")
               // if ability is Defined add it (or overwrite old values) to the abilityStateMap
               // and map it with a new ability and wait for next AbilityState()
               state.copy(abilityStateMapper = state.abilityStateMapper + (ability.get.id -> AbilityWithState(ability.get, Map())))
@@ -182,11 +174,11 @@ object OperationRunnerWidget {
 
     def render(state: State) = {
       <.div(
-        SPCardGrid(
+        VDGUI.SPCardGrid(
           state.activeOpAbPairs.map{ operationAbilityPair =>
-            val a = state.abilityStateMapper(operationAbilityPair.abilityID)
-            val o = state.operationStateMapper(operationAbilityPair.operationID)
-            SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
+            val a: AbilityWithState = state.abilityStateMapper(operationAbilityPair.abilityID)
+            val o: OperationWithState = state.operationStateMapper(operationAbilityPair.operationID)
+            VDGUI.SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
           }
         )
       )
