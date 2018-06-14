@@ -45,7 +45,6 @@ object DriverWidget {
           onDriverStateChange(name, id, state, diff)
         }
         case x => {
-          //println(x)
           Callback.empty
         }
       }
@@ -64,7 +63,8 @@ object DriverWidget {
           cardId = c.cardId,
           name = c.driver.name,
           status = c.status,
-          typ = c.driver.driverType,          
+          typ = c.driver.driverType,
+          setup = c.driver.setup,
           state = c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
         )))
       )

@@ -4,7 +4,8 @@ import japgolly.scalajs.react.vdom.html_<^._
 import sp.domain._
 import spgui.communication._
 import sendMessages._
-import sp.devicehandler.APIDeviceDriver
+import sp.devicehandler.VD.Driver
+import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
 
 
 object SPCardGrid {
@@ -12,7 +13,7 @@ object SPCardGrid {
   case class Props(cards: List[RenderCard])
 
   trait RenderCard{val cardId: ID}
-  case class DriverCard(cardId: ID, name: String, status: String, typ: String, state: List[(String, SPValue)]) extends RenderCard
+  case class DriverCard(cardId: ID, name: String, status: String, typ: String, setup : SPAttributes, state: List[(String, SPValue)]) extends RenderCard
   case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, String)], state: List[(String, SPValue)]) extends RenderCard
 
 
@@ -157,7 +158,8 @@ object SPCardGrid {
           <.div(s._1 + ": " + s._2)
         ).toTagMod
       ),
-      <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver")
+      <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver"),
+      <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(Driver(card.name, card.cardId, card.typ, card.setup))), "Start Driver")
     )
   }
 
