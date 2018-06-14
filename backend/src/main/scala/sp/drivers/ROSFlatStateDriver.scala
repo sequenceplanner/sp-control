@@ -98,16 +98,6 @@ object ROSHelpers {
     }.toOption
   }
 
-  def createROSMsg2(t: String): org.ros.internal.message.Message = {
-    import org.ros.internal.message.definition.MessageDefinitionReflectionProvider
-    import org.ros.internal.message.DefaultMessageFactory
-
-      val mf = new DefaultMessageFactory(new MessageDefinitionReflectionProvider())
-      mf.newFromType(t)
-
-  }
-
-
   def ROSMsgToSPAttributes(msg: org.ros.internal.message.Message): Option[SPAttributes] = {
     def addFields(fields: List[org.ros.internal.message.field.Field], attr: SPAttributes): Option[SPAttributes] = {
       fields match {

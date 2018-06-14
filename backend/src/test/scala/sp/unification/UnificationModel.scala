@@ -6,7 +6,7 @@ import sp.domain.Logic._
 class VDHelperTest extends FreeSpec with Matchers {
   println
   println
-  val idables = UnificationModel().buildModel("UR")
+  val idables = UnificationModel().buildModel()
   println
   println
   println

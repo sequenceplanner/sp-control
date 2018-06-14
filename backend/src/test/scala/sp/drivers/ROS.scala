@@ -28,10 +28,12 @@ class ROSTest extends FreeSpecLike with Matchers {
   }
 
   for {
-    msg <- createROSMsg("unification_roscontrol/MiRPoseUniToSP")
+    msg <- createROSMsg("unification_roscontrol/MiRPoseSPToUni")
     attr <- ROSMsgToSPAttributes(msg)
   } yield {
     println(attr)
   }
+
+
 
 }
