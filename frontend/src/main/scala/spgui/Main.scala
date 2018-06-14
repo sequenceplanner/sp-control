@@ -10,6 +10,7 @@ object Main extends App {
   @JSExport
   def main(): Unit = {
     LoadingWidgets.loadWidgets
+    new DashboardPresetsHandler()
     Layout().renderIntoDOM(document.getElementById("spgui-root"))
   }
 }
