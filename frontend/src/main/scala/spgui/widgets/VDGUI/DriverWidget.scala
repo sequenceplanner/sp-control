@@ -6,10 +6,12 @@ import sp.devicehandler.{VD, APIDeviceDriver}
 import sp.domain._
 import spgui.communication._
 import spgui.components.SPWidgetElements
+import sendMessages._
+
 
 object DriverWidget {
 
-  case class Card(driver: VD.Driver, driverState: VD.DriverState, cardId: ID)
+  case class Card(driver: VD.Driver, driverState: VD.DriverState, status: String, cardId: ID)
 
   case class State(cards:  List[Card] = List())
 
@@ -23,20 +25,18 @@ object DriverWidget {
           * add the drivers to a card
           */
         case APIDeviceDriver.TheDrivers(drivers) => {
-          println(drivers.toString)
-          $.modState { s =>
-            s.copy(cards = drivers.map(d => Card(d._1, d._2, d._1.id)))
-          }
+          $.modState { _.copy(
+            cards = drivers.map(d => Card(
+              driver = d._1,
+              driverState = d._2,
+              status = d._3,
+              cardId = d._1.id
+            ))
+          )}
         }
-        /**
-          * if a [[APIDeviceDriver.TheDriver]] response is noticed
-          * add the drivers to a card if it not already exist in cards
-          */
-        case APIDeviceDriver.TheDriver(d: VD.Driver, driverState: VD.DriverState) => {
-          $.modState { s =>
-            s.copy(cards = s.cards.filter(c => c.cardId != d.id) :+ Card(d, driverState, d.id))
-          }
-        }
+
+
+
         /**
           * if a [[APIDeviceDriver.DriverStateChange]] response is noticed
           * update the driver in the cards with the help method onDriverStateChange()
@@ -45,7 +45,7 @@ object DriverWidget {
           onDriverStateChange(name, id, state, diff)
         }
         case x => {
-          println(x)
+          //println(x)
           Callback.empty
         }
       }
@@ -56,27 +56,16 @@ object DriverWidget {
       $.modState(s => s.copy(cards = s.cards.map(c => if(c.driver.id == id) c.copy(driverState = state) else c)))
     }
 
-    def sendToDeviceDriver(mess: APIDeviceDriver.Request) = Callback{
-      val h = SPHeader(from = "DriverWidget", to = "DriverService", reply = SPValue("DriverWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, APIDeviceDriver.topicRequest)
-    }
 
     def render(s: State) = {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        /*SPWidgetElements.buttonGroup(Seq(
-          SPWidgetElements.button("Get drivers", sendToDeviceDriver(APIDeviceDriver.GetDrivers))
-        )),*/
         SPCardGrid(s.cards.map(c => SPCardGrid.DriverCard(
           cardId = c.cardId,
           name = c.driver.name,
-          isOnline = true,
-          driverInfo = List(
-            "Driver Type: " +c.driver.driverType
-          ),
-          state = c.driverState.keys.map(k =>
-            k.toString + ": " + c.driverState.get(k).getOrElse("Invalid id").toString).toList
+          status = c.status,
+          typ = c.driver.driverType,          
+          state = c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
         )))
       )
     }
@@ -121,11 +110,16 @@ object DriverWidget {
       driverHandler.kill()
       Callback.empty
     }
+
+    def onMount() = {
+      sendToDeviceDriver(APIDeviceDriver.GetDrivers)
+    }
   }
 
   private val driverWidgetComponent = ScalaComponent.builder[Unit]("DriverWidget")
     .initialState(State())
     .renderBackend[Backend]
+    .componentDidMount(_.backend.onMount())
     .componentWillUnmount(_.backend.onUnmount())
     .build
 

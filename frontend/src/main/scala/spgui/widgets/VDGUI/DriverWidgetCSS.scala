@@ -32,8 +32,8 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     boxShadow:= "0px 1px 5px 0px rgba(0, 0, 0, 0.2), 0px 2px 2px 0px rgba(0, 0, 0, 0.14), 0px 3px 1px -2px rgba(0, 0, 0, 0.12)",
     display.flex,
     flexGrow(1),
-    width(120.px),
-    height(140.px),
+    width(150.px),
+    height(100.px),
     overflow.auto
   )
 
@@ -74,15 +74,13 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
 
   val resourceCard = style(
-    fontFamily:=!"'Courier New', Courier, monospace",
     width(100.%%),
-    backgroundColor :=! "#ffffff"
+    backgroundColor :=! "#cccccc"
   )
 
   val driverCard = style(
-    fontFamily:=!"'Courier New', Courier, monospace",
     width(100.%%),
-    backgroundColor :=! "#ffffff"
+    backgroundColor :=! "#cccccc"
   )
 
   val marginCTE = 10.px
@@ -91,6 +89,7 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     fontWeight._500,
     borderBottom(1.px),
     borderBottomStyle.solid,
+    borderBottomColor :=! "#888888",
     marginTop(marginCTE),
     marginLeft(marginCTE),
     marginRight(marginCTE),
@@ -98,7 +97,8 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
 
   val stateList = style(
-    padding(10.px)
+    fontFamily:=!"'Courier New', Courier, monospace",
+    padding(12.px)
   )
 
   val cardSubtitle = style(
@@ -109,17 +109,46 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     color.rgb(119, 119, 119)
   )
 
+  val driverTypeSmall = style(
+    marginLeft(4.px),
+    fontSize(12 px),
+    color :=! "#555555"
+  )
+
+  val driverType = style(
+    marginLeft(12.px),
+    color :=! "#555555"
+  )
+
+  val driverStates = style(
+    fontFamily:=!"'Courier New', Courier, monospace",
+    margin(12.px)
+  )
 
   val driverStatus = style(
+    marginLeft(12.px),
+    color :=! "#555555"
+  )
 
+  val driverStatusSmall = style(
+    marginLeft(4.px),
+    fontSize(12 px),
+    color :=! "#555555"
   )
 
   val driverOffline = style(
-
+    color :=! "#ff0000",
+    fontWeight :=! "bold"
   )
 
   val driverOnline = style(
+    color :=! "#00ff00",
+    fontWeight :=! "bold"
+  )
 
+  val driverUnresponsive = style(
+    color :=! "#ffff00",
+    fontWeight :=! "bold"
   )
 
 

@@ -3,14 +3,17 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.domain._
 import spgui.communication._
+import sendMessages._
+import sp.devicehandler.APIDeviceDriver
+
 
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
   case class Props(cards: List[RenderCard])
 
   trait RenderCard{val cardId: ID}
-  case class DriverCard(cardId: ID, name: String, isOnline: Boolean, driverInfo: List[String], state: List[String]) extends RenderCard
-  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, Boolean)], state: List[String]) extends RenderCard
+  case class DriverCard(cardId: ID, name: String, status: String, typ: String, state: List[(String, SPValue)]) extends RenderCard
+  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, String)], state: List[(String, SPValue)]) extends RenderCard
   case class OperationRunnerCard(cardId: ID, operationName: String, abilityName: String, operationStates: List[String], abilityStates: List[String]) extends RenderCard
 
   class Backend($: BackendScope[Props, State]) {
@@ -92,6 +95,31 @@ object SPCardGrid {
       <.div(
         ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
         card.name
+      ),
+      <.div(
+        ^.className := DriverWidgetCSS.driverTypeSmall.htmlClass,
+        <.div("Type: " + card.typ)
+      ),
+      <.div(
+        ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
+        <.span("Status: "),
+        <.span(
+          card.status match {
+            case "Online" => <.span(
+              ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+              "Online"
+            )
+            case "Offline" => <.span(
+              ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+              "Offline"
+            )
+            case "Unresponsive" => <.span(
+              ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+              "Unresponsive"
+            )
+            case s: String => <.span(s)
+          }
+        )
       )
     )
   }
@@ -104,11 +132,37 @@ object SPCardGrid {
         card.name
       ),
       <.div(
-        card.driverInfo.map(<.div(_)).toTagMod
+        ^.className := DriverWidgetCSS.driverType.htmlClass,
+        <.div("Type: " + card.typ)
       ),
       <.div(
-        card.state.map(<.div(_)).toTagMod
-      )
+        ^.className := DriverWidgetCSS.driverStatus.htmlClass,
+        <.span("Status: "),
+        <.span(
+          card.status match {
+            case "Online" => <.span(
+              ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+              "Online"
+            )
+            case "Offline" => <.span(
+              ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+              "Offline"
+            )
+            case "Unresponsive" => <.span(
+              ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+              "Unresponsive"
+            )
+            case s: String => <.span(s)
+          }
+        )
+      ),
+      <.div(
+        ^.className := DriverWidgetCSS.driverStates.htmlClass,
+        card.state.map( s =>
+          <.div(s._1 + ": " + s._2)
+        ).toTagMod
+      ),
+      <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver")
     )
   }
 
@@ -119,27 +173,31 @@ object SPCardGrid {
         ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
         card.name
       ),
-      <.div(
-        card.driverStatuses.map{
-          ds => <.div(
-            ^.className := DriverWidgetCSS.driverStatus.htmlClass,
-            <.span(ds._1),
-            {
-              val isActive = ds._2
-              isActive match {
-                case true => <.span(
+      {
+        card.driverStatuses.map(driverStatus =>
+          <.div(
+            ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
+            <.span(driverStatus._1 + ": "),
+            <.span(
+              driverStatus._2 match {
+                case "Online" => <.span(
                   ^.className := DriverWidgetCSS.driverOnline.htmlClass,
                   "Online"
                 )
-                case false => <.span(
+                case "Offline" => <.span(
                   ^.className := DriverWidgetCSS.driverOffline.htmlClass,
                   "Offline"
                 )
+                case "Unresponsive" => <.span(
+                  ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                  "Unresponsive"
+                )
+                case s: String => <.span(s)
               }
-            }
+            )
           )
-        }.toTagMod
-      )
+        )
+      }.toTagMod
     )
   }
 
@@ -150,14 +208,36 @@ object SPCardGrid {
         ^.className := DriverWidgetCSS.cardTitleExpanded.htmlClass,
         card.name
       ),
-      <.div(
-        card.driverStatuses.map{
-          s => <.div(s._1 + s._2.toString)
-        }.toTagMod
-      ),
+      {
+        card.driverStatuses.map(driverStatus =>
+          <.div(
+            ^.className := DriverWidgetCSS.driverStatus.htmlClass,
+            <.span(driverStatus._1 + ": "),
+            <.span(
+              driverStatus._2 match {
+                case "Online" => <.span(
+                  ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+                  "Online"
+                )
+                case "Offline" => <.span(
+                  ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+                  "Offline"
+                )
+                case "Unresponsive" => <.span(
+                  ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                  "Unresponsive"
+                )
+                case s: String => <.span(s)
+              }
+            )
+          )
+        )
+      }.toTagMod,
       <.div(
         ^.className := DriverWidgetCSS.stateList.htmlClass,
-        card.state.map(<.div(_)).toTagMod
+         card.state.map( s =>
+          <.div(s._1 + ": " + s._2)
+        ).toTagMod
       )
     )
   }
