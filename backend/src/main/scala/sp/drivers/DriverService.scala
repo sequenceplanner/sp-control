@@ -39,7 +39,7 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
                 sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers.values.toList)))
               case api.TheDriver(driver, driverState) =>
                 drivers += driver.id -> (driver, driverState, Online) // if a new or already existing driver is received, the map should be updated with the driver, state and active status: Online
-              case api.DriverTerminated(id) =>
+              case api.DriverTerminated(id) => // Todo: Sometimes this message is not received, instead the driver will show as unresponsive even tho it is terminated
                 drivers += id -> drivers(id).copy(_3 = Offline) // if the driver is terminated, its active status is set to Offline
               case other =>
         }
@@ -49,11 +49,11 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
     case Tick =>
       val spHeader = SPHeader(from = DriverServiceInfo.attributes.service, reqID = instanceID)
       if(!firstTick) {
-        if (! theSame(drivers, driversTmp)) { // Check if the maps have the same keys and active drivers.. Todo: Do we need to compare driver and state as well?
+        if (! theSame(drivers, driversTmp)) { // Check if the maps have the same keys and active drivers..
           driversTmp = drivers
           sendAnswer(SPMessage.makeJson(spHeader, api.TheDrivers(drivers.values.toList)))
         }
-        drivers.map(d => d._1 -> (d._2.copy(_3 = if(d._2._3 == Online) Unresponsive else d._2._3))) // Set all active drivers status to Unresponsive, (the active drivers should be updated between ticks)
+        drivers = drivers.map(d => d._1 -> (d._2.copy(_3 = if(d._2._3 == Online) Unresponsive else d._2._3))) // Set all active drivers status to Unresponsive, (the active drivers should be updated between ticks)
       }
       else
         firstTick = false

@@ -9,9 +9,7 @@ import sp.domain._
 import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import sp.vdtesting.APIVDTracker
-import spgui.widgets.VDGUI
 import spgui.communication._
-import spgui.widgets.VDGUI._
 
 // In OperationRunnerWidget, we want to visualize the pairs of abilities/operations
 object OperationRunnerWidget {
@@ -174,11 +172,11 @@ object OperationRunnerWidget {
 
     def render(state: State) = {
       <.div(
-        VDGUI.SPCardGrid(
+        SPCardGrid(
           state.activeOpAbPairs.map{ operationAbilityPair =>
             val a: AbilityWithState = state.abilityStateMapper(operationAbilityPair.abilityID)
             val o: OperationWithState = state.operationStateMapper(operationAbilityPair.operationID)
-            VDGUI.SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
+            SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
           }
         )
       )
