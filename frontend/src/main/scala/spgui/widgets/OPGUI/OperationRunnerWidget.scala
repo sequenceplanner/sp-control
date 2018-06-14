@@ -45,7 +45,10 @@ object OperationRunnerWidget {
             def parseSetup(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
               setup.opAbilityMap
                 .get(operation.id)
-                .map { abilityID => OpAbPair(abilityID, operation.id) }
+                .map { abilityID =>
+                  sendToAbilityHandler(APIAbilityHandler.GetAbility(abilityID))
+                  OpAbPair(abilityID, operation.id)
+                }
             }
             // find the setup with the same runner-id as the widgets activeRunnerId
             //
@@ -61,17 +64,17 @@ object OperationRunnerWidget {
             if (state.activeRunnerID == runnerID) {
               // filter newRunnerStateMap on the operationStateMapperKeys
               // This way we sure we only update the new operation states
-              val existingOperations = newRunnerStateMap.filterKeys(k => state.operationStateMapper.keySet.contains(k))
+              val existingOperations = newRunnerStateMap.filterKeys(key => state.operationStateMapper.keySet.contains(key))
               // for each object in operationStateMapper
               // update the operationState for the operation,
               // if it has been changed with newRunnerStateMap
               // else keep old value
-              val updatedOperationStateMapper = state.operationStateMapper.map(osm =>
-                osm._1 -> osm._2.copy(
-                  operationState = if(existingOperations.keySet.contains(osm._1))
-                    Map(osm._1 -> existingOperations(osm._1))
+              val updatedOperationStateMapper = state.operationStateMapper.map(oneOperationWithState =>
+                oneOperationWithState._1 -> oneOperationWithState._2.copy(
+                  operationState = if(existingOperations.keySet.contains(oneOperationWithState._1))
+                    Map(oneOperationWithState._1 -> existingOperations(oneOperationWithState._1))
                   else
-                    osm._2.operationState)
+                    oneOperationWithState._2.operationState)
               )
               // copy the state with the updated operationStateMapper
               state.copy(operationStateMapper = updatedOperationStateMapper)
@@ -95,7 +98,6 @@ object OperationRunnerWidget {
                 if the updated ability have the same id as the object
                 true - map it against the newAbilityState
                 false - map it against the old
-
               */
             if (state.abilityStateMapper.contains(id)) {
               val updatedAbility = state.abilityStateMapper(id).copy(abilityState = newAbilityState)
@@ -104,12 +106,17 @@ object OperationRunnerWidget {
               state
           }
         }
-        case APIAbilityHandler.Abilities(xs) => {
-          $.modState(state =>
-
-            state
-          )
-        }
+        case APIAbilityHandler.TheAbility(ability) =>
+          $.modState { state =>
+            if (ability.isDefined)
+              // if ability is Defined add it (or overwrite old values) to the abilityStateMap
+              // and map it with a new ability and wait for next AbilityState()
+              state.copy(abilityStateMapper = state.abilityStateMapper + (ability.get.id -> AbilityWithState(ability.get, Map())))
+            else
+              // else if ability is not defined, GetAbility(id) has not been able to find
+              // the ability with that id in the AbilityStorage list => do not change state
+              state
+          }
         case x => Callback.empty
       }
       callback.foreach(_.runNow())
@@ -119,6 +126,11 @@ object OperationRunnerWidget {
       val h = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, APIOperationRunner.topicRequest)
+    }
+    def sendToAbilityHandler(mess: APIAbilityHandler.Request) = Callback{
+      val h = SPHeader(from = "OperationRunnerWidget", to = "OperationRunnerWidget", reply = SPValue("OperationRunnerWidget"))
+      val json = SPMessage.make(h, mess)
+      BackendCommunication.publish(json, APIAbilityHandler.topicRequest)
     }
 
     def render(state: State) = {

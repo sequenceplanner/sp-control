@@ -255,6 +255,14 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
 
           abilities.foreach(a => a._2.actor ! GetState)
 
+        case APIAbilityHandler.GetAbility(id) =>
+          // Get a list of all abilities
+          val listOfAbilities = abilities.map(_._2.ability).toList
+          // Try to find the ability in the list that match with
+          val matchedAbilityInList = listOfAbilities.find{ ability => ability.id == id }
+          // make message with header and trigger the response with The Ability
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APIAbilityHandler.TheAbility(matchedAbilityInList)))
+
 
         case APIAbilityHandler.SetUpAbility(ab, hand) =>
           log.debug(ab.toString)

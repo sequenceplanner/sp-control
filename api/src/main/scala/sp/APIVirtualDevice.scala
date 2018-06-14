@@ -210,7 +210,7 @@ package sp.devicehandler {
 
     /**
       * A response including the driver information and its current state
-      * @param x The Dreiver defined as [[VD.Driver]]
+      * @param x The Driver defined as [[VD.Driver]]
       * @param driverState The driver state defined as a Map[String, SPValue]
       */
     case class TheDriver(x: Driver, driverState: DriverState) extends Response
