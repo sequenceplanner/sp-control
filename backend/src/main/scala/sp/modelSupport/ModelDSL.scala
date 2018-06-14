@@ -22,7 +22,7 @@ case class Tsubmodel(name: String, model: List[ModelElement]) extends ModelEleme
 
 
 trait ModelDSL extends BuildModel {
-  def buildModel(name: String) = build(name, mes)
+  def buildModel(name: String = "") = build(name, mes)
   def c(kind: String, guard: String, actions: String*) = cond(kind, guard, actions:_*)
   var mes: List[ModelElement] = List()
 
@@ -39,22 +39,6 @@ trait ModelDSL extends BuildModel {
 }
 
 trait BuildModel {
-  def setupToThing(setup : APIOperationRunner.Setup): Thing = {
-    Thing(
-      name = setup.name,
-      id = ID.newID,
-      attributes = SPAttributes(
-        "name" -> setup.name,
-        "runnerID" -> setup.runnerID,
-        "ops" -> setup.ops,
-        "opAbilityMap" -> setup.opAbilityMap,
-        "initialState" -> setup.initialState,
-        "variableMap" -> setup.variableMap,
-        "abilityParameters" -> setup.abilityParameters.toList
-      )
-    )
-  }
-
   def driverMapper(drivers: List[VD.Driver], things: List[IDAble]): List[VD.OneToOneMapper] = things.flatMap { v =>
     for {
       driverName <- v.attributes.getAs[String]("driverName")
@@ -236,7 +220,7 @@ trait BuildModel {
     val runner = APIOperationRunner.Setup(r.name, ID.newID, includeOps,
       opAbMap, init, dvTovMap, Map()) //TODO add parameters
 
-    val runnerThing = setupToThing(runner)
+    val runnerThing = APIOperationRunner.runnerSetupToThing(runner)
 
     x._1 ++ driverThings ++ resourceThings ++ List(runnerThing)
   }

@@ -108,6 +108,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       topic -> topicMessageFactory.newFromType(r.msgType) }
 
     spState = rosVars.map(rvar => {
+      println(rvar)
       val spval = getField(rvar.field, rosState(rvar.topic)).get // puke if we cant parse
       rvar.did -> spval
     }).toMap

@@ -9,7 +9,7 @@ object Launch extends App {
   implicit val system = ActorSystem("SP")
   val cluster = akka.cluster.Cluster(system)
 
-  val models = Map("URModel" -> sp.unification.UR(),
+  val models = Map("URModel" -> sp.unification.UnificationModel(),
     "TurtleModel" -> sp.unification.TurtleModel(),
     "DummyExample" -> sp.unification.DummyExample()
   )

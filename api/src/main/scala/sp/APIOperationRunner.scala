@@ -72,7 +72,32 @@ object APIOperationRunner {
                    abilityParameters: Map[ID, Set[ID]] = Map()
                   )
 
+  def runnerSetupToThing(setup : Setup): Thing = {
+    Thing(
+      name = setup.name,
+      id = ID.newID,
+      attributes = SPAttributes(
+        "name" -> setup.name,
+        "runnerID" -> setup.runnerID,
+        "ops" -> setup.ops,
+        "opAbilityMap" -> setup.opAbilityMap,
+        "initialState" -> setup.initialState,
+        "variableMap" -> setup.variableMap,
+        "abilityParameters" -> setup.abilityParameters.toList
+      )
+    )
+  }
 
+  def runnerThingToSetup(thing : Thing): Setup = {
+    val name = thing.attributes.getAs[String]("name").getOrElse("")
+    val runnerID = thing.attributes.getAs[ID]("runnerID").getOrElse(ID.newID)
+    val ops = thing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
+    val opAbilityMap = thing.attributes.getAs[Map[ID,ID]]("opAbilityMap").getOrElse(Map())
+    val initialState = thing.attributes.getAs[Map[ID,SPValue]]("initialState").getOrElse(Map())
+    val variableMap = thing.attributes.getAs[Map[ID,ID]]("variableMap").getOrElse(Map())
+    val abilityParameters = thing.attributes.getAs[List[(ID,Set[ID])]]("abilityParameters").getOrElse(List()).toMap
+    Setup(name, runnerID,ops,opAbilityMap,initialState,variableMap,abilityParameters)
+  }
 
   object Formats {
     import play.api.libs.json._
