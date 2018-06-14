@@ -83,51 +83,6 @@ object ResourceWidget {
       )
     }
 
-    /*
-        send driverID to VDDriverCardsWidget and expand
-        When expanded you should be able to:
-        1. Force Restart
-        2. Force Stop
-        3. Force Write
-     */
-    // def renderExpansion(card: Card) = {
-    //   <.div(
-    //     ^.onClick --> onCardClick(card),
-    //     <.div(
-    //       <.button(
-    //         ^.className := "btn btn-default",
-    //         ^.onClick --> forceStop(card), "Force Stop"
-    //       )
-    //     ),
-    //     <.div(
-    //       "Name:   " + card.resource.r.name + "\n" +
-    //         "ID:     " + card.resource.r.id + "\n" +
-    //         "Things:   " + card.resource.r.things + "\n" +
-    //         "Setup   " + card.resource.r.setup + "\n" +
-    //         renderResourceState(card)
-    //     )
-    //   )
-    // }
-
-    // def renderResourceState(card: Card) = {
-    //   // for each element in driverState (Map[String, SPValue])
-    //   // print String, SPValue and a box where we can change SPValue if driver is editable
-    //   // Later: create new driverStates
-    //   <.div("ID" + "      " + "SPValue")
-    //   card.resource.state.toList.map { state: (ID, SPValue) =>
-    //     <.div(
-    //       state._1 + "  " + state._2.toString()
-    //     )
-    //   }
-    // }
-
-    /**********ACTIONS**********/
-    def onCardClick(card: Card)= {
-      // send to widget api that card is clicked
-      // handle in BackendComm.MessageObserver that the card should expand/contract
-      Callback("ResourceWidget: Card has been clicked") // dummy
-    }
-
     /**********CALLBACKS**********/
     /*
         force the driver to stop
