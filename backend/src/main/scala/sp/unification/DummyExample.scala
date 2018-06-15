@@ -42,10 +42,10 @@ class Dummy extends ModelDSL {
 class DummyExample extends ModelDSL {
   use("DummyRB", new Dummy)
 
-  v("forceX", false)
-  o("forceGoForward",
-    c("pre", "forceX"),
-    c("post", "false"), "DummyRB.moveForward")
+  // v("forceX", false)
+  // o("forceGoForward",
+  //   c("pre", "forceX"),
+  //   c("post", "false"), "DummyRB.moveForward")
 
   runner("turtlerunner")
 
