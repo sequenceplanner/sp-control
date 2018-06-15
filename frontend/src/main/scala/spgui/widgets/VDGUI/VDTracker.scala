@@ -7,12 +7,13 @@ import sp.devicehandler.VD.OneToOneMapper
 import spgui.circuit.{SPGUICircuit, SetTheme}
 import spgui.SPWidget
 import spgui.components.Icon
-import spgui.components.{SPWidgetElements => Comp}
+import spgui.components.SPWidgetElements
 import spgui.communication._
 import sp.domain.SPAttributes._
 import sp.domain.SPMessage
 import sp.domain.Logic._
 import sp.domain.SPValue
+
 
 import scalajs.js._
 import sp.domain._
@@ -109,42 +110,70 @@ object VDTracker {
     }
 
 
-    def sendToModel(model: ID, mess: mapi.Request): Callback = { //  Send message to model
+    def sendToModel(model: ID, mess: mapi.Request) = Callback{ //  Send message to model
       val h = SPHeader(from = "VolvoSchedulerWidget", to = model.toString,
-        reply = SPValue("VolvoSchedulerWidget"))
+        reply = SPValue("VolvoSchedulerWidget")
+      )
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, mapi.topicRequest)
-      Callback.empty
     }
-    def send(mess: APIVDTracker.Request): Callback = {
+    def send(mess: APIVDTracker.Request) =  Callback{
       val h = SPHeader(from = "VDTrackerWidget", to = APIVDTracker.service, reply = SPValue("VDTracker"))
       val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
         BackendCommunication.publish(json, APIVDTracker.topicRequest)
-      Callback.empty
     }
 
     def render(p:Unit, s:State) =
-      <.div(
-        <.div( // find idables with robot schedule and put them in a dropdown menu
-          //^.onClick --> send(APIVDTracker.getModelsInfo()),
-            dropdownWScroll("Create model", s.availableVDModels.map(m => <.div(m, ^.onClick --> {
-            send(APIVDTracker.createModel(m)); $.modState(_.copy(modelID = s.modelID))
-          }, ^.className := Style.schSelect.htmlClass)))),
+      <.div(        
+        SPWidgetElements.buttonGroup(Seq(
+          SPWidgetElements.dropdown(
+            "Create Model",
+            s.availableVDModels.map(m =>
+              SPWidgetElements.dropdownElement(
+                m,
+                {
+                  send(APIVDTracker.createModel(m)) >>
+                  $.modState(_.copy(modelID = s.modelID))
+                }
+              )
+            ).toSeq
+          ),
+          ModelChoiceDropdown(id => {
+            $.modState(_.copy(modelID = id)) >>
+            sendToModel(id, mapi.GetItemList(0,99999))
+          }),
+          SPWidgetElements.button(
+            "Launch VD and Abilities",
+            send(APIVDTracker.launchVDAbilities(s.modelIdables))
+          ),
+          SPWidgetElements.button(
+            "Launch operation runner",
+            send(APIVDTracker.launchOpRunner(s.modelIdables))
+          )
+        )),
+      
+        // <.div( // find idables with robot schedule and put them in a dropdown menu
+        //   //^.onClick --> send(APIVDTracker.getModelsInfo()),
+        //     dropdownWScroll("Create model", s.availableVDModels.map(m => <.div(m, ^.onClick --> {
+        //     send(APIVDTracker.createModel(m)); $.modState(_.copy(modelID = s.modelID))
+        //   }, ^.className := Style.schSelect.htmlClass)))),
+
+
 
 
      /*   <.button(
           ^.className := "btn btn-default",
           ^.onClick --> send(APIVDTracker.createModel(s.availableVDModels.head)), "Create model"
         ), */
-        ModelChoiceDropdown(id => {$.modState(_.copy(modelID = id)); sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
-        <.button(
-          ^.className := "btn btn-default",
-          ^.onClick --> send(APIVDTracker.launchVDAbilities(s.modelIdables)), "Launch VD and Abilities"
-        ),
-        <.button(
-          ^.className := "btn btn-default",
-          ^.onClick --> send(APIVDTracker.launchOpRunner(s.modelIdables)), "Launch operation runner"
-        ),
+        // ModelChoiceDropdown(id => {$.modState(_.copy(modelID = id)); sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
+        // <.button(
+        //   ^.className := "btn btn-default",
+        //   ^.onClick --> send(APIVDTracker.launchVDAbilities(s.modelIdables)), "Launch VD and Abilities"
+        // ),
+        // <.button(
+        //   ^.className := "btn btn-default",
+        //   ^.onClick --> send(APIVDTracker.launchOpRunner(s.modelIdables)), "Launch operation runner"
+        // ),
         <.br(),
         <.br(),
         renderRunners(s.latestActiveRunner, s.latestRunnerState, s.modelIdables),
@@ -214,24 +243,23 @@ object VDTracker {
     }
 
     def onMount(): Callback = {
-      Callback.empty
+      send(APIVDTracker.getModelsInfo())
     }
 
-    def onUnmount(): Callback =  {
+    def onUnmount() =  Callback{
       operationRunnerHandler.kill()
       abilityHandler.kill()
       virtualDeviceHandler.kill()
       modelMessObs.kill()
       vdModelObs.kill()
       vdtObs.kill()
-      Callback.empty
     }
   }
 
   private val component = ScalaComponent.builder[Unit]("VDTracker")
     .initialState(State())
     .renderBackend[Backend]
-      .componentDidMount(_.backend.onMount())
+    .componentDidMount(_.backend.onMount())
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
