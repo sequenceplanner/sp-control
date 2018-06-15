@@ -15,12 +15,15 @@ import scala.concurrent.Future
 object DummyLiveGantt {
 
   // TODO runnerID should possibly be props
-  case class State(runnerID: ID = null, abilityNames: Map[ID, String] = Map(), oprState: Map[ID, String] = Map())
+  case class State(
+                    runnerID: ID = null,
+                    abilityNames: Map[ID, String] = Map(), // operation ID -> ability name
+                    oprState: Map[ID, String] = Map()
+                  )
 
   private class Backend($: BackendScope[SPWidgetBase, State]) {
 
     val oprComm = new OperationRunnerAPIComm(
-      //stateEvent => println(stateEvent)
       stateEvent => {
         $.modState {
           s => s.copy(
@@ -33,16 +36,24 @@ object DummyLiveGantt {
 
     val ahComm = new AbilityHandlerAPIComm
 
-    def getAbilities(ids: Set[ID]) = {
+    def getAbilities(opAbMap: Map[ID, ID]) = {
       val abilitiesF = ahComm.request(ahapi.GetAbilities).takeFirstResponse.map(_._2).collect { case ahapi.Abilities(xs) => xs}
-      abilitiesF.map(_.filter(a => ids.contains(a.id))) // TODO fetch only the abilities of interest instead of all of them
+      // TODO fetch only the abilities of interest instead of all of them
+      abilitiesF.map(_.foldLeft(Map[ID, String]()) { (map, ability) =>
+        val m = opAbMap.find(t => t._2 == ability.id)
+        if(m.isDefined) map + (m.get._1 -> ability.name)
+        else map
+      })
+    }
+
+    def getRunnerSetup(runnerID: ID) = {
+      oprComm.request(oprapi.GetRunner(runnerID)).takeFirstResponse.map(_._2).collect { case oprapi.Runner(setup) => setup}
     }
 
     def getAbilityNames(runnerID: ID) = Callback.future {
-      val runnerF = oprComm.request(oprapi.GetRunner(runnerID)).takeFirstResponse.map(_._2)
-      val abilityIDsF = runnerF.map { case oprapi.Runner(setup) => setup.opAbilityMap.values.toSet }
-      val abilityNamesF = abilityIDsF.flatMap(getAbilities)
-      abilityNamesF.map(names => $.modState(s => s.copy(abilityNames = s.abilityNames ++ names.map(a => a.id -> a.name))))
+      val opAbMapF = getRunnerSetup(runnerID).map(_.opAbilityMap)
+      val abilitiesF = opAbMapF.flatMap(getAbilities)
+      abilitiesF.map(abs => $.modState(s => s.copy(abilityNames = s.abilityNames ++ abs)))
     }
 
     def render(s: State) = {
