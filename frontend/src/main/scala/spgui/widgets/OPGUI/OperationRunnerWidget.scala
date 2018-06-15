@@ -5,7 +5,6 @@ import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.abilityhandler.APIAbilityHandler
-import sp.domain._
 import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import sp.vdtesting.APIVDTracker
@@ -17,13 +16,16 @@ object OperationRunnerWidget {
   case class AbilityWithState(ability: APIAbilityHandler.Ability, abilityState: Map[ID, SPValue])
   // Case class for a operation and its state
   case class OperationWithState(operation: Operation, operationState: Map[ID, SPValue])
+
+  case class Runner(id: Option[ID] = None, runInAuto: Boolean = true, startOperation: Option[ID] = None,
+                    stepBackward: Boolean = false)
   // Pairs of ID:s from the Runner.Setup.opAbilityMap
   case class OpAbPair(abilityID: ID, operationID: ID)
 
   // we need to separate the activeCards (the pairs the runner is using)
   // and the Operation/Ability-pair available, which we later can activate to the runner
   case class State(
-                    activeRunnerID:       Option[ID] = None,
+                    activeRunner:         Option[Runner] = None,
                     abilityStateMapper:   Map[ID, AbilityWithState] = Map(),
                     operationStateMapper: Map[ID, OperationWithState] = Map(),
                     activeOpAbPairs:      List[OpAbPair] = List(), // in the runner
@@ -52,8 +54,10 @@ object OperationRunnerWidget {
         case APIVDTracker.OpRunnerCreated(id) =>
           // trigger [[APIOperationRunner.GetRunners]] request
           sendToRunner(APIOperationRunner.GetRunners)
+          // new runner with id
+          val newRunner = Runner(Some(id))
           // Update the state with the activeRunnerID from the runner that is created
-          $.modState { state => state.copy(activeRunnerID = Some(id)) }
+          $.modState { state => state.copy(activeRunner = Some(newRunner)) }
 
         case x => Callback.empty
       }
@@ -66,49 +70,44 @@ object OperationRunnerWidget {
         // case Runners-message: create new opAbPairs
         case APIOperationRunner.Runners(ids) => {
           $.modState { state =>
-            // if current runner is defined update opAbPairs, else do nothing
-            if (state.activeRunnerID.isDefined) {
-              // find the setup with the same runner-id as the widgets activeRunnerId
-              val setup: Setup = ids.find { setup => setup.runnerID == state.activeRunnerID.get }.get
-              val newState: State = {
-                // with a setup, go through the ops: Set[Operation] and map the operationId with a abilityID
-                /**
-                  * With the setup go through the [[Setup.ops]]: Set[Operation]
-                  * a new OperationWithState with a empty state: Map[ID, SPValue
-                  * @param setup: Setup - the [[APIOperationRunner.Setup]] that the runner have
-                  * @return the map of operationID -> OperationWithState
-                  */
-                def opAbPairs(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
-                  setup.opAbilityMap.get(operation.id).map { abilityID =>
-                    // Send [[APIAbilityHandler.GetAbility(id)]] with the abilityId
-                    sendToAbilityHandler(APIAbilityHandler.GetAbility(abilityID))
-                    // Create a new Pair
-                    OpAbPair(abilityID, operation.id)
-                  }
-                }
 
-                /**
-                  * map each operationId in [[Setup.ops]]: Set[Operation] to
-                  * a new OperationWithState with a empty state: Map[ID, SPValue
-                  * @param setup: Setup - the [[APIOperationRunner.Setup]] that the runner have
-                  * @return the map of operationID -> OperationWithState
-                  */
-                def opStateMapper(setup: Setup): Map[ID, OperationWithState] = {
-                  setup.ops.map(operation => operation.id -> OperationWithState(operation, Map())).toMap
-                }
+            // try to find the setup with the same runner-id as the widgets activeRunner.id
+            val setup: Option[Setup] = ids.find(setup =>
+              state.activeRunner.exists(_.id.contains(setup.runnerID)
+              )
+            )
 
-                // update state with operationStateMapper and opAbPairs
-                state.copy(
-                  activeOpAbPairs = opAbPairs(setup).toList,
-                  operationStateMapper = opStateMapper(setup)
-                )
+            /**
+              * With the setup go through the [[Setup.ops]]: Set[Operation]
+              * a new OperationWithState with a empty state: Map[ID, SPValue
+              * @param setup: Setup - the [[APIOperationRunner.Setup]] that the runner have
+              * @return the map of operationID -> OperationWithState
+              */
+            def opAbPairs(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
+              setup.opAbilityMap.get(operation.id).map { abilityID =>
+                // Send [[APIAbilityHandler.GetAbility(id)]] with the abilityId
+                sendToAbilityHandler(APIAbilityHandler.GetAbility(abilityID))
+                // Create a new Pair
+                OpAbPair(abilityID, operation.id)
               }
-              // return the updated state
-              newState
             }
-            else {
-              state
+
+            /**
+              * map each operationId in [[Setup.ops]]: Set[Operation] to
+              * a new OperationWithState with a empty state: Map[ID, SPValue
+              * @param setup: Setup - the [[APIOperationRunner.Setup]] that the runner have
+              * @return the map of operationID -> OperationWithState
+              */
+            def opStateMapper(setup: Setup): Map[ID, OperationWithState] = {
+              setup.ops.map(operation => operation.id -> OperationWithState(operation, Map())).toMap
             }
+
+            // try to update state with operationStateMapper and opAbPairs
+            setup.map{s => state.copy(
+              activeOpAbPairs = opAbPairs(s).toList,
+              operationStateMapper = opStateMapper(s))
+            }.getOrElse(state)
+
           }
 
         }
@@ -117,31 +116,26 @@ object OperationRunnerWidget {
         // if so, update the operationStateMapper
         case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap, runInAuto, disableConditionGroups) => {
           $.modState { state =>
-            // if current runner is defined update operationStateMapper, else return current state
-            if (state.activeRunnerID.isDefined) {
-              // if StateEvent occur, check if the operationState is for the same Runner-id as the widgets activeRunnerId
-              if (state.activeRunnerID.get == runnerID) {
-                // filter newRunnerStateMap on the operationStateMapperKeys
-                // This way we sure we only update the new operation states
-                val existingOperations = newRunnerStateMap.filterKeys(key => state.operationStateMapper.keySet.contains(key))
-                // for each object in operationStateMapper
-                // update the operationState for the operation,
-                // if it has been changed with newRunnerStateMap
-                // else keep old value
-                val updatedOperationStateMapper = state.operationStateMapper.map(oneOperationWithState =>
-                  oneOperationWithState._1 -> oneOperationWithState._2.copy(
-                    operationState = if (existingOperations.keySet.contains(oneOperationWithState._1))
-                      Map(oneOperationWithState._1 -> existingOperations(oneOperationWithState._1))
-                    else
-                      oneOperationWithState._2.operationState)
-                )
-                // copy the state with the updated operationStateMapper
-                state.copy(operationStateMapper = updatedOperationStateMapper)
-              } else {
-                state // if the StateEvent is for another Runner, do not modify state}
-              }
+            // if StateEvent occur, check if the operationState is for the same Runner-id as the widgets activeRunnerId
+            if(state.activeRunner.exists(_.id.contains(runnerID))){
+              // filter newRunnerStateMap on the operationStateMapperKeys
+              // This way we sure we only update the new operation states
+              val existingOperations = newRunnerStateMap.filterKeys(key => state.operationStateMapper.keySet.contains(key))
+              // for each object in operationStateMapper
+              // update the operationState for the operation,
+              // if it has been changed with newRunnerStateMap
+              // else keep old value
+              val updatedOperationStateMapper = state.operationStateMapper.map(oneOperationWithState =>
+                oneOperationWithState._1 -> oneOperationWithState._2.copy(
+                  operationState = if (existingOperations.keySet.contains(oneOperationWithState._1))
+                    Map(oneOperationWithState._1 -> existingOperations(oneOperationWithState._1))
+                  else
+                    oneOperationWithState._2.operationState)
+              )
+              // copy the state with the updated operationStateMapper
+              state.copy(operationStateMapper = updatedOperationStateMapper)
             } else {
-              state // if activeRunner is not defined yet, return state
+              state // if the StateEvent is for another Runner, do not modify state}
             }
           }
         }
