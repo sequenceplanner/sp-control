@@ -57,6 +57,7 @@ object OperationRunnerWidget {
 
         case x => Callback.empty
       }
+      // for each callback, runNow()
       callback.foreach(_.runNow())
     }
 
@@ -64,7 +65,6 @@ object OperationRunnerWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIOperationRunner.Response].map {
         // case Runners-message: create new opAbPairs
         case APIOperationRunner.Runners(ids) => {
-          //println(s"got API.Runners with $ids")
           $.modState { state =>
             // if current runner is defined update opAbPairs, else do nothing
             if (state.activeRunnerID.isDefined) {
@@ -94,7 +94,7 @@ object OperationRunnerWidget {
                   * @return the map of operationID -> OperationWithState
                   */
                 def opStateMapper(setup: Setup): Map[ID, OperationWithState] = {
-                  setup.ops.map(op => op.id -> OperationWithState(op, Map())).toMap
+                  setup.ops.map(operation => operation.id -> OperationWithState(operation, Map())).toMap
                 }
 
                 // update state with operationStateMapper and opAbPairs
@@ -103,19 +103,21 @@ object OperationRunnerWidget {
                   operationStateMapper = opStateMapper(setup)
                 )
               }
+              // return the updated state
               newState
             }
             else {
-              println("ActiveRunner is not defined in Runners")
               state
             }
           }
 
         }
 
+        // case StateEvent-message: see if any operation has been updated
+        // if so, update the operationStateMapper
         case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap) => {
           $.modState { state =>
-            // if current runner is defined update operationStateMapper, else do nothing
+            // if current runner is defined update operationStateMapper, else return current state
             if (state.activeRunnerID.isDefined) {
               // if StateEvent occur, check if the operationState is for the same Runner-id as the widgets activeRunnerId
               if (state.activeRunnerID.get == runnerID) {
@@ -135,17 +137,19 @@ object OperationRunnerWidget {
                 )
                 // copy the state with the updated operationStateMapper
                 state.copy(operationStateMapper = updatedOperationStateMapper)
+              } else {
+                state // if the StateEvent is for another Runner, do not modify state}
               }
-              else state // if the StateEvent is for another Runner, do not modify state
+            } else {
+              state // if activeRunner is not defined yet, return state
             }
-            else
-              println("ActiveRunner is not defined in StateEvent")
-            state
           }
         }
 
+        // for the other messages i VDTracker, return Callback.empty
         case x => Callback.empty
       }
+      // for each callback, runNow()
       callback.foreach(_.runNow())
     }
 
@@ -158,59 +162,62 @@ object OperationRunnerWidget {
             /*  for each object in abilityStateMapper
              if the updated ability have the same id as the object
              true - map it against the newAbilityState
-             false - map it against the old
+             false - do not update state
              */
             if (state.abilityStateMapper.contains(id)) {
               val updatedAbility = state.abilityStateMapper(id).copy(abilityState = newAbilityState)
               state.copy(abilityStateMapper = state.abilityStateMapper + (id -> updatedAbility))
-            } else
+            } else {
               state
+            }
           }
         }
+
         case APIAbilityHandler.TheAbility(ability) =>
           $.modState { state =>
             if (ability.isDefined) {
-              // if ability is Defined add it (or overwrite old values) to the abilityStateMap
+              // if ability is Defined, add it (or overwrite old values) to the abilityStateMap
               // and map it with a new ability and wait for next AbilityState()
-              val abilityMaptoAdd: Map[ID, AbilityWithState] = Map(ability.get.id -> AbilityWithState(ability.get, Map()))
-              state.copy(abilityStateMapper = state.abilityStateMapper ++ abilityMaptoAdd)
+              val abilityMapToAdd: Map[ID, AbilityWithState] = Map(ability.get.id -> AbilityWithState(ability.get, Map()))
+              state.copy(abilityStateMapper = state.abilityStateMapper ++ abilityMapToAdd)
             } else {
               // else if ability is not defined, GetAbility(id) has not been able to find
               // the ability with that id in the AbilityStorage list => do not change state
               state
             }
           }
+
+        // Not need right now, delete?
+        // If we get a list of Abilities, Create a GetAbility-call for each abilityID
         case APIAbilityHandler.Abilities(abilities) =>
           $.modState {
             state => {
-              abilities.foreach {
-                ability => {
-                  sendToAbilityHandler(APIAbilityHandler.GetAbility(ability.id))
-                }
-              }
+              // call [[APIAbilityHandler.GetAbility(id)]]
+              abilities.foreach { ability => sendToAbilityHandler(APIAbilityHandler.GetAbility(ability.id)) }
+              // do not update state
               state
             }
           }
         case x => Callback.empty
       }
+      // for each callback, runNow()
       callback.foreach(_.runNow())
     }
 
+    // Set SPHeader and send SPMessage to APIOperationRunner
     def sendToRunner(mess: APIOperationRunner.Request): Unit = {
       val h = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, APIOperationRunner.topicRequest)
+      BackendCommunication.publish(SPMessage.make(h, mess), APIOperationRunner.topicRequest)
     }
 
+    // Set SPHeader and send SPMessage to APIAbilityHandler
     def sendToAbilityHandler(mess: APIAbilityHandler.Request): Unit = {
       val h = SPHeader(from = "OperationRunnerWidget", to = APIAbilityHandler.service,
         reply = SPValue("OperationRunnerWidget"), reqID = java.util.UUID.randomUUID())
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, APIAbilityHandler.topicRequest)
+      BackendCommunication.publish(SPMessage.make(h, mess), APIAbilityHandler.topicRequest)
     }
 
     def render(state: State) = {
-      println(state)
       <.div(
         state.activeOpAbPairs.map{ operationAbilityPair =>
           <.div(
@@ -220,6 +227,7 @@ object OperationRunnerWidget {
           )
         }.toTagMod
       )
+      // TODO: Update OperationCards
       // SPCardGrid(
       //   state.activeOpAbPairs.map{ operationAbilityPair =>
       //     val a: AbilityWithState = state.abilityStateMapper(operationAbilityPair.abilityID)
