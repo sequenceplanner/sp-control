@@ -48,7 +48,7 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     display.flex,
     width(100.%%)
   )
-
+1
 
   val paddingCTS = 3.px
   val cardTitleSmall = style(

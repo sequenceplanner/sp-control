@@ -35,17 +35,30 @@ object SPCardGrid {
         )
       )
     }
-    
+
+
     def cardSmall(opab: OperationRunnerCard) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.op.operation.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            opab.op.operation.name// ,
+            // Some(opab.op.operation.preCondition.toString),
+            // Some(opab.op.operation.postCondition.toString)
+          ),
+          renderOpState(opab.op.operationState)
         ),
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.ab.ability.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            opab.ab.ability.name,
+            Some("precondition"),
+            Some("postCondition")
+     //       Some(opab.ab.ability.preCondition.toString),
+      //      Some(opab.ab.ability.postCondition.toString)
+          ),
+          renderAbState(opab.ab.abilityState)
         )
       )
     }
@@ -54,12 +67,14 @@ object SPCardGrid {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.op.operation.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(opab.op.operation.name,Some("hello"), Some("goodbye")),
+          renderOpState(opab.op.operationState)
         ),
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.ab.ability.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(opab.ab.ability.name),
+          renderAbState(opab.ab.abilityState)
         )
       )
     }
@@ -104,63 +119,92 @@ object SPCardGrid {
     }
   }
 
-  val opHeight = 80f
-  val opWidth = 120f
-  val opHorizontalBarOffset = 12f
-  def sop(label: String, x: Int, y: Int) =
-    <.span(
-      svg.svg(
-        svg.width := opWidth.toInt,
-        svg.height:= opHeight.toInt,
-        svg.svg(
-          svg.width := opWidth.toInt,
-          svg.height:= opHeight.toInt,
-          svg.x := 0,
-          svg.y := 0,
-          svg.rect(
-            svg.x := 0,
-            svg.y := 0,
-            svg.width := opWidth.toInt,
-            svg.height:= opHeight.toInt,
-            svg.rx := 6, svg.ry := 6,
-            svg.fill := "white",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Top horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y := opHorizontalBarOffset.toInt,
-            svg.width := opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Bottom horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y :=  (opHeight - opHorizontalBarOffset).toInt,
-            svg.width := opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          svg.svg(
-            svg.text(
-              svg.x := "50%",
-              svg.y := "50%",
-              svg.textAnchor := "middle",
-              svg.dy := ".3em",
-              label
-            )
-          )
+  def renderOp(name: String, preCondition: Option[String] = None, postCondition: Option[String] = None) = {
+    <.div(
+      ^.className := OperationRunnerWidgetCSS.opInner.htmlClass,
+      preCondition.map(pre => {
+        <.div(
+          ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
+          pre
         )
-      )
+      }).getOrElse(EmptyVdom),
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.opNameOuter.htmlClass,
+        <.div(
+          ^.className := OperationRunnerWidgetCSS.opName.htmlClass,
+          name
+        )
+      ),
+      postCondition.map(post => {
+        <.div(
+          ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
+          post
+        )
+      }).getOrElse(EmptyVdom)
     )
+  }
+
+
+  def renderOpState(state: Map[ID, SPValue]) = {
+    <.span(
+      ^.className := OperationRunnerWidgetCSS.opabState.htmlClass,
+      state.map{case (key, value) => {
+        value.toString match {
+          case "\"i\"" => <.span(
+            ^.className := OperationRunnerWidgetCSS.green.htmlClass,
+            "initialised"
+          )
+          case "\"e\"" => <.span(
+            ^.className := OperationRunnerWidgetCSS.spOrange.htmlClass,
+            "executing"
+          )
+          case "\"f\"" => <.span(
+            ^.className := OperationRunnerWidgetCSS.blue.htmlClass,
+            "finished"
+          )
+          case _ => <.span(value.toString)
+        }
+      }}.toTagMod
+    )
+  }
+
+  import play.api.libs.json._
+  case class abilityState(state: String, counter: Int)
+  implicit val fAbState: JSFormat[abilityState] = Json.format[abilityState]
+
+  object AbilityState {
+    val unavailable = "unavailable"
+    val notEnabled = "notEnabled"
+    val enabled = "enabled"
+    val starting = "starting"
+    val executing = "executing"
+    val finished = "finished"
+    val forcedReset = "forcedReset"
+    val failed = "failed"
+  }
+
+  def renderAbState(state: Map[ID, SPValue]) = {
+    <.span(
+      ^.className := OperationRunnerWidgetCSS.opabState.htmlClass,
+      state.map{case (key, value) => {
+        value.asOpt[abilityState].map{ abState =>
+          abState.state
+        }.getOrElse("invalidState")
+      }}.map{s =>
+        s match {
+          case AbilityState.unavailable => "unavailable"
+          case AbilityState.notEnabled => "notEnabled"
+          case AbilityState.enabled => "enabled"
+          case AbilityState.starting => "starting"
+          case AbilityState.executing => "executing"
+          case AbilityState.finished => "finished"
+          case AbilityState.forcedReset => "forcedReset"
+          case AbilityState.failed => "failed"
+          case "invalidState" => "invalidState"
+        }        
+      }.toTagMod
+    )
+  }
 
   private val component = ScalaComponent.builder[Props]("OperationAbilityCardGrid")
     .initialState(State())

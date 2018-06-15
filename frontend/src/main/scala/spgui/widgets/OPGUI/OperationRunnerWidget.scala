@@ -219,24 +219,16 @@ object OperationRunnerWidget {
 
     def render(state: State) = {
       <.div(
-        state.activeOpAbPairs.map{ operationAbilityPair =>
-          <.div(
-            <.span(state.operationStateMapper(operationAbilityPair.operationID).operation.name),
-            <.span("         "),
-            <.span(state.abilityStateMapper(operationAbilityPair.abilityID).ability.name)
-          )
-        }.toTagMod
+        SPCardGrid(
+          state.activeOpAbPairs.map{ operationAbilityPair => {
+            val op = state.operationStateMapper(operationAbilityPair.operationID)
+            val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
+            SPCardGrid.OperationRunnerCard(op.operation.id, ab, op)
+          }}
+        )
       )
-      // TODO: Update OperationCards
-      // SPCardGrid(
-      //   state.activeOpAbPairs.map{ operationAbilityPair =>
-      //     val a: AbilityWithState = state.abilityStateMapper(operationAbilityPair.abilityID)
-      //     val o: OperationWithState = state.operationStateMapper(operationAbilityPair.operationID)
-      //     SPCardGrid.OperationRunnerCard(operationAbilityPair.operationID, a, o)
-      //   }
     }
-
-
+     
     def onUnmount() = Callback{
       println("OperationRunnerWidget Unmouting")
       operationRunnerHandler.kill()

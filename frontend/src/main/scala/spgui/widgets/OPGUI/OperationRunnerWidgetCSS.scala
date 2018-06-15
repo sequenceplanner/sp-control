@@ -2,8 +2,9 @@ package spgui.widgets.OPGUI
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
+import spgui.theming.Theming
 
-object OperationRunnerWidgetCSS extends StyleSheet.Inline {
+object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
   import dsl._
 
   val cardGroupCollapsed = style(
@@ -89,8 +90,73 @@ object OperationRunnerWidgetCSS extends StyleSheet.Inline {
     margin(10 px)
   )
 
-  val sopOuter = style(
-    margin(10.px)
+  val opOuter = style(
+    margin(10 px),
+    display.flex,
+    flexDirection.column
+  )
+
+  val opInner = style(
+    height(100 px),
+    width(200 px),
+    borderRadius(15 px),
+    borderWidth(2 px),
+    borderStyle:=!"solid",
+    color :=! "#000000",
+    backgroundColor := "#ffffff",
+    display.flex,
+    flexDirection.column
+  )
+
+  val opPrecondition = style(
+    textAlign.center,
+    borderBottomColor :=! "#000000",
+    borderBottomStyle.solid,
+    borderBottomWidth(1 px),
+    marginLeft(5 px),
+    marginRight(5 px),
+    fontFamily:=!"'monospace'"
+  )
+
+  val opNameOuter = style(
+    height(100 %%),
+    overflow.auto,
+    overflowWrap := "break-word",
+    margin(4 px)
+  )
+  val opName = style(
+    position.relative,
+    textAlign.center,
+    fontSize(16 px),
+    overflow.hidden,
+    textOverflow:= ("ellipsis"),
+  )
+
+  val opPostcondition = style(
+    textAlign.center,
+    borderTopColor :=! "#000000",
+    borderTopStyle.solid,
+    borderTopWidth(1 px),
+    marginLeft(5 px),
+    marginRight(5 px),
+    fontFamily:=!"'monospace'"
+  )
+
+  val opabState = style(
+    fontWeight.bold,
+    textAlign.center
+  )
+
+  val blue = style(
+    color :=! "#0000ff"
+  )
+
+  val spOrange = style(
+    color(_rgb((theme.value.spOrange)))
+  )
+
+  val green = style(
+    color :=! "#00ff00"
   )
 
 
