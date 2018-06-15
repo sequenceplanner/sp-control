@@ -100,11 +100,11 @@ class AbilityHandlerMaker extends Actor
 
 // This actor will keep track of the abilities and parse all messages from the VD
 class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
-    with ActorLogging
-    with AbilityLogic
-    with AbilityComm
-    with sp.service.ServiceCommunicationSupport
-    with sp.service.MessageBussSupport {
+  with ActorLogging
+  with AbilityLogic
+  with AbilityComm
+  with sp.service.ServiceCommunicationSupport
+  with sp.service.MessageBussSupport {
   import context.dispatcher
 
 
@@ -185,7 +185,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
 
       publish("spevents", makeMess(h,
         APISP.SPError("Ability has ids that is not found in the state. Either the VD is unavailable or something is wrong",
-        errorAttr)
+          errorAttr)
       ))
 
 
@@ -256,13 +256,11 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
           abilities.foreach(a => a._2.actor ! GetState)
 
         case APIAbilityHandler.GetAbility(id) =>
-          println(s"Got GetAbility")
           // Get a list of all abilities
           val listOfAbilities = abilities.map(_._2.ability).toList
           // Try to find the ability in the list that match with id
           val matchedAbilityInList = listOfAbilities.find{ ability => ability.id == id }
           // make message with header and trigger the response with The Ability
-          println(s"Got ability with id $id and the value is $matchedAbilityInList")
           publish(APIAbilityHandler.topicResponse, makeMess(updH, APIAbilityHandler.TheAbility(matchedAbilityInList)))
 
 
@@ -403,14 +401,14 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
         //fix timeout here if needed
       }
 
-      //checkAndSend(res.getOrElse(s), sender())
+    //checkAndSend(res.getOrElse(s), sender())
 
     case ResetAbility(s) =>
       val res = reset(s)
       if (res != s)  sender() ! StateUpdReq(ability.id, res)
       sendAbilityState(sender())
 
-      //checkAndSend(res.getOrElse(s), sender())
+    //checkAndSend(res.getOrElse(s), sender())
 
     case NewState(s) =>
       val missingIDs = ids.diff(s.keySet)
@@ -464,14 +462,14 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
 
 // The various states that an ability can be in
 object AbilityState {
-    val unavailable = "unavailable"
-    val notEnabled = "notEnabled"
-    val enabled = "enabled"
-    val starting = "starting"
-    val executing = "executing"
-    val finished = "finished"
-    val forcedReset = "forcedReset"
-    val failed = "failed"
+  val unavailable = "unavailable"
+  val notEnabled = "notEnabled"
+  val enabled = "enabled"
+  val starting = "starting"
+  val executing = "executing"
+  val finished = "finished"
+  val forcedReset = "forcedReset"
+  val failed = "failed"
 }
 
 // TODO: Merge the state of the abilities into the VD-state (when the VD is moved)
@@ -654,10 +652,10 @@ trait AbilityComm {
 
   def extractVDReply(mess: Option[SPMessage], instanceID: ID, vd: String) = {
     for {
-    m <- mess
-    h <- m.getHeaderAs[SPHeader] if h.from.contains(vd) || h.reply == SPValue(instanceID)
-    b <- m.getBodyAs[APIVirtualDevice.Response]
-  } yield (h, b)}
+      m <- mess
+      h <- m.getHeaderAs[SPHeader] if h.from.contains(vd) || h.reply == SPValue(instanceID)
+      b <- m.getBodyAs[APIVirtualDevice.Response]
+    } yield (h, b)}
 
   def extractServiceRequest(mess: Option[SPMessage]) = for {
     m <- mess
