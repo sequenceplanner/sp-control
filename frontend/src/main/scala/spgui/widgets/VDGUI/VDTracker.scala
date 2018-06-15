@@ -151,7 +151,7 @@ object VDTracker {
         <.br(),
         renderInfo("Ability state", s.latestAbilityState, s.modelIdables),
         <.br(),
-        renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables),
+        renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables)
       )
 
     def terminateRunner(id: ID): Callback = {
