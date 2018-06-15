@@ -39,6 +39,7 @@ object APIOperationRunner {
     * @param runnerID The id of the runner to change mode*
     * @param startOperation if not in auto, tries to start the operation if it is enabled
     * @param stepBackward in not in auto, will change the complete runner state to when the last operation started.
+    *                     backward is not implemented yet
     */
   case class ManualControl(runnerID: ID,
                            startOperation: Option[ID] = None,
@@ -46,10 +47,7 @@ object APIOperationRunner {
                           ) extends Request
 
 
-  case class StateEvent(runnerID: ID, state: Map[ID, SPValue]) extends Response
-  case class RunnerMode(runnerID: ID,
-                        runInAuto: Boolean = true,
-                        disableConditionGroups: Set[SPValue] = Set()) extends Response
+  case class StateEvent(runnerID: ID, state: Map[ID, SPValue], runInAuto: Boolean, disableConditionGroups: Set[SPValue]) extends Response
   case class Runners(ids: List[Setup]) extends Response
 
   /**
@@ -72,7 +70,32 @@ object APIOperationRunner {
                    abilityParameters: Map[ID, Set[ID]] = Map()
                   )
 
+  def runnerSetupToThing(setup : Setup): Thing = {
+    Thing(
+      name = setup.name,
+      id = ID.newID,
+      attributes = SPAttributes(
+        "name" -> setup.name,
+        "runnerID" -> setup.runnerID,
+        "ops" -> setup.ops,
+        "opAbilityMap" -> setup.opAbilityMap,
+        "initialState" -> setup.initialState,
+        "variableMap" -> setup.variableMap,
+        "abilityParameters" -> setup.abilityParameters.toList
+      )
+    )
+  }
 
+  def runnerThingToSetup(thing : Thing): Setup = {
+    val name = thing.attributes.getAs[String]("name").getOrElse("")
+    val runnerID = thing.attributes.getAs[ID]("runnerID").getOrElse(ID.newID)
+    val ops = thing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
+    val opAbilityMap = thing.attributes.getAs[Map[ID,ID]]("opAbilityMap").getOrElse(Map())
+    val initialState = thing.attributes.getAs[Map[ID,SPValue]]("initialState").getOrElse(Map())
+    val variableMap = thing.attributes.getAs[Map[ID,ID]]("variableMap").getOrElse(Map())
+    val abilityParameters = thing.attributes.getAs[List[(ID,Set[ID])]]("abilityParameters").getOrElse(List()).toMap
+    Setup(name, runnerID,ops,opAbilityMap,initialState,variableMap,abilityParameters)
+  }
 
   object Formats {
     import play.api.libs.json._
@@ -101,7 +124,6 @@ object APIOperationRunner {
     implicit lazy val fManualControl: JSFormat[ManualControl] = Json.format[ManualControl]
     implicit lazy val fGetRunners : JSFormat[GetRunners.type] = deriveCaseObject[GetRunners.type ]
     implicit lazy val fStateEvent: JSFormat[StateEvent] = Json.format[StateEvent]
-    implicit lazy val fRunnerMode: JSFormat[RunnerMode] = Json.format[RunnerMode]
     implicit lazy val fRunners: JSFormat[Runners] = Json.format[Runners]
     def fOperationRunnerRequest: JSFormat[Request] = Json.format[Request]
     def fOperationRunnerResponse: JSFormat[Response] = Json.format[Response]

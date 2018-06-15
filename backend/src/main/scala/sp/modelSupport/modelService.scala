@@ -40,7 +40,10 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
     val dTmp = things.filter(t => t.attributes.keys.contains("driverType"))
     val exDrivers = dTmp.map(t=> VD.thingToDriver(t))
 
-    val exSetupRunner = setupRunnerThings.headOption.map(h=>APIOperationRunner.CreateRunner(thingToSetup(h)))
+    val exSetupRunner = setupRunnerThings.headOption.map{h=>
+      val setup = APIOperationRunner.runnerThingToSetup(h)
+      APIOperationRunner.CreateRunner(setup)
+    }
 
     //Direct launch of the VD and abilities below
     val vdID = ID.newID
@@ -80,7 +83,7 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
 
     setupRunnerThings.map{s =>
       println("STARTING RUNNER" + s.toString)
-      val runnerSetup = thingToSetup(s).copy(runnerID = ID.newID)
+      val runnerSetup = APIOperationRunner.runnerThingToSetup(s).copy(runnerID = ID.newID)
       val exSetupRunner = APIOperationRunner.CreateRunner(runnerSetup)
 
       println("RUNNER SETUP: " + exSetupRunner.toString)
@@ -103,7 +106,7 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
     val name = modelType
     val model = models(modelType)
 
-    val idables = model.buildModel(modelType)
+    val idables = model.buildModel()
 
     val cm = sp.models.APIModelMaker.CreateModel(name, SPAttributes("isa" -> "VD"), id = modelID)
 
@@ -127,34 +130,6 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
         SPMessage.makeJson(SPHeader(from = "ModelService", to = cm.id.toString), addItems)
       )
     }
-  }
-
-
-  def setupToThing(setup : APIOperationRunner.Setup): Thing = {
-    Thing(
-      name = setup.name,
-      id = ID.newID,
-      attributes = SPAttributes(
-        "name" -> setup.name,
-        "runnerID" -> setup.runnerID,
-        "ops" -> setup.ops,
-        "opAbilityMap" -> setup.opAbilityMap,
-        "initialState" -> setup.initialState,
-        "variableMap" -> setup.variableMap,
-        "abilityParameters" -> setup.abilityParameters.toList
-      )
-    )
-  }
-
-  def thingToSetup(thing : Thing): APIOperationRunner.Setup = {
-    val name = thing.attributes.getAs[String]("name").getOrElse("")
-    val runnerID = thing.attributes.getAs[ID]("runnerID").getOrElse(ID.newID)
-    val ops = thing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
-    val opAbilityMap = thing.attributes.getAs[Map[ID,ID]]("opAbilityMap").getOrElse(Map())
-    val initialState = thing.attributes.getAs[Map[ID,SPValue]]("initialState").getOrElse(Map())
-    val variableMap = thing.attributes.getAs[Map[ID,ID]]("variableMap").getOrElse(Map())
-    val abilityParameters = thing.attributes.getAs[List[(ID,Set[ID])]]("abilityParameters").getOrElse(List()).toMap
-    APIOperationRunner.Setup(name, runnerID,ops,opAbilityMap,initialState,variableMap,abilityParameters)
   }
 
   def receive = {

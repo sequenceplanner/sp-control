@@ -28,6 +28,125 @@ import scala.util.Try
   * into ros messages
   *
   */
+
+object ROSHelpers {
+  def rosValToSPVal(rostype: String, rv: Object): Option[SPValue] = {
+    try {
+      rostype match {
+        case "string" => Some(SPValue(rv.asInstanceOf[String]))
+        case "float32" => Some(SPValue(rv.asInstanceOf[Float]))
+        case "float64" => Some(SPValue(rv.asInstanceOf[Double]))
+        case "bool" => Some(SPValue(rv.asInstanceOf[Boolean]))
+        case "byte" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "char" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "int8" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "uint8" => Some(SPValue(rv.asInstanceOf[Byte]))
+        case "int16" => Some(SPValue(rv.asInstanceOf[Short]))
+        case "uint16" => Some(SPValue(rv.asInstanceOf[Short]))
+        case "int32" => Some(SPValue(rv.asInstanceOf[Int]))
+        case "uint32" => Some(SPValue(rv.asInstanceOf[Int]))
+        case "int64" => Some(SPValue(rv.asInstanceOf[Long]))
+        case "uint64" => Some(SPValue(rv.asInstanceOf[Long]))
+        case "time" => Some(SPValue(rv.toString))
+        case _ =>
+          println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
+          None
+      }
+    } catch {
+      case _: Throwable =>
+        println("******* ROS DRIVER: PROBLEM WITH CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
+        None
+    }
+  }
+
+  def spValtoRosVal(rostype: String, sv: SPValue): Option[Any] = {
+    try {
+      rostype match {
+        case "string" => Some(sv.as[String])
+        case "float32" => Some(sv.as[Float])
+        case "float64" => Some(sv.as[Double])
+        case "bool" => Some(sv.as[Boolean])
+        case "byte" => Some(sv.as[Byte])
+        case "char" => Some(sv.as[Byte])
+        case "int8" => Some(sv.as[Byte])
+        case "uint8" => Some(sv.as[Byte])
+        case "int16" => Some(sv.as[Short])
+        case "uint16" => Some(sv.as[Short])
+        case "int32" => Some(sv.as[Int])
+        case "uint32" => Some(sv.as[Int])
+        case "int64" => Some(sv.as[Long])
+        case "uint64" => Some(sv.as[Long])
+        // case "time" => Some(sv.as[String])
+        case _ =>
+          println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
+          None
+      }
+    } catch {
+      case _: Throwable =>
+        println("******* ROS DRIVER: PROBLEM WITH CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
+        None
+    }
+  }
+
+  def createROSMsg(t: String): Option[org.ros.internal.message.Message] = {
+    import org.ros.internal.message.definition.MessageDefinitionReflectionProvider
+    import org.ros.internal.message.DefaultMessageFactory
+    Try {
+      val mf = new DefaultMessageFactory(new MessageDefinitionReflectionProvider())
+      val m: org.ros.internal.message.Message = mf.newFromType(t)
+      m
+    }.toOption
+  }
+
+  def ROSMsgToSPAttributes(msg: org.ros.internal.message.Message): Option[SPAttributes] = {
+    def addFields(fields: List[org.ros.internal.message.field.Field], attr: SPAttributes): Option[SPAttributes] = {
+      fields match {
+        case Nil => Some(attr)
+        case (f :: fs) =>
+          val n = f.getName()
+          val v: Object = f.getValue()
+          if(v.isInstanceOf[org.ros.internal.message.Message]){
+            val fields = msg.toRawMessage().getFields().asScala.toList
+            // add recursively
+            val spAttr = addFields(fields, SPAttributes())
+            spAttr.flatMap(a=>addFields(fs, attr + (n -> a)))
+          } else {
+            // add field value pair
+            val spval = rosValToSPVal(f.getType().getName(), f.getValue())
+            spval.flatMap(v => addFields(fs, attr + (n -> v)))
+          }
+      }
+    }
+    val fields = msg.toRawMessage().getFields().asScala.toList
+    addFields(fields, SPAttributes())
+  }
+
+  // def getField(fieldName: String, message: org.ros.internal.message.Message): Option[SPValue] = {
+  //   def dig(digFor: List[String], toSearch: List[org.ros.internal.message.field.Field]): Option[SPValue] = {
+  //     (digFor, toSearch) match {
+  //       case (_, Nil) => None
+  //       case (Nil, _) => None
+  //       case (x::Nil,y::ys) => if(x == y.getName()) {
+  //         rosValToSPVal(y.getType().getName(), y.getValue())
+  //       } else dig(x::Nil, ys)
+  //       case (x::xs,y::ys) =>
+  //         if(x == y.getName()) {
+  //           val v: Object = y.getValue()
+  //           if(v.isInstanceOf[org.ros.internal.message.Message])
+  //             dig(xs, v.asInstanceOf[org.ros.internal.message.Message].toRawMessage().getFields().asScala.toList)
+  //           else {
+  //             println(" Digging into a non-message field!")
+  //             None
+  //           }
+  //         }
+  //         else {
+  //           dig(x::xs, ys)
+  //         }
+  //     }
+  //   }
+
+}
+
 object ROSFlatStateDriver {
   val driverType = "ROSFlatStateDriver"
   def props = DriverBase.props(driverType, ROSFlatStateDriverInstance.props)
@@ -108,6 +227,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
       topic -> topicMessageFactory.newFromType(r.msgType) }
 
     spState = rosVars.map(rvar => {
+      println(rvar)
       val spval = getField(rvar.field, rosState(rvar.topic)).get // puke if we cant parse
       rvar.did -> spval
     }).toMap
@@ -156,64 +276,6 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
     }
   }
 
-  def rosValToSPVal(rostype: String, rv: Object): Option[SPValue] = {
-    try {
-      rostype match {
-        case "string" => Some(SPValue(rv.asInstanceOf[String]))
-        case "float32" => Some(SPValue(rv.asInstanceOf[Float]))
-        case "float64" => Some(SPValue(rv.asInstanceOf[Double]))
-        case "bool" => Some(SPValue(rv.asInstanceOf[Boolean]))
-        case "byte" => Some(SPValue(rv.asInstanceOf[Byte]))
-        case "char" => Some(SPValue(rv.asInstanceOf[Byte]))
-        case "int8" => Some(SPValue(rv.asInstanceOf[Byte]))
-        case "uint8" => Some(SPValue(rv.asInstanceOf[Byte]))
-        case "int16" => Some(SPValue(rv.asInstanceOf[Short]))
-        case "uint16" => Some(SPValue(rv.asInstanceOf[Short]))
-        case "int32" => Some(SPValue(rv.asInstanceOf[Int]))
-        case "uint32" => Some(SPValue(rv.asInstanceOf[Int]))
-        case "int64" => Some(SPValue(rv.asInstanceOf[Long]))
-        case "uint64" => Some(SPValue(rv.asInstanceOf[Long]))
-        case "time" => Some(SPValue(rv.toString))
-        case _ =>
-          println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
-          None
-      }
-    } catch {
-      case _: Throwable =>
-        println("******* ROS DRIVER: PROBLEM WITH CONVERSION TO/FROM: " + rostype + ". Example object: " + rv.toString)
-        None
-    }
-  }
-
-  def spValtoRosVal(rostype: String, sv: SPValue): Option[Any] = {
-    try {
-      rostype match {
-        case "string" => Some(sv.as[String])
-        case "float32" => Some(sv.as[Float])
-        case "float64" => Some(sv.as[Double])
-        case "bool" => Some(sv.as[Boolean])
-        case "byte" => Some(sv.as[Byte])
-        case "char" => Some(sv.as[Byte])
-        case "int8" => Some(sv.as[Byte])
-        case "uint8" => Some(sv.as[Byte])
-        case "int16" => Some(sv.as[Short])
-        case "uint16" => Some(sv.as[Short])
-        case "int32" => Some(sv.as[Int])
-        case "uint32" => Some(sv.as[Int])
-        case "int64" => Some(sv.as[Long])
-        case "uint64" => Some(sv.as[Long])
-        // case "time" => Some(sv.as[String])
-        case _ =>
-          println("******* ROS DRIVER TODO: ADD CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
-          None
-      }
-    } catch {
-      case _: Throwable =>
-        println("******* ROS DRIVER: PROBLEM WITH CONVERSION TO/FROM: " + rostype + ". Example object: " + sv.toString)
-        None
-    }
-  }
-
   def createPublisherSubscriber(cn: ConnectedNode, topic: String, rosVars: Iterable[RosVar]):
   Try[(String, (PublishTicker, Subscriber[org.ros.internal.message.Message]))] = Try {
     assert(rosVars.nonEmpty) // we know we have head from groupBy
@@ -256,7 +318,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
         case (_, Nil) => None
         case (Nil, _) => None
         case (x::Nil,y::ys) => if(x == y.getName()) {
-          rosValToSPVal(y.getType().getName(), y.getValue())
+          ROSHelpers.rosValToSPVal(y.getType().getName(), y.getValue())
         } else dig(x::Nil, ys)
         case (x::xs,y::ys) =>
           if(x == y.getName()) {
@@ -285,7 +347,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
         case (_, Nil) => false
         case (Nil, _) => false
         case (x::Nil,y::ys) => if(x == y.getName()) {
-          spValtoRosVal(y.getType().getName(), spval) match {
+          ROSHelpers.spValtoRosVal(y.getType().getName(), spval) match {
             case Some(any) =>
               y.setValue(any.asInstanceOf[AnyRef])
               true

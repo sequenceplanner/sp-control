@@ -115,7 +115,7 @@ object OperationRunnerWidget {
 
         // case StateEvent-message: see if any operation has been updated
         // if so, update the operationStateMapper
-        case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap) => {
+        case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap, runInAuto, disableConditionGroups) => {
           $.modState { state =>
             // if current runner is defined update operationStateMapper, else return current state
             if (state.activeRunnerID.isDefined) {
