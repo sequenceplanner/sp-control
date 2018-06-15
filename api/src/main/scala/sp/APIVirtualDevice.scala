@@ -14,6 +14,8 @@ package sp.devicehandler {
     case class ResourceWithState(r: Resource, state: State)
     case class DriverWithState(d: Driver, state: DriverState)
 
+
+
     sealed trait DriverStateMapper
     case class OneToOneMapper(thing: ID, driverID: ID, driverIdentifier: String) extends DriverStateMapper
 
@@ -165,6 +167,7 @@ package sp.devicehandler {
 
     case object GetDrivers extends Request
 
+
     /**
       * A request to set up a new driver instance. Sometimes this will also start the generic driver, but
       * sometimes you have to start the generic driver in a SP node.
@@ -212,7 +215,7 @@ package sp.devicehandler {
       */
     case class TheDriver(x: Driver, driverState: DriverState) extends Response
 
-    case class TheDrivers(Drivers: Set[(Driver, DriverState)]) extends Response
+    case class TheDrivers(Drivers: List[(Driver, DriverState, String)]) extends Response
 
     /**
       * A response that the driver has been terminated. The message is not guranteed to come, for example

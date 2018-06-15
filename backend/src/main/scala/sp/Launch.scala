@@ -26,6 +26,9 @@ object Launch extends App {
     system.actorOf(sp.runners.OperationRunner.props, "oprunner")
     system.actorOf(sp.modelSupport.ModelService.props(models))
     system.actorOf(dashboardpresets.DashboardPresetsActor())
+    system.actorOf(sp.modelImport.SPModelImport.props)
+    system.actorOf(sp.drivers.DriverService.props)
+
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
