@@ -94,6 +94,14 @@ class OperationRunner extends Actor
               publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
           }
 
+        case api.GetRunner(id) =>
+          runners.get(id) match {
+            case Some(r) =>
+              publish(api.topicResponse, OperationRunnerComm.makeMess(updH, api.Runner(r.setup)))
+            case None =>
+              publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
+          }
+
         case api.GetRunners =>
           val xs = runners.map(_._2.setup).toList
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
