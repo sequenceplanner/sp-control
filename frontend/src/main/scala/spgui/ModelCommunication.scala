@@ -6,6 +6,7 @@ import spgui.communication.BackendCommunication
 import sp.models.{APIModelMaker => ModelMaker}
 import sp.models.{APIModel => Model}
 import SPMessageUtil.BetterSPMessage
+import play.api.libs.json.JsString
 
 object ModelCommunication {
   println("ModelCommunication runs.")
@@ -39,29 +40,41 @@ object ModelCommunication {
   /**
     * Handles responses from a specific model.
     */
-  def onModelResponse(state: ModelsCircuitState, res: Model.Response): Unit = res match {
-    case info: Model.ModelInformation =>
-      val value = state.models.get(info.id)
-      dispatchAction(ModelMock.info.set(Some(info)), UpdateModel)(value)
+  def onModelResponse(state: ModelsCircuitState, header: SPHeader, res: Model.Response): Unit = {
+    println(s"header: $header")
 
-    case history @ Model.ModelHistory(id, _) =>
-      val value = state.models.get(id)
-      dispatchAction(ModelMock.history.set(Some(history)), UpdateModel)(value)
+    res match {
+      case info: Model.ModelInformation =>
+        val value = state.models.get(info.id)
+        dispatchAction(ModelMock.info.set(Some(info)), UpdateModel)(value)
 
-    case Model.ModelUpdate(modelId, version, count, _, _, _) =>
-      postRequest(modelId, Model.GetModelHistory)
+      case Model.ModelHistory(id, history) =>
+        val value = state.models.get(id)
+        dispatchAction(ModelMock.history.set(Some(history)), UpdateModel)(value)
 
-      val value = state.models.get(modelId)
-      dispatchAction(
-        ModelMock.info.modify(_.map { info =>
-          Model.ModelInformation(info.name, info.id, version, count, info.attributes)
-        }),
-        UpdateModel
-      )(value)
 
-    case x =>
-      println(s"[ModelCommunication.onModelResponse] Case $x not captured by match.")
-      Unit
+      case Model.SPItems(items) =>
+        println("Model.SPItems")
+        val modelId = JsString(header.from).asOpt[ID]
+        modelId.foreach { id =>
+          ModelsCircuit.dispatch(SetItems(id, items))
+        }
+
+      case Model.ModelUpdate(modelId, version, count, _, _, _) =>
+        postRequest(modelId, Model.GetModelHistory)
+
+        val value = state.models.get(modelId)
+        dispatchAction(
+          ModelMock.info.modify(_.map { info =>
+            Model.ModelInformation(info.name, info.id, version, count, info.attributes)
+          }),
+          UpdateModel
+        )(value)
+
+      case x =>
+        println(s"[ModelCommunication.onModelResponse] Case $x not captured by match.")
+        Unit
+    }
   }
 
   def onModelMakerResponse(state: ModelsCircuitState, res: ModelMaker.Response): Unit = {
@@ -86,20 +99,24 @@ object ModelCommunication {
   }
 
   def handleMess(message: SPMessage): Unit = {
-    val body = message.oneOf[ModelMaker.Response].or[Model.Response].body
+    val response = message.oneOf[ModelMaker.Response].or[Model.Response]
     val state = ModelsCircuit.readState()
 
-    body.foreach {
-      case res: ModelMaker.Response => onModelMakerResponse(state, res)
-      case res: Model.Response => onModelResponse(state, res)
-      case _ => Unit
+    for (header <- response.header; body <- response.body) {
+      body match {
+        case res: ModelMaker.Response => onModelMakerResponse(state, res)
+        case res: Model.Response => onModelResponse(state, header, res)
+        case _ => Unit
+      }
     }
+
+
   }
 
   /**
     * Post a request to the ModelMaker
     */
-  private def postRequest(request: ModelMaker.Request): Unit = post(request, ModelMaker.service)
+  def postRequest(request: ModelMaker.Request): Unit = post(request, ModelMaker.service)
 
   /**
     * Post a request to a specific model, given by the modelId
