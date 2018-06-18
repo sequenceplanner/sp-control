@@ -11,11 +11,18 @@ import scala.util.{Try,Success, Failure}
 
 import sp.supremicaStuff.base._
 
+object VariableKind {
+  def fromString(s: String): Option[VariableKind] =
+    List(ReadOnly, WriteOnly).find(_.toString == s)
+}
+sealed trait VariableKind
+case object ReadOnly extends VariableKind
+case object WriteOnly extends VariableKind
 
 case class cond(kind: String, guard: String, actions: String*)
 sealed trait ModelElement
-case class Tdv(name: String, driverName: String, driverIdentifier: String) extends ModelElement
-case class Tv(name: String, initState: String, domain: List[String], driverName: String, driverIdentifier: String) extends ModelElement
+case class Tdv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) extends ModelElement
+case class Tv(name: String, initState: String, domain: List[String]) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
 case class To(name: String, ab: String, conds: List[cond]) extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
@@ -49,9 +56,13 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def c(kind: String, guard: String, actions: String*) = cond(kind, guard, actions:_*)
   var mes: List[ModelElement] = List()
 
-  def dv(name: String, driverName: String, driverIdentifier: String) = mes :+= Tdv(name, driverName, driverIdentifier)
-  def v(name: String, initState: String, domain: List[String] = List(),
-    driverName: String = "", driverIdentifier: String = "") = mes :+= Tv(name, initState, domain, driverName, driverIdentifier)
+  def dv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) = mes :+= Tdv(name, driverName, driverIdentifier, kind)
+  def v(name: String, initState: String, domain: List[String]) = mes :+= Tv(name, initState, domain)
+  def v(name: String, initState: String, domain: List[String],
+    driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) = {
+    dv(name, driverName, driverIdentifier, kind)
+    mes :+= Tv(name, initState, domain)
+  }
   def a(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) = mes :+= Ta(name, parameters, pre, running, post, reset)
   def o(name: String, ab: String="")(conds: cond*) = mes :+= To(name, ab, conds.toList)
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
@@ -114,20 +125,18 @@ trait BuildModel {
       // now we have all the variables "below" this level
 
       val vs = m.model.collect{
-        case Tv(name: String, initState, domain, driverName, driverIdentifier) =>
-          val t1 = Thing(nn(name), SPAttributes("init" -> initState, "domain" -> domain))
-          if(driverName.nonEmpty && driverIdentifier.nonEmpty) {
-            List(t1, Thing(nn(name), SPAttributes("driverName" -> driverName, "driverIdentifier" -> driverIdentifier)))
-          } else List(t1)
-      }.flatten
+        case Tv(name: String, initState, domain) =>
+          Thing(nn(name), SPAttributes("init" -> initState, "domain" -> domain))
+      }
       val dvs = m.model.collect {
-        case Tdv(name, driverName, driverIdentifier) =>
-          Thing(nn(name), SPAttributes("driverName" -> driverName, "driverIdentifier" -> driverIdentifier))
+        case Tdv(name, driverName, driverIdentifier, kind) =>
+          Thing(nn(name), SPAttributes("driverName" -> driverName, "driverIdentifier" -> driverIdentifier, "variableKind" -> kind.toString))
       }
 
+      // dont create them by default anylonger...
       // by default create v:s for dv:s if not already defined
-      val newVs = dvs.filterNot(dv=>vs.exists(_.name == dv.name)).map(dv=>Thing(dv.name))
-      val updVs = vs ++ newVs
+      // val newVs = dvs.filterNot(dv=>vs.exists(_.name == dv.name)).map(dv=>Thing(dv.name))
+      val updVs = vs // ++ newVs
       val upddvTovMap: Map[ID,ID] = upddvTovMap_ ++ updVs.flatMap { v =>
         dvs.find(_.name == v.name).map(dv=>v.id->dv.id) } .toMap
 
