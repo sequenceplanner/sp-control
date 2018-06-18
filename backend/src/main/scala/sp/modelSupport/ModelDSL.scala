@@ -7,6 +7,7 @@ import sp.domain._
 import sp.domain.Logic._
 import sp.domain.logic.{ActionParser, PropositionParser}
 import sp.runners.APIOperationRunner
+import scala.util.{Try,Success, Failure}
 
 import sp.supremicaStuff.base._
 
@@ -28,12 +29,21 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def buildModel(name: String = "") = {
     val idables = build(name, mes)
 
-    val forbidden = mes.collect { case x: Tx => x}
-    val specs = forbidden.map(f => SPSpec(f.name, SPAttributes("forbiddenExpressions" -> f.exprs)))
-    val allIds = idables++specs
+    Try[List[IDAble]] {
+      val forbidden = mes.collect { case x: Tx => x}
+      val specs = forbidden.map(f => SPSpec(f.name, SPAttributes("forbiddenExpressions" -> f.exprs)))
+      val allIds = idables++specs
 
-    val (updOps,_,_) = synthesizeModel(allIds)
-    allIds.filterNot(i=>updOps.exists(_.id==i.id))++updOps
+      val (updOps,_,_) = synthesizeModel(allIds)
+      allIds.filterNot(i=>updOps.exists(_.id==i.id))++updOps
+    } match {
+      case Success(ids) =>
+        println("Synthesis successful")
+        ids
+      case Failure(t) =>
+        println("Synthesis failed: " + t.getMessage)
+        idables
+    }
   }
 
   def c(kind: String, guard: String, actions: String*) = cond(kind, guard, actions:_*)
