@@ -54,10 +54,8 @@ object OperationRunnerWidget {
         case APIVDTracker.OpRunnerCreated(id) =>
           // trigger [[APIOperationRunner.GetRunners]] request
           sendToRunner(APIOperationRunner.GetRunners)
-          // new runner with id
-          val newRunner = Runner(Some(id))
           // Update the state with the activeRunnerID from the runner that is created
-          $.modState { state => state.copy(activeRunner = Some(newRunner)) }
+          $.modState { state => state.copy(activeRunner = Some(Runner(Some(id)))) }
 
         case x => Callback.empty
       }
@@ -77,9 +75,9 @@ object OperationRunnerWidget {
               )
             )
 
-            // TODO: add
+            // TODO: add available Operation-Ability Cards
             // the otherSetups filters out sameRunnerSetup
-            val otherSetups: List[Setup] = ids.filterNot(_ == sameRunnerSetup)
+            val otherSetups: List[Setup] = ids.filterNot(id => sameRunnerSetup.contains(id))
 
             /**
               * With the setup go through the [[Setup.ops]]: Set[Operation]

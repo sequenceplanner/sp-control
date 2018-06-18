@@ -1,4 +1,4 @@
-package spgui.widgets.StateHandlerWidget
+package spgui.widgets.OPGUI
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
@@ -8,8 +8,10 @@ import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler.VD
 import sp.domain._
 import sp.domain.Logic._
+import sp.models.APIModel
 import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
+import sp.vdtesting.APIVDTracker
 import spgui.communication._
 
 object StateHandlerWidget {
@@ -25,14 +27,41 @@ object StateHandlerWidget {
                     activeRunner:           Option[Runner] = None,
                     operationStateMapper:   Map[ID, OperationWithState] = Map(),
                     driverStateMapper:      Map[ID, DriverWithState] = Map(),
-                    abVdPairs:              List[AbilityVDModel] = List(),       // in the runner
-                    theModel: List[IDAble] = List()
+                    theModel: List[IDAble] = List(),
+                    abVdPairs:              List[AbilityVDModel] = List()       // in the runner
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
     val operationHandler =
       BackendCommunication.getMessageObserver(onOperationRunnerWidget, APIOperationRunner.topicResponse)
-    val virtualDeviceModelHandler = ???
+    val vdTrackerHandler =
+      BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicResponse)
+    val modelMessObs =
+      BackendCommunication.getMessageObserver(onModelObsMes, APIModel.topicResponse)
+
+    // TODO: Listen for "global" runner instead of latest?
+    /**
+      * When a runner is launched in VDTracker with [[APIVDTracker.OpRunnerCreated]]
+      * trigger [[APIOperationRunner.GetRunners]] request
+      * Update the state with the activeRunnerID from the runner that is created
+      * @param mess sp.domain.SPMessage
+      */
+    def onVDTrackerMessage(mess: SPMessage) = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVDTracker.Response].map {
+
+        case APIVDTracker.OpRunnerCreated(id) =>
+          // trigger [[APIOperationRunner.GetRunners]] request
+          sendToRunner(APIOperationRunner.GetRunners)
+          // new runner with id
+          val newRunner = Runner(Some(id))
+          // Update the state with the activeRunnerID from the runner that is created
+          $.modState{_.copy(activeRunner = Some(newRunner))}
+
+        case x => Callback.empty
+      }
+      // for each callback, runNow()
+      callback.foreach(_.runNow())
+    }
 
 
     // TEMP to get our model
@@ -83,8 +112,8 @@ object StateHandlerWidget {
             }
 
             // try to update state with operationStateMapper and opAbPairs
-            setup.map{s => state.copy(
-              operationStateMapper = opStateMapper(s))
+            setup.map{setup => state.copy(
+              operationStateMapper = opStateMapper(setup))
             }.getOrElse(state)
           }
         }
@@ -125,15 +154,52 @@ object StateHandlerWidget {
       callback.foreach(_.runNow())
     }
 
+    def onModelObsMes(mess: SPMessage): Unit = {
+      mess.body.to[APIModel.Response].map{
+        case APIModel.SPItems(items) => {
+          $.modState(_.copy(modelIdables = items)).runNow()
+        }
+        case x =>
+      }
+    }
+
 
     // Set SPHeader and send SPMessage to APIOperationRunner
     def sendToRunner(mess: APIOperationRunner.Request): Unit = {
-      val h = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
-      BackendCommunication.publish(SPMessage.make(h, mess), APIOperationRunner.topicRequest)
+      val header = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
+      BackendCommunication.publish(SPMessage.make(header, mess), APIOperationRunner.topicRequest)
     }
+
+    def sendToModel(model: ID, mess: APIModel.Request) = Callback{ //  Send message to model
+      val header = SPHeader(from = "StateHandlerWidget", to = model.toString,
+        reply = SPValue("StateHandlerWidget"))
+      BackendCommunication.publish(SPMessage.make(header, mess), APIModel.topicRequest)
+    }
+
+
 
     def render(state: State): TagOf[html.Div] = {
       <.div(
+        <.table(
+          <.thead(
+
+          ),
+          <.tbody(
+            <.button(
+              ^.onClick --> Callback{state.activeRunner.foreach(_.id.map(sendToModel(_,APIModel.GetItemList(0,99999))))},
+              "Get Model IDAbles"
+            ),
+            <.div(
+            state.operationStateMapper.map { op =>
+              <.tr(
+                <.td(op._2.operation.name),
+                <.td("" + op._2.operation.id.toString)
+              )
+            }.toTagMod
+            )
+          )
+        )
+
 
       )
     }
