@@ -13,6 +13,9 @@ class Dummy extends ModelDSL {
   // cmd
   dv("active", "driver", "active")
   dv("refPos", "driver", "refPos")
+  v("refPos", "init", List("init", "failed"))
+  v("currnetPos", "init", List("stop", "stopFailed"))
+  v("currentPos", "init", List("stop", "stopFailed"))
 
   // turtle abilities
   a("moveForward", List(),

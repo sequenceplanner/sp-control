@@ -81,9 +81,10 @@ object OperationRunnerWidget {
 
             /**
               * With the setup go through the [[Setup.ops]]: Set[Operation]
-              * a new OperationWithState with a empty state: Map[ID, SPValue
+              * foreach operation get the ability that is mapped
+              * with this operation in [[Setup.opAbilityMap]]
               * @param setup: Setup - the [[APIOperationRunner.Setup]] that the runner have
-              * @return the map of operationID -> OperationWithState
+              * @return Set of [[OperationRunnerWidget.OpAbPair]]
               */
             def opAbPairs(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
               setup.opAbilityMap.get(operation.id).map { abilityID =>
