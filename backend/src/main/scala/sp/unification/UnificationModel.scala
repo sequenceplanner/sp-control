@@ -18,7 +18,7 @@ trait ROSSupport extends ModelDSL {
       // TODO: later
       case (field, v) =>
         val ident = messageType + ":" + topic + ":" + field + ":" + rate
-        dv(field, driver, ident)
+        dv(field, driver, ident, WriteOnly)
     }
   }
   def reader(driver: String, messageType: String, topic: String) = {
@@ -29,7 +29,7 @@ trait ROSSupport extends ModelDSL {
       // TODO: later
       case (field, v) =>
         val ident = messageType + ":" + topic + ":" + field
-        dv(field, driver, ident)
+        dv(field, driver, ident, ReadOnly)
     }
   }
 }
