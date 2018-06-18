@@ -28,24 +28,21 @@ class Dummy extends ModelDSL {
     c("reset", "true"))
 
   // turtle operations
-  o("moveForward",
+  o("moveForward")(
     c("pre", "currentPos == 0"),
-    c("post", "false"))
+    c("reset", "true")
+  )
 
-  o("moveBackward",
+  o("moveBackward")(
     c("pre", "currentPos == 10"),
-    c("post", "false"))
+    c("reset", "true")
+  )
 
   resource("resource") // blank list of things = take everything
 }
 
 class DummyExample extends ModelDSL {
   use("DummyRB", new Dummy)
-
-  // v("forceX", false)
-  // o("forceGoForward",
-  //   c("pre", "forceX"),
-  //   c("post", "false"), "DummyRB.moveForward")
 
   runner("turtlerunner")
 

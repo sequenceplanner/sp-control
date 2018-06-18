@@ -108,9 +108,9 @@ class URPose extends ModelDSL with ROSSupport {
   }
 
   // add a dummy sequence
-  o("gotoURDummyPose2", c("pre", "ur_act_pos == 'URDummyPose1'"))
-  o("gotoURDummyPose3", c("pre", "ur_act_pos == 'URDummyPose2'"))
-  o("gotoURDummyPose4", c("pre", "ur_act_pos == 'URDummyPose3'"))
+  o("gotoURDummyPose2")( c("pre", "ur_act_pos == 'URDummyPose1'"))
+  o("gotoURDummyPose3")( c("pre", "ur_act_pos == 'URDummyPose2'"))
+  o("gotoURDummyPose4")( c("pre", "ur_act_pos == 'URDummyPose3'"))
 
   // blank list of things = take everything
   resource("resource")
