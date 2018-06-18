@@ -11,6 +11,7 @@ import sendMessages._
 
 object DriverWidget {
 
+  // information with the driver, the drivers state, status and cardID
   case class Card(driver: VD.Driver, driverState: VD.DriverState, status: String, cardId: ID)
 
   case class State(cards:  List[Card] = List())
@@ -22,7 +23,7 @@ object DriverWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
         /**
           * if a [[APIDeviceDriver.TheDrivers]] response is noticed
-          * add the drivers to a card
+          * add the driver to a card
           */
         case APIDeviceDriver.TheDrivers(drivers) => {
           $.modState { _.copy(
@@ -85,10 +86,9 @@ object DriverWidget {
       Callback("DriverWidget: Force the driver to write over past state") // dummy
     }*/
 
-    def onUnmount() = {
+    def onUnmount() = Callback{
       println("DriverWidget Unmouting")
       driverHandler.kill()
-      Callback.empty
     }
 
     def onMount() = {
