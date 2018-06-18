@@ -1,22 +1,20 @@
-package spgui.widgets.examples
+package spgui.widgets.model
 
 import diode.react.{ModelProxy, ReactConnectProxy}
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import monocle.Lens
-import sp.domain._
-import spgui.communication._
-import sp.domain.Logic._
 import monocle.macros._
 import org.scalajs.dom.window
-import spgui.SimpleSet
+import sp.domain.Logic._
+import sp.domain._
 import spgui.availablemodelscircuit._
-import spgui.widgets.examples.{ModelsWidgetNewCSS => css}
-
-
+import spgui.{ModelCommunication, SimpleSet}
 
 
 object ModelsWidgetNew {
+  import sp.models.{APIModel => Model, APIModelMaker => ModelMaker}
+  import spgui.widgets.model.{ModelsWidgetNewCSS => css}
+
   val testModel: List[IDAble] = {
     val operations = (1 to 4).map(x => Operation(s"o$x"))
     val things = (1 to 4).map(x => Thing(s"t$x"))
@@ -51,11 +49,7 @@ object ModelsWidgetNew {
     (operations ++ things ++ List(firstSop, secondSop, struct1, struct2)).toList
   }
 
-  import sp.models.{APIModelMaker => ModelMaker}
-  import sp.models.{APIModel => Model}
-  import spgui.SPMessageUtil.BetterSPMessage
-
-  @Lenses case class UIState(historyExpanded: Set[ID], shownIdables: List[IDAble])
+  @Lenses case class UIState(historyExpanded: Set[ID], selectedModelId: Option[ID])
   @Lenses case class State(uiState: UIState)
 
   case class Props(proxy: ModelProxy[ModelsCircuitState]) {
@@ -70,60 +64,10 @@ object ModelsWidgetNew {
 
 
   private class Backend($: BackendScope[Props, State]) {
-    private val observerTopic = ModelMaker.topicResponse
-    private val websocketObserver = BackendCommunication.getWebSocketStatusObserver(
-      mess => if (mess) sendToHandler(ModelMaker.GetModels),
-      observerTopic
-    )
-    private val topicHandler = BackendCommunication.getMessageObserver(message => handleMess(message), observerTopic)
-    val idAblesLens: Lens[State, List[IDAble]] = State.uiState composeLens UIState.shownIdables
-
-    def onModelResponse(props: Props, res: Model.Response): Callback = {
-      res match {
-        case Model.SPItems(items) =>
-          $.modState(idAblesLens.set(items))
-
-        case _ => Callback.empty
-      }
-    }
-
-    def onModelMakerResponse(props: Props, res: ModelMaker.Response): Callback = {
-      res match {
-        case ModelMaker.ModelList(modelIds) =>
-          modelIds.foreach { m =>
-            sendToModel(m, Model.GetModelInfo)
-            sendToModel(m, Model.GetModelHistory)
-          }
-
-          props.dispatch(AddMockModels(modelIds.map(id => ModelMock(id))))
-
-        case created: ModelMaker.ModelCreated =>
-          //sendToModel(modelId, Model.PutItems(TestModelInControl.getTestModel))
-          props.dispatch(AddMockModels(ModelMock(created.id)))
-
-        case ModelMaker.ModelDeleted(modelId) =>
-          props.dispatch(RemoveModel(modelId))
-
-        case _ => Callback.empty
-      }
-    }
-
-    def handleMess(message: SPMessage): Unit = {
-      val callback = $.props >>= { props =>
-        val result = for (res <- message.oneOf[ModelMaker.Response].or[Model.Response].body) yield res match {
-          case res: ModelMaker.Response => onModelMakerResponse(props, res)
-          case res: Model.Response => onModelResponse(props, res)
-          case _ => Callback.empty
-        }
-        result.getOrElse(Callback.empty)
-      }
-
-      callback.runNow()
-    }
-
     def btn(title: String, onClick: Callback, icon: String, text: String = "", small: Boolean = true): TagMod = {
       btnWithTags(title, onClick, icon, text, small)()
     }
+
     def btnWithTags(title: String, onClick: Callback, icon: String, text: String = "", small: Boolean = true)(mods: TagMod*): TagMod = {
       <.button(
         ^.className := s"btn ${if (small) "btn-sm" else "btn-default"}",
@@ -159,10 +103,8 @@ object ModelsWidgetNew {
       )
     }
 
-    def renderModel(props: Props, state: State, modelId: ID) = {
-
+    def renderModel(props: Props, state: State, modelId: ID): List[TagMod] = {
       val historyExpanded = State.uiState ^|-> UIState.historyExpanded
-
       val isActiveModel = props.activeModelId.contains(modelId)
 
       def infoValue[T](f: Model.ModelInformation => T, default: T) = {
@@ -214,55 +156,9 @@ object ModelsWidgetNew {
       )
     }
 
-    def changeNamePrompt(currentName: String): CallbackTo[String] = CallbackTo[String] {
-      window.prompt("Name your model", currentName)
-    }
-
-    def onChangeName(props: Props, modelId: ID): Callback = {
-      val currentName = props.models.get(modelId).flatMap(_.info.map(_.name)).getOrElse("")
-      changeNamePrompt(currentName) >>= { name =>
-        val circuitCallback = props.models.get(modelId).map { model =>
-          props.dispatch(UpdateModel(ModelMock.info.modify(_.map(_.copy(name = name)))(model)))
-        }.getOrElse(Callback.empty)
-
-        circuitCallback >> sendToModel(modelId, Model.UpdateModelAttributes(Some(name), None))
-      }
-    }
-
-    def onSetActive(props: Props, modelId: ID): Callback = {
-      props.proxy.dispatchCB(SetActiveModel(modelId))
-    }
-
-    def onPreviewModel(props: Props, modelId: ID): Callback = {
-      sendToModel(modelId, Model.GetItemList())
-    }
-
-    def onExportModel(props: Props, modelId: ID): Callback = {
-      sendToModel(modelId, Model.ExportModel)
-    }
-
-    def onDeleteModel(props: Props, modelId: ID): Callback = props.proxy.dispatchCB(RemoveModel(modelId))
-
-    def onRevertVersion(props: Props, modelId: ID, key: Int): Callback = {
-      sendToModel(modelId, Model.RevertModel(key))
-    }
-
-    def onRefreshModels(): Callback = {
-      sendToHandler(ModelMaker.GetModels)
-    }
-
-    def onAddDummyItems(props: Props, modelId: ID): Callback = {
-      sendToModel(modelId, Model.PutItems(testModel))
-    }
-
-    def onCreateModel(): Callback = {
-      sendToHandler(ModelMaker.CreateModel("testmodel"))
-    }
-
     def renderHistoryTable(props: Props, state: State, modelId: ID): TagMod = {
       val history = props.models.get(modelId)
         .flatMap(_.history)
-        .map(_.history)
         .getOrElse(List())
 
       <.table(
@@ -286,7 +182,17 @@ object ModelsWidgetNew {
         ))
     }
 
-    def renderModelPreview(s: State): TagMod = {
+    def renderModelPreview(props: Props, state: State): TagMod = {
+      def renderIdRow(idAble: IDAble): TagMod = {
+        <.tr(
+          <.td(idAble.getClass.getSimpleName),
+          <.td(idAble.name),
+          <.td(idAble.id.toString)
+        )
+      }
+
+      val model = state.uiState.selectedModelId.flatMap(modelId => props.models.get(modelId))
+
       <.table(
         ^.className := "table table-striped",
         <.caption("Model Preview"),
@@ -296,55 +202,75 @@ object ModelsWidgetNew {
           <.th("ID")
         )),
         <.tbody(
-          s.uiState.shownIdables.map(i =>
-            <.tr(
-              <.td(i.getClass.getSimpleName),
-              <.td(i.name),
-              <.td(i.id.toString)
-            )).toTagMod
-        )).when(s.uiState.shownIdables.nonEmpty)
+          model.map(_.items).map(_.map(renderIdRow).toTagMod).whenDefined
+        )
+      )
     }
 
     def render(props: Props, state: State): VdomElement = {
       <.div(
-        btn("", onCreateModel(), "fa fa-bolt", "Create test model", small = false),
-        btn("", onRefreshModels(), "fa fa-refresh", "Refresh models", small = false),
+        btnWithTags("", onCreateModel(), "fa fa-bolt", " Create test model", small = false)(^.className := css.mainButton.htmlClass),
+        btnWithTags("", onRefreshModels(), "fa fa-refresh", " Refresh models", small = false)(^.className := css.mainButton.htmlClass),
         renderModels(props, state),
-        renderModelPreview(state),
+        renderModelPreview(props, state),
         ^.className := css.container.htmlClass
       )
     }
 
-    def sendToHandler(mess: ModelMaker.Request): Callback = Callback {
-      val h = SPHeader(
-        from = "ModelWidget",
-        to = ModelMaker.service,
-        reply = SPValue("ModelWidget")
-      )
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, Model.topicRequest)
+    def changeNamePrompt(currentName: String): CallbackTo[String] = CallbackTo[String] {
+      window.prompt("Name your model", currentName)
     }
 
-    def sendToModel(model: ID, mess: Model.Request): Callback = Callback {
-      val h = SPHeader(
-        from = "ModelWidget",
-        to = model.toString,
-        reply = SPValue("ModelWidget")
-      )
+    def onChangeName(props: Props, modelId: ID): Callback = {
+      val currentName = props.models.get(modelId).flatMap(_.info.map(_.name)).getOrElse("")
+      changeNamePrompt(currentName) >>= { name =>
+        val circuitCallback = props.models.get(modelId).map { model =>
+          props.dispatch(UpdateModel(ModelMock.info.modify(_.map(_.copy(name = name)))(model)))
+        }.getOrElse(Callback.empty)
 
-      val json = SPMessage.make(h, mess)
-      BackendCommunication.publish(json, Model.topicRequest)
+        circuitCallback >> Callback {
+          ModelCommunication.postRequest(modelId, Model.UpdateModelAttributes(Some(name), None))
+        }
+      }
     }
 
-    def onUnmount() = Callback {
-      topicHandler.kill()
-      websocketObserver.kill()
+    def onSetActive(props: Props, modelId: ID): Callback = {
+      props.proxy.dispatchCB(SetActiveModel(modelId))
     }
+
+    def onPreviewModel(props: Props, modelId: ID): Callback =  {
+      $.modState((State.uiState ^|-> UIState.selectedModelId).set(Some(modelId))) >>
+      Callback { ModelCommunication.postRequest(modelId, Model.GetItemList()) }
+    }
+
+    def onExportModel(props: Props, modelId: ID): Callback = Callback {
+      ModelCommunication.postRequest(modelId, Model.ExportModel)
+    }
+
+    def onDeleteModel(props: Props, modelId: ID): Callback = props.proxy.dispatchCB(RemoveModel(modelId))
+
+    def onRevertVersion(props: Props, modelId: ID, key: Int): Callback = Callback {
+      ModelCommunication.postRequest(modelId, Model.RevertModel(key))
+    }
+
+    def onRefreshModels(): Callback = Callback {
+      ModelCommunication.postRequest(ModelMaker.GetModels)
+    }
+
+    def onAddDummyItems(props: Props, modelId: ID): Callback = Callback {
+      ModelCommunication.postRequest(modelId, Model.PutItems(testModel))
+    }
+
+    def onCreateModel(): Callback = Callback {
+      ModelCommunication.postRequest(ModelMaker.CreateModel("Test Model"))
+    }
+
+    def onUnmount(): Callback = Callback.empty
 
     def onMount(): Callback = Callback.empty
   }
 
-  val initialUIState: UIState = UIState(Set(), shownIdables = List())
+  val initialUIState: UIState = UIState(Set(), None)
   val initialState: State = State(initialUIState)
 
   private val component = ScalaComponent.builder[Props]("ModelsWidget")
