@@ -25,13 +25,40 @@ object StateHandlerWidget {
                     activeRunner:           Option[Runner] = None,
                     operationStateMapper:   Map[ID, OperationWithState] = Map(),
                     driverStateMapper:      Map[ID, DriverWithState] = Map(),
-                    abVdPairs:              List[AbilityVDModel] = List()       // in the runner
+                    abVdPairs:              List[AbilityVDModel] = List(),       // in the runner
+                    theModel: List[IDAble] = List()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
     val operationHandler =
       BackendCommunication.getMessageObserver(onOperationRunnerWidget, APIOperationRunner.topicResponse)
     val virtualDeviceModelHandler = ???
+
+
+    // TEMP to get our model
+    import sp.models.{APIModel => mapi}
+    val modelMessObs =
+      BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
+    def onModelObsMes(mess: SPMessage): Unit = {
+      mess.body.to[mapi.Response].map{
+        case mapi.SPItems(items) => {
+          $.modState(_.copy(theModel = items)).runNow()
+        }
+        case x =>
+      }
+    }
+    def getVars(m: List[IDAble]): (List[Thing], List[Thing], Map[ID,ID]) = {
+      // get runner
+      val runnerSetupThings = m.collect(t: Thing if t.attributes.keys.contains("runnerID") => t)
+      val runners = runnerSetupThings.map(APIOperationRunner.runnerThingToSetup)
+
+      val r = runners.head // assume one runner
+      val mapping = r.variableMap
+      val opthings = m.collect(t: Thing if t.attributes.keys.contains("init"))
+      val dvthings = m.collect(t: Thing if t.attributes.keys.contains("driverName"))
+
+      (opthing, dvthings, mapping)
+    }
 
     def onOperationRunnerWidget(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIOperationRunner.Response].map {
