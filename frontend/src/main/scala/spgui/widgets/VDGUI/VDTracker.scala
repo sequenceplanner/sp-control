@@ -73,7 +73,7 @@ object VDTracker {
 
     def onOperationRunnerMessage(mess: SPMessage): Unit = {
       mess.body.to[APIOperationRunner.Response].map{
-        case APIOperationRunner.StateEvent(runnerID, state) => {
+        case APIOperationRunner.StateEvent(runnerID, state, auto, groups) => {
           $.modState{s =>
             val updRs = s.latestRunnerState.get(runnerID).getOrElse(Map()) ++ state
             s.copy(latestRunnerState = s.latestRunnerState ++ Map(runnerID -> updRs))
@@ -151,7 +151,7 @@ object VDTracker {
         <.br(),
         renderInfo("Ability state", s.latestAbilityState, s.modelIdables),
         <.br(),
-        renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables),
+        renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables)
       )
 
     def terminateRunner(id: ID): Callback = {
