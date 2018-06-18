@@ -30,13 +30,13 @@ class Turtle(name: String) extends ModelDSL {
     c("reset", "true"))
 
   // turtle operations
-  o("moveForward",
+  o("moveForward")(
     c("pre", "pos.x < 1"),
-    c("post", "false"))
+  )
 
-  o("moveBackward",
+  o("moveBackward")(
     c("pre", "pos.x > 9"),
-    c("post", "false"))
+  )
 
   resource("resource") // blank list of things = take everything
 }

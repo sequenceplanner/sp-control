@@ -159,5 +159,17 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
 
 
+  val table = style(
+    tableLayout.auto,
+    width(100 %%)
+  )
+
+  val input = style(
+    width(100 %%),
+    border.none,
+    outline.none,
+    background := "rgba(255,255,255,0.2)"
+  )
+
   this.addToDocument()
 }

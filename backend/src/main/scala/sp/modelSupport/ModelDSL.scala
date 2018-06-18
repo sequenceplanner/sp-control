@@ -17,7 +17,7 @@ sealed trait ModelElement
 case class Tdv(name: String, driverName: String, driverIdentifier: String) extends ModelElement
 case class Tv(name: String, initState: String, domain: List[String], driverName: String, driverIdentifier: String) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
-case class To(name: String, pre:cond, post:cond=cond("post", "false"), ab: String = "") extends ModelElement
+case class To(name: String, ab: String, conds: List[cond]) extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
 case class Tresource(name: String, dvs: List[String] = List()) extends ModelElement
 case class Tdriver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) extends ModelElement
@@ -53,9 +53,10 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def v(name: String, initState: String, domain: List[String] = List(),
     driverName: String = "", driverIdentifier: String = "") = mes :+= Tv(name, initState, domain, driverName, driverIdentifier)
   def a(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) = mes :+= Ta(name, parameters, pre, running, post, reset)
-  def o(name: String, pre:cond, post:cond=cond("post", "false"), ab: String = "") = mes :+= To(name, pre, post, ab)
+  def o(name: String, ab: String="")(conds: cond*) = mes :+= To(name, ab, conds.toList)
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
   def x(name: String, exprs: List[String]) = mes :+= Tx(name, exprs)
+
 
   def runner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) = mes :+= Trunner(name, initState, ops)
   def resource(name: String, dvs: List[String] = List()) = mes :+= Tresource(name, dvs)
@@ -145,13 +146,18 @@ trait BuildModel {
       val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name)))
       val searchAbs = deeperThings.collect { case o: Operation => APIAbilityHandler.operationToAbility(o) }.flatten
       val opsAndMapping = m.model.collect {
-        case To(name, pre, post, ab) =>
-          val precond = parse(pre)(opParseHelpers)
-          val postcond = parse(post)(opParseHelpers)
-          val op = Operation(nn(name), List(precond, postcond))
-          val mapping = if(ab.nonEmpty) {
+        case item: To =>
+          val defaultPre = if (item.conds.exists(_.kind == "pre")) None else Some(Condition(AlwaysTrue, List(), attributes = SPAttributes("kind"->"pre")))
+          val defautltPost = if (item.conds.exists(_.kind == "post")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"post")))
+          val defautltReset = if (item.conds.exists(_.kind == "reset")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"reset")))
+          val theCondition: List[Condition] = item.conds.toList.map(x =>
+            parse(x)(opParseHelpers)
+          ) ++ defaultPre ++ defautltPost ++ defautltReset
+
+          val op = Operation(nn(item.name), theCondition)
+          val mapping = if(item.ab.nonEmpty) {
             // hard coded mapping
-            val a = searchAbs.find(a=>unnn(a.name)==ab).get // break if we mis-spell
+            val a = searchAbs.find(a=>unnn(a.name)==item.ab).get // break if we mis-spell
             Some(op.id->a.id)
           } else {
             // find by operation name, must be on the same "level"

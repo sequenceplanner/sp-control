@@ -114,6 +114,7 @@ class URDriverInstance(d: VD.Driver) extends Actor
     changed = state
 
     // Converting to the actual api
+
     for {
       x <- state.get("active")
       value <- x.to[Boolean].toOption if urState.active != value
@@ -142,9 +143,12 @@ class URDriverInstance(d: VD.Driver) extends Actor
   }
 
   def handleCmdDone(upd: URStream) = {
+
+
     reqHeader.foreach { header =>
+
       val streamMap = streamToMap(upd)
-      val res = changed.forall(kv => !streamMap.contains(kv._1) || streamMap.get(kv._1).contains(kv._2))
+      val res = changed.exists(kv =>  !streamMap.contains(kv._1) || !streamMap.get(kv._1).contains(kv._2))
       if (res) {
         val updH = header.swapToAndFrom()
         val b = api.DriverCommandDone(updH.reqID, true) // we do not check if it fails in this case
