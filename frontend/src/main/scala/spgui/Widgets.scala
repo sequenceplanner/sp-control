@@ -3,7 +3,7 @@ package spgui
 import japgolly.scalajs.react.vdom.html_<^.VdomElement
 import spgui._
 
-object LoadingWidgets {
+object Widgets {
 
   type Widget = (String, SPWidgetBase => VdomElement, Int, Int)
 
@@ -32,7 +32,7 @@ object LoadingWidgets {
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),             3, 4),
       ("SopRunner",                   widgets.sopmaker.SopRunnerWidget(),             3, 4),
       ("ModelsWidget",                widgets.examples.ModelsWidget(),             3, 4),
-      ("ModelsWidget WIP",                widgets.examples.ModelsWidgetNew(),             3, 4),
+      ("ModelsWidget WIP",                widgets.model.ModelsWidgetNew(),             3, 4),
       ("LabkitExperimentWidget",      widgets.labkit.LabkitExperimentWidget(),             3, 4),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
       ("VolvoSchedulerWidget",         widgets.virtcom.VolvoSchedulerWidget(),          3, 4),

@@ -1,13 +1,14 @@
 package spgui.availablemodelscircuit
 
 import diode.ActionResult.ModelUpdate
-import diode.{Action, Circuit, ModelR, ModelRO}
+import diode.{Action, Circuit, ModelR}
 import diode.react.ReactConnector
-import monocle.macros.{GenLens, Lenses}
+import monocle.macros.Lenses
 import sp.domain
-import sp.domain.ID
-import sp.models.APIModel.{ModelHistory, ModelInformation}
-import spgui.SimpleSet
+import sp.domain.{ID, IDAble, SPAttributes}
+import sp.models.{APIModel, APIModelMaker}
+import sp.models.APIModel.ModelInformation
+import spgui.{ModelCommunication, SimpleSet}
 
 case class StateValueHolder[A](prevValue: Option[A], currentValue: A) {
   def set(value: A): StateValueHolder[A] = if (currentValue != value) StateValueHolder(Some(currentValue), value) else this
@@ -16,7 +17,7 @@ case class StateValueHolder[A](prevValue: Option[A], currentValue: A) {
 // TODO This assumes that the "id" value on ModelInformation and ModelHistory is equal to the model ID that
 // TODO is associated with the information & history. If the assumption is correct, this comment can be removed.
 // TODO (Jonathan Krän, 6/14/2018)
-@Lenses case class ModelMock(id: domain.ID, info: Option[ModelInformation] = None, history: Option[ModelHistory] = None) {
+@Lenses case class ModelMock(id: domain.ID, info: Option[ModelInformation] = None, history: Option[List[(Int, SPAttributes)]] = None, items: List[IDAble] = List()) {
   import MergeUtility.MergeModelInformation
 
   def merge(that: ModelMock): ModelMock = {
@@ -25,10 +26,12 @@ case class StateValueHolder[A](prevValue: Option[A], currentValue: A) {
     ModelMock(
       id,
       List(info, that.info).flatten.foldLeft(infoInit)((acc, next) => acc.map(_ merge next)),
-      that.history
+      that.history,
+      List()
     )
   }
 }
+
 
 @Lenses case class ModelsCircuitState(models: SimpleSet[ID, ModelMock], activeModelId: Option[ID], previousActiveModelId: Option[ID]) {
   def activeModel: Option[ModelMock] = activeModelId.map(models.apply)
@@ -39,7 +42,7 @@ case class RemoveModel(modelId: ID) extends ModelAction
 case class SaveModel(model: ModelMock) extends ModelAction
 case class UpdateModel(model: ModelMock) extends ModelAction
 case class SetActiveModel(modelId: ID) extends ModelAction
-case class SetActiveModel(modelId: ID) extends ModelAction
+case class SetItems(modelId: ID, items: List[IDAble]) extends ModelAction
 case class AddMockModels(models: Iterable[ModelMock]) extends ModelAction
 object AddMockModels {
   def apply(models: ModelMock*) = new AddMockModels(models)
@@ -74,17 +77,31 @@ object ModelsCircuit extends Circuit[ModelsCircuitState] with ReactConnector[Mod
       s
   })
 
+  private def withState(f: ModelsCircuitState => Unit): StateFn = state => {
+    f(state)
+    state
+  }
+
   def handleByLens(action: Any): StateFn = action match {
     case SaveModel(model) => models.modify(_ + model)
 
     case RemoveModel(modelId) =>
-      models.modify(ms => ms.removeByKey(modelId)) andThen removeModel(modelId)
+      ModelCommunication.postRequest(APIModelMaker.DeleteModel(modelId))
+      removeModel(modelId)
 
     case UpdateModel(model) =>
+      // TODO Reflect change in backend
       models.modify(_.replace(model))
 
     case SetActiveModel(modelId) =>
       updateActiveId(modelId)
+
+    case SetItems(modelId, items) =>
+      ModelCommunication.postRequest(modelId, APIModel.PutItems(items))
+      models.modify { models =>
+        val newModel = models.get(modelId).map(_.copy(items = items))
+        newModel.fold(models)(models.replace)
+      }
 
     case AddMockModels(newModels) =>
       models.modify { MergeUtility.mergeModelIterables(_, newModels) }

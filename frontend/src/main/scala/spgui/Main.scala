@@ -13,7 +13,7 @@ object Main extends App {
 
   @JSExport
   def main(): Unit = {
-    LoadingWidgets.loadWidgets
+    Widgets.loadWidgets
     ModelCommunication.run()
     SPMenu.addNavElem(ModelStatus())
     Layout().renderIntoDOM(document.getElementById("spgui-root"))
