@@ -113,6 +113,7 @@ object StateHandlerWidget {
 
     def onUnmount() = Callback{
       println("StateHandlerWidget Unmouting")
+      operationHandler.kill()
     }
   }
 
