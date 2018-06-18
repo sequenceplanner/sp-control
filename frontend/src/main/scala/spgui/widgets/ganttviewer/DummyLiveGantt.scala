@@ -2,12 +2,16 @@ package spgui.widgets.ganttviewer
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
 
+import scalajs.js
+import scalajs.js.JSConverters._
 import sp.domain._
 import sp.runners.{APIOperationRunner => oprapi}
 import sp.abilityhandler.{APIAbilityHandler => ahapi}
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.communication.APIComm.StreamHelper
+import spgui.widgets.gantt.{Row, SPGantt, SPGanttOptions, Task}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -18,7 +22,7 @@ object DummyLiveGantt {
   case class State(
                     runnerID: ID = null,
                     abilityNames: Map[ID, String] = Map(), // operation ID -> ability name
-                    oprState: Map[ID, String] = Map()
+                    oprState: Map[ID, String] = Map() // operation ID -> "i", "e" or "f"
                   )
 
   private class Backend($: BackendScope[SPWidgetBase, State]) {
@@ -65,7 +69,8 @@ object DummyLiveGantt {
           s.oprState.toTagMod { case (id, state) =>
             <.li(s.abilityNames.get(id).getOrElse(id.toString) + " state: ", state)
           }
-        )
+        ),
+        DummyGanttComponent(s.abilityNames, s.oprState)
       )
     }
 
@@ -83,4 +88,49 @@ object DummyLiveGantt {
 
   def apply() = SPWidget(spwb => component(spwb))
 
+}
+
+object DummyGanttComponent {
+
+  case class Props(abilityNames: Map[ID, String], oprState: Map[ID, String])
+  case class State(rows: js.Array[Row] = js.Array(), startTime: Option[js.Date] = None)
+
+  class Backend($: BackendScope[Props, State]) {
+
+    var spGantt: SPGantt = _
+
+    def render(p: Props) = {
+      <.div(
+        "DummyGanttComponent",
+        HtmlTagOf[dom.html.Element]("gantt-component") // becomes <gantt-component></gantt-component>
+      )
+    }
+  }
+
+  private val component = ScalaComponent.builder[Props]("DummyGanttComponent")
+    .initialState(State())
+    .renderBackend[Backend]
+    .componentDidMount(ctx => Callback {
+      ctx.backend.spGantt = SPGantt(ctx.getDOMNode, SPGanttOptions(headers = js.Array("second"), viewScale = "2 seconds"))
+    })
+    .componentWillReceiveProps { ctx =>
+      val now = new js.Date()
+      val startTime: js.Date = ctx.state.startTime.getOrElse(now)
+      val nextRows = ctx.nextProps.abilityNames.values.map { name => // TODO map actual updates from oprState
+        Row(
+          name,
+          js.Array(
+            Task(name + " task name", startTime, now)
+          )
+        )
+      }.toJSArray
+      ctx.setState(State(nextRows, Some(startTime))) >> Callback.log(ctx.state.rows)
+    }
+    .componentDidUpdate(ctx => Callback {
+      ctx.backend.spGantt.setData(ctx.currentState.rows)
+    })
+    .build
+
+  def apply(abilityNames: Map[ID, String], oprState: Map[ID, String]) =
+    component(Props(abilityNames, oprState))
 }

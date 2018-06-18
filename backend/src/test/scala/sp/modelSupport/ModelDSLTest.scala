@@ -28,11 +28,11 @@ class Turtle(name: String) extends ModelDSL {
     c("reset", "true"))
 
   // turtle operations
-  o("moveForward",
+  o("moveForward")(
     c("pre", "pos.x < 1"),
     c("post", "false"))
 
-  o("moveBackward",
+  o("moveBackward")(
     c("pre", "pos.x > 9"),
     c("post", "false"))
 
@@ -57,6 +57,11 @@ class TurtleModel(name: String) extends ModelDSL {
 
 
 class VDHelperTest extends FreeSpec with Matchers {
+
+  val s = VariableKind.fromString("ReadOnly")
+  assert(s == Some(ReadOnly))
+
+
   println
   println
 

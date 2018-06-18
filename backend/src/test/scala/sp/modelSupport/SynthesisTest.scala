@@ -9,11 +9,11 @@ class Model extends ModelDSL {
   v("a", "off", List("off", "on"))
   v("b", "off", List("off", "on"))
 
-  o("doA",
+  o("doA")(
     c("pre", "a==off", "a := on"),
     c("post", "a==on", "a := off"))
 
-  o("doB",
+  o("doB")(
     c("pre", "b==off", "b := on"),
     c("post", "b==on", "b := off"))
 
