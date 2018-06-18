@@ -46,6 +46,29 @@ object HumanInstructionsWidget {
 
               updS
             }.runNow()
+
+        }
+      }
+      for {
+        h <- mess.getHeaderAs[SPHeader]
+        b <- mess.getBodyAs[APIHumanDriver.FromHuman]
+      } yield {
+        b match {
+          case y: APIHumanDriver.HumanEvent =>
+            $.modState{s =>
+              val updS = s.copy(
+                cmd = Some(y.state),
+                ack = s.ack,
+                completed = s.completed,
+                header = Some(h)
+              )
+
+              sendEvent(updS, updS.ack, updS.completed)
+
+              updS
+            }.runNow()
+
+
         }
       }
 
