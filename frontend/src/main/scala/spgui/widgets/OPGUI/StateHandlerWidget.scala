@@ -36,8 +36,6 @@ object StateHandlerWidget {
       BackendCommunication.getMessageObserver(onOperationRunnerWidget, APIOperationRunner.topicResponse)
     val vdTrackerHandler =
       BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicResponse)
-    val modelMessObs =
-      BackendCommunication.getMessageObserver(onModelObsMes, APIModel.topicResponse)
 
     // TODO: Listen for "global" runner instead of latest?
     /**
@@ -78,15 +76,16 @@ object StateHandlerWidget {
     }
     def getVars(m: List[IDAble]): (List[Thing], List[Thing], Map[ID,ID]) = {
       // get runner
-      val runnerSetupThings = m.collect(t: Thing if t.attributes.keys.contains("runnerID") => t)
+      val runnerSetupThings = m.collect{case t: Thing if t.attributes.keys.contains("runnerID") => t}
       val runners = runnerSetupThings.map(APIOperationRunner.runnerThingToSetup)
 
       val r = runners.head // assume one runner
       val mapping = r.variableMap
-      val opthings = m.collect(t: Thing if t.attributes.keys.contains("init"))
-      val dvthings = m.collect(t: Thing if t.attributes.keys.contains("driverName"))
+      val opthings = m.collect{case t: Thing if t.attributes.keys.contains("init") => t}
+      val dvthings = m.collect{case t: Thing if t.attributes.keys.contains("driverName") => t}
 
-      (opthing, dvthings, mapping)
+
+      (opthings, dvthings, mapping)
     }
 
     def onOperationRunnerWidget(mess: SPMessage) = {
@@ -153,16 +152,6 @@ object StateHandlerWidget {
       // for each callback, runNow()
       callback.foreach(_.runNow())
     }
-
-    def onModelObsMes(mess: SPMessage): Unit = {
-      mess.body.to[APIModel.Response].map{
-        case APIModel.SPItems(items) => {
-          $.modState(_.copy(modelIdables = items)).runNow()
-        }
-        case x =>
-      }
-    }
-
 
     // Set SPHeader and send SPMessage to APIOperationRunner
     def sendToRunner(mess: APIOperationRunner.Request): Unit = {
