@@ -17,8 +17,8 @@ object OperationRunnerWidget {
   // Case class for a operation and its state
   case class OperationWithState(operation: Operation, operationState: Map[ID, SPValue])
 
-  case class Runner(id: Option[ID] = None, runInAuto: Boolean = true, startOperation: Option[ID] = None,
-                    stepBackward: Boolean = false)
+  case class Runner(id: Option[ID] = None, runInAuto: Boolean = true,
+                    startOperation: Option[ID] = None, stepBackward: Boolean = false)
   // Pairs of ID:s from the Runner.Setup.opAbilityMap
   case class OpAbPair(abilityID: ID, operationID: ID)
 
@@ -72,10 +72,14 @@ object OperationRunnerWidget {
           $.modState { state =>
 
             // try to find the setup with the same runner-id as the widgets activeRunner.id
-            val setup: Option[Setup] = ids.find(setup =>
+            val sameRunnerSetup: Option[Setup] = ids.find(setup =>
               state.activeRunner.exists(_.id.contains(setup.runnerID)
               )
             )
+
+            // TODO: add
+            // the otherSetups filters out sameRunnerSetup
+            val otherSetups: List[Setup] = ids.filterNot(_ == sameRunnerSetup)
 
             /**
               * With the setup go through the [[Setup.ops]]: Set[Operation]
@@ -103,15 +107,14 @@ object OperationRunnerWidget {
             }
 
             // try to update state with operationStateMapper and opAbPairs
-            setup.map{s => state.copy(
-              activeOpAbPairs = opAbPairs(s).toList,
-              operationStateMapper = opStateMapper(s))
+            sameRunnerSetup.map{setup => state.copy(
+              activeOpAbPairs = opAbPairs(setup).toList,
+              operationStateMapper = opStateMapper(setup))
             }.getOrElse(state)
-
           }
-
         }
 
+        // TODO: Add runInAuto and disableConditionGroups
         // case StateEvent-message: see if any operation has been updated
         // if so, update the operationStateMapper
         case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap, runInAuto, disableConditionGroups) => {
@@ -169,16 +172,10 @@ object OperationRunnerWidget {
 
         case APIAbilityHandler.TheAbility(ability) =>
           $.modState { state =>
-            if (ability.isDefined) {
-              // if ability is Defined, add it (or overwrite old values) to the abilityStateMap
-              // and map it with a new ability and wait for next AbilityState()
-              val abilityMapToAdd: Map[ID, AbilityWithState] = Map(ability.get.id -> AbilityWithState(ability.get, Map()))
-              state.copy(abilityStateMapper = state.abilityStateMapper ++ abilityMapToAdd)
-            } else {
-              // else if ability is not defined, GetAbility(id) has not been able to find
-              // the ability with that id in the AbilityStorage list => do not change state
-              state
-            }
+            ability.map{ ab =>
+              // if map contains ability, update abilityStateMapper
+              state.copy(abilityStateMapper = state.abilityStateMapper + (ab.id -> AbilityWithState(ab, Map())))
+            }.getOrElse(state) // else, do not update state
           }
 
         // Not need right now, delete?
@@ -234,6 +231,8 @@ object OperationRunnerWidget {
     def onUnmount() = Callback{
       println("OperationRunnerWidget Unmouting")
       operationRunnerHandler.kill()
+      abilityHandler.kill()
+      vdTrackerHandler.kill()
     }
   }
 
