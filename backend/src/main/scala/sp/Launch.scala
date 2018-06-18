@@ -1,9 +1,8 @@
 package sp
 
 import akka.actor._
-import sp.example._
-import sp.modelImport._
-import sp.virtcom._
+import sp.dashboardpresets.DashboardPresetsActor
+
 import scala.concurrent.Await
 import scala.concurrent.duration._
 

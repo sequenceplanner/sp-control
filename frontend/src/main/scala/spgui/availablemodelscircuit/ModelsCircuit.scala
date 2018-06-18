@@ -39,6 +39,7 @@ case class RemoveModel(modelId: ID) extends ModelAction
 case class SaveModel(model: ModelMock) extends ModelAction
 case class UpdateModel(model: ModelMock) extends ModelAction
 case class SetActiveModel(modelId: ID) extends ModelAction
+case class SetActiveModel(modelId: ID) extends ModelAction
 case class AddMockModels(models: Iterable[ModelMock]) extends ModelAction
 object AddMockModels {
   def apply(models: ModelMock*) = new AddMockModels(models)

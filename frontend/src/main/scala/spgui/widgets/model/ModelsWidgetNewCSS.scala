@@ -1,4 +1,4 @@
-package spgui.widgets.examples
+package spgui.widgets.model
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
@@ -12,6 +12,10 @@ object ModelsWidgetNewCSS extends StyleSheet.Inline {
 
   val container = style(
     padding := 2.em
+  )
+
+  val mainButton = style(
+    margin(1.em)
   )
 
   val activeModelButton = style(

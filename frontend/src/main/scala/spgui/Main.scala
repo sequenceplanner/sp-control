@@ -1,7 +1,11 @@
 package spgui
 
 import org.scalajs.dom.document
-import scala.scalajs.js.annotation.{JSExport,JSExportTopLevel}
+import spgui.menu.SPMenu
+import japgolly.scalajs.react.vdom.html_<^._
+import spgui.widgets.model.ModelStatus
+
+import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
 
 object Main extends App {
   @JSExportTopLevel("spgui.Main")
@@ -11,6 +15,7 @@ object Main extends App {
   def main(): Unit = {
     LoadingWidgets.loadWidgets
     ModelCommunication.run()
+    SPMenu.addNavElem(ModelStatus())
     Layout().renderIntoDOM(document.getElementById("spgui-root"))
   }
 }
