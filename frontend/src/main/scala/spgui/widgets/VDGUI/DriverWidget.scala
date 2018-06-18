@@ -35,14 +35,16 @@ object DriverWidget {
           )}
         }
 
-
-
         /**
           * if a [[APIDeviceDriver.DriverStateChange]] response is noticed
           * update the driver in the cards with the help method onDriverStateChange()
           */
         case APIDeviceDriver.DriverStateChange(name, id, state, diff) => {
           onDriverStateChange(name, id, state, diff)
+        }
+
+        case APIDeviceDriver.DriverCommandDone(id, result) => {
+          Callback.empty
         }
         case x => {
           Callback.empty

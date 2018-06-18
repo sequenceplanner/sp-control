@@ -1,6 +1,8 @@
 package spgui.widgets.VDGUI
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
+import play.api.libs.json.JsSuccess
 import sp.domain._
 import spgui.communication._
 import sendMessages._
@@ -119,7 +121,6 @@ object SPCardGrid {
         )
       )
     }
-
     def driverCardExpanded(card: DriverCard) = {
       <.div(
         ^.className := DriverWidgetCSS.driverCard.htmlClass,
@@ -158,14 +159,38 @@ object SPCardGrid {
         ),
         <.div(
           ^.className := DriverWidgetCSS.driverStates.htmlClass,
-          card.state.map( s =>
-            <.div(s._1 + ": " + s._2, <.input(^.defaultValue := "new value", ^.onChange --> {sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.cardId, card.state.updated(s._1, s._2)))} ))
-          ).toTagMod
+          <.table(
+            ^.className :=DriverWidgetCSS.table.htmlClass,
+            <.tbody(
+          card.state.map( s => {
+            <.tr(
+              <.td(s._1),
+              <.td(s._2.toString()),  // Todo: a dropdown for boolean?
+              <.td(<.input(^.placeholder := "Change value...", ^.onKeyPress ==> { updateDriverState(card, s._1)}, ^.className := DriverWidgetCSS.input.htmlClass))
+            )
+          }).toTagMod
+            ))
         ),
         <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver"),
         <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(Driver(card.name, card.cardId, card.typ, card.setup))), "Start Driver")
       )
     }
+
+    def createCorrectTypeOfSPValue(sPValue: SPValue, newValue : String) : SPValue =  { // Convert the incoming string to an SPvalue of the same type as the previous state value
+      if (sPValue.validate[Int].isSuccess)          {SPValue(newValue.toInt)}
+      else if(sPValue.validate[Boolean].isSuccess)  {SPValue(newValue.toBoolean)}
+      else                                          {SPValue(newValue)}
+    }
+
+    def updateDriverState(card: DriverCard, s1 : String)(e: ReactKeyboardEventFromInput) = {
+      if(e.key == "Enter") {
+        val newState = (card.state + (s1 -> createCorrectTypeOfSPValue(card.state(s1), e.target.value ) ) )
+        sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.cardId, newState) )
+      }
+      else
+        Callback.empty
+    }
+
 
     def resourceCardSmall(card: ResourceCard) = {
       <.div(
