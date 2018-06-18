@@ -14,7 +14,7 @@ import sp.supremicaStuff.base._
 case class cond(kind: String, guard: String, actions: String*)
 sealed trait ModelElement
 case class Tdv(name: String, driverName: String, driverIdentifier: String) extends ModelElement
-case class Tv(name: String, initState: String, domain: List[String]) extends ModelElement
+case class Tv(name: String, initState: String, domain: List[String], driverName: String, driverIdentifier: String) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
 case class To(name: String, pre:cond, post:cond=cond("post", "false"), ab: String = "") extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
@@ -40,7 +40,8 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   var mes: List[ModelElement] = List()
 
   def dv(name: String, driverName: String, driverIdentifier: String) = mes :+= Tdv(name, driverName, driverIdentifier)
-  def v(name: String, initState: String, domain: List[String] = List()) = mes :+= Tv(name, initState, domain)
+  def v(name: String, initState: String, domain: List[String] = List(),
+    driverName: String = "", driverIdentifier: String = "") = mes :+= Tv(name, initState, domain, driverName, driverIdentifier)
   def a(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) = mes :+= Ta(name, parameters, pre, running, post, reset)
   def o(name: String, pre:cond, post:cond=cond("post", "false"), ab: String = "") = mes :+= To(name, pre, post, ab)
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
@@ -102,9 +103,12 @@ trait BuildModel {
       // now we have all the variables "below" this level
 
       val vs = m.model.collect{
-        case Tv(name: String, initState, domain) =>
-          Thing(nn(name), SPAttributes("init" -> initState, "domain" -> domain))
-      }
+        case Tv(name: String, initState, domain, driverName, driverIdentifier) =>
+          val t1 = Thing(nn(name), SPAttributes("init" -> initState, "domain" -> domain))
+          if(driverName.nonEmpty && driverIdentifier.nonEmpty) {
+            List(t1, Thing(nn(name), SPAttributes("driverName" -> driverName, "driverIdentifier" -> driverIdentifier)))
+          } else List(t1)
+      }.flatten
       val dvs = m.model.collect {
         case Tdv(name, driverName, driverIdentifier) =>
           Thing(nn(name), SPAttributes("driverName" -> driverName, "driverIdentifier" -> driverIdentifier))
@@ -251,7 +255,6 @@ trait SynthesizeModel {
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
     val spSpecs = ids.filter(_.isInstanceOf[SPSpec]).map(_.asInstanceOf[SPSpec])
 
-    println("HEJ: " + spSpecs)
     //Create Supremica Module and synthesize guards.
     val ptmw = ParseToModuleWrapper(moduleName, vars, ops, sopSpecs, spSpecs)
     val ptmwModule = {
@@ -347,7 +350,6 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
   def addForbiddenExpressions() = {
     spSpec.foreach { s =>
-      println("HEJ: " + s)
       s.attributes.getAs[List[String]]("forbiddenExpressions").foreach(fes =>
         {println("adding forbidden expression: " + fes)
         addForbiddenExpression(forbiddenExpression = stringPredicateToSupremicaSyntax(fes.mkString("(", ")|(", ")")), addSelfLoop = false, addInComment = true)})
@@ -426,7 +428,8 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
     }
   }
 
-  // so ugly....
+  // Convert back into value of the domain array
+  // Ugly!
   def sg(p: Proposition): Proposition = p match {
     case AND(ps) => AND(ps.map(sg))
     case OR(ps) => OR(ps.map(sg))

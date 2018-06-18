@@ -10,14 +10,14 @@ class Model extends ModelDSL {
   v("b", "off", List("off", "on"))
 
   o("doA",
-    c("pre", "a=='off'", "a := 'on'"),
-    c("post", "a=='on'", "a := 'off'"))
+    c("pre", "a==off", "a := on"),
+    c("post", "a==on", "a := off"))
 
   o("doB",
-    c("pre", "b=='off'", "b := 'on'"),
-    c("post", "b=='on'", "b := 'off'"))
+    c("pre", "b==off", "b := on"),
+    c("post", "b==on", "b := off"))
 
-  x("test", "b == 'on' && a == 'on'")
+  x("test", "b==on && a==on")
 
 
   runner("runner", initState = Map())
