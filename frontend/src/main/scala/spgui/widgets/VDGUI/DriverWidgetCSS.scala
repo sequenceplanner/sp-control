@@ -49,17 +49,21 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
 
 
-  val marginCTS = 3.px
+  val paddingCTS = 3.px
   val cardTitleSmall = style(
     fontSize(12.px),
     textOverflow:= ("ellipsis"),
     overflow.hidden,
-    marginTop(marginCTS),
-    marginLeft(marginCTS),
-    marginRight(marginCTS),
+    paddingTop(paddingCTS),
+    paddingLeft(paddingCTS),
+    paddingRight(paddingCTS),
     borderBottom(1.px),
     borderBottomStyle.solid,
-    fontFamily:=!"'Arial'"
+    fontFamily:=!"'Arial'",
+    cursor.pointer,
+    &.hover(
+      backgroundColor :=! "#eeeeee"
+    )
   )
 
   val unsetHeight = style(
@@ -83,17 +87,20 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     backgroundColor :=! "#cccccc"
   )
 
-  val marginCTE = 10.px
   val cardTitleExpanded = style(
     fontSize(20 px),
     fontWeight._500,
     borderBottom(1.px),
     borderBottomStyle.solid,
     borderBottomColor :=! "#888888",
-    marginTop(marginCTE),
-    marginLeft(marginCTE),
-    marginRight(marginCTE),
-    fontFamily:=!"'Arial'"
+    paddingTop(2.px),
+    paddingLeft(10.px),
+    paddingRight(10.px),
+    fontFamily:=!"'Arial'",
+    cursor.pointer,
+    &.hover(
+      backgroundColor :=! "#eeeeee"
+    )
   )
 
   val stateList = style(

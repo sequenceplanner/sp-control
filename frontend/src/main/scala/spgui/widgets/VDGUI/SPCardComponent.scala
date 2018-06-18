@@ -74,177 +74,183 @@ object SPCardGrid {
                 case true => cardContentsExpanded
                 case false => cardContentsCollapsed
               }
-            },
-            ^.onClick --> $.modState(s =>
-              if(s.expandedId == Some(cardId)) s.copy(expandedId = None)
-              else s.copy(expandedId = Some(cardId))
-            )
+            }
           )
         )
       ).toTagMod
     }
-  }
 
-  def driverCardSmall(card: DriverCard) = {
-    <.div(
-      ^.className := DriverWidgetCSS.driverCard.htmlClass,
-      <.div(
-        ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
-        card.name
-      ),
-      <.div(
-        ^.className := DriverWidgetCSS.driverTypeSmall.htmlClass,
-        <.div("Type: " + card.typ)
-      ),
-      <.div(
-        ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
-        <.span("Status: "),
-        <.span(
-          card.status match {
-            case "Online" => <.span(
-              ^.className := DriverWidgetCSS.driverOnline.htmlClass,
-              "Online"
-            )
-            case "Offline" => <.span(
-              ^.className := DriverWidgetCSS.driverOffline.htmlClass,
-              "Offline"
-            )
-            case "Unresponsive" => <.span(
-              ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
-              "Unresponsive"
-            )
-            case s: String => <.span(s)
-          }
-        )
-      )
-    )
-  }
 
-  def driverCardExpanded(card: DriverCard) = {
-    <.div(
-      ^.className := DriverWidgetCSS.driverCard.htmlClass,
+    def driverCardSmall(card: DriverCard) = {
       <.div(
-        ^.className := DriverWidgetCSS.cardTitleExpanded.htmlClass,
-        card.name
-      ),
-      <.div(
-        ^.className := DriverWidgetCSS.driverType.htmlClass,
-        <.div("Type: " + card.typ)
-      ),
-      <.div(
-        ^.className := DriverWidgetCSS.driverStatus.htmlClass,
-        <.span("Status: "),
-        <.span(
-          card.status match {
-            case "Online" => <.span(
-              ^.className := DriverWidgetCSS.driverOnline.htmlClass,
-              "Online"
-            )
-            case "Offline" => <.span(
-              ^.className := DriverWidgetCSS.driverOffline.htmlClass,
-              "Offline"
-            )
-            case "Unresponsive" => <.span(
-              ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
-              "Unresponsive"
-            )
-            case s: String => <.span(s)
-          }
-        )
-      ),
-      <.div(
-        ^.className := DriverWidgetCSS.driverStates.htmlClass,
-        card.state.map( s =>
-          <.div(s._1 + ": " + s._2, <.input(^.defaultValue := "new value", ^.onChange --> {sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.cardId, card.state.updated(s._1, s._2)))} ))
-
-        ).toTagMod
-      ),
-      <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver"),
-      <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(Driver(card.name, card.cardId, card.typ, card.setup))), "Start Driver")
-    )
-  }
-
-  def editDriverState (string: String, sPValue: SPValue) = {
-    <.div(
-    )
-  }
-
-  def resourceCardSmall(card: ResourceCard) = {
-    <.div(
-      ^.className := DriverWidgetCSS.resourceCard.htmlClass,
-      <.div(
-        ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
-        card.name
-      ),
-      {
-        card.driverStatuses.map(driverStatus =>
-          <.div(
-            ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
-            <.span(driverStatus._1 + ": "),
-            <.span(
-              driverStatus._2 match {
-                case "Online" => <.span(
-                  ^.className := DriverWidgetCSS.driverOnline.htmlClass,
-                  "Online"
-                )
-                case "Offline" => <.span(
-                  ^.className := DriverWidgetCSS.driverOffline.htmlClass,
-                  "Offline"
-                )
-                case "Unresponsive" => <.span(
-                  ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
-                  "Unresponsive"
-                )
-                case s: String => <.span(s)
-              }
-            )
+        ^.className := DriverWidgetCSS.driverCard.htmlClass,
+        <.div(
+          ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
+          ^.onClick --> $.modState(s =>
+            if(s.expandedId == Some(card.cardId)) s.copy(expandedId = None)
+            else s.copy(expandedId = Some(card.cardId))
+          ),
+          card.name
+        ),
+        <.div(
+          ^.className := DriverWidgetCSS.driverTypeSmall.htmlClass,
+          <.div("Type: " + card.typ)
+        ),
+        <.div(
+          ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
+          <.span("Status: "),
+          <.span(
+            card.status match {
+              case "Online" => <.span(
+                ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+                "Online"
+              )
+              case "Offline" => <.span(
+                ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+                "Offline"
+              )
+              case "Unresponsive" => <.span(
+                ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                "Unresponsive"
+              )
+              case s: String => <.span(s)
+            }
           )
         )
-      }.toTagMod
-    )
-  }
-  
-  def resourceCardExpanded(card: ResourceCard) = {
-    <.div(
-      ^.className := DriverWidgetCSS.resourceCard.htmlClass,
+      )
+    }
+
+    def driverCardExpanded(card: DriverCard) = {
       <.div(
-        ^.className := DriverWidgetCSS.cardTitleExpanded.htmlClass,
-        card.name
-      ),
-      {
-        card.driverStatuses.map(driverStatus =>
-          <.div(
-            ^.className := DriverWidgetCSS.driverStatus.htmlClass,
-            <.span(driverStatus._1 + ": "),
-            <.span(
-              driverStatus._2 match {
-                case "Online" => <.span(
-                  ^.className := DriverWidgetCSS.driverOnline.htmlClass,
-                  "Online"
-                )
-                case "Offline" => <.span(
-                  ^.className := DriverWidgetCSS.driverOffline.htmlClass,
-                  "Offline"
-                )
-                case "Unresponsive" => <.span(
-                  ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
-                  "Unresponsive"
-                )
-                case s: String => <.span(s)
-              }
+        ^.className := DriverWidgetCSS.driverCard.htmlClass,
+        <.div(
+          ^.className := DriverWidgetCSS.cardTitleExpanded.htmlClass,
+          ^.onClick --> $.modState(s =>
+            if(s.expandedId == Some(card.cardId)) s.copy(expandedId = None)
+            else s.copy(expandedId = Some(card.cardId))
+          ),
+          card.name
+        ),
+        <.div(
+          ^.className := DriverWidgetCSS.driverType.htmlClass,
+          <.div("Type: " + card.typ)
+        ),
+        <.div(
+          ^.className := DriverWidgetCSS.driverStatus.htmlClass,
+          <.span("Status: "),
+          <.span(
+            card.status match {
+              case "Online" => <.span(
+                ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+                "Online"
+              )
+              case "Offline" => <.span(
+                ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+                "Offline"
+              )
+              case "Unresponsive" => <.span(
+                ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                "Unresponsive"
+              )
+              case s: String => <.span(s)
+            }
+          )
+        ),
+        <.div(
+          ^.className := DriverWidgetCSS.driverStates.htmlClass,
+          card.state.map( s =>
+            <.div(s._1 + ": " + s._2, <.input(^.defaultValue := "new value", ^.onChange --> {sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.cardId, card.state.updated(s._1, s._2)))} ))
+          ).toTagMod
+        ),
+        <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver"),
+        <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(Driver(card.name, card.cardId, card.typ, card.setup))), "Start Driver")
+      )
+    }
+
+    def resourceCardSmall(card: ResourceCard) = {
+      <.div(
+        ^.className := DriverWidgetCSS.resourceCard.htmlClass,
+        <.div(
+          ^.className := DriverWidgetCSS.cardTitleSmall.htmlClass,
+          ^.onClick --> $.modState(s =>
+            if(s.expandedId == Some(card.cardId)) s.copy(expandedId = None)
+            else s.copy(expandedId = Some(card.cardId))
+          ),
+          card.name
+        ),
+        {
+          card.driverStatuses.map(driverStatus =>
+            <.div(
+              ^.className := DriverWidgetCSS.driverStatusSmall.htmlClass,
+              <.span(driverStatus._1 + ": "),
+              <.span(
+                driverStatus._2 match {
+                  case "Online" => <.span(
+                    ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+                    "Online"
+                  )
+                  case "Offline" => <.span(
+                    ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+                    "Offline"
+                  )
+                  case "Unresponsive" => <.span(
+                    ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                    "Unresponsive"
+                  )
+                  case s: String => <.span(s)
+                }
+              )
             )
           )
-        )
-      }.toTagMod,
-      <.div(
-        ^.className := DriverWidgetCSS.stateList.htmlClass,
-         card.state.map( s => 
-          <.div(s._1 + ": " + s._2)
-        ).toTagMod
+        }.toTagMod
       )
-    )
-  }
+    }
 
+    def resourceCardExpanded(card: ResourceCard) = {
+      <.div(
+        ^.className := DriverWidgetCSS.resourceCard.htmlClass,
+        <.div(
+          ^.className := DriverWidgetCSS.cardTitleExpanded.htmlClass,
+          ^.onClick --> $.modState(s =>
+            if(s.expandedId == Some(card.cardId)) s.copy(expandedId = None)
+            else s.copy(expandedId = Some(card.cardId))
+          ),
+          card.name
+        ),
+        {
+          card.driverStatuses.map(driverStatus =>
+            <.div(
+              ^.className := DriverWidgetCSS.driverStatus.htmlClass,
+              <.span(driverStatus._1 + ": "),
+              <.span(
+                driverStatus._2 match {
+                  case "Online" => <.span(
+                    ^.className := DriverWidgetCSS.driverOnline.htmlClass,
+                    "Online"
+                  )
+                  case "Offline" => <.span(
+                    ^.className := DriverWidgetCSS.driverOffline.htmlClass,
+                    "Offline"
+                  )
+                  case "Unresponsive" => <.span(
+                    ^.className := DriverWidgetCSS.driverUnresponsive.htmlClass,
+                    "Unresponsive"
+                  )
+                  case s: String => <.span(s)
+                }
+              )
+            )
+          )
+        }.toTagMod,
+        <.div(
+          ^.className := DriverWidgetCSS.stateList.htmlClass,
+          card.state.map( s =>
+            <.div(s._1 + ": " + s._2)
+          ).toTagMod
+        )
+      )
+    }
+  }
   private val component = ScalaComponent.builder[Props]("CardGrid")
     .initialState(State())
     .renderBackend[Backend]
