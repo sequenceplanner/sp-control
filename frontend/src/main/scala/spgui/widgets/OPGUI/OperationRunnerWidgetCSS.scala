@@ -7,6 +7,10 @@ import spgui.theming.Theming
 object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
   import dsl._
 
+  val widgetRoot = style(
+    height(100 %%)
+  )
+
   val cardGroupCollapsed = style(
     flexGrow(1),
     display.block
@@ -79,26 +83,45 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     display.flex
   )
 
-  val sopComponent = style(
-    overflow.visible.important,
-    touchAction:="none",
-    userSelect := "none",
-    position.relative,
-    zIndex := "1",
-    width(80 px),
-    height(120 px),
-    margin(10 px)
+  // val sopComponent = style(
+  //   overflow.visible.important,
+  //   touchAction:="none",
+  //   userSelect := "none",
+  //   position.relative,
+  //   zIndex := "1",
+  //   width(80 px),
+  //   height(120 px),
+  //   margin(10 px)
+  // )
+
+  val smallOpOuter = style(
+    margin(10 px),
+    display.flex,
+    flexDirection.column
   )
 
   val opOuter = style(
+    width(100 %%),
     margin(10 px),
     display.flex,
     flexDirection.column
   )
 
   val opInner = style(
-    height(100 px),
-    width(200 px),
+    height(100 %%),
+    width(100 %%),
+    borderRadius(15 px),
+    borderWidth(2 px),
+    borderStyle:=!"solid",
+    color :=! "#000000",
+    backgroundColor := "#ffffff",
+    display.flex,
+    flexDirection.column
+  )
+
+  val smallOpInner = style(
+    height(70 px),
+    width(120 px),
     borderRadius(15 px),
     borderWidth(2 px),
     borderStyle:=!"solid",
@@ -124,6 +147,15 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     overflowWrap := "break-word",
     margin(4 px)
   )
+
+  val smallOpName = style(
+    position.relative,
+    textAlign.center,
+    fontSize(12 px),
+    overflow.hidden,
+    textOverflow:= ("ellipsis"),
+  )
+
   val opName = style(
     position.relative,
     textAlign.center,

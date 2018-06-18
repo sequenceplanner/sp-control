@@ -6,15 +6,18 @@ import spgui.communication._
 import sp.devicehandler.APIDeviceDriver
 import japgolly.scalajs.react.vdom.all.svg
 import scala.scalajs.js
+import sp.domain.logic.{PropositionConditionLogic => PCL}
 
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
-  case class Props(cards: List[OperationRunnerCard])
+  case class Props(modelIdables: List[IDAble], cards: List[OperationRunnerCard])
 
   case class OperationRunnerCard(cardId: ID, ab: OperationRunnerWidget.AbilityWithState, op: OperationRunnerWidget.OperationWithState)
 
   class Backend($: BackendScope[Props, State]) {
     def render(p:Props, s: State) = {
+      val propositionPrinter = PCL.prettyPrint(p.modelIdables)_
+
       val isExpanded = s.expandedId.isDefined
       <.div(
         ^.className := OperationRunnerWidgetCSS.rootDiv.htmlClass,
@@ -26,8 +29,8 @@ object SPCardGrid {
           p.cards.map(
             c => c match {
               case opab: OperationRunnerCard => {
-                val smallCard = cardSmall(opab)
-                val expandedCard = cardExpanded(opab)
+                val smallCard = cardSmall(opab, propositionPrinter)
+                val expandedCard = cardExpanded(opab, propositionPrinter)
                 renderCard(opab.cardId, s.expandedId, expandedCard, smallCard)
               }
             }
@@ -37,15 +40,38 @@ object SPCardGrid {
     }
 
 
-    def cardSmall(opab: OperationRunnerCard) = {
+    import sp.domain.logic.AttributeLogic._
+    def cardSmall(opab: OperationRunnerCard, printer: (Proposition) => String) = {
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            opab.op.operation.name
+          ),
+          renderOpState(opab.op.operationState)
+        ),
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            opab.ab.ability.name
+          ),
+          renderAbState(opab.ab.abilityState)
+        )
+      )
+    }
+
+    def cardExpanded(opab: OperationRunnerCard, printer: (Proposition) => String) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
           ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
           renderOp(
-            opab.op.operation.name// ,
-            // Some(opab.op.operation.preCondition.toString),
-            // Some(opab.op.operation.postCondition.toString)
+            opab.op.operation.name,
+            opab.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "pre" => printer(c.guard)}).flatten,
+            opab.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "post" => printer(c.guard)}).flatten
           ),
           renderOpState(opab.op.operationState)
         ),
@@ -53,27 +79,9 @@ object SPCardGrid {
           ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
           renderOp(
             opab.ab.ability.name,
-            Some("precondition"),
-            Some("postCondition")
-     //       Some(opab.ab.ability.preCondition.toString),
-      //      Some(opab.ab.ability.postCondition.toString)
+            List(printer(opab.ab.ability.preCondition.guard)),
+            List(printer(opab.ab.ability.postCondition.guard))
           ),
-          renderAbState(opab.ab.abilityState)
-        )
-      )
-    }
-
-    def cardExpanded(opab: OperationRunnerCard) = {
-      <.div(
-        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
-        <.span(
-          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
-          renderOp(opab.op.operation.name,Some("hello"), Some("goodbye")),
-          renderOpState(opab.op.operationState)
-        ),
-        <.span(
-          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
-          renderOp(opab.ab.ability.name),
           renderAbState(opab.ab.abilityState)
         )
       )
@@ -119,15 +127,21 @@ object SPCardGrid {
     }
   }
 
-  def renderOp(name: String, preCondition: Option[String] = None, postCondition: Option[String] = None) = {
+  def renderOp(name: String, preConditions: List[String] = List(), postConditions: List[String] = List()) = {
     <.div(
       ^.className := OperationRunnerWidgetCSS.opInner.htmlClass,
-      preCondition.map(pre => {
-        <.div(
-          ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
-          pre
-        )
-      }).getOrElse(EmptyVdom),
+      {
+        if(preConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
+            preConditions.map(
+              pre => <.div(pre)
+            ).toTagMod
+          )
+        }
+      },
       <.div(
         ^.className := OperationRunnerWidgetCSS.opNameOuter.htmlClass,
         <.div(
@@ -135,14 +149,58 @@ object SPCardGrid {
           name
         )
       ),
-      postCondition.map(post => {
-        <.div(
-          ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
-          post
-        )
-      }).getOrElse(EmptyVdom)
+      {
+        if(postConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
+            postConditions.map(
+              post => <.div(post)
+            ).toTagMod
+          )
+        }
+      }
     )
   }
+
+  def renderSmallOp(name: String, preConditions: List[String] = List(), postConditions: List[String] = List()) = {
+    <.div(
+      ^.className := OperationRunnerWidgetCSS.smallOpInner.htmlClass,
+      {
+        if(preConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
+            preConditions.map(
+              pre => <.div(pre)
+            ).toTagMod
+          )
+        }
+      },
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.opNameOuter.htmlClass,
+        <.div(
+          ^.className := OperationRunnerWidgetCSS.smallOpName.htmlClass,
+          name
+        )
+      ),
+      {
+        if(postConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
+            postConditions.map(
+              post => <.div(post)
+            ).toTagMod
+          )
+        }
+      }
+    )
+  }
+
 
 
   def renderOpState(state: Map[ID, SPValue]) = {
@@ -211,5 +269,5 @@ object SPCardGrid {
     .renderBackend[Backend]
     .build
 
-  def apply(cards: List[OperationRunnerCard]) = component(Props(cards))
+  def apply(modelIdables: List[IDAble], cards: List[OperationRunnerCard]) = component(Props(modelIdables, cards))
 }

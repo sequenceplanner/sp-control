@@ -10,6 +10,7 @@ import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import sp.vdtesting.APIVDTracker
 import spgui.communication._
+import sp.models.{APIModel => mapi}
 
 // In OperationRunnerWidget, we want to visualize the pairs of abilities/operations
 object OperationRunnerWidget {
@@ -23,12 +24,13 @@ object OperationRunnerWidget {
   // we need to separate the activeCards (the pairs the runner is using)
   // and the Operation/Ability-pair available, which we later can activate to the runner
   case class State(
-                    activeRunnerID:       Option[ID] = None,
-                    abilityStateMapper:   Map[ID, AbilityWithState] = Map(),
-                    operationStateMapper: Map[ID, OperationWithState] = Map(),
-                    activeOpAbPairs:      List[OpAbPair] = List(), // in the runner
-                    availableOpAbPairs:   List[OpAbPair] = List() // in the model with possibility to add to runner
-                  )
+    activeRunnerID:       Option[ID] = None,
+    modelIdables:         List[IDAble] = List(),
+    abilityStateMapper:   Map[ID, AbilityWithState] = Map(),
+    operationStateMapper: Map[ID, OperationWithState] = Map(),
+    activeOpAbPairs:      List[OpAbPair] = List(), // in the runner
+    availableOpAbPairs:   List[OpAbPair] = List() // in the model with possibility to add to runner
+  )
 
   private class Backend($: BackendScope[Unit, State]) {
     val operationRunnerHandler =
@@ -36,8 +38,12 @@ object OperationRunnerWidget {
     val abilityHandler =
       BackendCommunication.getMessageObserver(onAbilityMessage, APIAbilityHandler.topicResponse)
     // TODO: Listen for "global" runner instead of latest?
+
     val vdTrackerHandler =
       BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicResponse)
+
+    val modelMessObs =
+      BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
 
     // TODO: Listen for "global" runner instead of latest?
     /**
@@ -204,6 +210,15 @@ object OperationRunnerWidget {
       callback.foreach(_.runNow())
     }
 
+    def onModelObsMes(mess: SPMessage): Unit = {
+      mess.body.to[mapi.Response].map{
+        case mapi.SPItems(items) => {
+          $.modState(_.copy(modelIdables = items)).runNow()
+        }
+        case x =>
+      }
+    }
+
     // Set SPHeader and send SPMessage to APIOperationRunner
     def sendToRunner(mess: APIOperationRunner.Request): Unit = {
       val h = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
@@ -219,7 +234,9 @@ object OperationRunnerWidget {
 
     def render(state: State) = {
       <.div(
+        ^.className := OperationRunnerWidgetCSS.widgetRoot.htmlClass,
         SPCardGrid(
+          state.modelIdables, 
           state.activeOpAbPairs.map{ operationAbilityPair => {
             val op = state.operationStateMapper(operationAbilityPair.operationID)
             val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
