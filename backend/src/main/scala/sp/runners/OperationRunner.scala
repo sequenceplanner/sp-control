@@ -94,6 +94,14 @@ class OperationRunner extends Actor
               publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
           }
 
+        case api.GetRunner(id) =>
+          runners.get(id) match {
+            case Some(r) =>
+              publish(api.topicResponse, OperationRunnerComm.makeMess(updH, api.Runner(r.setup)))
+            case None =>
+              publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPError(s"no runner with id: $id")))
+          }
+
         case api.GetRunners =>
           val xs = runners.map(_._2.setup).toList
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
@@ -106,6 +114,7 @@ class OperationRunner extends Actor
 
         case api.ManualControl(id, opToStart, bwd) =>
           // bwd not implemented yet
+          tickRunner(id, startAbility, sendState(_, id), opToStart)
 
 
       }
@@ -357,6 +366,10 @@ trait OperationRunnerLogic {
     * The main method that updates the runs the operations, by executing the various conditions
     * It also starts abilities and and send out state changes (to upper level system and to virtual devices)
     *
+    * One operation can start, one can complete and one can reset every tick
+    * If more ops can change state, the method is called until everyone that can
+    * change state, has done so.
+    *
     * @param s Current state
     * @param ops The operaitons to evaluate
     * @param r The runner, since we need to know the mapping to abilities
@@ -404,6 +417,7 @@ trait OperationRunnerLogic {
     }.getOrElse(s)
 
     val resCompl = complete.headOption.map{o =>
+      // Maybe we need to check again if o is still possible to complete in state resRes
       opsToGo -= o
       val updS = completeOP(o, resRes, disableConditionGroups)
       sendState(updS)
@@ -411,7 +425,8 @@ trait OperationRunnerLogic {
     }.getOrElse(resRes)
 
     val res = enabled.headOption.map{o =>
-      opsToGo -= o
+      // Maybe we need to check again if o is still enabled in state resCompl
+    opsToGo -= o
       val updS = runOp(o, resCompl, disableConditionGroups)
       sendState(updS)
 
@@ -431,7 +446,9 @@ trait OperationRunnerLogic {
     if (enabled.nonEmpty && complete.nonEmpty && reset.nonEmpty)log.info("*************")
 
 
-    if (!runInAuto || res == s)
+    // do not try again if no operations can change state, else we try
+    // to step again.
+    if ((enabled.isEmpty && complete.isEmpty && reset.isEmpty) || opsToGo.isEmpty)
       res
     else
       newState(res, opsToGo, r, startAbility, sendState, runInAuto, disableConditionGroups, None)

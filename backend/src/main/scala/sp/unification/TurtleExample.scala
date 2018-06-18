@@ -44,10 +44,10 @@ class Turtle(name: String) extends ModelDSL {
 class TurtleModel extends ModelDSL {
   use("turtle1", new Turtle("turtle1"))
 
-  v("forceX", false)
-  o("forceGoForward",
-    c("pre", "forceX"),
-    c("post", "false"), "turtle1.moveForward")
+  // v("forceX", false)
+  // o("forceGoForward",
+  //   c("pre", "forceX"),
+  //   c("post", "false"), "turtle1.moveForward")
 
   // runner
   runner("turtlerunner")

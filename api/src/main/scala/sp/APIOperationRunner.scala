@@ -18,6 +18,7 @@ object APIOperationRunner {
   case class ForceComplete(ability: ID) extends Request
   case class TerminateRunner(runnerID: ID) extends Request
   case class GetState(runnerID: ID) extends Request
+  case class GetRunner(runnerID: ID) extends Request
   case object GetRunners extends Request
 
   /**
@@ -48,6 +49,7 @@ object APIOperationRunner {
 
 
   case class StateEvent(runnerID: ID, state: Map[ID, SPValue], runInAuto: Boolean, disableConditionGroups: Set[SPValue]) extends Response
+  case class Runner(setup: Setup) extends Response
   case class Runners(ids: List[Setup]) extends Response
 
   /**
@@ -122,8 +124,10 @@ object APIOperationRunner {
     implicit lazy val fGetState: JSFormat[GetState] = Json.format[GetState]
     implicit lazy val fRunnerControl: JSFormat[RunnerControl] = Json.format[RunnerControl]
     implicit lazy val fManualControl: JSFormat[ManualControl] = Json.format[ManualControl]
+    implicit lazy val fGetRunner: JSFormat[GetRunner] = Json.format[GetRunner]
     implicit lazy val fGetRunners : JSFormat[GetRunners.type] = deriveCaseObject[GetRunners.type ]
     implicit lazy val fStateEvent: JSFormat[StateEvent] = Json.format[StateEvent]
+    implicit lazy val fRunner: JSFormat[Runner] = Json.format[Runner]
     implicit lazy val fRunners: JSFormat[Runners] = Json.format[Runners]
     def fOperationRunnerRequest: JSFormat[Request] = Json.format[Request]
     def fOperationRunnerResponse: JSFormat[Response] = Json.format[Response]
