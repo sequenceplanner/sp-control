@@ -6,12 +6,36 @@ import akka.kafka.scaladsl.{Consumer, Producer}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import org.apache.kafka.clients.producer.ProducerRecord
+import sp.bluetooth.{BluetoothProxy, ProxyApplication}
 import sp.devicehandler.VD.DriverState
 import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler.{APIDeviceDriver => api}
 import sp.driver.APIHumanDriver
+
+
+
+class Proxy extends sp.bluetooth.BluetoothMessageListener{
+  // This builds the Bluetooth Proxy. The process will block until
+  // a device connects to it. Might fail if multiple devices try to
+  // connect at the same time.
+  println("before bluetooth")
+  val proxy = new BluetoothProxy(this)
+  println(s"after: $proxy")
+
+  // Use proxy's send method to send messages to the device
+  proxy.send("Hello! this is server")
+
+  override def onBluetoothMessage(message: String): Unit = {
+    println("[RECEIVED] " + message)
+
+    proxy.send("Received")
+  }
+}
+
+
+
 
 
 
@@ -29,7 +53,11 @@ object HumanDriverInstance {
 
 class HumanDriverInstance(d: VD.Driver) extends Actor
   with ActorLogging
-  with sp.service.MessageBussSupport {
+  with sp.service.MessageBussSupport{
+
+
+  private var proxy = null
+  private var message_count = 0
 
   subscribe(api.topicRequest)
   subscribe(APIHumanDriver.topicFromHuman)
@@ -44,6 +72,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
 
   def receive = {
     case x: String =>
+      println("HUMANDRIVER GOT:" + x)
       SPMessage.fromJson(x).foreach{ mess =>
         for {
           h <- mess.getHeaderAs[SPHeader]
@@ -62,8 +91,19 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
                 val myHeader = SPHeader(from = d.id.toString, to = d.name, reply = SPAttributes(
                   "reqID" -> h.reqID, "from" -> h.from, "reply" -> h.reply
                 ))
-                val b = APIHumanDriver.StateChangeRequest(d.name, state)
+
+                val updState = state ++ Map(
+                  "cmd" -> state.getOrElse("cmd", SPValue("no command")),
+                  "ack" -> state.getOrElse("ack", SPValue(false)),
+                  "completed" -> state.getOrElse("completed", SPValue(false))
+                )
+
+                val b = APIHumanDriver.StateChangeRequest(d.name, updState)
                 publish(APIHumanDriver.topicToHuman, SPMessage.makeJson(myHeader, b))
+//
+                println("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
+                println( myHeader, b)
+                println("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
 
               // Terminating the driver
               case api.TerminateDriver(driverid) if driverid == d.id =>
@@ -80,8 +120,11 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
           b <- mess.getBodyAs[APIHumanDriver.FromHuman]
         } yield {
           b match {
-            case x: APIHumanDriver.HumanEvent =>
-              driverState = driverState ++ x.state
+            case he: APIHumanDriver.HumanEvent =>
+              println("EEEEEEEEEEEEEEEEEEEEEEEEEE")
+              println(he.state , b)
+              println("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
+              driverState = driverState ++ he.state
 
               for {
                 attr <- h.reply.to[SPAttributes].toOption
