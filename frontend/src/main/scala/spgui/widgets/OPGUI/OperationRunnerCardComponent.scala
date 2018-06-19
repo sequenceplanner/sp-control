@@ -230,7 +230,7 @@ object SPCardGrid {
   case class abilityState(state: String, counter: Int)
   implicit val fAbState: JSFormat[abilityState] = Json.format[abilityState]
 
-  object AbilityState {
+  object AbilityStateEnum {
     val unavailable = "unavailable"
     val notEnabled = "notEnabled"
     val enabled = "enabled"
@@ -250,14 +250,14 @@ object SPCardGrid {
         }.getOrElse("invalidState")
       }}.map{s =>
         s match {
-          case AbilityState.unavailable => "unavailable"
-          case AbilityState.notEnabled => "notEnabled"
-          case AbilityState.enabled => "enabled"
-          case AbilityState.starting => "starting"
-          case AbilityState.executing => "executing"
-          case AbilityState.finished => "finished"
-          case AbilityState.forcedReset => "forcedReset"
-          case AbilityState.failed => "failed"
+          case AbilityStateEnum.unavailable => "unavailable"
+          case AbilityStateEnum.notEnabled => "notEnabled"
+          case AbilityStateEnum.enabled => "enabled"
+          case AbilityStateEnum.starting => "starting"
+          case AbilityStateEnum.executing => "executing"
+          case AbilityStateEnum.finished => "finished"
+          case AbilityStateEnum.forcedReset => "forcedReset"
+          case AbilityStateEnum.failed => "failed"
           case "invalidState" => "invalidState"
         }        
       }.toTagMod
