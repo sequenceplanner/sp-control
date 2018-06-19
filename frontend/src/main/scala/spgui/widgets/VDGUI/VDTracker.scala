@@ -1,4 +1,4 @@
-package spgui.widgets.vdtesting
+package spgui.widgets.VDGUI
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
@@ -19,6 +19,7 @@ import sp.domain._
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.models.{APIModel => mapi}
 import sp.vdtesting.APIVDTracker
+import spgui.widgets.VDGUI.sendMessages.sendToDeviceDriver
 import spgui.widgets.virtcom.Style
 
 object VDTracker {
@@ -35,7 +36,8 @@ object VDTracker {
     latestVDeviceState: Map[ID, SPValue] = Map(),
     availableVDModels: List[String] = List(),
     modelIdables : List[IDAble] = List(),
-    modelID : ID = ID.newID
+    modelID : ID = ID.newID,
+    drivers : List[VD.Driver] = List()
   )
 
 
@@ -43,20 +45,28 @@ object VDTracker {
 
 
 
-    val operationRunnerHandler =
-      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
-    val abilityHandler =
-      BackendCommunication.getMessageObserver(onAbilityMessage, APIAbilityHandler.topicResponse)
-    val virtualDeviceHandler =
-      BackendCommunication.getMessageObserver(onVirtualDeviceMessage, APIVirtualDevice.topicResponse)
-    val modelMessObs =
-      BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
-    val vdModelObs =
-      BackendCommunication.getMessageObserver(onVDTmsg, APIVDTracker.topicResponse)
+    val operationRunnerHandler = BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
+    val abilityHandler =   BackendCommunication.getMessageObserver(onAbilityMessage, APIAbilityHandler.topicResponse)
+    val virtualDeviceHandler =  BackendCommunication.getMessageObserver(onVirtualDeviceMessage, APIVirtualDevice.topicResponse)
+    val modelMessObs =  BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
+    val vdModelObs =    BackendCommunication.getMessageObserver(onVDTmsg, APIVDTracker.topicResponse)
+    val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
 
     val vdtObs = BackendCommunication.getWebSocketStatusObserver(mess => {
       if (mess) send(APIVDTracker.getModelsInfo())
     }, APIVDTracker.topicResponse)
+
+
+    def onDriverMessage(mess: SPMessage) : Unit = {
+      mess.body.to[APIDeviceDriver.Response].map {
+        case APIDeviceDriver.TheDrivers(ds) =>
+          $.modState ( _.copy(drivers = ds.map(_._1) ) ).runNow()
+        case APIDeviceDriver.DriverTerminated(id) =>
+          val td = $.state.runNow().drivers.find(d => d.id == id)
+          if(td.nonEmpty) println("Terminated " + td.get.name)
+        case x =>
+      }
+    }
 
     def onVDTmsg(mess: SPMessage): Unit = {
       mess.body.to[APIVDTracker.Response].map{
@@ -64,7 +74,6 @@ object VDTracker {
           $.modState(s => s.copy(latestActiveRunner = Some(id))).runNow()
         }
         case APIVDTracker.sendModelsInfo(models) => {
-          println("models: " + models)
           $.modState(s => s.copy(availableVDModels = models)).runNow()
         }
         case x =>
@@ -88,6 +97,8 @@ object VDTracker {
         case APIAbilityHandler.AbilityState(id, state) => {
           $.modState(s => s.copy(latestAbilityState = s.latestAbilityState ++ state)).runNow()
         }
+        case APIAbilityHandler.AbilitiesTerminated =>
+          println("Abilities terminated")
         case x =>
       }
     }
@@ -110,8 +121,8 @@ object VDTracker {
 
 
     def sendToModel(model: ID, mess: mapi.Request): Callback = { //  Send message to model
-      val h = SPHeader(from = "VolvoSchedulerWidget", to = model.toString,
-        reply = SPValue("VolvoSchedulerWidget"))
+      val h = SPHeader(from = "VDTrackerWidget", to = model.toString,
+        reply = SPValue("VDTrackerWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, mapi.topicRequest)
       Callback.empty
@@ -126,16 +137,10 @@ object VDTracker {
     def render(p:Unit, s:State) =
       <.div(
         <.div( // find idables with robot schedule and put them in a dropdown menu
-          //^.onClick --> send(APIVDTracker.getModelsInfo()),
             dropdownWScroll("Create model", s.availableVDModels.map(m => <.div(m, ^.onClick --> {
             send(APIVDTracker.createModel(m)); $.modState(_.copy(modelID = s.modelID))
           }, ^.className := Style.schSelect.htmlClass)))),
 
-
-     /*   <.button(
-          ^.className := "btn btn-default",
-          ^.onClick --> send(APIVDTracker.createModel(s.availableVDModels.head)), "Create model"
-        ), */
         ModelChoiceDropdown(id => {$.modState(_.copy(modelID = id)); sendToModel(id, mapi.GetItemList(0,99999))}), // Get all models in dropdown
         <.button(
           ^.className := "btn btn-default",
@@ -144,6 +149,10 @@ object VDTracker {
         <.button(
           ^.className := "btn btn-default",
           ^.onClick --> send(APIVDTracker.launchOpRunner(s.modelIdables)), "Launch operation runner"
+        ),
+        <.button(
+          ^.className := "btn btn-default",
+          ^.onClick --> terminateAll(s), "Terminate everything!"
         ),
         <.br(),
         <.br(),
@@ -154,7 +163,36 @@ object VDTracker {
         renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables)
       )
 
-    def terminateRunner(id: ID): Callback = {
+    def terminateAll(s: State) : Callback = {
+      terminateAbilities
+      terminateDrivers(s.drivers) // Todo: also remove all drivers from gui disp? */
+      println("Terminating runners..")
+      terminateRunners(s.latestRunnerState)
+      // Todo: terminate virtualDevice
+    }
+
+    def terminateAbilities = {
+      val h = SPHeader(from = "VDTrackerWidget", to = APIAbilityHandler.service)
+      val json = SPMessage.make(h, APIAbilityHandler.TerminateAllAbilities)
+      BackendCommunication.publish(json, APIAbilityHandler.topicRequest)
+    }
+
+    def terminateDrivers(drivers : List[VD.Driver]) = {
+      val h = SPHeader(from = "VDTrackerWidget", to = "DriverService")
+      drivers.map(d => { val json = SPMessage.make(h, APIDeviceDriver.TerminateDriver(d.id))
+        BackendCommunication.publish(json, APIDeviceDriver.topicRequest) })
+    }
+
+    def terminateRunners(rs : Map[ID, Map[ID,SPValue]]): Callback = {
+      val h = SPHeader(from = "VDTrackerWidget", to = APIOperationRunner.service)
+      rs.keys.map(r => { val json = SPMessage.make(h, APIOperationRunner.TerminateRunner(r))
+        BackendCommunication.publish(json, APIOperationRunner.topicRequest) })
+
+      // todo: should wait for new state run runner service...
+      $.modState(s=>s.copy(latestRunnerState = Map()))
+    }
+
+      def terminateRunner(id: ID): Callback = {
       val h = SPHeader(from = "VDTrackerWidget", to = APIOperationRunner.service)
       val json = SPMessage.make(h, APIOperationRunner.TerminateRunner(id))
       BackendCommunication.publish(json, APIOperationRunner.topicRequest)

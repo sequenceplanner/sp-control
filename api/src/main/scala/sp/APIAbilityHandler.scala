@@ -14,6 +14,9 @@ import sp.domain._
     final case class ForceResetAbility(id: ID) extends Request
     case object ForceResetAllAbilities extends Request
 
+    case object TerminateAllAbilities extends Request // Kills all ability actors
+    case object AbilitiesTerminated extends Response
+
     // to be used when handshake is on
     final case class ExecuteCmd(cmd: ID) extends Request
 
@@ -57,6 +60,10 @@ import sp.domain._
       implicit lazy val fStartAbility: JSFormat[StartAbility] = Json.format[StartAbility]
       implicit lazy val fForceResetAbility: JSFormat[ForceResetAbility] = Json.format[ForceResetAbility]
       implicit lazy val fForceResetAllAbilities:     JSFormat[ForceResetAllAbilities.type]     = deriveCaseObject[ForceResetAllAbilities.type]
+      implicit lazy val fTerminateAllAbilities:     JSFormat[TerminateAllAbilities.type]     = deriveCaseObject[TerminateAllAbilities.type]
+      implicit lazy val fAbilitiesTerminated:     JSFormat[AbilitiesTerminated.type]     = deriveCaseObject[AbilitiesTerminated.type]
+
+
       implicit lazy val fExecuteCmd: JSFormat[ExecuteCmd] = Json.format[ExecuteCmd]
       implicit lazy val fGetAbilities:     JSFormat[GetAbilities.type]     = deriveCaseObject[GetAbilities.type]
       implicit lazy val fGetAbility: JSFormat[GetAbility] = Json.format[GetAbility]
