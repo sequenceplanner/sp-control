@@ -4,7 +4,7 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.TagOf
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom.html
-import sp.devicehandler.{APIDeviceDriver, VD}
+import sp.devicehandler.{APIVirtualDevice, VD}
 import sp.domain.Logic._
 import sp.domain._
 import sp.models.APIModel
@@ -12,6 +12,7 @@ import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import spgui.communication._
 
+/** Widget for matching the Driver with a Operation*/
 object StateHandlerWidget {
   case class Runner(id: Option[ID] = None, runInAuto: Boolean = true,
                     startOperation: Option[ID] = None, stepBackward: Boolean = false)
@@ -22,14 +23,14 @@ object StateHandlerWidget {
                     activeRunner:           Option[Runner] = None,
                     theModel:               List[IDAble] = List(),
                     extractedThings:        ExtractedThings = ExtractedThings(),
-                    driverStateMapper:      Map[ID, Map[String, SPValue]] = Map()
+                    driverStateMapper:      Map[ID, SPValue] = Map()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
     val modelMessObs =
       BackendCommunication.getMessageObserver(onModelMessage, APIModel.topicResponse)
     val deviceDriverHandler =
-      BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
+      BackendCommunication.getMessageObserver(onVDMessage, APIVirtualDevice.topicResponse)
 
     /**
       * onModelMessage
@@ -43,12 +44,12 @@ object StateHandlerWidget {
             val e: ExtractedThings = extractVariablesFromModel(items)
             // for all drivers in extracted things
             // map it against a the driverState if it does already exist in driverStateMapper
-            // else map it against a new string
-            val driverStates: Map[ID, Map[String, SPValue]] = e.allDrivers.map{driver =>
+            // else map it against a new ID
+            val driverStates: Map[ID, SPValue] = e.allDrivers.map{driver =>
               if (state.driverStateMapper.contains(driver.id))
                 driver.id -> state.driverStateMapper(driver.id)
               else
-                driver.id -> Map("Not connected yet..." -> SPValue(""))
+                driver.id -> SPValue("Not connected")
             }.toMap
             // update state
             state.copy(theModel = items, extractedThings = e, driverStateMapper = state.driverStateMapper ++ driverStates)
@@ -59,10 +60,10 @@ object StateHandlerWidget {
       callback.foreach(_.runNow())
     }
 
-    /**
-      * filter out a list of operationThings, driverThings and the map between operations and drivers
+    /** Filter out a list of operationThings, driverThings and the map between operations and drivers
+      *
       * @param model - list of [[IDAble]]
-      * @return [[ExtractedThings]]
+      * @return A [[ExtractedThings]]
       */
     def extractVariablesFromModel(model: List[IDAble]): ExtractedThings = {
       // get runner
@@ -72,7 +73,7 @@ object StateHandlerWidget {
       val r = runners.headOption // assume one runner
       val mapping: Map[ID, ID] = r.map(_.variableMap).getOrElse(Map())
       val driverThings = model.collect{case t: Thing if t.attributes.keys.contains("driverName") => t}
-      val operationThings = model.collect{case t: Thing if t.attributes.keys.contains("domain") => t}
+      val operationThings = model.collect{ case t: Thing if t.attributes.keys.contains("domain") => t}
 
       ExtractedThings(operationThings, driverThings, mapping)
     }
@@ -81,17 +82,11 @@ object StateHandlerWidget {
       * On Driver-message
       * @param mess SPMessage
       */
-    def onDriverMessage(mess: SPMessage): Unit = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
-        case APIDeviceDriver.DriverStateChange(_, id, newDriverState,_) => {
-          $.modState { state =>
-            // update only the drivers that the model has saved
-            // so find existing driver in driverStateMapper and update the state
-            val existingDriver: Option[(ID, Map[String, SPValue])] = state.driverStateMapper.find{_._1 == id}
-            existingDriver.map { d: (ID, Map[String, SPValue]) =>
-              state.copy(driverStateMapper = state.driverStateMapper + (d._1 -> newDriverState))
-            }.getOrElse(state)
-          }
+    def onVDMessage(mess: SPMessage): Unit = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
+        case APIVirtualDevice.StateEvent(_, id, newDriverState,_) => {
+          println(s"DriverStateChange with $id and $newDriverState")
+          $.modState(state => state.copy(driverStateMapper = state.driverStateMapper ++ newDriverState))
         }
         case x => Callback.empty
       }
@@ -100,7 +95,7 @@ object StateHandlerWidget {
 
     /**
       * render-function in Backend
-      * @param state
+      * @param state State
       * @return
       */
     def render(state: State): TagOf[html.Div] = {
@@ -112,15 +107,15 @@ object StateHandlerWidget {
 
     /**
       * render the model in state handler
-      * @param theModel
-      * @param operationThings
-      * @param driverThings
-      * @param operationDriverMap
-      * @param driverStates
+      * @param theModel List of [[IDAble]]
+      * @param operationThings List of [[Thing]]
+      * @param driverThings List[ [[Thing]] ]
+      * @param operationDriverMap Map [[ID, ID]]
+      * @param driverStates Map[ [[ID]], Map of ([[ID]], [[SPValue]])
       * @return
       */
     def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing],
-                    operationDriverMap: Map[ID, ID], driverStates: Map[ID, Map[String, SPValue]]) = {
+                    operationDriverMap: Map[ID, ID], driverStates: Map[ID, SPValue]) = {
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -137,7 +132,7 @@ object StateHandlerWidget {
                     <.td(opVar.id.toString),
                     <.td("TODO"),// TODO: Read or Write or No master?
                     <.td(driverVar.name),
-                    driverStates(driverVar.id).map(s => <.td(s._1 + ":" + s._2)).toTagMod
+                    <.td(driverStates(driverVar.id).toString())
                   )
                 }.toTagMod
               )
@@ -151,7 +146,7 @@ object StateHandlerWidget {
               ^.className := "table table-striped",  ^.className := "table-empty-operations",
               tableHead(),
               <.tbody(
-                operationThings.filterNot(thing => operationDriverMap.contains(thing.id)).map { operation =>
+                operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id)).map { operation =>
                   <.tr(
                     <.td(operation.name),
                     <.td(operation.id.toString),
@@ -171,15 +166,16 @@ object StateHandlerWidget {
               ^.className := "table table-striped", ^.className := "table-empty-drivers",
               tableHead(),
               <.tbody(
-                driverThings.filterNot(thing => operationDriverMap.values.toList.contains(thing.id)).map { driver =>
-                  <.tr(
-                    <.td(),
-                    <.td(),
-                    <.td("TODO"),// TODO: Read or Write or No master?
-                    <.td(driver.name),
-                    driverStates(driver.id).map(s => <.td(s._1 + ":" + s._2)).toTagMod
-                  )
-                }.toTagMod
+                driverThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.values.toList.contains(thing.id))
+                  .map { driver =>
+                    <.tr(
+                      <.td(),
+                      <.td(),
+                      <.td("TODO"),// TODO: Read or Write or No master?
+                      <.td(driver.name),
+                      <.td(driverStates(driver.id).toString())
+                    )
+                  }.toTagMod
               )
             )
           )

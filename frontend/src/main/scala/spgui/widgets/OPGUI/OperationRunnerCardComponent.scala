@@ -8,6 +8,7 @@ import japgolly.scalajs.react.vdom.all.svg
 import scala.scalajs.js
 import sp.domain.logic.{PropositionConditionLogic => PCL}
 
+/** Cardcomponents for the OperationRunnerWidget */
 object OperationRunnerCardComponent {
   case class State(expandedId: Option[ID] = None)
   case class Props(modelIdables: List[IDAble], cards: List[OperationRunnerCard])

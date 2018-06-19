@@ -116,7 +116,6 @@ class OperationRunner extends Actor
           // bwd not implemented yet
           tickRunner(id, startAbility, sendState(_, id), opToStart)
 
-
       }
 
 
