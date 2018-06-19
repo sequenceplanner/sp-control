@@ -26,13 +26,13 @@ object OperationRunnerWidget {
   // we need to separate the activeCards (the pairs the runner is using)
   // and the Operation/Ability-pair available, which we later can activate to the runner
   case class State(
-    activeRunner:         Option[Runner] = None,
-    modelIdables:         List[IDAble] = List(),
-    abilityStateMapper:   Map[ID, AbilityWithState] = Map(),
-    operationStateMapper: Map[ID, OperationWithState] = Map(),
-    activeOpAbPairs:      List[OpAbPair] = List(), // in the runner
-    availableOpAbPairs:   List[OpAbPair] = List() // in the model with possibility to add to runner
-  )
+                    activeRunner:         Option[Runner] = None,
+                    modelIdables:         List[IDAble] = List(),
+                    abilityStateMapper:   Map[ID, AbilityWithState] = Map(),
+                    operationStateMapper: Map[ID, OperationWithState] = Map(),
+                    activeOpAbPairs:      List[OpAbPair] = List(), // in the runner
+                    availableOpAbPairs:   List[OpAbPair] = List() // in the model with possibility to add to runner
+                  )
 
   private class Backend($: BackendScope[Unit, State]) {
     val operationRunnerHandler =
@@ -225,17 +225,17 @@ object OperationRunnerWidget {
     def render(state: State) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.widgetRoot.htmlClass,
-        SPCardGrid(
-          state.modelIdables, 
+        OperationRunnerCardComponent(
+          state.modelIdables,
           state.activeOpAbPairs.map{ operationAbilityPair => {
             val op = state.operationStateMapper(operationAbilityPair.operationID)
             val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
-            SPCardGrid.OperationRunnerCard(op.operation.id, ab, op)
+            OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
           }}
         )
       )
     }
-     
+
     def onUnmount() = Callback{
       println("OperationRunnerWidget Unmouting")
       operationRunnerHandler.kill()

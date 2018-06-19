@@ -14,12 +14,6 @@ object Style extends StyleSheet.Inline {
     display.inlineFlex
   )
 
-  val optionPane = style(
-    position.relative,
-    display.flex,
-    flexDirection.row
-  )
-
   val newItems = style(
     backgroundColor.white,
     unsafeChild("ul")(
@@ -32,16 +26,37 @@ object Style extends StyleSheet.Inline {
 
   val structsView = style(
     backgroundColor.white,
-    height(100 %%)
+    height(100 %%),
+    overflow.auto,
+    fontFamily := "monospace",
+    paddingLeft(15 px)
   )
 
   val ul = style(
     listStyleType := none, // removes the bullet
-    whiteSpace.nowrap // make li:s take up as much horizontal space as they wish
+    whiteSpace.nowrap, // make li:s take up as much horizontal space as they wish
+    paddingLeft(15 px)
   )
 
   val nodeOuter = style(
     display.flex
+  )
+
+  val itemOuter = style(
+
+  )
+
+  val itemIcon = style(
+    marginRight(3 px)
+  )
+
+  val itemName = style(
+
+  )
+
+  val expansionToggler = style(
+    left(-15 px),
+    position.absolute
   )
 
   this.addToDocument()
