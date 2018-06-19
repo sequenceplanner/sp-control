@@ -73,17 +73,6 @@ object ItemExplorer {
       }
     }
 
-    // def requestAllItems(): Callback = {
-    //   val mcomm = $.state.map(_.currentMComm.get).toFuture
-    //   val futureToRes = mcomm.flatMap(_.request(mapi.GetItems(ids.toList)).takeFirstResponse.map(_._2))
-    //   futureToRes.map {
-    //     case mapi.SPItems(items) => {
-    //       $.modState(s => s.copy(items = s.items ++ items))
-    //     }
-    //     case _ => Callback{}
-    //   }
-    // }
-
     def createItem(kind: String) = {
       val item = ItemKinds.create(kind)
       val modifyState = $.modState(s => s.copy(newItems = (StructNode(item.id), item) :: s.newItems))
@@ -264,8 +253,7 @@ object ItemExplorer {
       )
 
     def renderOptionPane =
-      <.div(
-        ^.className := Style.optionPane.htmlClass,
+      SPWidgetElements.buttonGroup(Seq(
         SPWidgetElements.button(Icon.expand, toggleAll),
         SPWidgetElements.dropdown(
           Icon.plus,
@@ -273,7 +261,7 @@ object ItemExplorer {
         ),
         ModelChoiceDropdown(id => setCurrentModel(id)),
         SPWidgetElements.TextBox("Filter...", str => filterAllStructs(str))
-      )
+      ))
 
     def renderNewItems(newItems: List[(StructNode, IDAble)], currentModelID: Option[ID]) =
       <.div(
