@@ -37,12 +37,8 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
     val idables = build(name, mes)
 
     Try[List[IDAble]] {
-      val forbidden = mes.collect { case x: Tx => x}
-      val specs = forbidden.map(f => SPSpec(f.name, SPAttributes("forbiddenExpressions" -> f.exprs)))
-      val allIds = idables++specs
-
-      val (updOps,_,_) = synthesizeModel(allIds)
-      allIds.filterNot(i=>updOps.exists(_.id==i.id))++updOps
+      val (updOps,_,_) = synthesizeModel(idables)
+      idables.filterNot(i=>updOps.exists(_.id==i.id))++updOps
     } match {
       case Success(ids) =>
         println("Synthesis successful")
@@ -178,7 +174,18 @@ trait BuildModel {
       val ops = opsAndMapping.map{_._1}
       val updOpAbMap = updopAbMap_ ++ opsAndMapping.flatMap{_._2}.toMap
 
-      val levelThings = updVs ++ dvs ++ abs ++ ops
+      val forbidden = m.model.collect { case x: Tx =>
+        // parse expression
+        val props = x.exprs.flatMap{x=>
+          PropositionParser(opParseHelpers).parseStr(x) match {
+            case Right(p) => Some(p)
+            case Left(err) => println(s"Parsing failed on forbidden expression: $x: $err"); None
+          }
+        }
+        SPSpec(x.name, SPAttributes("forbiddenExpressions" -> props))
+      }
+
+      val levelThings = updVs ++ dvs ++ abs ++ ops ++ forbidden
 
       val updResources = updResources_ ++ m.model.collect {
         case Tresource(name: String, dts: List[String]) =>
@@ -258,8 +265,7 @@ trait BuildModel {
     val dvTovMap = x._2
     val opAbMap = x._3
     val includeOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
-    val init = x._1.collect { case t: Thing if dvTovMap.values.toList.contains(t.id)=> t }.
-      flatMap { t => t.attributes.get("init").map(v=>t.id->v) }.toMap
+    val init = x._1.collect { case t: Thing => t }.flatMap{t => t.attributes.get("init").map(v=>t.id->v) }.toMap
 
     val runner = APIOperationRunner.Setup(r.name, ID.newID, includeOps,
       opAbMap, init, dvTovMap, Map()) //TODO add parameters
@@ -385,9 +391,9 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
   def addForbiddenExpressions() = {
     spSpec.foreach { s =>
-      s.attributes.getAs[List[String]]("forbiddenExpressions").foreach{ fes =>
-          println("adding forbidden expression: " + fes)
-          val xpr = stringPredicateToSupremicaSyntax(fes.mkString("(", ")|(", ")")).replaceAll("\\.", "_")
+      s.attributes.getAs[List[Proposition]]("forbiddenExpressions").foreach{ fes =>
+        val xpr = fes.map(propToSupremicaSyntax).mkString("(", ")|(", ")").replaceAll("\\.", "_")
+        println("adding forbidden expression: " + xpr)
         addForbiddenExpression(forbiddenExpression = xpr, addSelfLoop = false, addInComment = true)
       }
     }

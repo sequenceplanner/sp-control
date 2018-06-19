@@ -8,7 +8,7 @@ import sp.runners.APIOperationRunner
 class DummyExampleTest extends FreeSpec with Matchers {
   println
   println
-  val idables = DummyExample().buildModel()
+  val idables = DummyExampleExtended().buildModel()
   println
   println
   println
