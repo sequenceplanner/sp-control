@@ -389,9 +389,9 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
     case x @ StartAbility(s, id, p, attr) =>
       log.debug("STARTING ABILITY")
       log.debug(x.toString)
-      val res = start(s ++ p)
+      val res = start(s)
       res.collect {
-        case updS if updS != s =>
+        case updS if updS != s || p.nonEmpty =>
           reqID = Some(id)
           log.debug(updS.toString())
           if (p.nonEmpty) sender() ! StateUpdReq(ability.id, p)
