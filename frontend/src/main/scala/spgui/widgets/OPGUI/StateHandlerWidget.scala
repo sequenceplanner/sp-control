@@ -98,6 +98,11 @@ object StateHandlerWidget {
       callback.foreach(_.runNow())
     }
 
+    /**
+      * render-function in Backend
+      * @param state
+      * @return
+      */
     def render(state: State): TagOf[html.Div] = {
       <.div(
         renderModel(state.theModel, state.extractedThings.allOperations,
@@ -105,6 +110,15 @@ object StateHandlerWidget {
       )
     }
 
+    /**
+      * render the model in state handler
+      * @param theModel
+      * @param operationThings
+      * @param driverThings
+      * @param operationDriverMap
+      * @param driverStates
+      * @return
+      */
     def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing],
                     operationDriverMap: Map[ID, ID], driverStates: Map[ID, Map[String, SPValue]]) = {
       <.div(
