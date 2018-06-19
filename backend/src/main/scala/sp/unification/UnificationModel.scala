@@ -104,7 +104,7 @@ class URPose extends ModelDSL with ROSSupport {
       c("pre", "true", s"ref_pos := '$pose'"),
       c("started", s"got_cmd_ref_pos == '$pose' && executing"), // note that we check the driver state
       c("post", s"act_pos == '$pose' && !executing"),
-      c("reset", "true"))
+      c("reset", "true", "got_cmd_ref_pos == ResetJOINT"))
   }
 
   // variables needs to be explicit now
