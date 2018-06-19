@@ -93,7 +93,7 @@ object SopMakerWidget {
             SopMakerGraphics.menuOp("OP", newOpId)
           )
         ),
-        SopVisualiser(state.sop, ExampleSops.ops, Some(onDropEvent), Some(onDragEvent))
+        SopVisualiser(state.sop, ExampleSops.ops, Map(), Some(onDropEvent), Some(onDragEvent))
       )
     }
 
@@ -105,7 +105,7 @@ object SopMakerWidget {
       <.span(
         ^.draggable := false,
         SPWidgetElements.draggable(opname, DraggedSOP(findSop(opId)), "sop", (d:DragDropData) => println("dropped an op")),
-        SopMakerGraphics.sop(opname, x.toInt, y.toInt)
+        SopMakerGraphics.op(opname, x.toInt, y.toInt)
       )
     }
 

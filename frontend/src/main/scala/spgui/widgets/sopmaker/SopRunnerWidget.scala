@@ -21,9 +21,11 @@ import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.Icon
 object SopRunnerWidget {
 
-  case class State(sop: SOP)
-
-  val idm = ExampleSops.ops.map(o => o.id -> o).toMap
+  case class State(
+    sop: SOP,
+    modelIdables: List[IDAble] = List(),
+    opStates: Map[ID, SPValue] = Map()
+  )
  
   private class Backend($: BackendScope[Unit, State]) {
     def render(state: State) = {
@@ -33,7 +35,7 @@ object SopRunnerWidget {
     }
   }
   private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
-    .initialState(State(sop = ExampleSops.tinySop))
+    .initialState(State(sop = ExampleSops.megaSop))
     .renderBackend[Backend]
     .build
 

@@ -19,8 +19,9 @@ object SopMakerGraphics {
     var height: Float = js.native
   }
 
-  def sop(label: String, x: Int, y: Int) =
+  def op(label: String, x: Int, y: Int, state: String = "NoneState") = {
     <.span(
+      state,
       ^.className := SopMakerCSS.sopComponent.htmlClass,
       ^.style := {
         var rect =  (js.Object()).asInstanceOf[Rect]
@@ -92,7 +93,7 @@ object SopMakerGraphics {
             svg.stroke := "black",
             svg.strokeWidth := 1
           ),
-          svg.svg(    
+          svg.svg(
             svg.text(
               svg.x := "50%",
               svg.y := "50%",
@@ -104,6 +105,7 @@ object SopMakerGraphics {
         )
       )
     )
+  }
 
   def parallelBars(x: Float, y: Float, w:Float): TagMod =
     <.span(

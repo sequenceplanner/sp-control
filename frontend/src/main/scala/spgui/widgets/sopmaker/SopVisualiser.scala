@@ -19,7 +19,6 @@ import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.Icon
 
-
 sealed trait RenderNode {
   val nodeId: UUID
   val w: Float
@@ -71,6 +70,7 @@ object SopVisualiser {
   case class Props(
     sop: SOP,
     ops: List[Operation],
+    opStates: Map[ID, SPValue] = Map(),
     onDropEvent: Option[(UUID, DropzoneDirection.Value) => (DragDropData) => Unit] = None,
     onDragEvent: Option[(DragDropData) => Unit] = None
   )
@@ -171,11 +171,12 @@ object SopVisualiser {
         case n: RenderSequence =>  getRenderSequence(n.children, xOffset, yOffset)
           
         case n: RenderOperationNode => {
-
           val ops = $.props.runNow().ops.map(o => o.id -> o).toMap
           val opname = ops.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
+          val opState =
+            $.props.runNow().opStates.get(node.nodeId).getOrElse(SPValue("NoneState")).toString
 
-          List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
+          List(op(n.sop.nodeID, opname, xOffset, yOffset, opState)) ++
           {
             if(isInteractive) {
               List(
@@ -313,7 +314,7 @@ object SopVisualiser {
       sopList(root).filter(x => x.nodeID == sopId).head
     }
 
-    def op(opId: UUID, opname: String, x: Float, y: Float): TagMod = {
+    def op(opId: UUID, opname: String, x: Float, y: Float, state: String): TagMod = {
       val onDragEvent = $.props.runNow().onDragEvent
       <.span(
         ^.draggable := false,
@@ -321,7 +322,7 @@ object SopVisualiser {
           if(!onDragEvent.isEmpty) SPWidgetElements.draggable(opname, DraggedSOP(findSop(opId)), "sop", onDragEvent.get)
           else EmptyVdom
         },
-        SopMakerGraphics.sop(opname, x.toInt, y.toInt)
+        SopMakerGraphics.op(opname, x.toInt, y.toInt, state)
       )
     }
 
@@ -342,12 +343,12 @@ object SopVisualiser {
     .renderBackend[Backend]
     .build
 
-
   // onDropevent and onDragevent can be excuded to create a noninteractive component
   def apply(
     sop: SOP,
     ops: List[Operation],
+    opStates: Map[ID, SPValue] = Map(), 
     onDropEvent: Option[(UUID, DropzoneDirection.Value) => (DragDropData) => Unit] = None,
     onDragEvent: Option[(DragDropData) => Unit] = None
-  ) = component(Props(sop, ops, onDropEvent, onDragEvent))
+  ) = component(Props(sop, ops, opStates, onDropEvent, onDragEvent))
 }
