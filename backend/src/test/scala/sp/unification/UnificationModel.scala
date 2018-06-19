@@ -11,6 +11,6 @@ class VDHelperTest extends FreeSpec with Matchers {
   println
   println
   println
-  idables.foreach { println }
+  // idables.foreach { println }
 
 }

@@ -107,10 +107,28 @@ class URPose extends ModelDSL with ROSSupport {
       c("reset", "true"))
   }
 
+  // variables needs to be explicit now
+  v("act_pos", "URDummyPose1", List("URDummyPose1","URDummyPose2","URDummyPose3","URDummyPose4","unknown"))
+
   // add a dummy sequence
-  o("gotoURDummyPose2")( c("pre", "ur_act_pos == 'URDummyPose1'"))
-  o("gotoURDummyPose3")( c("pre", "ur_act_pos == 'URDummyPose2'"))
-  o("gotoURDummyPose4")( c("pre", "ur_act_pos == 'URDummyPose3'"))
+  o("gotoURDummyPose1")(
+    c("pre", "act_pos == 'unknown' || act_pos == 'URDummyPose4'", "act_pos := URDummyPose1"),
+    c("post", "act_pos == 'URDummyPose1'"))
+
+  o("gotoURDummyPose2")(
+    c("pre", "act_pos == 'URDummyPose1'", "act_pos := URDummyPose2"),
+    c("post", "act_pos == 'URDummyPose2'"))
+
+  o("gotoURDummyPose3")(
+    c("pre", "act_pos == 'URDummyPose2'", "act_pos := URDummyPose3"),
+    c("post", "act_pos == 'URDummyPose3'")
+  )
+  o("gotoURDummyPose4")(
+    c("pre", "act_pos == 'URDummyPose3'", "act_pos := URDummyPose4"),
+    c("post", "act_pos == 'URDummyPose4'")
+  )
+
+
 
   // blank list of things = take everything
   resource("resource")

@@ -275,13 +275,18 @@ trait SynthesizeModel {
   def synthesizeModel(ids: List[IDAble], moduleName : String = "dummy"): (List[Operation], SPAttributes, Map[String, Int] => Option[Boolean]) = {
 
     // Extract from IDAbles
-    val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation])
-    val vars = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing])
+
+    // supremica cannot handle "." in strings... work around
+    val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation]).
+      filterNot(_.attributes.getAs[String]("isa") == Some("Ability")).map(o => (o, o.copy(name = o.name.replaceAll("\\.", "_"))))
+
+    val vars = ids.filter(_.isInstanceOf[Thing]).map(_.asInstanceOf[Thing]).map(v => v.copy(name = v.name.replaceAll("\\.", "_")))
+
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
     val spSpecs = ids.filter(_.isInstanceOf[SPSpec]).map(_.asInstanceOf[SPSpec])
 
     //Create Supremica Module and synthesize guards.
-    val ptmw = ParseToModuleWrapper(moduleName, vars, ops, sopSpecs, spSpecs)
+    val ptmw = ParseToModuleWrapper(moduleName, vars, ops.map(_._2), sopSpecs, spSpecs)
     val ptmwModule = {
       ptmw.addVariables()
       ptmw.saveToWMODFile("./testFiles/gitIgnore/")
@@ -295,7 +300,7 @@ trait SynthesizeModel {
 
     val optSupervisorGuards = ptmwModule.getSupervisorGuards.map(_.filter(og => !og._2.equals("1")))
     println("got guards from supremica: " + optSupervisorGuards)
-    val updatedOps = optSupervisorGuards.map(newGuards => ops.flatMap(o => ptmw.addSynthGuards(o, newGuards))).getOrElse(List())
+    val updatedOps = optSupervisorGuards.map(newGuards => ops.map(_._2).flatMap(o => ptmw.addSynthGuards(o, newGuards))).getOrElse(List())
 
     lazy val synthesizedGuards = optSupervisorGuards.getOrElse(Map()).foldLeft(SPAttributes()) { case (acc, (event, guard)) =>
       acc merge SPAttributes("synthesizedGuards" -> SPAttributes(event -> guard))
@@ -310,7 +315,12 @@ trait SynthesizeModel {
     lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
     lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
 
-    (updatedOps, spAttributes, (x => ptmwModule.containsState(x)))
+    val renameBackOps = updatedOps.flatMap{o =>
+      ops.map(_._1).find(_.id == o.id).map(orig => o.copy(name = orig.name))
+    }
+
+    // TODO: refactor to only return the new guards...
+    (renameBackOps, spAttributes, (x => ptmwModule.containsState(x)))
   }
 }
 
@@ -375,9 +385,11 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
   def addForbiddenExpressions() = {
     spSpec.foreach { s =>
-      s.attributes.getAs[List[String]]("forbiddenExpressions").foreach(fes =>
-        {println("adding forbidden expression: " + fes)
-        addForbiddenExpression(forbiddenExpression = stringPredicateToSupremicaSyntax(fes.mkString("(", ")|(", ")")), addSelfLoop = false, addInComment = true)})
+      s.attributes.getAs[List[String]]("forbiddenExpressions").foreach{ fes =>
+          println("adding forbidden expression: " + fes)
+          val xpr = stringPredicateToSupremicaSyntax(fes.mkString("(", ")|(", ")")).replaceAll("\\.", "_")
+        addForbiddenExpression(forbiddenExpression = xpr, addSelfLoop = false, addInComment = true)
+      }
     }
 
     // TODO: add support for SOPs
