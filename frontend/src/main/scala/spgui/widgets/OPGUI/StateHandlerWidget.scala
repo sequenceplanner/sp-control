@@ -105,17 +105,17 @@ object StateHandlerWidget {
       )
     }
 
-    /**
-      * render the model in state handler
+    /** Render the model in state handler
+      *
       * @param theModel List of [[IDAble]]
       * @param operationThings List of [[Thing]]
-      * @param driverThings List[ [[Thing]] ]
-      * @param operationDriverMap Map [[ID, ID]]
-      * @param driverStates Map[ [[ID]], Map of ([[ID]], [[SPValue]])
-      * @return
+      * @param driverThings List of [[Thing]]:s
+      * @param operationDriverMap The id:s of the operations that is connected to a driverValue. Map of [[ID]] to [[ID]].
+      * @param driverValueStates The Driver-values. Map of [[ID]] to [[SPValue]])
+      * @return [[TagOf]][ [[html]].[[div]] ]
       */
     def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing],
-                    operationDriverMap: Map[ID, ID], driverStates: Map[ID, SPValue]) = {
+                    operationDriverMap: Map[ID, ID], driverValueStates: Map[ID, SPValue]) = {
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -124,15 +124,17 @@ object StateHandlerWidget {
               ^.className := "table table-striped", ^.className := "table-pairs",
               tableHead(),
               <.tbody(
+                // for all pairs of operation-driverValues
+                // print the things
                 operationDriverMap.map { idPair =>
                   val opVar: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
-                  val driverVar: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
+                  val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
                   <.tr(
                     <.td(opVar.name),
                     <.td(opVar.id.toString),
                     <.td("TODO"),// TODO: Read or Write or No master?
-                    <.td(driverVar.name),
-                    <.td(driverStates(driverVar.id).toString())
+                    <.td(driverThing.name),
+                    <.td(driverValueStates(driverThing.id).toString())
                   )
                 }.toTagMod
               )
@@ -146,6 +148,8 @@ object StateHandlerWidget {
               ^.className := "table table-striped",  ^.className := "table-empty-operations",
               tableHead(),
               <.tbody(
+                // for all operation things that do not have its id in operationDriverMap
+                // print the operation
                 operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id)).map { operation =>
                   <.tr(
                     <.td(operation.name),
@@ -166,14 +170,16 @@ object StateHandlerWidget {
               ^.className := "table table-striped", ^.className := "table-empty-drivers",
               tableHead(),
               <.tbody(
+                // for all driver things that do not have its id in operationDriverMap
+                // print the driver
                 driverThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.values.toList.contains(thing.id))
-                  .map { driver =>
+                  .map { driverThing =>
                     <.tr(
                       <.td(),
                       <.td(),
                       <.td("TODO"),// TODO: Read or Write or No master?
-                      <.td(driver.name),
-                      <.td(driverStates(driver.id).toString())
+                      <.td(driverThing.name),
+                      <.td(driverStates(driverThing.id).toString())
                     )
                   }.toTagMod
               )
