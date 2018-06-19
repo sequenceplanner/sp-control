@@ -174,11 +174,11 @@ object VDTracker {
         renderInfo("VDevice state", s.latestVDeviceState, s.modelIdables)
       )
 
-    def terminateAll(s: State) : Callback = {
+    def terminateAll(s: State) = Callback{
       terminateAbilities
       terminateDrivers(s.drivers) // Todo: also remove all drivers from gui disp? */
       println("Terminating runners..")
-      terminateRunners(s.latestRunnerState)
+      terminateRunners(s.latestRunnerState).runNow()
       // Todo: terminate virtualDevice
     }
 
