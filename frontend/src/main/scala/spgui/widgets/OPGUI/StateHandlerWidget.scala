@@ -23,7 +23,7 @@ object StateHandlerWidget {
                     activeRunner:           Option[Runner] = None,
                     theModel:               List[IDAble] = List(),
                     extractedThings:        ExtractedThings = ExtractedThings(),
-                    driverStateMapper:      Map[ID, SPValue] = Map()
+                    driverValues:           Map[ID, SPValue] = Map()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -46,13 +46,13 @@ object StateHandlerWidget {
             // map it against a the driverState if it does already exist in driverStateMapper
             // else map it against a new ID
             val driverStates: Map[ID, SPValue] = e.allDrivers.map{driver =>
-              if (state.driverStateMapper.contains(driver.id))
-                driver.id -> state.driverStateMapper(driver.id)
+              if (state.driverValues.contains(driver.id))
+                driver.id -> state.driverValues(driver.id)
               else
                 driver.id -> SPValue("Not connected")
             }.toMap
             // update state
-            state.copy(theModel = items, extractedThings = e, driverStateMapper = state.driverStateMapper ++ driverStates)
+            state.copy(theModel = items, extractedThings = e, driverValues = state.driverValues ++ driverStates)
           }
         }
         case x => Callback.empty
@@ -84,9 +84,8 @@ object StateHandlerWidget {
       */
     def onVDMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
-        case APIVirtualDevice.StateEvent(_, id, newDriverState,_) => {
-          println(s"DriverStateChange with $id and $newDriverState")
-          $.modState(state => state.copy(driverStateMapper = state.driverStateMapper ++ newDriverState))
+        case APIVirtualDevice.StateEvent(_, id, newDriverStates,_) => {
+          $.modState(state => state.copy(driverValues = state.driverValues ++ newDriverStates))
         }
         case x => Callback.empty
       }
@@ -101,7 +100,7 @@ object StateHandlerWidget {
     def render(state: State): TagOf[html.Div] = {
       <.div(
         renderModel(state.theModel, state.extractedThings.allOperations,
-          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.driverStateMapper)
+          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.driverValues)
       )
     }
 
@@ -111,11 +110,11 @@ object StateHandlerWidget {
       * @param operationThings List of [[Thing]]
       * @param driverThings List of [[Thing]]:s
       * @param operationDriverMap The id:s of the operations that is connected to a driverValue. Map of [[ID]] to [[ID]].
-      * @param driverValueStates The Driver-values. Map of [[ID]] to [[SPValue]])
-      * @return [[TagOf]][ [[html]].[[div]] ]
+      * @param driverValues The Driver-values. Map of [[ID]] to [[SPValue]])
+      * @return [[TagOf]][html.div]
       */
     def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing],
-                    operationDriverMap: Map[ID, ID], driverValueStates: Map[ID, SPValue]) = {
+                    operationDriverMap: Map[ID, ID], driverValues: Map[ID, SPValue]) = {
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -134,7 +133,7 @@ object StateHandlerWidget {
                     <.td(opVar.id.toString),
                     <.td("TODO"),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
-                    <.td(driverValueStates(driverThing.id).toString())
+                    <.td(driverValues(driverThing.id).toString())
                   )
                 }.toTagMod
               )
@@ -179,7 +178,7 @@ object StateHandlerWidget {
                       <.td(),
                       <.td("TODO"),// TODO: Read or Write or No master?
                       <.td(driverThing.name),
-                      <.td(driverStates(driverThing.id).toString())
+                      <.td(driverValues(driverThing.id).toString())
                     )
                   }.toTagMod
               )
