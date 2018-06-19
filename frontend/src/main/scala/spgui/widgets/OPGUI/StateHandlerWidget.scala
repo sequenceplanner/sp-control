@@ -126,11 +126,11 @@ object StateHandlerWidget {
                 // for all pairs of operation-driverValues
                 // print the things
                 operationDriverMap.map { idPair =>
-                  val opVar: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
+                  val opThing: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
                   val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
                   <.tr(
-                    <.td(opVar.name),
-                    <.td(opVar.id.toString),
+                    <.td(opThing.name),
+                    <.td(opThing.id.toString),
                     <.td("TODO"),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
                     <.td(driverValues(driverThing.id).toString())
