@@ -46,10 +46,8 @@ object StateHandlerWidget {
 
       val r = runners.headOption // assume one runner
       val mapping: Map[ID, ID] = r.map(_.variableMap).getOrElse(Map())
-      //      val operationThings = model.collect{case t: Thing if t.attributes.keys.contains("init") => t}
       val driverThings = model.collect{case t: Thing if t.attributes.keys.contains("driverName") => t}
-      val operationThings = model.collect{case t: Thing => t}
-        .filterNot(t => driverThings.exists(_.id==t.id))
+      val operationThings = model.collect{case t: Thing if t.attributes.keys.contains("domain") => t}
 
       (operationThings, driverThings, mapping)
     }
@@ -77,20 +75,20 @@ object StateHandlerWidget {
               tableHead(),
               <.tbody(
                 operationDriverMap.map { idPair =>
-                  val operation: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-op"))
-                  val driver: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driver"))
-                  if(driver.name != "debug-driver" && operation.name == "debug-op") {
+                  val opVar: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
+                  val driverVar: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
+                  if(driverVar.name != "debug-driver" && opVar.name == "debug-op") {
                     println(s"Pair is s$idPair")
                     val a = theModel.find(_.id == idPair._1)
                     print("Model: ")
                     println(a.getOrElse("error-not-found"))
                   }
                   <.tr(
-                    <.td(operation.name),
-                    <.td(operation.id.toString),
+                    <.td(opVar.name),
+                    <.td(opVar.id.toString),
                     <.td("TODO"),// TODO: Read or Write or No master?
-                    <.td(driver.name),
-                    <.td(driver.id.toString)
+                    <.td(driverVar.name),
+                    <.td(driverVar.id.toString)
                   )
                 }.toTagMod
               )
