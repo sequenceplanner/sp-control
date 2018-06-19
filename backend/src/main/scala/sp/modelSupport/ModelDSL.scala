@@ -22,7 +22,7 @@ case object WriteOnly extends VariableKind
 case class cond(kind: String, guard: String, actions: String*)
 sealed trait ModelElement
 case class Tdv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) extends ModelElement
-case class Tv(name: String, initState: String, domain: List[String]) extends ModelElement
+case class Tv(name: String, initState: SPValue, domain: List[SPValue]) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
 case class To(name: String, ab: String, conds: List[cond]) extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
@@ -37,12 +37,8 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
     val idables = build(name, mes)
 
     Try[List[IDAble]] {
-      val forbidden = mes.collect { case x: Tx => x}
-      val specs = forbidden.map(f => SPSpec(f.name, SPAttributes("forbiddenExpressions" -> f.exprs)))
-      val allIds = idables++specs
-
-      val (updOps,_,_) = synthesizeModel(allIds)
-      allIds.filterNot(i=>updOps.exists(_.id==i.id))++updOps
+      val (updOps,_,_) = synthesizeModel(idables)
+      idables.filterNot(i=>updOps.exists(_.id==i.id))++updOps
     } match {
       case Success(ids) =>
         println("Synthesis successful")
@@ -57,8 +53,8 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   var mes: List[ModelElement] = List()
 
   def dv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) = mes :+= Tdv(name, driverName, driverIdentifier, kind)
-  def v(name: String, initState: String, domain: List[String]) = mes :+= Tv(name, initState, domain)
-  def v(name: String, initState: String, domain: List[String],
+  def v(name: String, initState: SPValue, domain: List[SPValue]) = mes :+= Tv(name, initState, domain)
+  def v(name: String, initState: SPValue, domain: List[SPValue],
     driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) = {
     dv(name, driverName, driverIdentifier, kind)
     mes :+= Tv(name, initState, domain)
@@ -178,7 +174,18 @@ trait BuildModel {
       val ops = opsAndMapping.map{_._1}
       val updOpAbMap = updopAbMap_ ++ opsAndMapping.flatMap{_._2}.toMap
 
-      val levelThings = updVs ++ dvs ++ abs ++ ops
+      val forbidden = m.model.collect { case x: Tx =>
+        // parse expression
+        val props = x.exprs.flatMap{x=>
+          PropositionParser(opParseHelpers).parseStr(x) match {
+            case Right(p) => Some(p)
+            case Left(err) => println(s"Parsing failed on forbidden expression: $x: $err"); None
+          }
+        }
+        SPSpec(x.name, SPAttributes("forbiddenExpressions" -> props))
+      }
+
+      val levelThings = updVs ++ dvs ++ abs ++ ops ++ forbidden
 
       val updResources = updResources_ ++ m.model.collect {
         case Tresource(name: String, dts: List[String]) =>
@@ -258,8 +265,7 @@ trait BuildModel {
     val dvTovMap = x._2
     val opAbMap = x._3
     val includeOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
-    val init = x._1.collect { case t: Thing if dvTovMap.values.toList.contains(t.id)=> t }.
-      flatMap { t => t.attributes.get("init").map(v=>t.id->v) }.toMap
+    val init = x._1.collect { case t: Thing => t }.flatMap{t => t.attributes.get("init").map(v=>t.id->v) }.toMap
 
     val runner = APIOperationRunner.Setup(r.name, ID.newID, includeOps,
       opAbMap, init, dvTovMap, Map()) //TODO add parameters
@@ -332,7 +338,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   val synthKind = "synthPre"
 
   lazy val variableNameDomainMap = vars.flatMap(v => {
-    v.attributes.getAs[Seq[String]]("domain").map(d => v.name -> d)
+    v.attributes.getAs[List[SPValue]]("domain").map(d => v.name -> d)
   }).toMap
 
   lazy val mModule = SimpleModuleFactory(moduleName)
@@ -372,7 +378,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   def addVariables() = {
     vars.foreach { v => for {
       domain <- variableNameDomainMap.get(v.name)
-      init <- v.attributes.getAs[String]("init")
+      init <- v.attributes.getAs[SPValue]("init")
       intInit <- getFromVariableDomain(v.name, init, "Problem with init") // get index value of the init variable
     } yield {
       // Todo: Here, the marked state is the same as the initial state, and no more than 1 marked state is allowed. This needs investigating..
@@ -385,9 +391,9 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
 
   def addForbiddenExpressions() = {
     spSpec.foreach { s =>
-      s.attributes.getAs[List[String]]("forbiddenExpressions").foreach{ fes =>
-          println("adding forbidden expression: " + fes)
-          val xpr = stringPredicateToSupremicaSyntax(fes.mkString("(", ")|(", ")")).replaceAll("\\.", "_")
+      s.attributes.getAs[List[Proposition]]("forbiddenExpressions").foreach{ fes =>
+        val xpr = fes.map(propToSupremicaSyntax).mkString("(", ")|(", ")").replaceAll("\\.", "_")
+        println("adding forbidden expression: " + xpr)
         addForbiddenExpression(forbiddenExpression = xpr, addSelfLoop = false, addInComment = true)
       }
     }
@@ -443,7 +449,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
     case _ => false
   }
 
-  private def getFromVariableDomain(variable: String, value: String, errorMsg: String): Option[Int] = {
+  private def getFromVariableDomain(variable: String, value: SPValue, errorMsg: String): Option[Int] = {
     variableNameDomainMap.get(variable) match {
       case Some(domain) => domain.indexOf(value) match {
         case -1 => println(s"$errorMsg\nValue: $value is not in the domain of variable: $variable. The result will not be correct!"); None.get
@@ -458,7 +464,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   def varInDomain(id: ID, i: Int) = {
     for {
       v <- vars.find(_.id == id)
-      domain <- v.attributes.getAs[List[String]]("domain")
+      domain <- v.attributes.getAs[List[SPValue]]("domain")
       value <- domain.lift(i)
     } yield {
       ValueHolder(value)
