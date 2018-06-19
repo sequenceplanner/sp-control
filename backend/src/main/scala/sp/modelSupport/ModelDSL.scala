@@ -30,13 +30,13 @@ case class Tresource(name: String, dvs: List[String] = List()) extends ModelElem
 case class Tdriver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) extends ModelElement
 case class Tsubmodel(name: String, model: List[ModelElement]) extends ModelElement
 case class Tx(name: String, exprs: List[String]) extends ModelElement
-
+case class TpostBuildHook(func: List[IDAble] => List[IDAble]) extends ModelElement
 
 trait ModelDSL extends BuildModel with SynthesizeModel {
   def buildModel(name: String = "") = {
     val idables = build(name, mes)
 
-    Try[List[IDAble]] {
+    val afterSynth = Try[List[IDAble]] {
       val (updOps,_,_) = synthesizeModel(idables)
       idables.filterNot(i=>updOps.exists(_.id==i.id))++updOps
     } match {
@@ -47,6 +47,9 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
         println("Synthesis failed: " + t.getMessage)
         idables
     }
+
+    val postHooks = mes.collect{ case bh: TpostBuildHook => bh }
+    postHooks.foldLeft(afterSynth){case (idables, hook) => hook.func(idables)}
   }
 
   def c(kind: String, guard: String, actions: String*) = cond(kind, guard, actions:_*)
@@ -64,12 +67,12 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
   def x(name: String, exprs: List[String]) = mes :+= Tx(name, exprs)
 
-
   def runner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) = mes :+= Trunner(name, initState, ops)
   def resource(name: String, dvs: List[String] = List()) = mes :+= Tresource(name, dvs)
   def driver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) = mes :+= Tdriver(name, driverType, setup)
   def use(name: String, other: ModelDSL) = mes :+= Tsubmodel(name, other.mes)
 
+  def addPostBuildHook(func: List[IDAble] => List[IDAble]) = mes :+= TpostBuildHook(func)
 }
 
 trait BuildModel {
