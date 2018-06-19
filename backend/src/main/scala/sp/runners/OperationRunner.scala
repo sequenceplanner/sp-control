@@ -170,6 +170,7 @@ class OperationRunner extends Actor
         case x: sp.devicehandler.APIVirtualDevice.TheVD =>
           val state = x.resources.flatMap(_.state).toMap
           newResourceState(state, startAbility, sendState)
+        case _ =>
       }
 
 
