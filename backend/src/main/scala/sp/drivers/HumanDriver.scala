@@ -14,25 +14,11 @@ import sp.domain._
 import sp.devicehandler.{APIDeviceDriver => api}
 import sp.driver.APIHumanDriver
 
+import scala.util.{Failure, Success}
 
 
-class Proxy extends sp.bluetooth.BluetoothMessageListener{
-  // This builds the Bluetooth Proxy. The process will block until
-  // a device connects to it. Might fail if multiple devices try to
-  // connect at the same time.
-  println("before bluetooth")
-  val proxy = new BluetoothProxy(this)
-  println(s"after: $proxy")
 
-  // Use proxy's send method to send messages to the device
-  proxy.send("Hello! this is server")
 
-  override def onBluetoothMessage(message: String): Unit = {
-    println("[RECEIVED] " + message)
-
-    proxy.send("Received")
-  }
-}
 
 
 
@@ -56,21 +42,55 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
   with sp.service.MessageBussSupport{
 
 
-  private var proxy = null
-  private var message_count = 0
+  // The state of the op
+  var blueToothConnected  = false
+
+  var humanName = "humanName"
+  var humanID = "humanID"
+  var loggedIn = "loggedIn"
+  var cmd = "cmd"
+  var ack = "ack"
+  var done = "done"
+
+  val defaultState = Map[String, SPValue](
+    humanName -> "",
+    humanID -> "",
+    loggedIn -> false,
+    cmd -> "",
+    ack -> false,
+    done -> false
+  )
+
+  var driverState = defaultState
+
+  def updS(key: String, v: SPValue) = driverState += (key -> v)
+
+  // The commands that we send to the operator
+  val instructions = d.setup.getAs[Map[String, String]]("instructions").getOrElse(List())
+  val bluetooth = context.actorOf(Props(classOf[BluetoothConnector], self))
 
   subscribe(api.topicRequest)
   subscribe(APIHumanDriver.topicFromHuman)
 
-  // The name of the driver is the identification name of the human, for now.
-  val name = d.name
-
   // The driver state is based on what we get back from the various human services.
-  var driverState = Map[String, SPValue]()
 
   publish(api.topicResponse, SPMessage.makeJson(SPHeader(from = d.id.toString), api.TheDriver(d, driverState)))
 
   def receive = {
+    case BlueToothConnect =>
+      blueToothConnected = false
+
+    case x: GotMessage =>
+      if (driverState.get(ack).contains(SPValue(x.ack)) || driverState.get(done).contains(SPValue(x.done))){
+        updS(ack, x.ack)
+        updS(done, x.done)
+        sendStateToBus(driverState)
+      }
+
+
+    case "tick" =>
+      sendStateToBus(driverState)
+
     case x: String =>
       println("HUMANDRIVER GOT:" + x)
       SPMessage.fromJson(x).foreach{ mess =>
@@ -92,18 +112,12 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
                   "reqID" -> h.reqID, "from" -> h.from, "reply" -> h.reply
                 ))
 
-                val updState = state ++ Map(
-                  "cmd" -> state.getOrElse("cmd", SPValue("no command")),
-                  "ack" -> state.getOrElse("ack", SPValue(false)),
-                  "completed" -> state.getOrElse("completed", SPValue(false))
-                )
+                val updState = defaultState ++ state
 
-                val b = APIHumanDriver.StateChangeRequest(d.name, updState)
-                publish(APIHumanDriver.topicToHuman, SPMessage.makeJson(myHeader, b))
+                sendStateToBluetooth()
+
+                // sendStateToUI
 //
-                println("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
-                println( myHeader, b)
-                println("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
 
               // Terminating the driver
               case api.TerminateDriver(driverid) if driverid == d.id =>
@@ -148,7 +162,10 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
 
 
 
+  import context.dispatcher
 
+  import scala.concurrent.duration._
+  val ticker = context.system.scheduler.schedule(1 seconds, 1 seconds, self, "tick")
 
 
 
@@ -168,10 +185,81 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
 
   }
 
+  def sendStateToBluetooth() = {
+    val cmdS = driverState.get(cmd).flatMap(_.getAs[String]()).getOrElse("")
+    val ackS = driverState.get(ack).flatMap(_.getAs[Boolean]()).getOrElse(false)
+    val doneS = driverState.get(done).flatMap(_.getAs[Boolean]()).getOrElse(false)
+    val mess = SendMessage(cmdS, ackS, doneS)
+
+    if (blueToothConnected) bluetooth ! mess
+  }
 
 
 
 
 
 
+
+
+
+}
+
+
+
+
+case class SendMessage(cmd: String, ack: Boolean, done: Boolean)
+object SendMessage {
+  implicit def fSendMess = play.api.libs.json.Format[SendMessage]
+}
+case class GotMessage(ack: Boolean, done: Boolean)
+object GotMessage{
+  implicit def fGotMessage = play.api.libs.json.Format[GotMessage]
+}
+
+
+case object BlueToothConnect
+class BluetoothConnector extends Actor {
+
+  //val proxy = new Proxy(self ! _)
+
+  context.parent ! BlueToothConnect
+
+
+  override def receive = {
+    case mess: String =>
+      val x = SPValue.fromJson(mess)
+      println("GOT from bluetooth: " + x)
+
+      x.foreach(_.to[GotMessage].foreach(res =>
+        context.parent ! res
+      ))
+
+    case x: SendMessage =>
+      val mess = SPValue(x).toJson
+      //proxy.proxy.send(mess)
+
+      // dummy
+      import scala.concurrent.duration._
+      val reply: String = if (x.cmd.nonEmpty) SPValue(GotMessage(true, true)).toJson else SPValue(GotMessage(false, false)).toJson
+      context.system.scheduler.scheduleOnce(5 seconds, self, reply)
+
+  }
+}
+
+class Proxy(callBack: String => Unit) extends sp.bluetooth.BluetoothMessageListener{
+  // This builds the Bluetooth Proxy. The process will block until
+  // a device connects to it. Might fail if multiple devices try to
+  // connect at the same time.
+  println("before bluetooth")
+  val proxy = new BluetoothProxy(this)
+  println(s"after: $proxy")
+
+  // Use proxy's send method to send messages to the device
+  //proxy.send("Hello! this is server")
+
+  override def onBluetoothMessage(message: String): Unit = {
+    println("[RECEIVED] " + message)
+    callBack(message)
+    //proxy.send("Received")
+  }
 }

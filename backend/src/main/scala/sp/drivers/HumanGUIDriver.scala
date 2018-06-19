@@ -33,7 +33,7 @@ class HumanGUIDriver extends Actor
         h <- mess.getHeaderAs[SPHeader] if  h.to == APIHumanGUI.service
         b <- mess.getBodyAs[APIHumanGUI.Request]
       } yield {
-        val spHeader = h.swapToAndFrom
+        val spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
 
         val toSend = commands(b) // doing the logic

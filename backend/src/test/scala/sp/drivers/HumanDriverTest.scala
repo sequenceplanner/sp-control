@@ -48,7 +48,7 @@ class HumanDriverTest(_system: ActorSystem) extends TestKit(_system) with Implic
 
   "bluetooth comm test" - {
     "testing proxy setup" in {
-      val p = new Proxy
+      val p = new Proxy(_ => false)
 
     }
   }

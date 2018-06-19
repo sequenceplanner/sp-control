@@ -31,6 +31,9 @@ object Launch extends App {
     system.actorOf(sp.modelImport.SPModelImport.props)
     system.actorOf(sp.drivers.DriverService.props)
 
+
+    // drivers
+    system.actorOf(sp.drivers.HumanDriver.props)
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
