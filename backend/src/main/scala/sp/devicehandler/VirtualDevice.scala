@@ -174,8 +174,8 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
             //log.debug("got a statechange:" + e)
             val oldrs = resourceState
             driverEvent(e)
-            log.debug("new driver state: " + driverState)
-            log.debug("new resource state: " + resourceState)
+            // log.debug("new driver state: " + driverState)
+            // log.debug("new resource state: " + resourceState)
 
             resourceState.filter { case (nid, ns) =>
               oldrs.get(nid) match {

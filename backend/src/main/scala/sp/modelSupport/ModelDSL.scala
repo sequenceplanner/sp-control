@@ -144,11 +144,18 @@ trait BuildModel {
           val runningcond = parse(running)(abParseHelpers)
           val postcond = parse(post)(abParseHelpers)
           val resetcond = parse(reset)(abParseHelpers)
-          val a = Ability(nn(name), ID.newID, precond, runningcond, postcond, resetcond, List())
+
+          // find parameter ids. TODO: for now only search the same level...
+          val p = updVs.filter(v=>params.contains(unnn(v.name))).map(_.id)
+
+          val a = Ability(nn(name), ID.newID, precond, runningcond, postcond, resetcond, p)
           APIAbilityHandler.abilityToOperation(a)
       }
 
-      val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name)))
+      val deeperVs = deeperThings.collect { case t: Thing if t.attributes.keys.contains("domain") =>  t}
+      val opParseHelpersDeep = deeperVs ++ deeperVs.map(v=> v.copy(name = unnn(v.name)))
+      val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name))) ++ opParseHelpersDeep
+      println("parseHelper: " + opParseHelpers.map(_.name).mkString(","))
       val searchAbs = deeperThings.collect { case o: Operation => APIAbilityHandler.operationToAbility(o) }.flatten
       val opsAndMapping = m.model.collect {
         case item: To =>
@@ -264,11 +271,15 @@ trait BuildModel {
     val r = toplevel.model.collect { case r:Trunner => r }.head
     val dvTovMap = x._2
     val opAbMap = x._3
-    val includeOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
+    val mappedOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
     val init = x._1.collect { case t: Thing => t }.flatMap{t => t.attributes.get("init").map(v=>t.id->v) }.toMap
+    // ability -> params map
+    val absWithParams = x._1.collect { case o: Operation if o.attributes.getAs[String]("isa") == Some("Ability") &&
+      o.attributes.getAs[List[ID]]("parameters").getOrElse(List()) != List() => o }
+    val paramMap = absWithParams.flatMap {a => a.attributes.getAs[List[ID]]("parameters").map(l => a.id -> l.toSet) }.toMap
 
-    val runner = APIOperationRunner.Setup(r.name, ID.newID, includeOps,
-      opAbMap, init, dvTovMap, Map()) //TODO add parameters
+    val runner = APIOperationRunner.Setup(r.name, ID.newID, mappedOps,
+      opAbMap, init, dvTovMap, paramMap) //TODO add parameters
 
     val runnerThing = APIOperationRunner.runnerSetupToThing(runner)
 
