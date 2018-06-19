@@ -34,7 +34,8 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     flexGrow(1),
     width(150.px),
     height(100.px),
-    overflow.auto
+    overflow.auto,
+    position.relative
   )
 
   val cardCollapsed = style(
@@ -157,6 +158,14 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     color :=! "#ffff00",
     fontWeight :=! "bold"
   )
+
+  val buttonContainer = style(
+    position.absolute,
+    bottom(0 px),
+    margin(4 px)
+  )
+
+  
 
 
   val table = style(

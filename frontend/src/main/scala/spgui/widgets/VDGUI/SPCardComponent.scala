@@ -8,7 +8,7 @@ import spgui.communication._
 import sendMessages._
 import sp.devicehandler.VD.Driver
 import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
-
+import spgui.components.SPWidgetElements
 
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
@@ -171,8 +171,15 @@ object SPCardGrid {
           }).toTagMod
             ))
         ),
-        <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId)), "Terminate Driver"),
-        <.button(^.className := "btn", ^.onClick --> sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(Driver(card.name, card.cardId, card.typ, card.setup))), "Start Driver")
+        <.span(
+          ^.className := DriverWidgetCSS.buttonContainer.htmlClass,
+          SPWidgetElements.buttonGroup(Seq(
+            SPWidgetElements.button("Terminate Driver",
+              sendToDeviceDriver(APIDeviceDriver.TerminateDriver(card.cardId))),
+            SPWidgetElements.button("Start Driver",
+              sendToDeviceDriver(APIDeviceDriver.SetUpDeviceDriver(Driver(card.name, card.cardId, card.typ, card.setup))))
+          ))
+        )
       )
     }
 

@@ -6,15 +6,18 @@ import spgui.communication._
 import sp.devicehandler.APIDeviceDriver
 import japgolly.scalajs.react.vdom.all.svg
 import scala.scalajs.js
+import sp.domain.logic.{PropositionConditionLogic => PCL}
 
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
-  case class Props(cards: List[OperationRunnerCard])
+  case class Props(modelIdables: List[IDAble], cards: List[OperationRunnerCard])
 
   case class OperationRunnerCard(cardId: ID, ab: OperationRunnerWidget.AbilityWithState, op: OperationRunnerWidget.OperationWithState)
 
   class Backend($: BackendScope[Props, State]) {
     def render(p:Props, s: State) = {
+      val propositionPrinter = PCL.prettyPrint(p.modelIdables)_
+
       val isExpanded = s.expandedId.isDefined
       <.div(
         ^.className := OperationRunnerWidgetCSS.rootDiv.htmlClass,
@@ -26,8 +29,8 @@ object SPCardGrid {
           p.cards.map(
             c => c match {
               case opab: OperationRunnerCard => {
-                val smallCard = cardSmall(opab)
-                val expandedCard = cardExpanded(opab)
+                val smallCard = cardSmall(opab, propositionPrinter)
+                val expandedCard = cardExpanded(opab, propositionPrinter)
                 renderCard(opab.cardId, s.expandedId, expandedCard, smallCard)
               }
             }
@@ -35,31 +38,51 @@ object SPCardGrid {
         )
       )
     }
-    
-    def cardSmall(opab: OperationRunnerCard) = {
+
+
+    import sp.domain.logic.AttributeLogic._
+    def cardSmall(opab: OperationRunnerCard, printer: (Proposition) => String) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.op.operation.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            opab.op.operation.name
+          ),
+          renderOpState(opab.op.operationState)
         ),
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.ab.ability.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            opab.ab.ability.name
+          ),
+          renderAbState(opab.ab.abilityState)
         )
       )
     }
 
-    def cardExpanded(opab: OperationRunnerCard) = {
+    def cardExpanded(opab: OperationRunnerCard, printer: (Proposition) => String) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.op.operation.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            opab.op.operation.name,
+            opab.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "pre" => printer(c.guard)}).flatten,
+            opab.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "post" => printer(c.guard)}).flatten
+          ),
+          renderOpState(opab.op.operationState)
         ),
         <.span(
-          ^.className := OperationRunnerWidgetCSS.sopOuter.htmlClass,
-          sop(opab.ab.ability.name, 0, 0)
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            opab.ab.ability.name,
+            List(printer(opab.ab.ability.preCondition.guard)),
+            List(printer(opab.ab.ability.postCondition.guard))
+          ),
+          renderAbState(opab.ab.abilityState)
         )
       )
     }
@@ -104,68 +127,147 @@ object SPCardGrid {
     }
   }
 
-  val opHeight = 80f
-  val opWidth = 120f
-  val opHorizontalBarOffset = 12f
-  def sop(label: String, x: Int, y: Int) =
-    <.span(
-      svg.svg(
-        svg.width := opWidth.toInt,
-        svg.height:= opHeight.toInt,
-        svg.svg(
-          svg.width := opWidth.toInt,
-          svg.height:= opHeight.toInt,
-          svg.x := 0,
-          svg.y := 0,
-          svg.rect(
-            svg.x := 0,
-            svg.y := 0,
-            svg.width := opWidth.toInt,
-            svg.height:= opHeight.toInt,
-            svg.rx := 6, svg.ry := 6,
-            svg.fill := "white",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Top horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y := opHorizontalBarOffset.toInt,
-            svg.width := opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Bottom horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y :=  (opHeight - opHorizontalBarOffset).toInt,
-            svg.width := opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          svg.svg(
-            svg.text(
-              svg.x := "50%",
-              svg.y := "50%",
-              svg.textAnchor := "middle",
-              svg.dy := ".3em",
-              label
-            )
+  def renderOp(name: String, preConditions: List[String] = List(), postConditions: List[String] = List()) = {
+    <.div(
+      ^.className := OperationRunnerWidgetCSS.opInner.htmlClass,
+      {
+        if(preConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
+            preConditions.map(
+              pre => <.div(pre)
+            ).toTagMod
           )
+        }
+      },
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.opNameOuter.htmlClass,
+        <.div(
+          ^.className := OperationRunnerWidgetCSS.opName.htmlClass,
+          name
         )
-      )
+      ),
+      {
+        if(postConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
+            postConditions.map(
+              post => <.div(post)
+            ).toTagMod
+          )
+        }
+      }
     )
+  }
+
+  def renderSmallOp(name: String, preConditions: List[String] = List(), postConditions: List[String] = List()) = {
+    <.div(
+      ^.className := OperationRunnerWidgetCSS.smallOpInner.htmlClass,
+      {
+        if(preConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
+            preConditions.map(
+              pre => <.div(pre)
+            ).toTagMod
+          )
+        }
+      },
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.opNameOuter.htmlClass,
+        <.div(
+          ^.className := OperationRunnerWidgetCSS.smallOpName.htmlClass,
+          name
+        )
+      ),
+      {
+        if(postConditions.isEmpty) {
+          EmptyVdom
+        } else {
+          <.div(
+            ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
+            postConditions.map(
+              post => <.div(post)
+            ).toTagMod
+          )
+        }
+      }
+    )
+  }
+
+
+
+  def renderOpState(state: Map[ID, SPValue]) = {
+    <.span(
+      ^.className := OperationRunnerWidgetCSS.opabState.htmlClass,
+      state.map{case (key, value) => {
+        value.toString match {
+          case "\"i\"" => <.span(
+            ^.className := OperationRunnerWidgetCSS.green.htmlClass,
+            "initialised"
+          )
+          case "\"e\"" => <.span(
+            ^.className := OperationRunnerWidgetCSS.spOrange.htmlClass,
+            "executing"
+          )
+          case "\"f\"" => <.span(
+            ^.className := OperationRunnerWidgetCSS.blue.htmlClass,
+            "finished"
+          )
+          case _ => <.span(value.toString)
+        }
+      }}.toTagMod
+    )
+  }
+
+  import play.api.libs.json._
+  case class abilityState(state: String, counter: Int)
+  implicit val fAbState: JSFormat[abilityState] = Json.format[abilityState]
+
+  object AbilityState {
+    val unavailable = "unavailable"
+    val notEnabled = "notEnabled"
+    val enabled = "enabled"
+    val starting = "starting"
+    val executing = "executing"
+    val finished = "finished"
+    val forcedReset = "forcedReset"
+    val failed = "failed"
+  }
+
+  def renderAbState(state: Map[ID, SPValue]) = {
+    <.span(
+      ^.className := OperationRunnerWidgetCSS.opabState.htmlClass,
+      state.map{case (key, value) => {
+        value.asOpt[abilityState].map{ abState =>
+          abState.state
+        }.getOrElse("invalidState")
+      }}.map{s =>
+        s match {
+          case AbilityState.unavailable => "unavailable"
+          case AbilityState.notEnabled => "notEnabled"
+          case AbilityState.enabled => "enabled"
+          case AbilityState.starting => "starting"
+          case AbilityState.executing => "executing"
+          case AbilityState.finished => "finished"
+          case AbilityState.forcedReset => "forcedReset"
+          case AbilityState.failed => "failed"
+          case "invalidState" => "invalidState"
+        }        
+      }.toTagMod
+    )
+  }
 
   private val component = ScalaComponent.builder[Props]("OperationAbilityCardGrid")
     .initialState(State())
     .renderBackend[Backend]
     .build
 
-  def apply(cards: List[OperationRunnerCard]) = component(Props(cards))
+  def apply(modelIdables: List[IDAble], cards: List[OperationRunnerCard]) = component(Props(modelIdables, cards))
 }
