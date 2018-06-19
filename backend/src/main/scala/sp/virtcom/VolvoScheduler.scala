@@ -22,7 +22,7 @@ class VolvoScheduler extends Actor  with ActorLogging with  sp.service.ServiceSu
         h <- mess.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == APIVolvoScheduler.service
         b <- mess.getBodyAs[APIVolvoScheduler.Request]
       } yield {
-        var spHeader = h.swapToAndFrom
+        var spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
 
         b match { // Check if the body is any of the following classes, and execute program

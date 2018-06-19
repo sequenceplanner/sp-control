@@ -1,7 +1,5 @@
 package sp.domain
 
-import sp.domain.IDAble
-
 
 // Move to internal relation identification. If needed, encode in attributes
 case class EnabledStates(pre: Map[ID, SPValue], post : Map[ID, SPValue] = Map())
@@ -13,5 +11,5 @@ case class RelationMap(relations: Map[Set[ID], SOP], enabledStates: EnabledState
 }
 
 
-case class NoRelations(sequences: Set[List[ID]], states: Set[Map[ID, SPValue]], finalState: SPState)//sp.domain.logic.StateLogic.extState)
+case class NoRelations(sequences: Set[List[ID]], states: Set[Map[ID, SPValue]], finalState: SPState)
 

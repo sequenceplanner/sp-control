@@ -4,15 +4,6 @@ import akka.actor._
 import sp.domain._
 import sp.domain.Logic._
 
-import scala.concurrent.Future
-import akka.util._
-import akka.pattern.ask
-import sp.virtcom.APIBDDVerifier
-
-import scala.concurrent._
-import scala.concurrent.duration._
-import scala.util._
-
 object BDDVerifier {
   def props = Props(classOf[BDDVerifier])
 
@@ -44,7 +35,7 @@ object BDDVerifier {
           h <- mess.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == APIBDDVerifier.service
           b <- mess.getBodyAs[APIBDDVerifier.Request]
         } yield {
-          var spHeader = h.swapToAndFrom
+          var spHeader = h.swapToAndFrom()
           sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
 
           b match {

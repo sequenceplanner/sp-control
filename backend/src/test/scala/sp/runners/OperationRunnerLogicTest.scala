@@ -78,6 +78,22 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
     val ops = Set(o1, o2, o3)
 
 
+    "do correct condition filtering" in {
+      val test1 = prop(ids, "o1 == i", List(), "pre", "goodGroup")
+      val test2 = prop(ids, "t1 == 2", List(), "post", "badGroup")
+      val test3 = prop(ids, "t1 == 2", List(), "post", "goodGroup")
+
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val xs = List(test1, test2, test3)
+
+      logic.filterConditions(xs, Set(), Set()) shouldEqual xs
+      logic.filterConditions(xs, Set("pre"), Set()) shouldEqual List(test1)
+      logic.filterConditions(xs, Set(), Set("badGroup")) shouldEqual List(test1, test3)
+
+    }
+
+
     "evaluate ops" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       val res = logic.evaluateOps(List(o1, o2, o3), initState)
@@ -95,6 +111,21 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       assert(res2 == List(o2, o3))
     }
 
+    "evaluate ops with groupds" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val o1Pre2 = prop(ids, "t1 == 1", List("t1 := 2"), "pre", "badGroup")
+      val o1Upd = o1.copy(conditions = o1.conditions :+ o1Pre2)
+
+      val res = logic.evaluateOps(List(o1Upd, o2, o3), initState)
+      assert(res == List())
+
+      val res2 = logic.evaluateOps(List(o1Upd, o2, o3), initState, Set("badGroup"))
+      assert(res2 == List(o1Upd))
+
+
+    }
+
     "upd state" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       logic.addRunner(setup)
@@ -110,7 +141,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
       var states = List[SPState]()
       val f2 = (o: SPState) => states = o :: states
 
-      val upd = logic.newState(s, ops, r, f,  f2, false)
+      val upd = logic.newState(s, ops, r, f,  f2, true, Set(), None)
       println("jhsfd")
       println(upd)
       println(starting)
@@ -156,6 +187,34 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
 
     "run ops, one ability" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+      val newS = setup.copy(opAbilityMap = Map(o1.id -> a1.id))
+      logic.addRunner(newS)
+
+
+      var starting = List[ID]()
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState, id: ID) => states = o :: states
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2(_, setup.runnerID))
+
+      logic.newAbilityState(a1.id, SPValue("enabled"), f, f2)
+      logic.newAbilityState(a1.id, SPValue("finished"), f, f2)
+
+      logic.tickRunner(setup.runnerID, f, f2(_, setup.runnerID))
+
+
+      //println("sfdsdf")
+      //println(starting)
+      //println(states)
+
+      starting shouldEqual List(a1.id)
+      states.head.get(o3.id).get shouldEqual  SPValue(OperationState.finished)
+    }
+
+    "run op in manual" in {
       val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
       val newS = setup.copy(opAbilityMap = Map(o1.id -> a1.id))
       logic.addRunner(newS)
@@ -339,6 +398,65 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 
 
 
+
+    "run ops in pause mode" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val newS = setup.copy(
+        opAbilityMap = Map(),
+        ops = Set(o1, o2, o3)
+      )
+
+      var starting = List[ID]()
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState) => states = o :: states
+
+      logic.addRunner(newS)
+
+      logic.updRunner(
+        newS.runnerID,
+        Set(),
+        Set(),
+        Map(),
+        f,
+        f2,
+        Some(false),
+        None
+      )
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2)
+
+
+
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+
+      states shouldEqual List() // no operation to start in paus
+
+
+      // Start and complete the op that we force start in pause
+      logic.tickRunner(setup.runnerID, f, f2, Some(o1.id))
+      logic.tickRunner(setup.runnerID, f, f2, None)
+      logic.tickRunner(setup.runnerID, f, f2, None)
+      assert(states.nonEmpty)
+      states.head.get(o1.id).get shouldEqual  SPValue(OperationState.finished)
+
+      // Complete ops even in pause.
+      val newState = states.head.copy(state = states.head.state + (o2.id->OperationState.executing))
+      logic.setRunnerState(setup.runnerID, newState, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2, None)
+      logic.tickRunner(setup.runnerID, f, f2, None)
+      states.head.get(o2.id).get shouldEqual  SPValue(OperationState.finished)
+
+    }
+
+
+
     "testing messages" in {
       val s = OperationRunnerInfo.apischema
       println(s)
@@ -354,7 +472,7 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
 import sp.domain.logic.{PropositionParser, ActionParser}
 trait Parsing {
   def v(name: String, drivername: String) = Thing(name, SPAttributes("drivername" -> drivername))
-  def prop(vars: List[IDAble], cond: String, actions: List[String] = List(), kind: String = "pre") = {
+  def prop(vars: List[IDAble], cond: String, actions: List[String] = List(), kind: String = "pre", group: String = "") = {
     def c(condition: String): Option[Proposition] = {
       PropositionParser(vars).parseStr(condition) match {
         case Right(p) => Some(p)
@@ -374,7 +492,10 @@ trait Parsing {
     val cRes = if (cond.isEmpty) AlwaysTrue else c(cond).get
     val aRes = a(actions)
 
-    Condition(cRes, aRes, SPAttributes("kind" -> kind))
+    val attr = SPAttributes("kind" -> kind) ++ {
+      if (group.nonEmpty) SPAttributes("group" -> group) else SPAttributes()}
+
+    Condition(cRes, aRes, attr)
   }
 
 }

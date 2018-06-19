@@ -14,16 +14,28 @@ import sp.domain._
     final case class ForceResetAbility(id: ID) extends Request
     case object ForceResetAllAbilities extends Request
 
+    case object TerminateAllAbilities extends Request // Kills all ability actors
+    case object AbilitiesTerminated extends Response
+
     // to be used when handshake is on
     final case class ExecuteCmd(cmd: ID) extends Request
 
     case object GetAbilities extends Request
+    /**
+      * A request to get the ability information
+      * Will respond with [[APIAbilityHandler.TheAbility]]
+      * @param id The id of the ability
+      */
+    final case class GetAbility(id: ID) extends Request
     final case class SetUpAbilityHandler(name: String, id: ID, abilities: List[Ability], vd: ID, handshake: Boolean = false) extends Request
     final case class SetUpAbility(ability: Ability, handshake: Boolean = false) extends Request
     final case class SetUpAbilities(abilities: List[Ability], handshake: Boolean = false) extends Request
 
-
-
+    /**
+      * A response including the ability information
+      * @param ability The ability defined as a Option of [[APIAbilityHandler.Ability]]
+      */
+    final case class TheAbility(ability: Option[Ability]) extends Response
     final case class CmdID(cmd: ID) extends Response
     final case class AbilityStarted(id: ID) extends Response
     final case class AbilityCompleted(id: ID, result: Map[ID, SPValue]) extends Response
@@ -48,8 +60,14 @@ import sp.domain._
       implicit lazy val fStartAbility: JSFormat[StartAbility] = Json.format[StartAbility]
       implicit lazy val fForceResetAbility: JSFormat[ForceResetAbility] = Json.format[ForceResetAbility]
       implicit lazy val fForceResetAllAbilities:     JSFormat[ForceResetAllAbilities.type]     = deriveCaseObject[ForceResetAllAbilities.type]
+      implicit lazy val fTerminateAllAbilities:     JSFormat[TerminateAllAbilities.type]     = deriveCaseObject[TerminateAllAbilities.type]
+      implicit lazy val fAbilitiesTerminated:     JSFormat[AbilitiesTerminated.type]     = deriveCaseObject[AbilitiesTerminated.type]
+
+
       implicit lazy val fExecuteCmd: JSFormat[ExecuteCmd] = Json.format[ExecuteCmd]
       implicit lazy val fGetAbilities:     JSFormat[GetAbilities.type]     = deriveCaseObject[GetAbilities.type]
+      implicit lazy val fGetAbility: JSFormat[GetAbility] = Json.format[GetAbility]
+      implicit lazy val fTheAbility: JSFormat[TheAbility] = Json.format[TheAbility]
       implicit lazy val fSetUpAbilityHandler: JSFormat[SetUpAbilityHandler] = Json.format[SetUpAbilityHandler]
       implicit lazy val fSetUpAbility: JSFormat[SetUpAbility] = Json.format[SetUpAbility]
       implicit lazy val fSetUpAbilities: JSFormat[SetUpAbilities] = Json.format[SetUpAbilities]

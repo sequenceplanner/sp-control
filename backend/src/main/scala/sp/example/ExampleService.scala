@@ -44,7 +44,7 @@ class ExampleService extends Actor
         h <- mess.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == APIExampleService.service  // only extract body if it is to me
         b <- mess.getBodyAs[APIExampleService.Request]
       } yield {
-        val spHeader = h.swapToAndFrom
+        val spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
 
         val toSend = commands(b) // doing the logic

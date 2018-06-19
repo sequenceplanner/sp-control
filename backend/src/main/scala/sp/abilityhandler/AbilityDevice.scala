@@ -70,27 +70,35 @@ class AbilityHandlerMaker extends Actor
   override def receive = {
     //case x if {log.debug(s"ability handler maker got: $x"); false} => false
     case x: String =>
-      val mess = SPMessage.fromJson(x)
       for {
-        m <- mess
+        m <- SPMessage.fromJson(x)
         h <- m.getHeaderAs[SPHeader] // add filter here if we want multiple makers
-        b <- m.getBodyAs[APIAbilityHandler.Request] if b.isInstanceOf[APIAbilityHandler.SetUpAbilityHandler]
-        setup = b.asInstanceOf[APIAbilityHandler.SetUpAbilityHandler]
+        b <- m.getBodyAs[APIAbilityHandler.Request]
       } yield {
-        log.debug("Setting up an ability handler")
-        log.debug(setup.toString)
-        val updH = h.swapToAndFrom
-        if (ahs.contains(setup.id)){
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"Abilityhandler with id ${setup.id} already exist")))
-        } else {
-          val a = context.actorOf(AbilityHandler.propsHandler(setup.name, setup.id, setup.vd))
-          ahs += setup.id -> a
-          context.watch(a)
-          a ! APIAbilityHandler.SetUpAbilities(setup.abilities, setup.handshake) // no need for jsonify since this is also matched in AbilityHandler
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
+        val updH = h.swapToAndFrom()
+        b match {
+          case setup : APIAbilityHandler.SetUpAbilityHandler =>
+            log.debug("Setting up an ability handler")
+            log.debug(setup.toString)
+            if (ahs.contains(setup.id)){
+              publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"Abilityhandler with id ${setup.id} already exist")))
+            } else {
+              val a = context.actorOf(AbilityHandler.propsHandler(setup.name, setup.id, setup.vd))
+              ahs += setup.id -> a
+              context.watch(a)
+              a ! APIAbilityHandler.SetUpAbilities(setup.abilities, setup.handshake) // no need for jsonify since this is also matched in AbilityHandler
+              publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
+            }
+          case APIAbilityHandler.TerminateAllAbilities =>
+            ahs.foreach(a =>  { a._2 ! PoisonPill})
+            publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
+          case _=>
         }
       }
-    case Terminated(x) => ahs = ahs.filter(_._2 == x)
+
+    case Terminated(x) => ahs = ahs.filterNot(_._2 == x)
+      if (ahs.isEmpty) publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(SPHeader(from = APIAbilityHandler.service), APIAbilityHandler.AbilitiesTerminated))
+    case other =>
   }
 
 
@@ -100,11 +108,11 @@ class AbilityHandlerMaker extends Actor
 
 // This actor will keep track of the abilities and parse all messages from the VD
 class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
-    with ActorLogging
-    with AbilityLogic
-    with AbilityComm
-    with sp.service.ServiceCommunicationSupport
-    with sp.service.MessageBussSupport {
+  with ActorLogging
+  with AbilityLogic
+  with AbilityComm
+  with sp.service.ServiceCommunicationSupport
+  with sp.service.MessageBussSupport {
   import context.dispatcher
 
 
@@ -185,7 +193,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
 
       publish("spevents", makeMess(h,
         APISP.SPError("Ability has ids that is not found in the state. Either the VD is unavailable or something is wrong",
-        errorAttr)
+          errorAttr)
       ))
 
 
@@ -207,7 +215,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
   def matchRequests(mess: Option[SPMessage]) = {
     extractRequest(mess, handlerID, name) foreach { case (h, b) =>
       log.debug("ABH req: " +b)
-      val updH = h.swapToAndFrom
+      val updH = h.swapToAndFrom()
 
       // Message was to me so i send an SPACK
       publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPACK()))
@@ -255,6 +263,14 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
 
           abilities.foreach(a => a._2.actor ! GetState)
 
+        case APIAbilityHandler.GetAbility(id) =>
+          // Get a list of all abilities
+          val listOfAbilities = abilities.map(_._2.ability).toList
+          // Try to find the ability in the list that match with id
+          val matchedAbilityInList = listOfAbilities.find{ ability => ability.id == id }
+          // make message with header and trigger the response with The Ability
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APIAbilityHandler.TheAbility(matchedAbilityInList)))
+
 
         case APIAbilityHandler.SetUpAbility(ab, hand) =>
           log.debug(ab.toString)
@@ -268,6 +284,8 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
             setupNewAbility(ab)
           }
           publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
+
+        case other =>
       }
     }
   }
@@ -287,7 +305,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
       log.debug("ABH from OP matcher: " +b)
       b match {
         case omapi.Find(pairs: Map[String, SPValue]) =>
-          val updH = h.swapToAndFrom
+          val updH = h.swapToAndFrom()
           publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPACK()))
           val abs = abilities.map(_._2.ability).toSet
           val a = abs.filter{ a =>
@@ -393,14 +411,14 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
         //fix timeout here if needed
       }
 
-      //checkAndSend(res.getOrElse(s), sender())
+    //checkAndSend(res.getOrElse(s), sender())
 
     case ResetAbility(s) =>
       val res = reset(s)
       if (res != s)  sender() ! StateUpdReq(ability.id, res)
       sendAbilityState(sender())
 
-      //checkAndSend(res.getOrElse(s), sender())
+    //checkAndSend(res.getOrElse(s), sender())
 
     case NewState(s) =>
       val missingIDs = ids.diff(s.keySet)
@@ -454,14 +472,14 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
 
 // The various states that an ability can be in
 object AbilityState {
-    val unavailable = "unavailable"
-    val notEnabled = "notEnabled"
-    val enabled = "enabled"
-    val starting = "starting"
-    val executing = "executing"
-    val finished = "finished"
-    val forcedReset = "forcedReset"
-    val failed = "failed"
+  val unavailable = "unavailable"
+  val notEnabled = "notEnabled"
+  val enabled = "enabled"
+  val starting = "starting"
+  val executing = "executing"
+  val finished = "finished"
+  val forcedReset = "forcedReset"
+  val failed = "failed"
 }
 
 // TODO: Merge the state of the abilities into the VD-state (when the VD is moved)
@@ -644,10 +662,10 @@ trait AbilityComm {
 
   def extractVDReply(mess: Option[SPMessage], instanceID: ID, vd: String) = {
     for {
-    m <- mess
-    h <- m.getHeaderAs[SPHeader] if h.from.contains(vd) || h.reply == SPValue(instanceID)
-    b <- m.getBodyAs[APIVirtualDevice.Response]
-  } yield (h, b)}
+      m <- mess
+      h <- m.getHeaderAs[SPHeader] if h.from.contains(vd) || h.reply == SPValue(instanceID)
+      b <- m.getBodyAs[APIVirtualDevice.Response]
+    } yield (h, b)}
 
   def extractServiceRequest(mess: Option[SPMessage]) = for {
     m <- mess

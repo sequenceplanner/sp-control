@@ -82,8 +82,8 @@ class URDriverInstance(d: VD.Driver) extends Actor
           b match {
             case api.GetDriver =>
               val body = api.TheDriver(d, streamToMap(urState))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), body))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
             // The command to the driver
             case api.DriverCommand(driverid, state) if driverid == d.id  => // matching that it is a command and that it is to this driver
@@ -93,8 +93,8 @@ class URDriverInstance(d: VD.Driver) extends Actor
             // Terminating the driver
             case api.TerminateDriver(driverid) if driverid == d.id =>
               self ! PoisonPill
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), api.DriverTerminated(d.id)))
+              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
             case _ =>
           }
         }
@@ -114,6 +114,7 @@ class URDriverInstance(d: VD.Driver) extends Actor
     changed = state
 
     // Converting to the actual api
+
     for {
       x <- state.get("active")
       value <- x.to[Boolean].toOption if urState.active != value
@@ -142,11 +143,14 @@ class URDriverInstance(d: VD.Driver) extends Actor
   }
 
   def handleCmdDone(upd: URStream) = {
+
+
     reqHeader.foreach { header =>
+
       val streamMap = streamToMap(upd)
-      val res = changed.forall(kv => !streamMap.contains(kv._1) || streamMap.get(kv._1).contains(kv._2))
+      val res = changed.exists(kv =>  !streamMap.contains(kv._1) || !streamMap.get(kv._1).contains(kv._2))
       if (res) {
-        val updH = header.swapToAndFrom
+        val updH = header.swapToAndFrom()
         val b = api.DriverCommandDone(updH.reqID, true) // we do not check if it fails in this case
         publish(api.topicResponse, SPMessage.makeJson(updH, b))
         reqHeader = None

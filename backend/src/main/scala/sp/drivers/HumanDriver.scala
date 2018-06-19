@@ -78,7 +78,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
           h <- mess.getHeaderAs[SPHeader]
           b <- mess.getBodyAs[api.Request]
         } yield {
-          val header = h.swapToAndFrom.copy(from = d.name)
+          val header = h.swapToAndFrom().copy(from = d.name)
           log.debug(s"HumanDRIVER req: " +b)
           b match {
               case api.GetDriver =>

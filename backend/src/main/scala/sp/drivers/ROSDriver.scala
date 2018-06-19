@@ -101,7 +101,13 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
       sender() ! "ack"
 
 
-    case "start" => println("The kafka consumer is running")
+    case "start" =>
+      println("The kafka consumer is running")
+      sendToKafka(SPAttributes(
+        "isa"->"GetState"
+      ))
+
+
     case "terminate" => println("The kafka consumer is dying")
 
 
@@ -118,9 +124,9 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
             b match {
               case api.GetDriver =>
                 val body = api.TheDriver(d, driverState)
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), body))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), body))
                 publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, driverState)))
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
 
               // The command to the driver
@@ -132,8 +138,8 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
               // Terminating the driver
               case api.TerminateDriver(driverid) if driverid == d.id =>
                 self ! PoisonPill
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), api.DriverTerminated(d.id)))
-                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom.copy(from = d.name), APISP.SPDone()))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), api.DriverTerminated(d.id)))
+                publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom().copy(from = d.name), APISP.SPDone()))
 
 
               case _ =>
@@ -154,13 +160,16 @@ class ROSDriverInstance(d: VD.Driver) extends Actor with KafkaStreamHelper
     // Setting up variables to check when the ros resource is updated
     reqHeader = Some(h)
 
-    // send to kafka
-    val msg = (SPAttributes(
+    sendToKafka(SPAttributes.make(state))
+
+  }
+
+  def sendToKafka(mess: SPAttributes) = {
+    val msg = SPAttributes(
       "receiver" -> resourceName
-    ) ++ SPAttributes.make(state))
+    ) ++ mess
 
     sendQueue.offer(msg)
-
   }
 
 
