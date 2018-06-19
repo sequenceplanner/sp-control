@@ -70,27 +70,35 @@ class AbilityHandlerMaker extends Actor
   override def receive = {
     //case x if {log.debug(s"ability handler maker got: $x"); false} => false
     case x: String =>
-      val mess = SPMessage.fromJson(x)
       for {
-        m <- mess
+        m <- SPMessage.fromJson(x)
         h <- m.getHeaderAs[SPHeader] // add filter here if we want multiple makers
-        b <- m.getBodyAs[APIAbilityHandler.Request] if b.isInstanceOf[APIAbilityHandler.SetUpAbilityHandler]
-        setup = b.asInstanceOf[APIAbilityHandler.SetUpAbilityHandler]
+        b <- m.getBodyAs[APIAbilityHandler.Request]
       } yield {
-        log.debug("Setting up an ability handler")
-        log.debug(setup.toString)
         val updH = h.swapToAndFrom()
-        if (ahs.contains(setup.id)){
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"Abilityhandler with id ${setup.id} already exist")))
-        } else {
-          val a = context.actorOf(AbilityHandler.propsHandler(setup.name, setup.id, setup.vd))
-          ahs += setup.id -> a
-          context.watch(a)
-          a ! APIAbilityHandler.SetUpAbilities(setup.abilities, setup.handshake) // no need for jsonify since this is also matched in AbilityHandler
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
+        b match {
+          case setup : APIAbilityHandler.SetUpAbilityHandler =>
+            log.debug("Setting up an ability handler")
+            log.debug(setup.toString)
+            if (ahs.contains(setup.id)){
+              publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"Abilityhandler with id ${setup.id} already exist")))
+            } else {
+              val a = context.actorOf(AbilityHandler.propsHandler(setup.name, setup.id, setup.vd))
+              ahs += setup.id -> a
+              context.watch(a)
+              a ! APIAbilityHandler.SetUpAbilities(setup.abilities, setup.handshake) // no need for jsonify since this is also matched in AbilityHandler
+              publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
+            }
+          case APIAbilityHandler.TerminateAllAbilities =>
+            ahs.foreach(a =>  { a._2 ! PoisonPill})
+            publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
+          case _=>
         }
       }
-    case Terminated(x) => ahs = ahs.filter(_._2 == x)
+
+    case Terminated(x) => ahs = ahs.filterNot(_._2 == x)
+      if (ahs.isEmpty) publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(SPHeader(from = APIAbilityHandler.service), APIAbilityHandler.AbilitiesTerminated))
+    case other =>
   }
 
 
@@ -276,6 +284,8 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
             setupNewAbility(ab)
           }
           publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
+
+        case other =>
       }
     }
   }

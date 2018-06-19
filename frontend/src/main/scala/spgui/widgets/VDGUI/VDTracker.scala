@@ -61,6 +61,9 @@ object VDTracker {
       mess.body.to[APIDeviceDriver.Response].map {
         case APIDeviceDriver.TheDrivers(ds) =>
           $.modState ( _.copy(drivers = ds.map(_._1) ) ).runNow()
+        case APIDeviceDriver.DriverTerminated(id) =>
+          val td = $.state.runNow().drivers.find(d => d.id == id)
+          if(td.nonEmpty) println("Terminated " + td.get.name)
         case x =>
       }
     }
@@ -71,7 +74,6 @@ object VDTracker {
           $.modState(s => s.copy(latestActiveRunner = Some(id))).runNow()
         }
         case APIVDTracker.sendModelsInfo(models) => {
-          println("models: " + models)
           $.modState(s => s.copy(availableVDModels = models)).runNow()
         }
         case x =>
@@ -95,6 +97,8 @@ object VDTracker {
         case APIAbilityHandler.AbilityState(id, state) => {
           $.modState(s => s.copy(latestAbilityState = s.latestAbilityState ++ state)).runNow()
         }
+        case APIAbilityHandler.AbilitiesTerminated =>
+          println("Abilities terminated")
         case x =>
       }
     }
@@ -160,11 +164,18 @@ object VDTracker {
       )
 
     def terminateAll(s: State) : Callback = {
-      sendToDeviceDriver(APIDeviceDriver.GetDrivers)
-      terminateDrivers(s.drivers) // Todo: also remove all drivers from gui disp */
+      terminateAbilities
+      terminateDrivers(s.drivers) // Todo: also remove all drivers from gui disp? */
+      println("Terminating runners..")
       terminateRunners(s.latestRunnerState)
+      // Todo: terminate virtualDevice
     }
 
+    def terminateAbilities = {
+      val h = SPHeader(from = "VDTrackerWidget", to = APIAbilityHandler.service)
+      val json = SPMessage.make(h, APIAbilityHandler.TerminateAllAbilities)
+      BackendCommunication.publish(json, APIAbilityHandler.topicRequest)
+    }
 
     def terminateDrivers(drivers : List[VD.Driver]) = {
       val h = SPHeader(from = "VDTrackerWidget", to = "DriverService")
