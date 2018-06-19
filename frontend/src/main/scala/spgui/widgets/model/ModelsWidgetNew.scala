@@ -2,12 +2,15 @@ package spgui.widgets.model
 
 import diode.react.{ModelProxy, ReactConnectProxy}
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.vdom.Attr.Ref
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros._
-import org.scalajs.dom.window
+import org.scalajs.dom.html
 import sp.domain.Logic._
 import sp.domain._
 import spgui.availablemodelscircuit._
+import spgui.circuit.{OpenModal, SPGUICircuit}
+import spgui.modal.ModalResult
 import spgui.{ModelCommunication, SimpleSet}
 
 
@@ -141,7 +144,7 @@ object ModelsWidgetNew {
               ^.className := buttonStyle.htmlClass
             )
           ),
-          <.td(btn("Change name of model", onChangeName(props, modelId), "fa fa-pencil")),
+          <.td(btn("Change name of model", showChangeNameModal(props, modelId), "fa fa-pencil")),
           <.td(btn("Add some dummy items", onAddDummyItems(props, modelId), "fa fa-bolt")),
           <.td(btn("Preview model", onPreviewModel(props, modelId), "fa fa-eye")),
           <.td(btn("Export model", onExportModel(props, modelId), "fa fa-print")),
@@ -217,21 +220,37 @@ object ModelsWidgetNew {
       )
     }
 
-    def changeNamePrompt(currentName: String): CallbackTo[String] = CallbackTo[String] {
-      window.prompt("Name your model", currentName)
+    def modalComponent(name: String): (ModalResult => Callback) => VdomElement = {
+      def modal(onClose: ModalResult => Callback) = RenameModal(onClose, name = name).vdomElement
+
+      modal
     }
 
-    def onChangeName(props: Props, modelId: ID): Callback = {
-      val currentName = props.models.get(modelId).flatMap(_.info.map(_.name)).getOrElse("")
-      changeNamePrompt(currentName) >>= { name =>
-        val circuitCallback = props.models.get(modelId).map { model =>
-          props.dispatch(UpdateModel(ModelMock.info.modify(_.map(_.copy(name = name)))(model)))
-        }.getOrElse(Callback.empty)
+    def onChangeModelName(props: Props, modelId: ID, newName: String): Callback = {
+      val circuitCallback = props.models.get(modelId).map { model =>
+        props.dispatch(UpdateModel(ModelMock.info.modify(_.map(_.copy(name = newName)))(model)))
+      }.getOrElse(Callback.empty)
 
-        circuitCallback >> Callback {
-          ModelCommunication.postRequest(modelId, Model.UpdateModelAttributes(Some(name), None))
-        }
+      circuitCallback >> Callback {
+        ModelCommunication.postRequest(modelId, Model.UpdateModelAttributes(Some(newName), None))
       }
+    }
+
+    def showChangeNameModal(props: Props, modelId: ID): Callback = Callback {
+      val currentName = for {
+        model <- props.models.get(modelId)
+        info <- model.info
+      } yield info.name
+
+      SPGUICircuit.dispatch(OpenModal(
+        title = "Change name",
+        component = modalComponent(currentName.getOrElse("")),
+        onComplete = {
+          case RenameModal.Return(submitted, name) =>
+            if (submitted) onChangeModelName(props, modelId, name)
+            else Callback.empty
+        }
+      ))
     }
 
     def onSetActive(props: Props, modelId: ID): Callback = {
@@ -266,6 +285,7 @@ object ModelsWidgetNew {
     }
 
     def onUnmount(): Callback = Callback.empty
+
 
     def onMount(): Callback = Callback.empty
   }
