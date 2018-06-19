@@ -1,22 +1,12 @@
 package sp.abilityhandler
 
-import java.util.UUID
-
 import sp.domain._
 import sp.domain.Logic._
 import akka.actor._
-import akka.persistence._
-
-import scala.util.Try
-
 
 // TODO: 180311: Currently we do not have a synchronized state in the
 // TODO: abilities. If guaranteed booking is needed, it must be done on the
 // TODO: operation layer
-
-
-import sp.operationmatcher.{API => omapi}
-import sp.devicehandler._
 
 
 /**
