@@ -4,7 +4,7 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.TagOf
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom.html
-import sp.devicehandler.VD
+import sp.devicehandler.{APIDeviceDriver, VD}
 import sp.domain.Logic._
 import sp.domain._
 import sp.models.APIModel
@@ -13,33 +13,58 @@ import sp.runners.APIOperationRunner.Setup
 import spgui.communication._
 
 object StateHandlerWidget {
-  // Case class for a operation and its state
-  case class OperationWithState(operation: Operation, operationState: Map[ID, SPValue])
   case class Runner(id: Option[ID] = None, runInAuto: Boolean = true,
                     startOperation: Option[ID] = None, stepBackward: Boolean = false)
-  case class DriverWithState(driver: VD.Driver, driverState: VD.DriverState)
-  // Pairs of ID:s from the Runner.Setup.variableMap
-  case class AbilityDriverPair(abilityID: ID, driverID: ID)
+  case class ExtractedThings(allOperations: List[Thing] = List(),
+                             allDrivers: List[Thing] = List(), operation2Driver: Map[ID, ID] = Map())
 
   case class State(
                     activeRunner:           Option[Runner] = None,
-                    theModel:               List[IDAble] = List()
+                    theModel:               List[IDAble] = List(),
+                    extractedThings:        ExtractedThings = ExtractedThings(),
+                    driverStateMapper:      Map[ID, Map[String, SPValue]] = Map()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
     val modelMessObs =
-      BackendCommunication.getMessageObserver(onModelObsMes, APIModel.topicResponse)
+      BackendCommunication.getMessageObserver(onModelMessage, APIModel.topicResponse)
+    val deviceDriverHandler =
+      BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
 
-    def onModelObsMes(mess: SPMessage): Unit = {
-      mess.body.to[APIModel.Response].map{
+    /**
+      * onModelMessage
+      * @param mess SPMessage
+      */
+    def onModelMessage(mess: SPMessage): Unit = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIModel.Response].map {
         case APIModel.SPItems(items) => {
-          $.modState(_.copy(theModel = items)).runNow()
+          $.modState { state =>
+            // get all extracted things
+            val e: ExtractedThings = extractVariablesFromModel(items)
+            // for all drivers in extracted things
+            // map it against a the driverState if it does already exist in driverStateMapper
+            // else map it against a new string
+            val driverStates: Map[ID, Map[String, SPValue]] = e.allDrivers.map{driver =>
+              if (state.driverStateMapper.contains(driver.id))
+                driver.id -> state.driverStateMapper(driver.id)
+              else
+                driver.id -> Map("Not connected yet..." -> SPValue(""))
+            }.toMap
+            // update state
+            state.copy(theModel = items, extractedThings = e, driverStateMapper = state.driverStateMapper ++ driverStates)
+          }
         }
-        case x =>
+        case x => Callback.empty
       }
+      callback.foreach(_.runNow())
     }
 
-    def extractVariablesFromModel(model: List[IDAble]): (List[Thing], List[Thing], Map[ID,ID]) = {
+    /**
+      * filter out a list of operationThings, driverThings and the map between operations and drivers
+      * @param model - list of [[IDAble]]
+      * @return [[ExtractedThings]]
+      */
+    def extractVariablesFromModel(model: List[IDAble]): ExtractedThings = {
       // get runner
       val runnerSetupThings: List[Thing] = model.collect{case t: Thing if t.attributes.keys.contains("runnerID") => t}
       val runners: List[Setup] = runnerSetupThings.map(APIOperationRunner.runnerThingToSetup)
@@ -49,23 +74,39 @@ object StateHandlerWidget {
       val driverThings = model.collect{case t: Thing if t.attributes.keys.contains("driverName") => t}
       val operationThings = model.collect{case t: Thing if t.attributes.keys.contains("domain") => t}
 
-      (operationThings, driverThings, mapping)
+      ExtractedThings(operationThings, driverThings, mapping)
     }
 
-    def sendToModel(model: ID, mess: APIModel.Request) = Callback{ //  Send message to model
-      val header = SPHeader(from = "StateHandlerWidget", to = model.toString,
-        reply = SPValue("StateHandlerWidget"))
-      BackendCommunication.publish(SPMessage.make(header, mess), APIModel.topicRequest)
+    /**
+      * On Driver-message
+      * @param mess SPMessage
+      */
+    def onDriverMessage(mess: SPMessage): Unit = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
+        case APIDeviceDriver.DriverStateChange(_, id, newDriverState,_) => {
+          $.modState { state =>
+            // update only the drivers that the model has saved
+            // so find existing driver in driverStateMapper and update the state
+            val existingDriver: Option[(ID, Map[String, SPValue])] = state.driverStateMapper.find{_._1 == id}
+            existingDriver.map { d: (ID, Map[String, SPValue]) =>
+              state.copy(driverStateMapper = state.driverStateMapper + (d._1 -> newDriverState))
+            }.getOrElse(state)
+          }
+        }
+        case x => Callback.empty
+      }
+      callback.foreach(_.runNow())
     }
 
     def render(state: State): TagOf[html.Div] = {
-      val extracted: (List[Thing], List[Thing], Map[ID, ID]) = extractVariablesFromModel(state.theModel)
       <.div(
-        renderModel(state.theModel, operationThings = extracted._1, driverThings = extracted._2, operationDriverMap = extracted._3)
+        renderModel(state.theModel, state.extractedThings.allOperations,
+          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.driverStateMapper)
       )
     }
 
-    def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing], operationDriverMap: Map[ID, ID]) = {
+    def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing],
+                    operationDriverMap: Map[ID, ID], driverStates: Map[ID, Map[String, SPValue]]) = {
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -77,18 +118,12 @@ object StateHandlerWidget {
                 operationDriverMap.map { idPair =>
                   val opVar: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
                   val driverVar: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
-                  if(driverVar.name != "debug-driver" && opVar.name == "debug-op") {
-                    println(s"Pair is s$idPair")
-                    val a = theModel.find(_.id == idPair._1)
-                    print("Model: ")
-                    println(a.getOrElse("error-not-found"))
-                  }
                   <.tr(
                     <.td(opVar.name),
                     <.td(opVar.id.toString),
                     <.td("TODO"),// TODO: Read or Write or No master?
                     <.td(driverVar.name),
-                    <.td(driverVar.id.toString)
+                    driverStates(driverVar.id).map(s => <.td(s._1 + ":" + s._2)).toTagMod
                   )
                 }.toTagMod
               )
@@ -128,7 +163,7 @@ object StateHandlerWidget {
                     <.td(),
                     <.td("TODO"),// TODO: Read or Write or No master?
                     <.td(driver.name),
-                    <.td(driver.id.toString)
+                    driverStates(driver.id).map(s => <.td(s._1 + ":" + s._2)).toTagMod
                   )
                 }.toTagMod
               )
@@ -153,6 +188,8 @@ object StateHandlerWidget {
 
     def onUnmount() = Callback{
       println("StateHandlerWidget Unmouting")
+      modelMessObs.kill()
+      deviceDriverHandler.kill()
     }
   }
 
