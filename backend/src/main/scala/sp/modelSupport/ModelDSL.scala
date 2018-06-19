@@ -22,7 +22,7 @@ case object WriteOnly extends VariableKind
 case class cond(kind: String, guard: String, actions: String*)
 sealed trait ModelElement
 case class Tdv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) extends ModelElement
-case class Tv(name: String, initState: String, domain: List[String]) extends ModelElement
+case class Tv(name: String, initState: SPValue, domain: List[SPValue]) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
 case class To(name: String, ab: String, conds: List[cond]) extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
@@ -57,8 +57,8 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   var mes: List[ModelElement] = List()
 
   def dv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) = mes :+= Tdv(name, driverName, driverIdentifier, kind)
-  def v(name: String, initState: String, domain: List[String]) = mes :+= Tv(name, initState, domain)
-  def v(name: String, initState: String, domain: List[String],
+  def v(name: String, initState: SPValue, domain: List[SPValue]) = mes :+= Tv(name, initState, domain)
+  def v(name: String, initState: SPValue, domain: List[SPValue],
     driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) = {
     dv(name, driverName, driverIdentifier, kind)
     mes :+= Tv(name, initState, domain)
@@ -332,7 +332,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   val synthKind = "synthPre"
 
   lazy val variableNameDomainMap = vars.flatMap(v => {
-    v.attributes.getAs[Seq[String]]("domain").map(d => v.name -> d)
+    v.attributes.getAs[List[SPValue]]("domain").map(d => v.name -> d)
   }).toMap
 
   lazy val mModule = SimpleModuleFactory(moduleName)
@@ -372,7 +372,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   def addVariables() = {
     vars.foreach { v => for {
       domain <- variableNameDomainMap.get(v.name)
-      init <- v.attributes.getAs[String]("init")
+      init <- v.attributes.getAs[SPValue]("init")
       intInit <- getFromVariableDomain(v.name, init, "Problem with init") // get index value of the init variable
     } yield {
       // Todo: Here, the marked state is the same as the initial state, and no more than 1 marked state is allowed. This needs investigating..
@@ -443,7 +443,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
     case _ => false
   }
 
-  private def getFromVariableDomain(variable: String, value: String, errorMsg: String): Option[Int] = {
+  private def getFromVariableDomain(variable: String, value: SPValue, errorMsg: String): Option[Int] = {
     variableNameDomainMap.get(variable) match {
       case Some(domain) => domain.indexOf(value) match {
         case -1 => println(s"$errorMsg\nValue: $value is not in the domain of variable: $variable. The result will not be correct!"); None.get
@@ -458,7 +458,7 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
   def varInDomain(id: ID, i: Int) = {
     for {
       v <- vars.find(_.id == id)
-      domain <- v.attributes.getAs[List[String]]("domain")
+      domain <- v.attributes.getAs[List[SPValue]]("domain")
       value <- domain.lift(i)
     } yield {
       ValueHolder(value)
