@@ -93,6 +93,11 @@ package sp.devicehandler {
     case class SetUpVD(name: String, id: ID, resources: List[Resource], drivers: List[Driver], attributes: SPAttributes = SPAttributes()) extends Request
     // TODO: If needed, add a setup based on a struct and a model
     case class TerminateVD(id: ID) extends Request
+    case object TerminateAllVDs extends Request
+    case object TerminatedAllVDs extends Response
+    case class TerminatedVD(id :ID) extends Response
+
+
     case object GetVD extends Request
     // requests command (gets a SPACK and when applied, SPDone (and indirectly a StateEvent))
     case class VDCommand(resource: ID, stateRequest: Map[ID, SPValue], timeout: Int = 0) extends Request
@@ -126,6 +131,9 @@ package sp.devicehandler {
       import play.api.libs.json._
       implicit lazy val fSetUpVD:     JSFormat[SetUpVD]     = Json.format[SetUpVD]
       implicit lazy val fTerminateVD:     JSFormat[TerminateVD]     = Json.format[TerminateVD]
+      implicit lazy val fTerminatedVD:     JSFormat[TerminatedVD]     = Json.format[TerminatedVD]
+      implicit lazy val fTerminateAllVDs:     JSFormat[TerminateAllVDs.type ]     = deriveCaseObject[TerminateAllVDs.type]
+      implicit lazy val fTerminatedAllVDs:     JSFormat[TerminatedAllVDs.type ]     = deriveCaseObject[TerminatedAllVDs.type]
       implicit lazy val fGetVD:     JSFormat[GetVD.type]     = deriveCaseObject[GetVD.type]
       implicit lazy val fTheVD:     JSFormat[TheVD]     = Json.format[TheVD]
       implicit lazy val fVDCommand:     JSFormat[VDCommand]     = Json.format[VDCommand]
