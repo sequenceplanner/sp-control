@@ -30,13 +30,13 @@ case class Tresource(name: String, dvs: List[String] = List()) extends ModelElem
 case class Tdriver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) extends ModelElement
 case class Tsubmodel(name: String, model: List[ModelElement]) extends ModelElement
 case class Tx(name: String, exprs: List[String]) extends ModelElement
-
+case class TpostBuildHook(func: List[IDAble] => List[IDAble]) extends ModelElement
 
 trait ModelDSL extends BuildModel with SynthesizeModel {
   def buildModel(name: String = "") = {
     val idables = build(name, mes)
 
-    Try[List[IDAble]] {
+    val afterSynth = Try[List[IDAble]] {
       val (updOps,_,_) = synthesizeModel(idables)
       idables.filterNot(i=>updOps.exists(_.id==i.id))++updOps
     } match {
@@ -47,6 +47,9 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
         println("Synthesis failed: " + t.getMessage)
         idables
     }
+
+    val postHooks = mes.collect{ case bh: TpostBuildHook => bh }
+    postHooks.foldLeft(afterSynth){case (idables, hook) => hook.func(idables)}
   }
 
   def c(kind: String, guard: String, actions: String*) = cond(kind, guard, actions:_*)
@@ -64,12 +67,12 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
   def x(name: String, exprs: List[String]) = mes :+= Tx(name, exprs)
 
-
   def runner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) = mes :+= Trunner(name, initState, ops)
   def resource(name: String, dvs: List[String] = List()) = mes :+= Tresource(name, dvs)
   def driver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) = mes :+= Tdriver(name, driverType, setup)
   def use(name: String, other: ModelDSL) = mes :+= Tsubmodel(name, other.mes)
 
+  def addPostBuildHook(func: List[IDAble] => List[IDAble]) = mes :+= TpostBuildHook(func)
 }
 
 trait BuildModel {
@@ -144,11 +147,18 @@ trait BuildModel {
           val runningcond = parse(running)(abParseHelpers)
           val postcond = parse(post)(abParseHelpers)
           val resetcond = parse(reset)(abParseHelpers)
-          val a = Ability(nn(name), ID.newID, precond, runningcond, postcond, resetcond, List())
+
+          // find parameter ids. TODO: for now only search the same level...
+          val p = updVs.filter(v=>params.contains(unnn(v.name))).map(_.id)
+
+          val a = Ability(nn(name), ID.newID, precond, runningcond, postcond, resetcond, p)
           APIAbilityHandler.abilityToOperation(a)
       }
 
-      val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name)))
+      val deeperVs = deeperThings.collect { case t: Thing if t.attributes.keys.contains("domain") =>  t}
+      val opParseHelpersDeep = deeperVs ++ deeperVs.map(v=> v.copy(name = unnn(v.name)))
+      val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name))) ++ opParseHelpersDeep
+      println("parseHelper: " + opParseHelpers.map(_.name).mkString(","))
       val searchAbs = deeperThings.collect { case o: Operation => APIAbilityHandler.operationToAbility(o) }.flatten
       val opsAndMapping = m.model.collect {
         case item: To =>
@@ -264,11 +274,15 @@ trait BuildModel {
     val r = toplevel.model.collect { case r:Trunner => r }.head
     val dvTovMap = x._2
     val opAbMap = x._3
-    val includeOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
+    val mappedOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
     val init = x._1.collect { case t: Thing => t }.flatMap{t => t.attributes.get("init").map(v=>t.id->v) }.toMap
+    // ability -> params map
+    val absWithParams = x._1.collect { case o: Operation if o.attributes.getAs[String]("isa") == Some("Ability") &&
+      o.attributes.getAs[List[ID]]("parameters").getOrElse(List()) != List() => o }
+    val paramMap = absWithParams.flatMap {a => a.attributes.getAs[List[ID]]("parameters").map(l => a.id -> l.toSet) }.toMap
 
-    val runner = APIOperationRunner.Setup(r.name, ID.newID, includeOps,
-      opAbMap, init, dvTovMap, Map()) //TODO add parameters
+    val runner = APIOperationRunner.Setup(r.name, ID.newID, mappedOps,
+      opAbMap, init, dvTovMap, paramMap) //TODO add parameters
 
     val runnerThing = APIOperationRunner.runnerSetupToThing(runner)
 
