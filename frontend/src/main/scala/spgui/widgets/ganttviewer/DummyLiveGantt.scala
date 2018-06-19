@@ -32,7 +32,7 @@ object DummyLiveGantt {
         $.modState {
           s => s.copy(
             runnerID = stateEvent.runnerID,
-            oprState = s.oprState ++ stateEvent.state.mapValues(_.toString)
+            oprState = s.oprState ++ stateEvent.state.flatMap(kv => kv._2.asOpt[String].map(kv._1 -> _))
           )
         }
       }.runNow()
@@ -93,7 +93,7 @@ object DummyLiveGantt {
 object DummyGanttComponent {
 
   case class Props(abilityNames: Map[ID, String], oprState: Map[ID, String])
-  case class State(rows: js.Array[Row] = js.Array(), startTime: Option[js.Date] = None)
+  case class State(rows: Map[ID, Row] = Map(), startTime: Option[js.Date] = None)
 
   class Backend($: BackendScope[Props, State]) {
 
@@ -108,26 +108,32 @@ object DummyGanttComponent {
   }
 
   private val component = ScalaComponent.builder[Props]("DummyGanttComponent")
-    .initialState(State())
+    .initialStateFromProps { p =>
+      val rows = p.abilityNames.map { case (id, name) => id -> Row(name, js.Array()) }
+      State(rows)
+    }
     .renderBackend[Backend]
     .componentDidMount(ctx => Callback {
-      ctx.backend.spGantt = SPGantt(ctx.getDOMNode, SPGanttOptions(headers = js.Array("second"), viewScale = "2 seconds"))
+      ctx.backend.spGantt = SPGantt(ctx.getDOMNode, SPGanttOptions(headers = js.Array("second"), viewScale = "1 seconds"))
     })
     .componentWillReceiveProps { ctx =>
       val now = new js.Date()
-      val startTime: js.Date = ctx.state.startTime.getOrElse(now)
-      val nextRows = ctx.nextProps.abilityNames.values.map { name => // TODO map actual updates from oprState
-        Row(
-          name,
-          js.Array(
-            Task(name + " task name", startTime, now)
-          )
-        )
-      }.toJSArray
-      ctx.setState(State(nextRows, Some(startTime))) >> Callback.log(ctx.state.rows)
+      val startTime = ctx.state.startTime.getOrElse(now)
+      val nextRows = ctx.nextProps.oprState.map { case (id, oprStateStr) =>
+        val name = ctx.nextProps.abilityNames.getOrElse(id, id.toString)
+        val currentTasksOp = ctx.state.rows.get(id).map(_.tasks)
+        val currentTasks = currentTasksOp.getOrElse(js.Array())
+        val nextTasks: js.Array[Task] = oprStateStr match {
+          case "e" if currentTasks.isEmpty => js.Array(Task(name + " task name", now, now))
+          case "e" => js.Array(Task(name + " task name", currentTasks.head.from, now))
+          case _ => currentTasks
+        }
+        id -> Row(name, nextTasks)
+      }
+      ctx.setState(State(nextRows, Some(startTime)))
     }
     .componentDidUpdate(ctx => Callback {
-      ctx.backend.spGantt.setData(ctx.currentState.rows)
+      ctx.backend.spGantt.setData(ctx.currentState.rows.values.toJSArray)
     })
     .build
 

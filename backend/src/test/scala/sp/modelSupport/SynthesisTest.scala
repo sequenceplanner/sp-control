@@ -38,7 +38,7 @@ class SynthesisTest extends FreeSpec with Matchers {
   println
   println
 
-  val idables = t.buildModel()
+  val idables = t.buildModel("withPrefix")
   println
   println
   println
