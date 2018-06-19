@@ -163,12 +163,13 @@ class OperationRunner extends Actor
     } yield {
       b match {
         case x: sp.devicehandler.APIVirtualDevice.StateEvent =>
-          log.debug("we got a VD state: ")
-          x.state.foreach(kv => log.debug(kv.toString))
+          // log.debug("we got a VD state: ")
+          // x.state.foreach(kv => log.debug(kv.toString))
           newResourceState(x.state, startAbility, sendState)
         case x: sp.devicehandler.APIVirtualDevice.TheVD =>
           val state = x.resources.flatMap(_.state).toMap
           newResourceState(state, startAbility, sendState)
+        case _ =>
       }
 
 

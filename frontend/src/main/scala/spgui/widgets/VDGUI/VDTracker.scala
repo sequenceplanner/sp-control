@@ -108,6 +108,8 @@ object VDTracker {
         case APIVirtualDevice.StateEvent(resource, id, state, diff) => {
           $.modState(s => s.copy(latestVDeviceState = s.latestVDeviceState ++ state)).runNow()
         }
+        case APIVirtualDevice.TerminatedAllVDs =>
+          println("VDs terminated")
         case x =>
       }
     }
@@ -177,9 +179,16 @@ object VDTracker {
     def terminateAll(s: State) = Callback{
       terminateAbilities
       terminateDrivers(s.drivers) // Todo: also remove all drivers from gui disp? */
+      terminateVDs
       println("Terminating runners..")
       terminateRunners(s.latestRunnerState).runNow()
       // Todo: terminate virtualDevice
+    }
+
+    def terminateVDs = {
+      val h = SPHeader(from = "VDTrackerWidget", to = APIVirtualDevice.service)
+      val json = SPMessage.make(h, APIVirtualDevice.TerminateAllVDs)
+      BackendCommunication.publish(json, APIVirtualDevice.topicRequest)
     }
 
     def terminateAbilities = {

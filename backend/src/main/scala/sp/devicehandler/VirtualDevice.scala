@@ -70,22 +70,37 @@ class VirtualDeviceMaker extends Actor
       for {
         m <- mess
         h <- m.getHeaderAs[SPHeader] // add filter here if we want multiple makers
-        b <- m.getBodyAs[APIVirtualDevice.Request] if b.isInstanceOf[APIVirtualDevice.SetUpVD]
-        setup = b.asInstanceOf[APIVirtualDevice.SetUpVD]
+        b <- m.getBodyAs[APIVirtualDevice.Request]
       } yield {
-        log.debug("Setting up VD")
-        log.debug(setup.toString)
         val updH = h.swapToAndFrom()
-        if (vds.contains(setup.id)){
-          publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"VD with id ${setup.id} already exist")))
-        } else {
-          val a = context.actorOf(VirtualDevice.props(setup))
-          vds += setup.id -> a
-          context.watch(a)
-          publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updH, APISP.SPDone()))
+        b match {
+
+          case setup : APIVirtualDevice.SetUpVD =>
+            log.debug("Setting up VD")
+            log.debug(setup.toString)
+            if (vds.contains(setup.id)){
+            publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(updH, APISP.SPError(s"VD with id ${setup.id} already exist")))
+            } else {
+        val a = context.actorOf (VirtualDevice.props (setup) )
+        vds += setup.id -> a
+        context.watch (a)
+        publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
         }
+
+          case APIVirtualDevice.TerminateVD(id) =>
+            vds.get(id).foreach(_ ! PoisonPill)
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+          case APIVirtualDevice.TerminateAllVDs =>
+            vds.foreach(_._2 ! PoisonPill)
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+          case x =>
+        }
+
       }
-    case Terminated(x) => vds = vds.filter(_._2 == x)
+    case Terminated(x) => vds = vds.filterNot(_._2 == x) // remove VD from VDs map, send message that VD was terminated, if there are no more VDs: send that all have been terminated
+      vds.find(_._2 == x).foreach(vd => publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (SPHeader(from = APIVirtualDevice.service), APIVirtualDevice.TerminatedVD(vd._1) )))
+      if(vds.isEmpty) publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (SPHeader(from = APIVirtualDevice.service), APIVirtualDevice.TerminatedAllVDs ) )
   }
 
 
@@ -174,8 +189,8 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
             //log.debug("got a statechange:" + e)
             val oldrs = resourceState
             driverEvent(e)
-            log.debug("new driver state: " + driverState)
-            log.debug("new resource state: " + resourceState)
+            // log.debug("new driver state: " + driverState)
+            // log.debug("new resource state: " + resourceState)
 
             resourceState.filter { case (nid, ns) =>
               oldrs.get(nid) match {

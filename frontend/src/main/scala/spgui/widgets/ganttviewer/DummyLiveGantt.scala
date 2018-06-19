@@ -32,7 +32,14 @@ object DummyLiveGantt {
         $.modState {
           s => s.copy(
             runnerID = stateEvent.runnerID,
-            oprState = s.oprState ++ stateEvent.state.flatMap(kv => kv._2.asOpt[String].map(kv._1 -> _))
+            oprState = s.oprState ++ stateEvent.state.flatMap { kv =>
+              kv._2.asOpt[String] match {
+                case Some("i") => Some(kv._1 -> "i")
+                case Some("e") => Some(kv._1 -> "e")
+                case Some("f") => Some(kv._1 -> "f")
+                case _ => None
+              }
+            }
           )
         }
       }.runNow()
@@ -63,6 +70,7 @@ object DummyLiveGantt {
     def render(s: State) = {
       <.div(
         "Open VDTracker -> Create model \"DummyExample\" -> click both Launch buttons to get data",
+        /*
         <.button("getRunner", ^.onClick --> getAbilityNames(s.runnerID)),
         <.div(s.abilityNames.mkString),
         <.ul(
@@ -70,6 +78,7 @@ object DummyLiveGantt {
             <.li(s.abilityNames.get(id).getOrElse(id.toString) + " state: ", state)
           }
         ),
+        */
         DummyGanttComponent(s.abilityNames, s.oprState)
       )
     }
@@ -93,7 +102,10 @@ object DummyLiveGantt {
 object DummyGanttComponent {
 
   case class Props(abilityNames: Map[ID, String], oprState: Map[ID, String])
-  case class State(rows: Map[ID, Row] = Map(), startTime: Option[js.Date] = None)
+  case class State(
+                    rows: Map[ID, (Boolean, Row)] = Map(), // operation ID -> (isActive, gantt-Row)
+                    startTime: Option[js.Date] = None
+                  )
 
   class Backend($: BackendScope[Props, State]) {
 
@@ -101,17 +113,19 @@ object DummyGanttComponent {
 
     def render(p: Props) = {
       <.div(
-        "DummyGanttComponent",
         HtmlTagOf[dom.html.Element]("gantt-component") // becomes <gantt-component></gantt-component>
       )
     }
   }
 
   private val component = ScalaComponent.builder[Props]("DummyGanttComponent")
+    /*
     .initialStateFromProps { p =>
-      val rows = p.abilityNames.map { case (id, name) => id -> Row(name, js.Array()) }
+      val rows = p.abilityNames.map { case (id, name) => id -> (false, Row(name, js.Array())) }
       State(rows)
     }
+    */
+    .initialState(State())
     .renderBackend[Backend]
     .componentDidMount(ctx => Callback {
       ctx.backend.spGantt = SPGantt(ctx.getDOMNode, SPGanttOptions(headers = js.Array("second"), viewScale = "1 seconds"))
@@ -121,19 +135,23 @@ object DummyGanttComponent {
       val startTime = ctx.state.startTime.getOrElse(now)
       val nextRows = ctx.nextProps.oprState.map { case (id, oprStateStr) =>
         val name = ctx.nextProps.abilityNames.getOrElse(id, id.toString)
-        val currentTasksOp = ctx.state.rows.get(id).map(_.tasks)
+        val currentIsActive = ctx.state.rows.get(id).map(_._1).getOrElse(false)
+        val currentTasksOp = ctx.state.rows.get(id).map(_._2.tasks)
         val currentTasks = currentTasksOp.getOrElse(js.Array())
-        val nextTasks: js.Array[Task] = oprStateStr match {
-          case "e" if currentTasks.isEmpty => js.Array(Task(name + " task name", now, now))
-          case "e" => js.Array(Task(name + " task name", currentTasks.head.from, now))
-          case _ => currentTasks
+        val (nextIsActive, nextTasks): (Boolean, js.Array[Task]) = (currentIsActive, oprStateStr) match {
+          case (_, "e") if currentTasks.isEmpty => (true, js.Array(Task(name, now, now)))
+          case (false, "e") => (true, currentTasks :+ Task(name, now, now))
+          case (true, "e") => (true, currentTasks.init :+ Task(name, currentTasks.last.from, now))
+          case (_, "f") => (false, currentTasks)
+          case (_, "i") => (false, currentTasks)
+          case _ => (false, currentTasks)
         }
-        id -> Row(name, nextTasks)
+        id -> (nextIsActive, Row(name, nextTasks))
       }
       ctx.setState(State(nextRows, Some(startTime)))
     }
     .componentDidUpdate(ctx => Callback {
-      ctx.backend.spGantt.setData(ctx.currentState.rows.values.toJSArray)
+      ctx.backend.spGantt.setData(ctx.currentState.rows.values.map(_._2).toJSArray)
     })
     .build
 
