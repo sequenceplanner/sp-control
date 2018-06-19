@@ -190,7 +190,7 @@ object StateHandlerWidget {
           <.td("Operation ID"),
           <.td("Read/Write"),
           <.td("Driver Name"),
-          <.td("Driver ID")
+          <.td("Driver Value")
         )
       )
     }
