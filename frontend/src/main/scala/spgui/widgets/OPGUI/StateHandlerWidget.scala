@@ -101,7 +101,7 @@ object StateHandlerWidget {
       */
     def onVDMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
-        case APIVirtualDevice.StateEvent(_, id, newDriverStates,_) => {
+        case APIVirtualDevice.StateEvent(_, _, newDriverStates,_) => {
           $.modState(state => state.copy(virtualDeviceState = state.virtualDeviceState ++ newDriverStates))
         }
         case x => Callback.empty
