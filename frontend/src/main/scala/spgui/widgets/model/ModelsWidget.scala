@@ -175,6 +175,7 @@ object ModelsWidget {
     }
 
     def render(props: Props, state: State): VdomElement = {
+      println(props.activeModel.map(_.items))
       <.div(
         btnWithTags("", onCreateModel(), "fa fa-bolt", " Create test model", small = false)(^.className := css.mainButton.htmlClass),
         btnWithTags("", onRefreshModels(), "fa fa-refresh", " Refresh models", small = false)(^.className := css.mainButton.htmlClass),
@@ -196,7 +197,7 @@ object ModelsWidget {
       }.getOrElse(Callback.empty)
 
       circuitCallback >> Callback {
-        ModelCommunication.postRequest(modelId, Model.UpdateModelAttributes(Some(newName), None))
+        ModelCommunication.Recipient.Model.postRequest(modelId, Model.UpdateModelAttributes(Some(newName), None))
       }
     }
 
@@ -223,29 +224,29 @@ object ModelsWidget {
 
     def onPreviewModel(props: Props, modelId: ID): Callback =  {
       $.modState((State.uiState ^|-> UIState.selectedModelId).set(Some(modelId))) >>
-      Callback { ModelCommunication.postRequest(modelId, Model.GetItemList()) }
+      Callback { ModelCommunication.Recipient.Model.postRequest(modelId, Model.GetItemList()) }
     }
 
     def onExportModel(props: Props, modelId: ID): Callback = Callback {
-      ModelCommunication.postRequest(modelId, Model.ExportModel)
+      ModelCommunication.Recipient.Model.postRequest(modelId, Model.ExportModel)
     }
 
     def onDeleteModel(props: Props, modelId: ID): Callback = props.proxy.dispatchCB(RemoveModel(modelId))
 
     def onRevertVersion(props: Props, modelId: ID, key: Int): Callback = Callback {
-      ModelCommunication.postRequest(modelId, Model.RevertModel(key))
+      ModelCommunication.Recipient.Model.postRequest(modelId, Model.RevertModel(key))
     }
 
     def onRefreshModels(): Callback = Callback {
-      ModelCommunication.postRequest(ModelMaker.GetModels)
+      ModelCommunication.Recipient.Model.postRequest(ModelMaker.GetModels)
     }
 
     def onAddDummyItems(props: Props, modelId: ID): Callback = Callback {
-      ModelCommunication.postRequest(modelId, Model.PutItems(testModel))
+      ModelCommunication.Recipient.Model.postRequest(modelId, Model.PutItems(testModel))
     }
 
     def onCreateModel(): Callback = Callback {
-      ModelCommunication.postRequest(ModelMaker.CreateModel("Test Model"))
+      ModelCommunication.Recipient.Model.postRequest(ModelMaker.CreateModel("Test Model"))
     }
 
     def onUnmount(): Callback = Callback.empty

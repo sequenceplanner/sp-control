@@ -73,6 +73,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
   val getVD = makeMess(SPHeader(from = handlerID.toString, to = vd.toString), APIVirtualDevice.GetVD)
   publish(APIVirtualDevice.topicRequest, getVD)
 
+
   override def receive = {
 
     case x: String => handleRequests(x)
@@ -279,7 +280,6 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
     }
 
   }
-
 }
 
 trait AbilityComm {
@@ -312,7 +312,6 @@ trait AbilityComm {
   } yield {
     (h, b)
   }
-
 
   def makeMess(h: SPHeader, b: APIAbilityHandler.Response) = SPMessage.makeJson[SPHeader, APIAbilityHandler.Response](h, b)
   def makeMess(h: SPHeader, b: APIVirtualDevice.Request) = SPMessage.makeJson[SPHeader, APIVirtualDevice.Request](h, b)

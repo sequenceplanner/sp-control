@@ -3,18 +3,21 @@ package spgui
 import sp.domain._
 import spgui.availablemodelscircuit._
 import spgui.communication.BackendCommunication
-import sp.models.{APIModelMaker => ModelMaker}
-import sp.models.{APIModel => Model}
+import sp.models.{APIModel, APIModelMaker => ModelMaker}
 import SPMessageUtil.BetterSPMessage
 import play.api.libs.json.JsString
+import sp.abilityhandler.APIAbilityHandler
+import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
+import sp.runners.APIOperationRunner
+import sp.vdtesting.APIVDTracker
 
 object ModelCommunication {
   private val websocketObserver = BackendCommunication.getWebSocketStatusObserver(
-    callBack = isConnected => if (isConnected) postRequest(ModelMaker.GetModels),
-    topic = ModelMaker.topicResponse
+    callBack = isConnected => if (isConnected) Recipient.Model.postRequest(ModelMaker.GetModels),
+    topic = APIModel.topicResponse
   )
 
-  private val topicHandler = BackendCommunication.getMessageObserver(message => handleMess(message), ModelMaker.topicResponse)
+  private val topicHandler = BackendCommunication.getMessageObserver(onReceiveMessage, APIModel.topicResponse)
 
   type UnsubscribeFn = () => Unit
 
@@ -41,30 +44,30 @@ object ModelCommunication {
   /**
     * Handles responses from a specific model.
     */
-  def onModelResponse(state: ModelsCircuitState, header: SPHeader, res: Model.Response): Unit = {
+  def onModelResponse(state: ModelsCircuitState, header: SPHeader, res: APIModel.Response): Unit = {
     res match {
-      case info: Model.ModelInformation =>
+      case info: APIModel.ModelInformation =>
         val value = state.models.get(info.id)
         dispatchAction(ModelMock.info.set(Some(info)), UpdateModel)(value)
 
-      case Model.ModelHistory(id, history) =>
+      case APIModel.ModelHistory(id, history) =>
         val value = state.models.get(id)
         dispatchAction(ModelMock.history.set(Some(history)), UpdateModel)(value)
 
 
-      case Model.SPItems(items) =>
+      case APIModel.SPItems(items) =>
         val modelId = JsString(header.from).asOpt[ID]
         modelId.foreach { id =>
           ModelsCircuit.dispatch(SetItems(id, items))
         }
 
-      case Model.ModelUpdate(modelId, version, count, _, _, _) =>
-        postRequest(modelId, Model.GetModelHistory)
+      case APIModel.ModelUpdate(modelId, version, count, _, _, _) =>
+        ModelCommunication.Recipient.Model.postRequest(modelId, APIModel.GetModelHistory)
 
         val value = state.models.get(modelId)
         dispatchAction(
           ModelMock.info.modify(_.map { info =>
-            Model.ModelInformation(info.name, info.id, version, count, info.attributes)
+            APIModel.ModelInformation(info.name, info.id, version, count, info.attributes)
           }),
           UpdateModel
         )(value)
@@ -79,8 +82,8 @@ object ModelCommunication {
     res match {
       case ModelMaker.ModelList(modelIds) =>
         modelIds.foreach { m =>
-          postRequest(m, Model.GetModelInfo)
-          postRequest(m, Model.GetModelHistory)
+          Recipient.Model.postRequest(m, APIModel.GetModelInfo)
+          Recipient.Model.postRequest(m, APIModel.GetModelHistory)
         }
 
         ModelsCircuit.dispatch(AddMockModelIds(modelIds))
@@ -96,36 +99,103 @@ object ModelCommunication {
     }
   }
 
-  def handleMess(message: SPMessage): Unit = {
-    val response = message.oneOf[ModelMaker.Response].or[Model.Response]
+  def onReceiveMessage(message: SPMessage): Unit = {
+    val response = message.oneOf[ModelMaker.Response].or[APIModel.Response]
     val state = ModelsCircuit.readState()
 
     for (header <- response.header; body <- response.body) {
       body match {
         case res: ModelMaker.Response => onModelMakerResponse(state, res)
-        case res: Model.Response => onModelResponse(state, header, res)
+        case res: APIModel.Response => onModelResponse(state, header, res)
         case _ => Unit
       }
     }
-
-
   }
 
-  /**
-    * Post a request to the ModelMaker
-    */
-  def postRequest(request: ModelMaker.Request): Unit = post(request, ModelMaker.service)
+  trait Recipient {
+    protected def post[R](body: R, from: String, to: String, topic: String)(implicit writes: JSWrites[R]): Unit = {
+      val h = SPHeader(from = from, to = to, reply = SPValue("ModelCommunication"))
 
-  /**
-    * Post a request to a specific model, given by the modelId
-    */
-  def postRequest(modelId: ID, request: Model.Request): Unit = post(request, modelId.toString)
+      val json = SPMessage.make(h, body)
+      BackendCommunication.publish(json, topic)
+    }
+  }
 
+  object Recipient {
 
-  private def post[T](body: T, to: String)(implicit writes: JSWrites[T]): Unit = {
-    val h = SPHeader(from = "ModelCommunication", to = to, reply = SPValue("ModelCommunication"))
+    case object Model extends Recipient {
+      def postRequest(modelId: ID, request: APIModel.Request, from: String)(implicit writes: JSWrites[APIModel.Request]): Unit = {
+        val to = modelId.toString
+        post(request, from, to, topic = APIModel.topicRequest)
+      }
 
-    val json = SPMessage.make(h, body)
-    BackendCommunication.publish(json, Model.topicRequest)
+      def postRequest(modelId: ID, request: APIModel.Request)(implicit writes: JSWrites[APIModel.Request]): Unit = {
+        postRequest(modelId, request, "ModelCommunication")
+      }
+
+      def postRequest(request: ModelMaker.Request, from: String): Unit = {
+        post(
+          request,
+          from,
+          to = ModelMaker.service,
+          topic = ModelMaker.topicRequest
+        )
+      }
+
+      def postRequest(request: ModelMaker.Request): Unit = postRequest(request, "ModelCommunication")
+    }
+
+    case object OperationRunner extends Recipient {
+      def postRequest(request: APIOperationRunner.Request): Unit = {
+        post(
+          request,
+          from = "VDTrackerWidget",
+          to = APIOperationRunner.service,
+          topic = APIOperationRunner.topicRequest
+        )
+      }
+    }
+
+    case object Device extends Recipient {
+      def postRequest(request: APIVirtualDevice.Request): Unit = {
+        post(
+          request,
+          from = "VDTrackerWidget",
+          to = APIVirtualDevice.service,
+          topic = APIVirtualDevice.topicRequest
+        )
+      }
+
+      def postRequest(request: APIVDTracker.Request): Unit = {
+        post(
+          request,
+          from = "VDTrackerWidget",
+          to = APIVDTracker.service,
+          topic = APIVDTracker.topicRequest
+        )
+      }
+
+      def postRequest(request: APIDeviceDriver.Request): Unit = {
+        post(
+          request,
+          from = "VDTrackerWidget",
+          to = "DriverService",
+          topic = APIDeviceDriver.topicRequest
+        )
+      }
+    }
+
+    case object AbilityHandler extends Recipient {
+      def postRequest(request: APIAbilityHandler.Request): Unit = {
+        post(
+          request,
+          from = "VDTrackerWidget",
+          to = APIAbilityHandler.service,
+          topic = APIAbilityHandler.topicRequest
+        )
+      }
+
+    }
+
   }
 }
