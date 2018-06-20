@@ -38,7 +38,7 @@ object Widgets {
 //      ("VolvoSchedulerWidget",        widgets.virtcom.VolvoSchedulerWidget(),             3, 4),
       ("VDTracker",                   widgets.VDGUI.VDTracker(),                      5, 5),
       ("HumanInstructions",           widgets.unification.HumanInstructionsWidget(),      5, 5),
-      ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 5),
+      ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 6),
       ("ResourceWidget",              widgets.VDGUI.ResourceWidget(),                     5, 5),
       ("OperationRunnerWidget",       widgets.OPGUI.OperationRunnerWidget(),              6, 6),
       ("StateHandlerWidget",          widgets.OPGUI.StateHandlerWidget(),                 6, 6)
