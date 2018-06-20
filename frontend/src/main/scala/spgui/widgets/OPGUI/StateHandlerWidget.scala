@@ -132,8 +132,11 @@ object StateHandlerWidget {
     def renderModel(operationThings: List[Thing], driverThings: List[Thing],
                     operationDriverMap: Map[ID, ID], virtualDeviceState: Map[ID, SPValue]) =
     {
-      println(s"Driver Things: $driverThings")
-      println(s"Operation Things: $operationThings")
+      val sortedDriverlessOperationThings =
+        operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id))
+      val sortedOperationlessDriverThings =
+        driverThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.values.toList.contains(thing.id))
+
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -147,7 +150,6 @@ object StateHandlerWidget {
                 operationDriverMap.map { idPair =>
                   val opThing: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opThing"))
                   val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverThing"))
-                  println(s"The pair is $idPair with a $opThing [Op] and a $driverThing [Dv]")
                   <.tr(
                     <.td(opThing.name),
                     <.td(opThing.id.toString),
@@ -164,13 +166,12 @@ object StateHandlerWidget {
           <.details(^.open := "open",  ^.className := "details-empty-operations",
             <.summary("Operation with no Driver"),
             <.table(
-              ^.className := "table table-striped",  ^.className := "table-empty-operations",
-              tableHead(),
+            ^.className := "table table-striped",  ^.className := "table-empty-operations",
+            tableHead(),
               <.tbody(
                 // for all operation things that do not have its id in operationDriverMap
                 // print the operation
-                operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id)).map { operation =>
-                  println(s"En tom operation $operation")
+                sortedDriverlessOperationThings.map { operation =>
                   <.tr(
                     <.td(operation.name),
                     <.td(operation.id.toString),
@@ -182,7 +183,7 @@ object StateHandlerWidget {
               )
             )
           )
-        ).when(operationThings.nonEmpty),
+        ).when(sortedDriverlessOperationThings.nonEmpty),
         <.div(
           <.details(^.open := "open", ^.className := "details-empty-drivers",
             <.summary("Driver with no Operation"),
@@ -192,20 +193,19 @@ object StateHandlerWidget {
               <.tbody(
                 // for all driver things that do not have its id in operationDriverMap
                 // print the driver
-                driverThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.values.toList.contains(thing.id))
-                  .map { driverThing =>
-                    <.tr(
-                      <.td(),
-                      <.td(),
-                      <.td(""),// TODO: Read or Write or No master?
-                      <.td(driverThing.name),
-                      <.td(virtualDeviceState(driverThing.id).toString())
-                    )
-                  }.toTagMod
+                sortedOperationlessDriverThings.map { driverThing =>
+                  <.tr(
+                    <.td(),
+                    <.td(),
+                    <.td(""),// TODO: Read or Write or No master?
+                    <.td(driverThing.name),
+                    <.td(virtualDeviceState(driverThing.id).toString())
+                  )
+                }.toTagMod
               )
             )
           )
-        ).when(driverThings.nonEmpty)
+        ).when(sortedOperationlessDriverThings.nonEmpty)
       )
     }
 
