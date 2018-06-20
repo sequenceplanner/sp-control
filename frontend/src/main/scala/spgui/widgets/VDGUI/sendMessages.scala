@@ -30,7 +30,7 @@ object sendMessages {
     BackendCommunication.publish(json, APIVDTracker.topicRequest)
   }
 
-  def resetGUI(s :State) = {
+  def resetVDGUI(s :State) = {
     val h = SPHeader(from = "VDTrackerWidget")
     val json = SPMessage.make(h, APIVDTracker.ResetGUI)
     BackendCommunication.publish(json, APIVDTracker.topicRequest)

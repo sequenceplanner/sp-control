@@ -3,34 +3,26 @@ package spgui.widgets.VDGUI
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.devicehandler.VD
-import sp.devicehandler.VD.OneToOneMapper
 import spgui.circuit.{SPGUICircuit, SetTheme}
 import spgui.SPWidget
 import spgui.components.Icon
 import spgui.components.SPWidgetElements
 import spgui.communication._
-import sp.domain.SPAttributes._
-import sp.domain.SPMessage
 import sp.domain.Logic._
-import sp.domain.SPValue
 import sp.models.{APIModel => mapi}
 
 import sendMessages._
 
-import scalajs.js._
 import sp.domain._
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.vdtesting.APIVDTracker
-import spgui.widgets.VDGUI.sendMessages.sendToDeviceDriver
 import spgui.widgets.virtcom.Style
 
 object VDTracker {
-  //import sp.devicehandler._
   import sp.devicehandler.APIDeviceDriver
   import sp.runners.APIOperationRunner
   import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.APIVirtualDevice
-  import spgui.widgets.virtcom.dropdownWithScroll.dropdownWScroll
 
   case class State(latestRunnerState: Map[ID, Map[ID, SPValue]] = Map(),
     latestActiveRunner: Option[ID] = None,
@@ -168,8 +160,7 @@ object VDTracker {
       terminateVDs
       println("Terminating runners..")
       terminateRunners(s.latestRunnerState)
-      resetGUI(s)
-      // todo: should wait for new state run runner service... and other responses from backend
+      resetVDGUI(s) // todo: should wait for responses from backend
       $.modState(s=>s.copy(latestRunnerState = Map(), latestAbilityState = Map(), latestVDeviceState = Map())).runNow()
     }
 
