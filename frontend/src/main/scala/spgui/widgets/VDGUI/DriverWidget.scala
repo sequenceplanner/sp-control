@@ -2,11 +2,12 @@ package spgui.widgets.VDGUI
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.{VD, APIDeviceDriver}
+import sp.devicehandler.{APIDeviceDriver, VD}
 import sp.domain._
 import spgui.communication._
 import spgui.components.SPWidgetElements
 import sendMessages._
+import sp.vdtesting.APIVDTracker
 
 
 object DriverWidget {
@@ -18,6 +19,15 @@ object DriverWidget {
 
   private class Backend($: BackendScope[Unit, State]) {
     val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
+    val vdTrackingHandler = BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicRequest)
+
+    def onVDTrackerMessage(mess: SPMessage) : Unit = {
+      mess.getBodyAs[APIVDTracker.Request].map {
+        case APIVDTracker.ResetGUI =>
+          $.modState ( _.copy(cards = List() ) ).runNow()
+        case x =>
+      }
+    }
 
     def onDriverMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
