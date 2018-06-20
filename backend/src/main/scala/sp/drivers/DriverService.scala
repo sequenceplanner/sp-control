@@ -13,6 +13,7 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
   triggerServiceRequestComm(statusResponse)
   subscribe(api.topicRequest)
   subscribe(api.topicResponse)
+  subscribe(sp.vdtesting.APIVDTracker.topicRequest)
 
   val Online = "Online"
   val Offline  = "Offline"
@@ -29,7 +30,8 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
       for {
         mess <- SPMessage.fromJson(x)
         h  <- mess.getHeaderAs[SPHeader]
-        b <- if(mess.getBodyAs[api.Request].nonEmpty) mess.getBodyAs[api.Request] else mess.getBodyAs[api.Response]
+        b <- if(mess.getBodyAs[api.Request].nonEmpty) {mess.getBodyAs[api.Request]}
+                else{ if(mess.getBodyAs[api.Response].nonEmpty) {mess.getBodyAs[api.Response]} else {mess.getBodyAs[sp.vdtesting.APIVDTracker.Request ]}}
       } yield {
         val spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
@@ -41,10 +43,13 @@ class DriverService extends Actor  with ActorLogging with  sp.service.ServiceSup
                 drivers += driver.id -> (driver, driverState, Online) // if a new or already existing driver is received, the map should be updated with the driver, state and active status: Online
               case api.DriverTerminated(id) => // Todo: Sometimes this message is not received, instead the driver will show as unresponsive even tho it is terminated
                 drivers += id -> drivers(id).copy(_3 = Offline) // if the driver is terminated, its active status is set to Offline
+              case sp.vdtesting.APIVDTracker.ResetGUI =>
+                drivers = Map()
               case other =>
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
       }
+
 
     case Tick =>
       val spHeader = SPHeader(from = DriverServiceInfo.attributes.service, reqID = instanceID)

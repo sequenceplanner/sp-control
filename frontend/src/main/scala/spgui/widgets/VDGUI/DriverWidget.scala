@@ -2,11 +2,12 @@ package spgui.widgets.VDGUI
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.{VD, APIDeviceDriver}
+import sp.devicehandler.{APIDeviceDriver, VD}
 import sp.domain._
 import spgui.communication._
 import spgui.components.SPWidgetElements
 import sendMessages._
+import sp.vdtesting.APIVDTracker
 
 /** Widget for visualising the drivers status */
 object DriverWidget {
@@ -21,6 +22,15 @@ object DriverWidget {
   private class Backend($: BackendScope[Unit, State]) {
     val driverHandler =
       BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
+    val vdTrackerHandler = BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicRequest)
+
+    def onVDTrackerMessage(mess: SPMessage) : Unit = {
+      mess.getBodyAs[APIVDTracker.Request].map {
+        case APIVDTracker.ResetGUI =>
+          $.modState ( _.copy(cards = List() ) ).runNow()
+        case x => Callback.empty
+      }
+    }
 
     /** Handle APIDeviceDriver-messages.
       *
@@ -72,7 +82,7 @@ object DriverWidget {
           status = card.status,
           typ = card.driver.driverType,
           setup = card.driver.setup,
-          state = card.driverState //c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
+          state = card.driverState
         )))
       )
     }
@@ -84,6 +94,7 @@ object DriverWidget {
     def onUnmount: Callback = Callback{
       println("DriverWidget Unmouting")
       driverHandler.kill()
+      vdTrackerHandler.kill()
     }
 
     /** When the widget is mounting, try to get a list of drivers from backend

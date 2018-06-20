@@ -161,9 +161,11 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
 
   val buttonContainer = style(
+    /*
     position.absolute,
     bottom(0 px),
     margin(4 px)
+    */
   )
 
   
