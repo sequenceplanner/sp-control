@@ -1,10 +1,8 @@
 package spgui.widgets.OPGUI
 
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.TagOf
 import japgolly.scalajs.react.vdom.html_<^._
-import org.scalajs.dom.html
-import sp.devicehandler.{APIVirtualDevice, VD}
+import sp.devicehandler.{APIVirtualDevice}
 import sp.domain.Logic._
 import sp.domain._
 import sp.models.APIModel
@@ -19,10 +17,20 @@ object StateHandlerWidget {
   case class ExtractedThings(allOperations: List[Thing] = List(),
                              allDrivers: List[Thing] = List(), operation2Driver: Map[ID, ID] = Map())
 
+  /** The React-State of the Widget.
+    * This Widget should be able to:
+    *     1. stop the runner and go into manual-mode
+    *     2. update the [[Thing]]:s from the model
+    *     3. update the states of the VD
+    *
+    * @param activeRunner Current Runner
+    * @param extractedThings The things from the model
+    * @param virtualDeviceState The states of the Virtual Device
+    */
   case class State(
                     activeRunner:           Option[Runner] = None,
                     extractedThings:        ExtractedThings = ExtractedThings(),
-                    driverStates:           Map[ID, SPValue] = Map()
+                    virtualDeviceState:     Map[ID, SPValue] = Map()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -45,13 +53,13 @@ object StateHandlerWidget {
             // map it against a the driverState if it does already exist in driverStateMapper
             // else map it against a new ID
             val newDriverStates: Map[ID, SPValue] = e.allDrivers.map{driver =>
-              if (state.driverStates.contains(driver.id))
-                driver.id -> state.driverStates(driver.id)
+              if (state.virtualDeviceState.contains(driver.id))
+                driver.id -> state.virtualDeviceState(driver.id)
               else
                 driver.id -> SPValue("Not connected")
             }.toMap
             // update state
-            state.copy(extractedThings = e, driverStates = state.driverStates ++ newDriverStates)
+            state.copy(extractedThings = e, virtualDeviceState = state.virtualDeviceState ++ newDriverStates)
           }
         }
         case x => Callback.empty
@@ -77,44 +85,45 @@ object StateHandlerWidget {
       ExtractedThings(operationThings, driverThings, mapping)
     }
 
-    /**
-      * On Driver-message
+    /** On VirtualDevice-message
+      *
       * @param mess SPMessage
       */
     def onVDMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
         case APIVirtualDevice.StateEvent(_, id, newDriverStates,_) => {
-          $.modState(state => state.copy(driverStates = state.driverStates ++ newDriverStates))
+          $.modState(state => state.copy(virtualDeviceState = state.virtualDeviceState ++ newDriverStates))
         }
         case x => Callback.empty
       }
       callback.foreach(_.runNow())
     }
 
-    /**
-      * render-function in Backend
-      * @param state State
-      * @return
+    /** Render-function in Backend
+      *
+      * @param state Current state in Backend-class
+      * @return The GUI
       */
-    def render(state: State): TagOf[html.Div] = {
+    def render(state: State) = {
       <.div(
         renderModel(state.extractedThings.allOperations,
-          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.driverStates)
+          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.virtualDeviceState)
       )
     }
 
     /** Render the model in state handler
       *
-      * @param operationThings List of [[Thing]]
-      * @param driverThings All driverthings in model
+      * @param operationThings List of the operationThings in model
+      * @param driverThings List of the driverThings in model
       * @param operationDriverMap The id:s of the operations that is connected to a driverValue. Map of [[ID]] to [[ID]].
-      * @param driverStates The Driver-values. Map of [[ID]] to [[SPValue]])
+      * @param virtualDeviceState The Driver-values. Map of [[ID]] to [[SPValue]])
       * @return The scene to the widget
       */
     def renderModel(operationThings: List[Thing], driverThings: List[Thing],
-                    operationDriverMap: Map[ID, ID], driverStates: Map[ID, SPValue]) =
+                    operationDriverMap: Map[ID, ID], virtualDeviceState: Map[ID, SPValue]) =
     {
       println(s"Driver Things: $driverThings")
+      println(s"Operation Things: $operationThings")
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -123,18 +132,18 @@ object StateHandlerWidget {
               ^.className := "table table-striped", ^.className := "table-pairs",
               tableHead(),
               <.tbody(
-                // for all pairs of operation-driverStates
+                // for all pairs of operation-virtualDeviceState
                 // print the things
                 operationDriverMap.map { idPair =>
-                  val opThing: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
-                  val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
+                  val opThing: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opThing"))
+                  val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverThing"))
                   println(s"The pair is $idPair with a $opThing [Op] and a $driverThing [Dv]")
                   <.tr(
                     <.td(opThing.name),
                     <.td(opThing.id.toString),
                     <.td(""),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
-                    <.td(driverStates(driverThing.id).toString())
+                    <.td(virtualDeviceState(driverThing.id).toString())
                   )
                 }.toTagMod
               )
@@ -180,7 +189,7 @@ object StateHandlerWidget {
                       <.td(),
                       <.td(""),// TODO: Read or Write or No master?
                       <.td(driverThing.name),
-                      <.td(driverStates(driverThing.id).toString())
+                      <.td(virtualDeviceState(driverThing.id).toString())
                     )
                   }.toTagMod
               )
@@ -190,7 +199,11 @@ object StateHandlerWidget {
       )
     }
 
-    def tableHead() = {
+    /** Table head for all tables used in widget
+      *
+      * @return A pre-defined <.thead(...)
+      */
+    def tableHead = {
       <.thead(
         <.tr(
           <.td("Operation Name"),
@@ -202,7 +215,10 @@ object StateHandlerWidget {
       )
     }
 
-
+    /** When the widget is unmounting
+      *
+      * @return Callback to kill message-Observers
+      */
     def onUnmount = Callback{
       println("StateHandlerWidget Unmouting")
       modelMessObs.kill()
