@@ -251,7 +251,7 @@ object SopVisualiser {
         )
         case s: Sequence => traverseSequence(s)
         case s: OperationNode => RenderOperationNode(
-          nodeId = s.nodeID,
+          nodeId = s.operation,
           w = getTreeWidth(s),
           h = getTreeHeight(s),
           sop = s

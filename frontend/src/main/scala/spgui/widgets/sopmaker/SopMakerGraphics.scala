@@ -20,8 +20,7 @@ object SopMakerGraphics {
   }
 
   def op(label: String, x: Int, y: Int, state: String = "NoneState") = {
-    <.span(
-      state,
+    <.span(    
       ^.className := SopMakerCSS.sopComponent.htmlClass,
       ^.style := {
         var rect =  (js.Object()).asInstanceOf[Rect]
@@ -31,79 +30,97 @@ object SopMakerGraphics {
         rect.width = SopMakerWidget.opWidth
         rect
       },
-      svg.svg(
-        svg.width := SopMakerWidget.opWidth.toInt,
-        svg.height:= SopMakerWidget.opHeight.toInt,
-        svg.svg(
-          svg.width := SopMakerWidget.opWidth.toInt,
-          svg.height:= SopMakerWidget.opHeight.toInt,
-          svg.x := 0,
-          svg.y := 0,
-          svg.rect(
-            svg.x := 0,
-            svg.y := 0,
-            svg.width := SopMakerWidget.opWidth.toInt,
-            svg.height:= SopMakerWidget.opHeight.toInt,
-            svg.rx := 6, svg.ry := 6,
-            svg.fill := "white",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Top horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y := SopMakerWidget.opHorizontalBarOffset.toInt,
-            svg.width := SopMakerWidget.opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Bottom horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y :=  (SopMakerWidget.opHeight - SopMakerWidget.opHorizontalBarOffset).toInt,
-            svg.width := SopMakerWidget.opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Left vertical line
-          svg.rect(
-            svg.x := SopMakerWidget.opVerticalBarOffset.toInt,
-            svg.y := SopMakerWidget.opHorizontalBarOffset,
-            svg.width := 1,
-            svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Right vertical line
-          svg.rect(
-            svg.x := SopMakerWidget.opWidth - SopMakerWidget.opVerticalBarOffset.toInt,
-            svg.y := SopMakerWidget.opHorizontalBarOffset,
-            svg.width := 1,
-            svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          svg.svg(
-            svg.text(
-              svg.x := "50%",
-              svg.y := "50%",
-              svg.textAnchor := "middle",
-              svg.dy := ".3em",
-              label
-            )
+      <.div(
+        {
+          state match {
+            case "\"i\"" => ^.className := SopMakerCSS.opStateInit.htmlClass
+            case "\"e\"" => ^.className := SopMakerCSS.opStateExec.htmlClass
+            case "\"f\"" => ^.className := SopMakerCSS.opStateFini.htmlClass
+            case _ => ^.className := SopMakerCSS.opStateNone.htmlClass
+          }
+        },
+        ^.className := SopMakerCSS.opInner.htmlClass,
+        <.div(
+          ^.className := SopMakerCSS.opNameOuter.htmlClass,
+          <.div(
+            ^.className := SopMakerCSS.opName.htmlClass,
+            label
           )
         )
       )
+      // svg.svg(
+      //   svg.width := SopMakerWidget.opWidth.toInt,
+      //   svg.height:= SopMakerWidget.opHeight.toInt,
+      //   svg.svg(
+      //     svg.width := SopMakerWidget.opWidth.toInt,
+      //     svg.height:= SopMakerWidget.opHeight.toInt,
+      //     svg.x := 0,
+      //     svg.y := 0,
+      //     svg.rect(
+      //       svg.x := 0,
+      //       svg.y := 0,
+      //       svg.width := SopMakerWidget.opWidth.toInt,
+      //       svg.height:= SopMakerWidget.opHeight.toInt,
+      //       svg.rx := 6, svg.ry := 6,
+      //       svg.fill := "white",
+      //       svg.stroke := "black",
+      //       svg.strokeWidth := 1
+      //     ),
+      //     // Top horizontal line
+      //     svg.rect(
+      //       svg.x := 0,
+      //       svg.y := SopMakerWidget.opHorizontalBarOffset.toInt,
+      //       svg.width := SopMakerWidget.opWidth.toInt,
+      //       svg.height:= 1,
+      //       svg.rx := 0, svg.ry := 0,
+      //       svg.fill := "black",
+      //       svg.stroke := "black",
+      //       svg.strokeWidth := 1
+      //     ),
+      //     // Bottom horizontal line
+      //     svg.rect(
+      //       svg.x := 0,
+      //       svg.y :=  (SopMakerWidget.opHeight - SopMakerWidget.opHorizontalBarOffset).toInt,
+      //       svg.width := SopMakerWidget.opWidth.toInt,
+      //       svg.height:= 1,
+      //       svg.rx := 0, svg.ry := 0,
+      //       svg.fill := "black",
+      //       svg.stroke := "black",
+      //       svg.strokeWidth := 1
+      //     ),
+      //     // Left vertical line
+      //     svg.rect(
+      //       svg.x := SopMakerWidget.opVerticalBarOffset.toInt,
+      //       svg.y := SopMakerWidget.opHorizontalBarOffset,
+      //       svg.width := 1,
+      //       svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
+      //       svg.rx := 0, svg.ry := 0,
+      //       svg.fill := "black",
+      //       svg.stroke := "black",
+      //       svg.strokeWidth := 1
+      //     ),
+      //     // Right vertical line
+      //     svg.rect(
+      //       svg.x := SopMakerWidget.opWidth - SopMakerWidget.opVerticalBarOffset.toInt,
+      //       svg.y := SopMakerWidget.opHorizontalBarOffset,
+      //       svg.width := 1,
+      //       svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
+      //       svg.rx := 0, svg.ry := 0,
+      //       svg.fill := "black",
+      //       svg.stroke := "black",
+      //       svg.strokeWidth := 1
+      //     ),
+      //     svg.svg(
+      //       svg.text(
+      //         svg.x := "50%",
+      //         svg.y := "50%",
+      //         svg.textAnchor := "middle",
+      //         svg.dy := ".3em",
+      //         label
+      //       )
+      //     )
+      //   )
+      // )
     )
   }
 
