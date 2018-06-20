@@ -6,6 +6,32 @@ object SimpleSet {
   def apply[K, V](hashBy: V => K, values: V*) = new SimpleSet[K, V](hashBy, values.map(v => hashBy(v) -> v).toMap)
 }
 
+/**
+  * A simple set for handling cases where an object is hashed by some subproperty of that object.
+  * Eg. for an object with an ID, it might be the ID. This is a helper class for simplifying working
+  * with such a structure. Example use case:
+  * {{{
+  *   case class Model(id: Int, data: List[Any)
+  *   val newModel = Model(123, List())
+  *
+  *   // Old
+  *   val models: Map[Model, Model] = new Map()
+  *
+  *   // Update
+  *   models + (newModel -> newModel)
+  *
+  *   // New
+  *   val models = new SimpleSet(_.id, Map[Int, Model])
+  *
+  *   // Update
+  *   models + newModel
+  *
+  * }}}
+  * @param hashBy Function used to get the object to hash by
+  * @param data Initial data for the underlying map
+  * @tparam K Key type
+  * @tparam V Value type
+  */
 class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
   def +(value: V) = new SimpleSet(hashBy, data + (hashBy(value) -> value))
   def -(value: V) = new SimpleSet(hashBy, data - hashBy(value))
