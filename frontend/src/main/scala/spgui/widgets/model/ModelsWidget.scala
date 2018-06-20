@@ -2,10 +2,8 @@ package spgui.widgets.model
 
 import diode.react.{ModelProxy, ReactConnectProxy}
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.Attr.Ref
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros._
-import org.scalajs.dom.html
 import sp.domain.Logic._
 import sp.domain._
 import spgui.availablemodelscircuit._
@@ -14,43 +12,9 @@ import spgui.modal.ModalResult
 import spgui.{ModelCommunication, SimpleSet}
 
 
-object ModelsWidgetNew {
+object ModelsWidget {
   import sp.models.{APIModel => Model, APIModelMaker => ModelMaker}
   import spgui.widgets.model.{ModelsWidgetNewCSS => css}
-
-  val testModel: List[IDAble] = {
-    val operations = (1 to 4).map(x => Operation(s"o$x"))
-    val things = (1 to 4).map(x => Thing(s"t$x"))
-    val firstSop = SOPSpec("sop1", List(Sequence(operations.take(3).map(SOP(_)).toList)))
-    val secondSop = SOPSpec("sop2", List(Parallel(operations.take(3).map(SOP(_)).toList)))
-
-
-    val operationNodes = operations.map(o => StructNode(o.id))
-    val thingNodes = things.map(t => StructNode(t.id))
-    val sop1S = StructNode(firstSop.id)
-    val sop2S = StructNode(secondSop.id)
-
-    val struct1 = Struct("struct1", Set(
-      thingNodes.head,
-      thingNodes.tail.head,
-      operationNodes.head.copy(parent = Some(thingNodes.head.nodeID)),
-      operationNodes.tail.head.copy(parent = Some(thingNodes.tail.head.nodeID)),
-      thingNodes.drop(2).head.copy(parent = Some(thingNodes.head.nodeID)),
-      operationNodes.drop(2).head.copy(parent = Some(thingNodes.drop(2).head.nodeID)),
-      sop1S.copy(parent = Some(operationNodes.drop(2).head.nodeID))
-    ))
-
-    // always unique node IDs in every struct!
-    val o1S2 = StructNode(operations.head.id)
-    val struct2 = Struct("struct2", Set(
-      o1S2,
-      thingNodes.last.copy(parent = Some(o1S2.nodeID)),
-      operationNodes.last,
-      sop2S.copy(parent = Some(operationNodes.last.nodeID))
-    ))
-
-    (operations ++ things ++ List(firstSop, secondSop, struct1, struct2)).toList
-  }
 
   @Lenses case class UIState(historyExpanded: Set[ID], selectedModelId: Option[ID])
   @Lenses case class State(uiState: UIState)
@@ -243,7 +207,7 @@ object ModelsWidgetNew {
       } yield info.name
 
       SPGUICircuit.dispatch(OpenModal(
-        title = "Change name",
+        title = "Rename",
         component = modalComponent(currentName.getOrElse("")),
         onComplete = {
           case RenameModal.Return(submitted, name) =>
@@ -303,4 +267,50 @@ object ModelsWidgetNew {
   val connectCircuit: ReactConnectProxy[ModelsCircuitState] = ModelsCircuit.connect(state => state)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
+
+  val testModel: List[IDAble] = {
+    val o1 = Operation("o1")
+    val o2 = Operation("o2")
+    val o3 = Operation("o3")
+    val o4 = Operation("o4")
+    val t1 = Thing("t1")
+    val t2 = Thing("t2")
+    val t3 = Thing("t3")
+    val t4 = Thing("t4")
+    val sop1 = SOPSpec("sop1", List(Sequence(List(SOP(o1), SOP(o2), SOP(o3)))))
+    val sop2 = SOPSpec("sop2", List(Parallel(List(SOP(o1), SOP(o2), SOP(o3)))))
+
+    // TODO: Fix a good struct DSL now!
+    val o1S = StructNode(o1.id)
+    val o2S = StructNode(o2.id)
+    val o3S = StructNode(o3.id)
+    val o4S = StructNode(o4.id)
+    val t1S = StructNode(t1.id)
+    val t2S = StructNode(t2.id)
+    val t3S = StructNode(t3.id)
+    val t4S = StructNode(t4.id)
+    val sop1S = StructNode(sop1.id)
+    val sop2S = StructNode(sop2.id)
+
+    val struct1 = Struct("struct1", Set(
+      t1S,
+      t2S,
+      o1S.copy(parent = Some(t1S.nodeID)),
+      o2S.copy(parent = Some(t2S.nodeID)),
+      t3S.copy(parent = Some(t1S.nodeID)),
+      o3S.copy(parent = Some(t3S.nodeID)),
+      sop1S.copy(parent = Some(o3S.nodeID))
+    ))
+
+    // always unique node IDs in every struct!
+    val o1S2 = StructNode(o1.id)
+    val struct2 = Struct("struct2", Set(
+      o1S2,
+      t4S.copy(parent = Some(o1S2.nodeID)),
+      o4S,
+      sop2S.copy(parent = Some(o4S.nodeID))
+    ))
+
+    List(o1, o2, o3, o4, t1, t2, t3, t4, sop1, sop2, struct1, struct2)
+  }
 }
