@@ -4,7 +4,7 @@ import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
 
-object ModelsWidgetNewCSS extends StyleSheet.Inline {
+object ModelsWidgetCSS extends StyleSheet.Inline {
   import dsl._
 
   val selectedColor = "#4CAF50"

@@ -14,7 +14,7 @@ import spgui.{ModelCommunication, SimpleSet}
 
 object ModelsWidget {
   import sp.models.{APIModel => Model, APIModelMaker => ModelMaker}
-  import spgui.widgets.model.{ModelsWidgetNewCSS => css}
+  import spgui.widgets.model.{ModelsWidgetCSS => css}
 
   @Lenses case class UIState(historyExpanded: Set[ID], selectedModelId: Option[ID])
   @Lenses case class State(uiState: UIState)
