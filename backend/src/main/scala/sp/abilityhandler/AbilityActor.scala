@@ -77,7 +77,6 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
     //checkAndSend(res.getOrElse(s), sender())
 
     case NewState(s) =>
-      println("ABILITY GOT NEW STATE")
       val missingIDs = ids.diff(s.keySet)
       if (missingIDs.nonEmpty){
         sender() ! StateIsMissingIDs(ability.id, missingIDs)
