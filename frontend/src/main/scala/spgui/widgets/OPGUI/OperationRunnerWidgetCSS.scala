@@ -4,6 +4,7 @@ import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 import spgui.theming.Theming
 
+/** Define the css-classes for the OperationRunner with ScalaCSS */
 object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
   import dsl._
 

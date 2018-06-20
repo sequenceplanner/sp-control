@@ -1,10 +1,8 @@
 package spgui.widgets.OPGUI
 
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.TagOf
 import japgolly.scalajs.react.vdom.html_<^._
-import org.scalajs.dom.html
-import sp.devicehandler.{APIVirtualDevice, VD}
+import sp.devicehandler.{APIVirtualDevice}
 import sp.domain.Logic._
 import sp.domain._
 import sp.models.APIModel
@@ -12,29 +10,43 @@ import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import spgui.communication._
 
-/** Widget for matching the Driver with a Operation*/
+/** Widget for matching the Driver with a Operation */
 object StateHandlerWidget {
   case class Runner(id: Option[ID] = None, runInAuto: Boolean = true,
                     startOperation: Option[ID] = None, stepBackward: Boolean = false)
   case class ExtractedThings(allOperations: List[Thing] = List(),
                              allDrivers: List[Thing] = List(), operation2Driver: Map[ID, ID] = Map())
 
+  /** The React-State of the Widget.
+    * This Widget should be able to:
+    *     1. stop the runner and go into manual-mode
+    *     2. update the [[Thing]]:s from the model
+    *     3. update the states of the VD
+    *
+    * @param activeRunner Current Runner
+    * @param extractedThings The things from the model
+    * @param virtualDeviceState The states of the Virtual Device
+    */
   case class State(
                     activeRunner:           Option[Runner] = None,
-                    theModel:               List[IDAble] = List(),
                     extractedThings:        ExtractedThings = ExtractedThings(),
-                    driverValues:           Map[ID, SPValue] = Map()
+                    virtualDeviceState:     Map[ID, SPValue] = Map()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
-    val modelMessObs =
+    val modelHandler =
       BackendCommunication.getMessageObserver(onModelMessage, APIModel.topicResponse)
     val deviceDriverHandler =
       BackendCommunication.getMessageObserver(onVDMessage, APIVirtualDevice.topicResponse)
 
-    /**
-      * onModelMessage
-      * @param mess SPMessage
+    /** Handle VirtualDevice-messages.
+      *
+      * If a [[APIModel.SPItems]] response is noticed,
+      * update the local lists of driverThings and operationThings.
+      *
+      * If something else, Empty Callback.
+      *
+      * @param mess SPMessage from APIModel
       */
     def onModelMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIModel.Response].map {
@@ -45,14 +57,14 @@ object StateHandlerWidget {
             // for all drivers in extracted things
             // map it against a the driverState if it does already exist in driverStateMapper
             // else map it against a new ID
-            val driverStates: Map[ID, SPValue] = e.allDrivers.map{driver =>
-              if (state.driverValues.contains(driver.id))
-                driver.id -> state.driverValues(driver.id)
+            val newDriverStates: Map[ID, SPValue] = e.allDrivers.map{driver =>
+              if (state.virtualDeviceState.contains(driver.id))
+                driver.id -> state.virtualDeviceState(driver.id)
               else
                 driver.id -> SPValue("Not connected")
             }.toMap
             // update state
-            state.copy(theModel = items, extractedThings = e, driverValues = state.driverValues ++ driverStates)
+            state.copy(extractedThings = e, virtualDeviceState = state.virtualDeviceState ++ newDriverStates)
           }
         }
         case x => Callback.empty
@@ -62,8 +74,8 @@ object StateHandlerWidget {
 
     /** Filter out a list of operationThings, driverThings and the map between operations and drivers
       *
-      * @param model - list of [[IDAble]]
-      * @return A [[ExtractedThings]]
+      * @param model The model as a List of IDAble
+      * @return The class ExtractedThings (containging the list of operationThings, driverThings and mapping)
       */
     def extractVariablesFromModel(model: List[IDAble]): ExtractedThings = {
       // get runner
@@ -78,43 +90,53 @@ object StateHandlerWidget {
       ExtractedThings(operationThings, driverThings, mapping)
     }
 
-    /**
-      * On Driver-message
-      * @param mess SPMessage
+    /** Handle VirtualDevice-messages.
+      *
+      * If a [[APIVirtualDevice.StateEvent]] response is noticed,
+      * update the local VD-states.
+      *
+      * If something else, Empty Callback.
+      *
+      * @param mess SPMessage from APIVirtualDevice
       */
     def onVDMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
-        case APIVirtualDevice.StateEvent(_, id, newDriverStates,_) => {
-          $.modState(state => state.copy(driverValues = state.driverValues ++ newDriverStates))
+        case APIVirtualDevice.StateEvent(_, _, newDriverStates,_) => {
+          $.modState(state => state.copy(virtualDeviceState = state.virtualDeviceState ++ newDriverStates))
         }
         case x => Callback.empty
       }
       callback.foreach(_.runNow())
     }
 
-    /**
-      * render-function in Backend
-      * @param state State
-      * @return
+    /** Render-function in Backend
+      *
+      * @param state Current state in Backend-class
+      * @return The Widget GUI
       */
-    def render(state: State): TagOf[html.Div] = {
+    def render(state: State) = {
       <.div(
-        renderModel(state.theModel, state.extractedThings.allOperations,
-          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.driverValues)
+        renderModel(state.extractedThings.allOperations,
+          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.virtualDeviceState)
       )
     }
 
     /** Render the model in state handler
       *
-      * @param theModel List of [[IDAble]]
-      * @param operationThings List of [[Thing]]
-      * @param driverThings List of [[Thing]]:s
+      * @param operationThings List of the operationThings in model
+      * @param driverThings List of the driverThings in model
       * @param operationDriverMap The id:s of the operations that is connected to a driverValue. Map of [[ID]] to [[ID]].
-      * @param driverValues The Driver-values. Map of [[ID]] to [[SPValue]])
-      * @return [[TagOf]][html.div]
+      * @param virtualDeviceState The Driver-values. Map of [[ID]] to [[SPValue]])
+      * @return The scene to the widget
       */
-    def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing],
-                    operationDriverMap: Map[ID, ID], driverValues: Map[ID, SPValue]) = {
+    def renderModel(operationThings: List[Thing], driverThings: List[Thing],
+                    operationDriverMap: Map[ID, ID], virtualDeviceState: Map[ID, SPValue]) =
+    {
+      val sortedDriverlessOperationThings =
+        operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id))
+      val sortedOperationlessDriverThings =
+        driverThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.values.toList.contains(thing.id))
+
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -123,37 +145,37 @@ object StateHandlerWidget {
               ^.className := "table table-striped", ^.className := "table-pairs",
               tableHead(),
               <.tbody(
-                // for all pairs of operation-driverValues
+                // for all pairs of operation-virtualDeviceState
                 // print the things
                 operationDriverMap.map { idPair =>
-                  val opThing: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
-                  val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
+                  val opThing: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opThing"))
+                  val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverThing"))
                   <.tr(
                     <.td(opThing.name),
-                    <.td(opThing.id.toString),
-                    <.td("TODO"),// TODO: Read or Write or No master?
+                    printOperationDomain(opThing),
+                    <.td(""),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
-                    <.td(driverValues(driverThing.id).toString())
+                    <.td(virtualDeviceState(driverThing.id).toString())
                   )
                 }.toTagMod
               )
             )
           )
-        ),
+        ).when(operationDriverMap.nonEmpty),
         <.div(
           <.details(^.open := "open",  ^.className := "details-empty-operations",
             <.summary("Operation with no Driver"),
             <.table(
-              ^.className := "table table-striped",  ^.className := "table-empty-operations",
-              tableHead(),
+            ^.className := "table table-striped",  ^.className := "table-empty-operations",
+            tableHead(),
               <.tbody(
                 // for all operation things that do not have its id in operationDriverMap
                 // print the operation
-                operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id)).map { operation =>
+                sortedDriverlessOperationThings.map { operation =>
                   <.tr(
                     <.td(operation.name),
-                    <.td(operation.id.toString),
-                    <.td("TODO"),// TODO: Read or Write or No master?
+                    printOperationDomain(operation),
+                    <.td(""),// TODO: Read or Write or No master?
                     <.td(""),
                     <.td("")
                   )
@@ -161,7 +183,7 @@ object StateHandlerWidget {
               )
             )
           )
-        ),
+        ).when(sortedDriverlessOperationThings.nonEmpty),
         <.div(
           <.details(^.open := "open", ^.className := "details-empty-drivers",
             <.summary("Driver with no Operation"),
@@ -171,28 +193,31 @@ object StateHandlerWidget {
               <.tbody(
                 // for all driver things that do not have its id in operationDriverMap
                 // print the driver
-                driverThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.values.toList.contains(thing.id))
-                  .map { driverThing =>
-                    <.tr(
-                      <.td(),
-                      <.td(),
-                      <.td("TODO"),// TODO: Read or Write or No master?
-                      <.td(driverThing.name),
-                      <.td(driverValues(driverThing.id).toString())
-                    )
-                  }.toTagMod
+                sortedOperationlessDriverThings.map { driverThing =>
+                  <.tr(
+                    <.td(),
+                    <.td(),
+                    <.td(""),// TODO: Read or Write or No master?
+                    <.td(driverThing.name),
+                    <.td(virtualDeviceState(driverThing.id).toString())
+                  )
+                }.toTagMod
               )
             )
           )
-        )
+        ).when(sortedOperationlessDriverThings.nonEmpty)
       )
     }
 
-    def tableHead() = {
+    /** Table head for all tables used in widget
+      *
+      * @return A pre-defined <.thead(...)
+      */
+    def tableHead = {
       <.thead(
         <.tr(
           <.td("Operation Name"),
-          <.td("Operation ID"),
+          <.td("Operation Domain"),
           <.td("Read/Write"),
           <.td("Driver Name"),
           <.td("Driver Value")
@@ -200,10 +225,24 @@ object StateHandlerWidget {
       )
     }
 
+    /** Print the attributes of the operationThing
+      *
+      * @param operation The operation as a thing
+      * @return A cell of table-data with the domain value
+      */
+    def printOperationDomain(operation: Thing) = {
+      val s: String =
+        operation.attributes.value.map{spAttribute => "S:" + spAttribute._1 + ", JS:" + spAttribute._2}.toString()
+      <.td(s)
+    }
 
-    def onUnmount() = Callback{
+    /** When the widget is unmounting, kill message-observer
+      *
+      * @return Callback to kill message-Observers
+      */
+    def onUnmount = Callback{
       println("StateHandlerWidget Unmouting")
-      modelMessObs.kill()
+      modelHandler.kill()
       deviceDriverHandler.kill()
     }
   }
@@ -211,7 +250,7 @@ object StateHandlerWidget {
   private val stateHandlerComponent = ScalaComponent.builder[Unit]("StateHandlerWidget")
     .initialState(State())
     .renderBackend[Backend]
-    .componentWillUnmount(_.backend.onUnmount())
+    .componentWillUnmount(_.backend.onUnmount)
     .build
 
   def apply() = spgui.SPWidget(spwb => stateHandlerComponent())

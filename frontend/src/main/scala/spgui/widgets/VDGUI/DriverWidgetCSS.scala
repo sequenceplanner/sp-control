@@ -3,6 +3,7 @@ package spgui.widgets.VDGUI
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
+/** Define the css-classes for the DriverWidget with ScalaCSS */
 object DriverWidgetCSS extends StyleSheet.Inline {
   import dsl._
 
