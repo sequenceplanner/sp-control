@@ -43,9 +43,9 @@ case class SaveModel(model: ModelMock) extends ModelAction
 case class UpdateModel(model: ModelMock) extends ModelAction
 case class SetActiveModel(modelId: ID) extends ModelAction
 case class SetItems(modelId: ID, items: List[IDAble]) extends ModelAction
-case class AddMockModels(models: Iterable[ModelMock]) extends ModelAction
-object AddMockModels {
-  def apply(models: ModelMock*) = new AddMockModels(models)
+case class AddMockModelIds(models: Iterable[ID]) extends ModelAction
+object AddMockModelIds {
+  def apply(modelIds: ID*) = new AddMockModelIds(modelIds)
 }
 
 object ModelsCircuit extends Circuit[ModelsCircuitState] with ReactConnector[ModelsCircuitState] {
@@ -103,8 +103,13 @@ object ModelsCircuit extends Circuit[ModelsCircuitState] with ReactConnector[Mod
         newModel.fold(models)(models.replace)
       }
 
-    case AddMockModels(newModels) =>
-      models.modify { MergeUtility.mergeModelIterables(_, newModels) }
+    case AddMockModelIds(newIds) =>
+      models.modify { modelSet =>
+        newIds
+          .filterNot(modelSet.contains)
+          .map(ModelMock(_))
+          .foldLeft(modelSet)((set, model) => set + model)
+      }
 
     case unknownAction =>
       println(s"[ModelsCircuit] Got unknown action: $unknownAction")

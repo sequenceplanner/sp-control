@@ -85,11 +85,11 @@ object ModelCommunication {
           postRequest(m, Model.GetModelHistory)
         }
 
-        ModelsCircuit.dispatch(AddMockModels(modelIds.map(id => ModelMock(id))))
+        ModelsCircuit.dispatch(AddMockModelIds(modelIds))
 
       case created: ModelMaker.ModelCreated =>
         //sendToModel(modelId, Model.PutItems(TestModelInControl.getTestModel))
-        ModelsCircuit.dispatch(AddMockModels(ModelMock(created.id)))
+        ModelsCircuit.dispatch(AddMockModelIds(created.id))
 
       case ModelMaker.ModelDeleted(modelId) =>
         ModelsCircuit.dispatch(RemoveModel(modelId))
