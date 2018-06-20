@@ -77,9 +77,9 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
     println("CREATING RUNNERS" + setupRunnerThings)
 
 
-    setupRunnerThings.map{s =>
-      println("STARTING RUNNER" + s.toString)
-      val runnerSetup = APIOperationRunner.runnerThingToSetup(s).copy(runnerID = ID.newID)
+    setupRunnerThings.foreach { thing =>
+      println("STARTING RUNNER" + thing.toString)
+      val runnerSetup = APIOperationRunner.runnerThingToSetup(thing).copy(runnerID = ID.newID)
       val exSetupRunner = APIOperationRunner.CreateRunner(runnerSetup)
 
       //println("RUNNER SETUP: " + exSetupRunner.toString)
@@ -101,34 +101,31 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
 
   }
 
-  def createModel(modelType: String, modelID: ID) = {
+  def createModel(name: String, modelID: ID): Unit = {
     //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
 
-    val name = modelType
-    val model = models(modelType)
+    val model = models(name)
 
     val idables = model.buildModel()
+    val attributes = SPAttributes("isa" -> "VD")
 
-    val cm = sp.models.APIModelMaker.CreateModel(name, SPAttributes("isa" -> "VD"), id = modelID)
+    val newModel = sp.models.APIModelMaker.CreateModel(name, attributes, id = modelID)
 
-    val theVD = Struct(
-      name,
-      makeStructNodes(idables),
-      SPAttributes("isa" -> "VD")
-    )
-    val addItems = APIModel.PutItems(theVD :: idables.toList, SPAttributes("info" -> "initial items"))
+    val virtualDevice = Struct(name, makeStructNodes(idables), attributes)
+
+    val items = APIModel.PutItems(virtualDevice :: idables, SPAttributes("info" -> "initial items"))
 
     context.system.scheduler.scheduleOnce(0.1 seconds) {
       publish(
         APIModelMaker.topicRequest,
-        SPMessage.makeJson(SPHeader(from = "ModelService", to = APIModelMaker.service), cm)
+        SPMessage.makeJson(SPHeader(from = "ModelService", to = APIModelMaker.service), newModel)
       )
     }
 
     context.system.scheduler.scheduleOnce(0.2 seconds) {
       publish(
         APIModel.topicRequest,
-        SPMessage.makeJson(SPHeader(from = "ModelService", to = cm.id.toString), addItems)
+        SPMessage.makeJson(SPHeader(from = "ModelService", to = newModel.id.toString), items)
       )
     }
   }
@@ -166,21 +163,29 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
   def receive: Receive = {
     case s : String =>
       for { // unpack message
-        mess <- SPMessage.fromJson(s)
-        h <- mess.getHeaderAs[SPHeader] if  h.to == APIVDTracker.service
-        b <- mess.getBodyAs[APIVDTracker.Request]
+        message <- SPMessage.fromJson(s)
+        header <- message.getHeaderAs[SPHeader] if  header.to == APIVDTracker.service
+        body <- message.getBodyAs[APIVDTracker.Request]
       } yield {
-        val spHeader = h.swapToAndFrom()
-        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK())) // acknowledge message received
-        b match { // Check if the body is any of the following classes, and execute program
-          case APIVDTracker.createModel(modelName, modelID) => createModel(modelName, modelID)
-          case APIVDTracker.launchVDAbilities(idAbles) => launchVDAbilities(idAbles)
-          case APIVDTracker.launchOpRunner(idAbles) => launchOpRunner(spHeader,idAbles)
+        val responseHeader = header.swapToAndFrom()
+        sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPACK())) // acknowledge message received
+
+        body match { // Check if the body is any of the following classes, and execute program
+          case APIVDTracker.createModel(modelName, modelID) =>
+            createModel(modelName, modelID)
+
+          case APIVDTracker.launchVDAbilities(idAbles) =>
+            launchVDAbilities(idAbles)
+
+          case APIVDTracker.launchOpRunner(idAbles) =>
+            launchOpRunner(responseHeader,idAbles)
+
           case APIVDTracker.getModelsInfo(_) =>
-            sendAnswer(SPMessage.makeJson(spHeader, APIVDTracker.sendModelsInfo(models.keys.toList)))
+            sendAnswer(SPMessage.makeJson(responseHeader, APIVDTracker.sendModelsInfo(models.keys.toList)))
+
           case _ => Unit
         }
-        sendAnswer(SPMessage.makeJson(spHeader, APISP.SPDone()))
+        sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPDone()))
       }
   }
   def sendAnswer(mess: String): Unit = publish(APIVDTracker.topicResponse, mess)

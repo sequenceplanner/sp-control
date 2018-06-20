@@ -100,8 +100,6 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
           }
       }
 
-      case x if {log.debug(s"ABH from an ability got: $x"); false} => Unit
-
       case CanNotStart(_, abID, error) =>
         val header = SPHeader(from = handlerID.toString)
         publish(topicResponse, SPMessage.makeJson(header, APISP.SPError(s"ability $abID couldn't start. $error")))
@@ -379,4 +377,3 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
     }
   }
 }
-

@@ -22,10 +22,11 @@ case class StateValueHolder[A](prevValue: Option[A], currentValue: A) {
 
   def merge(that: ModelMock): ModelMock = {
     val infoInit: Option[ModelInformation] = None
+    val newInfo = List(info, that.info).flatten.foldLeft(infoInit)((acc, next) => acc.map(_ merge next))
 
     ModelMock(
       id,
-      List(info, that.info).flatten.foldLeft(infoInit)((acc, next) => acc.map(_ merge next)),
+      newInfo,
       that.history,
       List()
     )
@@ -91,7 +92,7 @@ object ModelsCircuit extends Circuit[ModelsCircuitState] with ReactConnector[Mod
     case SaveModel(model) => models.modify(_ + model)
 
     case RemoveModel(modelId) =>
-      ModelCommunication.postRequest(APIModelMaker.DeleteModel(modelId))
+      ModelCommunication.Recipient.Model.postRequest(APIModelMaker.DeleteModel(modelId))
       removeModel(modelId)
 
     case UpdateModel(model) =>
@@ -102,7 +103,7 @@ object ModelsCircuit extends Circuit[ModelsCircuitState] with ReactConnector[Mod
       updateActiveId(modelId)
 
     case SetItems(modelId, items) =>
-      ModelCommunication.postRequest(modelId, APIModel.PutItems(items))
+      ModelCommunication.Recipient.Model.postRequest(modelId, APIModel.PutItems(items))
       models.modify { models =>
         val newModel = models.get(modelId).map(_.copy(items = items))
         newModel.fold(models)(models.replace)
