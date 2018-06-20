@@ -52,7 +52,7 @@ class AbilityHandlerTest(_system: ActorSystem) extends TestKit(_system) with Imp
   import sp.abilityhandler.{APIAbilityHandler => api}
   import sp.devicehandler.{APIVirtualDevice => vdAPI}
 
-  import sp.abilityhandler.AbilityState._
+  import sp.abilityhandler.AbilityStatus._
 
 
 

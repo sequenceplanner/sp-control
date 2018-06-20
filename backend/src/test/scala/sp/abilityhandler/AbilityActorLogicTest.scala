@@ -46,13 +46,13 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
       val g = AND(List(OR(List(EQ(v1.id, 3), EQ(v4.id, 40))), NEQ(v2.id, ValueHolder(false))))
       val a = Action(v3.id, ValueHolder(2))
 
-      val res = logic.extractVariables(Condition(g, List(a)))
+      val res = logic.extractVariableIDs(Condition(g, List(a)))
       res.toSet shouldEqual Set(v1.id, v2.id, v3.id, v4.id)
     }
 
 
 
-    import AbilityState._
+    import AbilityStatus._
 
     "printing state changes" in {
       val logic = new AbilityActorLogic {
@@ -82,26 +82,26 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
       val logic = new AbilityActorLogic {
         override val ability = ab.copy(attributes = SPAttributes())
       }
-      logic.state shouldEqual unavailable
-      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(notEnabled)
+      logic.state shouldEqual Unavailable
+      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(NotEnabled)
       logic.evalState(Map(v1.id -> 3))._1 shouldEqual None
-      logic.evalState(Map(v1.id -> 1))._1 shouldEqual Some(enabled)
-      logic.evalState(Map(v1.id -> 1), "start")._1 shouldEqual Some(starting)
-      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(executing)
-      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(finished)
+      logic.evalState(Map(v1.id -> 1))._1 shouldEqual Some(Enabled)
+      logic.evalState(Map(v1.id -> 1), "start")._1 shouldEqual Some(Starting)
+      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(Executing)
+      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(Finished)
       // Auto restart
-      logic.evalState(Map(v1.id -> 4))._1 shouldEqual Some(enabled)
+      logic.evalState(Map(v1.id -> 4))._1 shouldEqual Some(Enabled)
     }
 
     "test state machine with well defined executing" in {
       val logic = new AbilityActorLogic {
         override val ability = ab
       }
-      logic.state shouldEqual unavailable
-      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(notEnabled)
+      logic.state shouldEqual Unavailable
+      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(NotEnabled)
       logic.evalState(Map(v1.id -> 3))._1 shouldEqual None
-      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(executing)
-      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(finished)
+      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(Executing)
+      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(Finished)
     }
 
 
@@ -111,12 +111,12 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
         resetCondition = Condition(EQ(v1.id, 4), List(Action(v1.id, ValueHolder(1)))),
         attributes = SPAttributes("syncedFinished" -> true))
       }
-      logic.state shouldEqual unavailable
-      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(notEnabled)
+      logic.state shouldEqual Unavailable
+      logic.evalState(Map(v1.id -> 0))._1 shouldEqual Some(NotEnabled)
       logic.evalState(Map(v1.id -> 2))._1 shouldEqual None
-      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(finished)
+      logic.evalState(Map(v1.id -> 3))._1 shouldEqual Some(Finished)
       logic.evalState(Map(v1.id -> 1))._1 shouldEqual None
-      logic.evalState(Map(v1.id -> 4))._1 shouldEqual Some(enabled)
+      logic.evalState(Map(v1.id -> 4))._1 shouldEqual Some(Enabled)
     }
 
 
@@ -124,7 +124,7 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
       val logic = new AbilityActorLogic {
         override val ability = ab
       }
-      logic.state shouldEqual unavailable
+      logic.state shouldEqual Unavailable
       logic.evalState(Map())._1 shouldEqual None
 
     }
@@ -137,19 +137,19 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
       }
 
 
-      logic.state shouldEqual unavailable
+      logic.state shouldEqual Unavailable
       val init: Map[ID, SPValue] = Map(v1.id -> 0)
-      logic.evalState(init)._1 shouldEqual Some(notEnabled)
+      logic.evalState(init)._1 shouldEqual Some(NotEnabled)
       logic.start(init) shouldEqual  None
       logic.start(Map(v1.id -> 1)) shouldEqual Some(Map(v1.id -> SPValue(2)))
-      logic.state shouldEqual starting
-      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(executing)
+      logic.state shouldEqual Starting
+      logic.evalState(Map(v1.id -> 2))._1 shouldEqual Some(Executing)
       logic.reset(Map(v1.id -> 2)) shouldEqual None
-      logic.state shouldEqual forcedReset
+      logic.state shouldEqual ForcedReset
       logic.evalState(Map(v1.id -> 2))._2 shouldEqual Some(Map(v1.id -> SPValue(1)))
-      logic.state shouldEqual enabled
+      logic.state shouldEqual Enabled
       logic.evalState(Map(v1.id -> 10))
-      logic.state shouldEqual notEnabled
+      logic.state shouldEqual NotEnabled
     }
 
 
@@ -161,7 +161,7 @@ class AbilityActorLogicTest extends FreeSpec with Matchers{
       logic.start(Map(v1.id -> 0)) shouldEqual None
       logic.start(Map(v1.id -> 1)) shouldEqual Some(Map(v1.id -> SPValue(2)))
 
-      logic.state = starting
+      logic.state = Starting
 
       logic.start(Map(v1.id -> 1)) shouldEqual None
 
