@@ -10,7 +10,7 @@ import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import spgui.communication._
 
-/** Widget for matching the Driver with a Operation*/
+/** Widget for matching the Driver with a Operation */
 object StateHandlerWidget {
   case class Runner(id: Option[ID] = None, runInAuto: Boolean = true,
                     startOperation: Option[ID] = None, stepBackward: Boolean = false)
@@ -34,14 +34,19 @@ object StateHandlerWidget {
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
-    val modelMessObs =
+    val modelHandler =
       BackendCommunication.getMessageObserver(onModelMessage, APIModel.topicResponse)
     val deviceDriverHandler =
       BackendCommunication.getMessageObserver(onVDMessage, APIVirtualDevice.topicResponse)
 
-    /** Handle the message from the APIModel.topicResponse
+    /** Handle VirtualDevice-messages.
       *
-      * @param mess SPMessage
+      * If a [[APIModel.SPItems]] response is noticed,
+      * update the local lists of driverThings and operationThings.
+      *
+      * If something else, Empty Callback.
+      *
+      * @param mess SPMessage from APIModel
       */
     def onModelMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIModel.Response].map {
@@ -85,9 +90,14 @@ object StateHandlerWidget {
       ExtractedThings(operationThings, driverThings, mapping)
     }
 
-    /** On VirtualDevice-message
+    /** Handle VirtualDevice-messages.
       *
-      * @param mess SPMessage
+      * If a [[APIVirtualDevice.StateEvent]] response is noticed,
+      * update the local VD-states.
+      *
+      * If something else, Empty Callback.
+      *
+      * @param mess SPMessage from APIVirtualDevice
       */
     def onVDMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
@@ -102,7 +112,7 @@ object StateHandlerWidget {
     /** Render-function in Backend
       *
       * @param state Current state in Backend-class
-      * @return The GUI
+      * @return The Widget GUI
       */
     def render(state: State) = {
       <.div(
@@ -215,13 +225,13 @@ object StateHandlerWidget {
       )
     }
 
-    /** When the widget is unmounting
+    /** When the widget is unmounting, kill message-observer
       *
       * @return Callback to kill message-Observers
       */
     def onUnmount = Callback{
       println("StateHandlerWidget Unmouting")
-      modelMessObs.kill()
+      modelHandler.kill()
       deviceDriverHandler.kill()
     }
   }

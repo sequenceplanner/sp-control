@@ -9,10 +9,8 @@ import sp.devicehandler.{VD, APIVirtualDevice, APIDeviceDriver}
 import sp.domain._
 import spgui.communication._
 
+/** Widget to visualize the Resources and it's status*/
 object ResourceWidget {
-
-  case class Card(resource: VD.ResourceWithState, cardId: ID)
-
   case class State(
                     resources: List[VD.ResourceWithState] = List(),
                     theDrivers: List[(VD.Driver, VD.DriverState, String)] = List()
@@ -23,6 +21,10 @@ object ResourceWidget {
     val deviceHandler = BackendCommunication.getMessageObserver(onDeviceMessage, APIVirtualDevice.topicResponse)
     val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
 
+    /**
+      *
+      * @param mess SPMessage from APIDeviceDriver
+      */
     def onDriverMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
         case APIDeviceDriver.TheDrivers(drivers) => {
@@ -56,17 +58,29 @@ object ResourceWidget {
       callback.foreach(_.runNow())
     }
 
+    /**
+      *
+      * @param mess
+      * @return
+      */
     def sendToVirtualDevice(mess: APIVirtualDevice.Request) = Callback{
       val h = SPHeader(from = "ResourceWidget", to = "", reply = SPValue("ResourceWidget"))
       val json = SPMessage.make(h, mess)
       BackendCommunication.publish(json, APIVirtualDevice.topicRequest)
     }
 
-    def render(s: State) = {
+    /** Render-function in Backend.
+      *
+      * Make a SPCardGrid and for all the resources in state, map it against a ResourceCard.
+      *
+      * @param state Current state in Backend-class
+      * @return The Widget GUI
+      */
+    def render(state: State) = {
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         SPCardGrid(
-          s.resources.map { rws: VD.ResourceWithState =>
+          state.resources.map { rws: VD.ResourceWithState =>
             SPCardGrid.ResourceCard(
               cardId = rws.r.id,
               name = rws.r.name,
@@ -75,14 +89,19 @@ object ResourceWidget {
                   case mapper:VD.OneToOneMapper => mapper.driverID
                 }.distinct
                 val selectDrivers: List[(VD.Driver, VD.DriverState, String)] =
-                  s.theDrivers.filter(ad => relatedDrivers.contains(ad._1.id))
+                  state.theDrivers.filter{
+                    driver: (VD.Driver, VD.DriverState, String) => relatedDrivers.contains(driver._1.id)
+                  }
                 selectDrivers.map{
-                  d => (d._1.name, d._3)
-                }.toList
+                  driver => (driver._1.name, driver._3)
+                }
               },
               state = rws.r.stateMap.map {case mapper: VD.OneToOneMapper =>
-                (mapper.driverIdentifier.toString, rws.state.get(mapper.thing).get)
-              }.toList
+                val a: SPValue = rws.state.get(mapper.thing).get
+                val b: SPValue = rws.state(mapper.thing)
+                println(s".get(id).get = $a and .(key) = $b")
+                  (mapper.driverIdentifier.toString, rws.state.get(mapper.thing).get)
+              }
             )
           }
         )
@@ -90,26 +109,30 @@ object ResourceWidget {
     }
 
     /**********CALLBACKS**********/
-    /*
-        force the driver to stop
-     */
-    def forceStop(card: Card) = {
-      // callback to backend to stop the driver
-      Callback("ResourceWidget: Force the vd to stop") // dummy
-    }
-
-    def onUnmount() = Callback{
+    /** When the widget is unmounting, kill message-observer.
+      *
+      * @return Callback
+      */
+    def onUnmount: Callback = Callback{
       println("ResourceWidget Unmouting")
       deviceHandler.kill()
       driverHandler.kill()
+    }
+
+    /** When the widget did mount, try to get all VD that is active.
+      *
+      * @return Callback
+      */
+    def didMount: Callback = {
+      sendToVirtualDevice(APIVirtualDevice.GetVD)
     }
   }
 
   private val resourceWidgetComponent = ScalaComponent.builder[Unit]("ResourceWidget")
     .initialState(State())
     .renderBackend[Backend]
-    .componentDidMount(_.backend.sendToVirtualDevice(APIVirtualDevice.GetVD))
-    .componentWillUnmount(_.backend.onUnmount())
+    .componentDidMount(_.backend.didMount)
+    .componentWillUnmount(_.backend.onUnmount)
     .build
 
   def apply() = spgui.SPWidget(spwb => resourceWidgetComponent())
