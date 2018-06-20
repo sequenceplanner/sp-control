@@ -3,6 +3,7 @@ package spgui.widgets.VDGUI
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
+/** Define the css-classes for the DriverWidget with ScalaCSS */
 object DriverWidgetCSS extends StyleSheet.Inline {
   import dsl._
 
@@ -160,9 +161,11 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
 
   val buttonContainer = style(
+    /*
     position.absolute,
     bottom(0 px),
     margin(4 px)
+    */
   )
 
   

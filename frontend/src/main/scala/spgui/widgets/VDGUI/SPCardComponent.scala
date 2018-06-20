@@ -10,6 +10,7 @@ import sp.devicehandler.VD.Driver
 import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
 import spgui.components.SPWidgetElements
 
+/** CardComponent for the DriverCard and ResourceCard */
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
   case class Props(cards: List[RenderCard])
