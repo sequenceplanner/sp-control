@@ -2,11 +2,25 @@ package spgui.widgets.examples
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^.{<, _}
-import sp.domain.{SPHeader, SPMessage, SPValue}
+import play.api.libs.json._
+import sp.domain._
 import spgui.communication.BackendCommunication
-import spgui.widgets.examples.ExampleServiceWidget.{Backend, Pie, State}
-import sp.{APIHumanGUI => api}
 import spgui.SPWidget
+
+
+case class HumanStateMessage(
+                              humanName: String,
+                              humanID: String,
+                              loggedIn: Boolean,
+                              cmd: Boolean,
+                              ack: Boolean,
+                              done: Boolean,
+                              instructions: Map[String, String]
+                            )
+object HumanStateMessage {
+  implicit val fHumanStateMessage: JSFormat[HumanStateMessage] = Json.format[HumanStateMessage]
+}
+
 
 object HumanWidget {
 
@@ -14,20 +28,20 @@ object HumanWidget {
 
   private class Backend($: BackendScope[Unit, State]) {
 
-    val messObs = BackendCommunication.getMessageObserver(
-      mess => {
-        val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[api.Response].map {
-          case x: api.UserDetails =>
-            println("user")
-            $.modState { s =>
-              s.copy(name=x.name, id=x.id)
-            }
-        }
-        callback.foreach(_.runNow())
-
-      },
-      api.topicResponse
-    )
+//    val messObs = BackendCommunication.getMessageObserver(
+//      mess => {
+//        val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[api.Response].map {
+//          case x: api.UserDetails =>
+//            println("user")
+//            $.modState { s =>
+//              s.copy(name=x.name, id=x.id)
+//            }
+//        }
+//        callback.foreach(_.runNow())
+//
+//      },
+//      api.topicResponse
+//    )
 
     def render(s: State) = {
       <.div(
@@ -85,17 +99,17 @@ object HumanWidget {
 
     def onUnmount() = {
       println("Unmounting")
-      messObs.kill()
+      //messObs.kill()
       Callback.empty
     }
 
 
-    def send(mess: api.Request): Callback = {
-      val h = SPHeader(from = "HumanWidget", to = api.service, reply = SPValue("HumanWidget"))
-      val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
-      BackendCommunication.publish(json, api.topicRequest)
-      Callback.empty
-    }
+//    def send(mess: api.Request): Callback = {
+//      val h = SPHeader(from = "HumanWidget", to = api.service, reply = SPValue("HumanWidget"))
+//      val json = SPMessage.make(h, mess) // *(...) is a shorthand for toSpValue(...)
+//      BackendCommunication.publish(json, api.topicRequest)
+//      Callback.empty
+//    }
 
 
   }

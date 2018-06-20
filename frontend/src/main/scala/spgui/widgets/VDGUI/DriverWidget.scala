@@ -61,6 +61,10 @@ object DriverWidget {
 
     def render(s: State) = {
       <.div(
+        SPWidgetElements.button(
+          "reload data",
+          sendToDeviceDriver(APIDeviceDriver.GetDrivers)
+        ),
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         SPCardGrid(s.cards.map(c => SPCardGrid.DriverCard(
           cardId = c.cardId,

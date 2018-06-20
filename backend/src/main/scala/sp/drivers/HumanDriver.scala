@@ -42,6 +42,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
   with sp.service.MessageBussSupport{
 
 
+
   // The state of the op
   var blueToothConnected  = false
 
@@ -66,8 +67,8 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
   def updS(key: String, v: SPValue) = driverState += (key -> v)
 
   // The commands that we send to the operator
-  val instructions = d.setup.getAs[Map[String, String]]("instructions").getOrElse(List())
-  val bluetooth = context.actorOf(Props(classOf[BluetoothConnector], self))
+  val instructions = d.setup.getAs[Map[String, String]]("instructions").getOrElse(Map())
+  val bluetooth = context.actorOf(Props(classOf[BluetoothConnector]))
 
   subscribe(api.topicRequest)
   subscribe(APIHumanDriver.topicFromHuman)
@@ -76,30 +77,34 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
 
   publish(api.topicResponse, SPMessage.makeJson(SPHeader(from = d.id.toString), api.TheDriver(d, driverState)))
 
+  println("HUMANDRIVER *********************")
+  println("started")
+
+
+
   def receive = {
-    case BlueToothConnect =>
-      blueToothConnected = false
+    case BluetoothConnect =>
+      blueToothConnected = true
 
     case x: GotMessage =>
       if (driverState.get(ack).contains(SPValue(x.ack)) || driverState.get(done).contains(SPValue(x.done))){
         updS(ack, x.ack)
         updS(done, x.done)
-        sendStateToBus(driverState)
+        sendUpdState()
       }
 
 
     case "tick" =>
-      sendStateToBus(driverState)
+      sendUpdState()
 
     case x: String =>
-      println("HUMANDRIVER GOT:" + x)
+      //println("HUMANDRIVER GOT:" + x)
       SPMessage.fromJson(x).foreach{ mess =>
         for {
           h <- mess.getHeaderAs[SPHeader]
           b <- mess.getBodyAs[api.Request]
         } yield {
-          val header = h.swapToAndFrom().copy(from = d.name)
-          log.debug(s"HumanDRIVER req: " +b)
+          val header = h.swapToAndFrom(d.name)
           b match {
               case api.GetDriver =>
                 publish(api.topicResponse, SPMessage.makeJson(header, api.TheDriver(d, driverState)))
@@ -107,16 +112,16 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
                 publish(api.topicResponse, SPMessage.makeJson(header, APISP.SPDone()))
 
               case api.DriverCommand(driverid, state) if driverid == d.id  =>
+
                 publish(api.topicResponse, SPMessage.makeJson(header, APISP.SPACK()))
                 val myHeader = SPHeader(from = d.id.toString, to = d.name, reply = SPAttributes(
                   "reqID" -> h.reqID, "from" -> h.from, "reply" -> h.reply
                 ))
 
-                val updState = defaultState ++ state
+                driverState = driverState ++ state
+                //println("HUMAN DRIVER GOT new state: "+ driverState)
 
-                sendStateToBluetooth()
-
-                // sendStateToUI
+                sendUpdState()
 //
 
               // Terminating the driver
@@ -129,33 +134,23 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
             }
           }
 
-        for {
-          h <- mess.getHeaderAs[SPHeader]
-          b <- mess.getBodyAs[APIHumanDriver.FromHuman]
-        } yield {
-          b match {
-            case he: APIHumanDriver.HumanEvent =>
-              println("EEEEEEEEEEEEEEEEEEEEEEEEEE")
-              println(he.state , b)
-              println("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
-              driverState = driverState ++ he.state
+          for {
+            h <- mess.getHeaderAs[SPHeader]
+            b <- mess.getBodyAs[APIHumanDriver.FromHuman]
+          } yield {
+            val header = h.swapToAndFrom(d.name)
+            b match {
+              case x: APIHumanDriver.HumanEvent if x.driverID == d.id =>
+                if (driverState.get(ack).contains(SPValue(x.ack)) || driverState.get(done).contains(SPValue(x.done))){
+                  updS(ack, x.ack)
+                  updS(done, x.done)
+                  sendUpdState()
+                }
 
-              for {
-                attr <- h.reply.to[SPAttributes].toOption
-                reqID <- attr.getAs[ID]("reqID")
-                from <- attr.getAs[String]("from")
-                reply <- attr.getAs[SPValue]("reply")
-              } yield {
-                val header = SPHeader(from = d.id.toString, to = from, reqID = reqID, reply = reply)
-                publish(api.topicResponse, SPMessage.makeJson(header, api.DriverCommandDone(reqID, true)))
-                publish(api.topicResponse, SPMessage.makeJson(header, APISP.SPDone()))
-
-              }
-
-              publish(api.topicResponse, SPMessage.makeJson(SPHeader(from = d.id.toString), APIDeviceDriver.DriverStateChange(d.name, d.id, driverState)))
-
+              case _ => println("GOT THIS FROM HUMAN: " + mess)
+            }
           }
-        }
+
       }
 
   }
@@ -175,7 +170,11 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
     * Listens for the pong for the last ping
     */
 
-
+  def sendUpdState() = {
+    sendStateToBluetooth()
+    sendStateToBus(driverState)
+    sendStateToUI()
+  }
 
   // Sending a message to the bus
   def sendStateToBus(state: Map[String, SPValue]) = {
@@ -186,12 +185,35 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
   }
 
   def sendStateToBluetooth() = {
-    val cmdS = driverState.get(cmd).flatMap(_.getAs[String]()).getOrElse("")
-    val ackS = driverState.get(ack).flatMap(_.getAs[Boolean]()).getOrElse(false)
-    val doneS = driverState.get(done).flatMap(_.getAs[Boolean]()).getOrElse(false)
+    val cmdS = driverState.get(cmd).flatMap(_.to[String].toOption).getOrElse("")
+    val ackS = driverState.get(ack).flatMap(_.to[Boolean].toOption).getOrElse(false)
+    val doneS = driverState.get(done).flatMap(_.to[Boolean].toOption).getOrElse(false)
     val mess = SendMessage(cmdS, ackS, doneS)
 
     if (blueToothConnected) bluetooth ! mess
+  }
+
+  def sendStateToUI() = {
+    val updH = SPHeader(from = d.name)
+    val humanNameS = driverState.get(humanName).flatMap(_.to[String].toOption).get
+    val humanIDS = driverState.get(humanID).flatMap(_.to[String].toOption).get
+    val cmdS = driverState.get(cmd).flatMap(_.to[String].toOption).get
+    val ackS = driverState.get(ack).flatMap(_.to[Boolean].toOption).get
+    val doneS = driverState.get(done).flatMap(_.to[Boolean].toOption).get
+    val loggedInS = driverState.get(loggedIn).flatMap(_.to[Boolean].toOption).get
+    val b = APIHumanDriver.HumanStateMessage(
+      d.id,
+      humanNameS,
+      humanIDS,
+      loggedInS,
+      cmdS,
+      ackS,
+      doneS,
+      blueToothConnected,
+      instructions
+    )
+    publish(APIHumanDriver.topicToHuman, SPMessage.makeJson(updH, b))
+
   }
 
 
@@ -206,29 +228,38 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
 
 
 
-
+import play.api.libs.json._
 case class SendMessage(cmd: String, ack: Boolean, done: Boolean)
 object SendMessage {
-  implicit def fSendMess = play.api.libs.json.Format[SendMessage]
+  implicit val fSendMess: JSFormat[SendMessage] = Json.format[SendMessage]
 }
 case class GotMessage(ack: Boolean, done: Boolean)
 object GotMessage{
-  implicit def fGotMessage = play.api.libs.json.Format[GotMessage]
+  implicit val fGotMessage: JSFormat[GotMessage] = Json.format[GotMessage]
 }
 
 
-case object BlueToothConnect
+
+
+case object BluetoothConnect
 class BluetoothConnector extends Actor {
+  import context.dispatcher
+
 
   //val proxy = new Proxy(self ! _)
+  println("Blutooth started..................")
 
-  context.parent ! BlueToothConnect
+  context.parent ! BluetoothConnect
 
+
+  import scala.concurrent.duration._
+  var reply = SPValue(GotMessage(false, false)).toJson
+  context.system.scheduler.schedule(5 seconds, 5 seconds, self, reply)
 
   override def receive = {
     case mess: String =>
       val x = SPValue.fromJson(mess)
-      println("GOT from bluetooth: " + x)
+      //println("GOT from bluetooth: " + x)
 
       x.foreach(_.to[GotMessage].foreach(res =>
         context.parent ! res
@@ -239,9 +270,7 @@ class BluetoothConnector extends Actor {
       //proxy.proxy.send(mess)
 
       // dummy
-      import scala.concurrent.duration._
-      val reply: String = if (x.cmd.nonEmpty) SPValue(GotMessage(true, true)).toJson else SPValue(GotMessage(false, false)).toJson
-      context.system.scheduler.scheduleOnce(5 seconds, self, reply)
+      reply = if (x.cmd.nonEmpty) SPValue(GotMessage(true, true)).toJson else SPValue(GotMessage(false, false)).toJson
 
   }
 }

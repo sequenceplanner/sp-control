@@ -11,26 +11,28 @@ package sp.driver{
     val topicFromHuman = "humanDriverFromHuman"
 
 
-    /**
-      * A request from SP for the human, for example to execute a task.
-      * @param name The identification of the human, for the receivers to match
-      * @param state The statevariables to change, usually includes cmd, description, etc
-      */
-    case class StateChangeRequest(name: String, state: Map[String, SPValue]) extends ToHuman
+    case class HumanStateMessage(driverID: ID,
+                                 humanName: String,
+                                 humanID: String,
+                                 loggedIn: Boolean,
+                                 cmd: String,
+                                 ack: Boolean,
+                                 done: Boolean,
+                                 bluetooth: Boolean,
+                                 instructions: Map[String, String]
+                              ) extends ToHuman
 
-    /**
-      * The response from the human interaction services, i.e. a widget or another system
-      * @param name The identification of the human, that sends the state
-      * @param state The state variables that this sender includes in its state
-      */
-    case class HumanEvent(name: String, state: Map[String, SPValue]) extends FromHuman
+
+    case class HumanEvent(driverID: ID,
+                          ack: Boolean,
+                          done: Boolean) extends FromHuman
 
 
 
 
     object Formats {
       import play.api.libs.json._
-      implicit val fStartTheTicker: JSFormat[StateChangeRequest] = Json.format[StateChangeRequest]
+      implicit val fStartTheTicker: JSFormat[HumanStateMessage] = Json.format[HumanStateMessage]
       implicit val fStopTheTicker: JSFormat[HumanEvent] = Json.format[HumanEvent]
       def fHumanDriverRequest: JSFormat[ToHuman] = Json.format[ToHuman]
       def fHumanDriverResponse: JSFormat[FromHuman] = Json.format[FromHuman]

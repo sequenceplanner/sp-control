@@ -115,11 +115,11 @@ class HumanMockUP extends Actor
       } yield {
         val updH = h.swapToAndFrom()
         val state = b match {
-          case APIHumanDriver.StateChangeRequest(name, s) => s
+          case x: APIHumanDriver.HumanStateMessage => x
         }
-        publish(APIHumanDriver.topicFromHuman, SPMessage.makeJson(
-          updH, APIHumanDriver.HumanEvent("kristofer", state ++ Map("key1" -> SPValue("hej")))
-        ))
+//        publish(APIHumanDriver.topicFromHuman, SPMessage.makeJson(
+//          updH, APIHumanDriver.HumanEvent("kristofer", state ++ Map("key1" -> SPValue("hej")))
+//        ))
       }
     case x => println("HUMAN MOCKUP GOT: " + x)
   }

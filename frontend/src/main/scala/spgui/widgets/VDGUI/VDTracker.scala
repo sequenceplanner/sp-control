@@ -138,6 +138,10 @@ object VDTracker {
 
     def render(p:Unit, s:State) =
       <.div(
+        SPWidgetElements.button(
+          "reload data",
+          send(APIVDTracker.getModelsInfo(""))
+        ),
         SPWidgetElements.buttonGroup(Seq(
           SPWidgetElements.dropdown(
             "Create Model",

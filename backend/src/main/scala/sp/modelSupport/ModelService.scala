@@ -49,26 +49,37 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
     val vdID = ID.newID
     val abID = ID.newID
 
+    val setupVD = APIVirtualDevice.SetUpVD(
+      name = "VD",
+      id = vdID,
+      exResorces, //= resources.map(_.resource),
+      exDrivers, // = resources.map(_.driver),
+      attributes = SPAttributes()
+    )
+
+    val setupAbs = APIAbilityHandler.SetUpAbilityHandler(
+      name = "Abilites",
+      id = abID,
+      exAbilities,
+      vd = vdID
+    )
+
+    println("_---------------_  ModelSupport launchVD")
+    println(setupVD)
+    println(setupAbs)
+    println("-_______________-  ModelSupport launchVD")
+
     publish(APIVirtualDevice.topicRequest,
       SPMessage.makeJson(
         SPHeader(from = "ModelService"),
-        APIVirtualDevice.SetUpVD(
-          name = "VD",
-          id = vdID,
-          exResorces, //= resources.map(_.resource),
-          exDrivers, // = resources.map(_.driver),
-          attributes = SPAttributes()
-        )))
+        setupVD
+        ))
 
     publish(APIAbilityHandler.topicRequest,
       SPMessage.makeJson(
         SPHeader(from = "ModelService"),
-        APIAbilityHandler.SetUpAbilityHandler(
-          name = "Abilites",
-          id = abID,
-          exAbilities,
-          vd = vdID
-        )))
+        setupAbs
+        ))
   }
 
   def launchOpRunner(h: SPHeader, ids : List[IDAble])= {
