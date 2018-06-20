@@ -21,9 +21,8 @@ object StateHandlerWidget {
 
   case class State(
                     activeRunner:           Option[Runner] = None,
-                    theModel:               List[IDAble] = List(),
                     extractedThings:        ExtractedThings = ExtractedThings(),
-                    driverValues:           Map[ID, SPValue] = Map()
+                    driverStates:           Map[ID, SPValue] = Map()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -32,8 +31,8 @@ object StateHandlerWidget {
     val deviceDriverHandler =
       BackendCommunication.getMessageObserver(onVDMessage, APIVirtualDevice.topicResponse)
 
-    /**
-      * onModelMessage
+    /** Handle the message from the APIModel.topicResponse
+      *
       * @param mess SPMessage
       */
     def onModelMessage(mess: SPMessage): Unit = {
@@ -45,14 +44,14 @@ object StateHandlerWidget {
             // for all drivers in extracted things
             // map it against a the driverState if it does already exist in driverStateMapper
             // else map it against a new ID
-            val driverStates: Map[ID, SPValue] = e.allDrivers.map{driver =>
-              if (state.driverValues.contains(driver.id))
-                driver.id -> state.driverValues(driver.id)
+            val newDriverStates: Map[ID, SPValue] = e.allDrivers.map{driver =>
+              if (state.driverStates.contains(driver.id))
+                driver.id -> state.driverStates(driver.id)
               else
                 driver.id -> SPValue("Not connected")
             }.toMap
             // update state
-            state.copy(theModel = items, extractedThings = e, driverValues = state.driverValues ++ driverStates)
+            state.copy(extractedThings = e, driverStates = state.driverStates ++ newDriverStates)
           }
         }
         case x => Callback.empty
@@ -62,8 +61,8 @@ object StateHandlerWidget {
 
     /** Filter out a list of operationThings, driverThings and the map between operations and drivers
       *
-      * @param model - list of [[IDAble]]
-      * @return A [[ExtractedThings]]
+      * @param model The model as a List of IDAble
+      * @return The class ExtractedThings (containging the list of operationThings, driverThings and mapping)
       */
     def extractVariablesFromModel(model: List[IDAble]): ExtractedThings = {
       // get runner
@@ -85,7 +84,7 @@ object StateHandlerWidget {
     def onVDMessage(mess: SPMessage): Unit = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
         case APIVirtualDevice.StateEvent(_, id, newDriverStates,_) => {
-          $.modState(state => state.copy(driverValues = state.driverValues ++ newDriverStates))
+          $.modState(state => state.copy(driverStates = state.driverStates ++ newDriverStates))
         }
         case x => Callback.empty
       }
@@ -99,22 +98,23 @@ object StateHandlerWidget {
       */
     def render(state: State): TagOf[html.Div] = {
       <.div(
-        renderModel(state.theModel, state.extractedThings.allOperations,
-          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.driverValues)
+        renderModel(state.extractedThings.allOperations,
+          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.driverStates)
       )
     }
 
     /** Render the model in state handler
       *
-      * @param theModel List of [[IDAble]]
       * @param operationThings List of [[Thing]]
-      * @param driverThings List of [[Thing]]:s
+      * @param driverThings All driverthings in model
       * @param operationDriverMap The id:s of the operations that is connected to a driverValue. Map of [[ID]] to [[ID]].
-      * @param driverValues The Driver-values. Map of [[ID]] to [[SPValue]])
-      * @return [[TagOf]][html.div]
+      * @param driverStates The Driver-values. Map of [[ID]] to [[SPValue]])
+      * @return The scene to the widget
       */
-    def renderModel(theModel: List[IDAble], operationThings: List[Thing], driverThings: List[Thing],
-                    operationDriverMap: Map[ID, ID], driverValues: Map[ID, SPValue]) = {
+    def renderModel(operationThings: List[Thing], driverThings: List[Thing],
+                    operationDriverMap: Map[ID, ID], driverStates: Map[ID, SPValue]) =
+    {
+      println(s"Driver Things: $driverThings")
       <.div(
         <.div(
           <.details(^.open := "open", ^.className := "details-pairs",
@@ -123,23 +123,24 @@ object StateHandlerWidget {
               ^.className := "table table-striped", ^.className := "table-pairs",
               tableHead(),
               <.tbody(
-                // for all pairs of operation-driverValues
+                // for all pairs of operation-driverStates
                 // print the things
                 operationDriverMap.map { idPair =>
                   val opThing: Thing = operationThings.find(_.id == idPair._1).getOrElse(Thing("debug-opVar"))
                   val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverVar"))
+                  println(s"The pair is $idPair with a $opThing [Op] and a $driverThing [Dv]")
                   <.tr(
                     <.td(opThing.name),
                     <.td(opThing.id.toString),
-                    <.td("TODO"),// TODO: Read or Write or No master?
+                    <.td(""),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
-                    <.td(driverValues(driverThing.id).toString())
+                    <.td(driverStates(driverThing.id).toString())
                   )
                 }.toTagMod
               )
             )
           )
-        ),
+        ).when(operationDriverMap.nonEmpty),
         <.div(
           <.details(^.open := "open",  ^.className := "details-empty-operations",
             <.summary("Operation with no Driver"),
@@ -150,10 +151,11 @@ object StateHandlerWidget {
                 // for all operation things that do not have its id in operationDriverMap
                 // print the operation
                 operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id)).map { operation =>
+                  println(s"En tom operation $operation")
                   <.tr(
                     <.td(operation.name),
                     <.td(operation.id.toString),
-                    <.td("TODO"),// TODO: Read or Write or No master?
+                    <.td(""),// TODO: Read or Write or No master?
                     <.td(""),
                     <.td("")
                   )
@@ -161,7 +163,7 @@ object StateHandlerWidget {
               )
             )
           )
-        ),
+        ).when(operationThings.nonEmpty),
         <.div(
           <.details(^.open := "open", ^.className := "details-empty-drivers",
             <.summary("Driver with no Operation"),
@@ -176,15 +178,15 @@ object StateHandlerWidget {
                     <.tr(
                       <.td(),
                       <.td(),
-                      <.td("TODO"),// TODO: Read or Write or No master?
+                      <.td(""),// TODO: Read or Write or No master?
                       <.td(driverThing.name),
-                      <.td(driverValues(driverThing.id).toString())
+                      <.td(driverStates(driverThing.id).toString())
                     )
                   }.toTagMod
               )
             )
           )
-        )
+        ).when(driverThings.nonEmpty)
       )
     }
 
@@ -201,7 +203,7 @@ object StateHandlerWidget {
     }
 
 
-    def onUnmount() = Callback{
+    def onUnmount = Callback{
       println("StateHandlerWidget Unmouting")
       modelMessObs.kill()
       deviceDriverHandler.kill()
@@ -211,7 +213,7 @@ object StateHandlerWidget {
   private val stateHandlerComponent = ScalaComponent.builder[Unit]("StateHandlerWidget")
     .initialState(State())
     .renderBackend[Backend]
-    .componentWillUnmount(_.backend.onUnmount())
+    .componentWillUnmount(_.backend.onUnmount)
     .build
 
   def apply() = spgui.SPWidget(spwb => stateHandlerComponent())
