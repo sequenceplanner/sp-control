@@ -89,7 +89,8 @@ object SPSettings {
     Resolver.typesafeRepo("releases"),
     Resolver.sonatypeRepo("snapshots"),
     "rosjava repository" at "https://github.com/rosjava/rosjava_mvn_repo/raw/master",
-    "Spring plugins" at "http://repo.spring.io/plugins-release/"  // rosjava depend on apache packages from here
+    "Spring plugins" at "http://repo.spring.io/plugins-release/",  // rosjava depend on apache packages from here
+    Resolver.jcenterRepo
   )
 
   /** Declare global dependency versions here to avoid mismatches in multi part dependencies */
@@ -128,6 +129,7 @@ object SPSettings {
     "com.typesafe.akka" %% "akka-cluster" % versions.akka,
     "com.typesafe.akka" %% "akka-cluster-tools" % versions.akka,
     "com.typesafe.akka" %% "akka-testkit" % versions.akka,
+    "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1",
     "org.slf4j" % "slf4j-simple" % "1.7.7",
     "com.github.romix.akka" %% "akka-kryo-serialization" % "0.5.1",
     "org.scalatest" %% "scalatest" % "3.0.1" % "test",

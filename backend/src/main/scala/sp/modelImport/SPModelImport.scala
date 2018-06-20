@@ -45,8 +45,8 @@ class SPModelImport extends Actor
         if(oldModel.nonEmpty) {
           val model = oldModel.get
           val HierarchyRoots = model.ids.filter(_.isInstanceOf[HierarchyRoot]).map(_.asInstanceOf[HierarchyRoot]) // Get Hierarchy Roots from the model
-          val Structs = HierarchyRoots.map(HR => Struct(HR.name, HR.children.map(C => getHierarchyNodeAsStructNodes(C, Some(HR.id))).flatten, HR.attributes, HR.id)) // convert them to Structs
-          val newIDAbles = (model.ids.filterNot(_.isInstanceOf[HierarchyRoot]) ++ Structs) // remove Hierarchy roots from model IDAbles and add Structs instead
+          val Structs = HierarchyRoots.map(HR => Struct(HR.name, HR.children.flatMap(C => getHierarchyNodeAsStructNodes(C, Some(HR.id))), HR.attributes, HR.id)) // convert them to Structs
+          val newIDAbles = model.ids.filterNot(_.isInstanceOf[HierarchyRoot]) ++ Structs // remove Hierarchy roots from model IDAbles and add Structs instead
 
           sendAnswer(SPMessage.makeJson(spHeader, model.copy(ids = newIDAbles))) // Make a copy of the model with the new IDAbles and send
         }

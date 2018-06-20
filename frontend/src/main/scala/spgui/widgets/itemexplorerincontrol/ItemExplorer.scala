@@ -73,17 +73,6 @@ object ItemExplorer {
       }
     }
 
-    // def requestAllItems(): Callback = {
-    //   val mcomm = $.state.map(_.currentMComm.get).toFuture
-    //   val futureToRes = mcomm.flatMap(_.request(mapi.GetItems(ids.toList)).takeFirstResponse.map(_._2))
-    //   futureToRes.map {
-    //     case mapi.SPItems(items) => {
-    //       $.modState(s => s.copy(items = s.items ++ items))
-    //     }
-    //     case _ => Callback{}
-    //   }
-    // }
-
     def createItem(kind: String) = {
       val item = ItemKinds.create(kind)
       val modifyState = $.modState(s => s.copy(newItems = (StructNode(item.id), item) :: s.newItems))
@@ -141,13 +130,13 @@ object ItemExplorer {
             val externalMComm = new ModelAPIComm(fromStructNode.model.get)
             val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
             val items = req.takeFirstResponse.map(_._2).map {
-              case mapi.SPItems(items) => {
+              case mapi.SPItems(idAbles) => {
                 val replace = replaceStruct(structB.copy(
                   items = structB.items ++ Set(newNode)))
-                val addItemsRemote = sendToModel(mapi.PutItems(items))
+                val addItemsRemote = sendToModel(mapi.PutItems(idAbles))
                 val addItemsLocally = $.modState(s => s.copy(
-                  items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap,
-                  itemInfo = s.itemInfo ++ items.map(i => Map(i.id -> ItemInfo(i.name, "sdf"))).flatten.toMap
+                  items = s.items ++ idAbles.flatMap(i => Map(i.id -> i)).toMap,
+                  itemInfo = s.itemInfo ++ idAbles.flatMap(i => Map(i.id -> ItemInfo(i.name, "sdf"))).toMap
                 ))
                   (replace >> addItemsRemote >> addItemsLocally).runNow()
               }
@@ -168,11 +157,11 @@ object ItemExplorer {
             val externalMComm = new ModelAPIComm(fromNode.model.get)
             val req = externalMComm.request(mapi.GetItems(List(nodeA.item)))
             val items = req.takeFirstResponse.map(_._2).map {
-              case mapi.SPItems(items) => {
-                val addItemsRemote = sendToModel(mapi.PutItems(items))
+              case mapi.SPItems(idAbles) => {
+                val addItemsRemote = sendToModel(mapi.PutItems(idAbles))
                 val addItemsLocally = $.modState(s => s.copy(
-                  items = s.items ++ items.map(i => Map(i.id -> i)).flatten.toMap,
-                  itemInfo = s.itemInfo ++ items.map(i => Map(i.id -> ItemInfo(i.name, "sdf"))).flatten.toMap
+                  items = s.items ++ idAbles.flatMap(i => Map(i.id -> i)).toMap,
+                  itemInfo = s.itemInfo ++ idAbles.flatMap(i => Map(i.id -> ItemInfo(i.name, "sdf"))).toMap
                 ))
                   (replace >> addItemsRemote >> addItemsLocally).runNow()
               }
@@ -264,8 +253,7 @@ object ItemExplorer {
       )
 
     def renderOptionPane =
-      <.div(
-        ^.className := Style.optionPane.htmlClass,
+      SPWidgetElements.buttonGroup(Seq(
         SPWidgetElements.button(Icon.expand, toggleAll),
         SPWidgetElements.dropdown(
           Icon.plus,
@@ -273,7 +261,7 @@ object ItemExplorer {
         ),
         ModelChoiceDropdown(id => setCurrentModel(id)),
         SPWidgetElements.TextBox("Filter...", str => filterAllStructs(str))
-      )
+      ))
 
     def renderNewItems(newItems: List[(StructNode, IDAble)], currentModelID: Option[ID]) =
       <.div(

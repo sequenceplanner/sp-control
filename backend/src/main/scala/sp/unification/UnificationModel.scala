@@ -8,7 +8,6 @@ import sp.devicehandler._
 import sp.drivers.ROSFlatStateDriver
 import sp.drivers.ROSHelpers
 
-
 trait ROSSupport extends ModelDSL {
   def writer(driver: String, messageType: String, topic: String, rate: Int) = {
     val emptyMsg = ROSHelpers.createROSMsg(messageType).get // puke if we mis-spell
@@ -35,104 +34,88 @@ trait ROSSupport extends ModelDSL {
 }
 
 class UnificationModel extends ModelDSL {
-  use("UR", new UR)
-  use("MiR", new MiR)
+  //use("UR", new UR)
+  use("Atlas", new Atlas)
+  // use("MiR", new MiR)
 
   // runner (TODO: for now runners take everything and must be on the top level of the model)
+
+
+
+
+  // MAIN MODEL
+
+  // products
+  // val bolts = (1 to 10).map(i => s"boltPair$i")
+
+  // v("lf_pos", "on_kitting", List("on_kitting", "on_engine"))
+  // bolts.foreach { b => v(b, "empty", List("empty", "placed", "tightened")) }
+  // v("filter1", "empty", List("empty", "placed", "tightened"))
+  // v("filter2", "empty", List("empty", "placed", "tightened"))
+  // v("pipes", "empty", List("empty", "placed"))
+
+  // // resources
+  // v("boltMode" ,"ur", List("ur", "human"))
+
+  // v("urMode", "running", List("running", "float", "stopped"))
+  // v("urTool", "none", List("none", "lfTool", "atlas", "filterTool"))
+  // v("urPose", "HOME", (List("HOME",
+  //   "atLfTool", "atAtlas", "atFilterTool") ++
+  //   bolts.map(b => s"at$b") ++ bolts.map(b => s"atTCP$b") ++ bolts.map(b => s"atTCPnut$b") ++
+  //   List("atFilter1", "atFilter2")).map(s=>SPValue(s)))
+
+
+  // // operations
+
+  // bolts.foreach { b =>
+  //   val boltUr = c("pre", "boltMode == 'ur' && urTool == 'atlas'")
+  //   val boltHuman = c("pre", "boltMode == 'human' && (urTool != 'atlas' || urMode == 'float')")
+
+  //   o(s"${b}Tighten")(//, s"UR.tighten$b")(
+  //     c("pre", s"urPose == 'atTCP$b' && $b == 'placed'"), boltUr,
+  //     c("post", "true", s"$b := 'tightened'"),
+  //     c("reset", "true"))
+
+  //   o(s"${b}TightenMotion")( //, s"UR.tightenMotion$b")(
+  //     c("pre", s"urPose == 'atTCP$b' && $b == 'placed'"), boltUr,
+  //     c("post", "true", s"urPose := 'atTCPnut$b'"),
+  //     c("reset", "true"))
+
+  //   o(s"${b}upToTCP")(///, s"UR.atToTCP$b")(
+  //     c("pre", s"urPose == 'atTCPnut$b' && $b == 'tightened'"), boltUr,
+  //     c("post", "true", s"urPose := 'atTCP$b'"),
+  //     c("reset", "true"))
+
+  //   o(s"${b}HumanTightenMotion")(//, s"Human.tightenMotion$b")(
+  //     c("pre", s"$b == 'placed'"), boltHuman,
+  //     c("post", "true", s"urPose := 'atTCPnut$b'"),
+  //     c("reset", "true"))
+  // }
+
+  // val bm = bolts.zipWithIndex.map{case (b,i) => i->b}.toMap
+  // bm.map {
+  //   case (0, b) =>
+  //     o(s"to${b}")(
+  //       c("pre", "boltMode == 'ur' && urTool == 'atlas'"),
+  //       c("pre", s"$b == 'placed'"),
+  //       c("post", "true", s"urPose := 'at$b'"),
+  //       c("reset", "true"))
+  //   case (i, b) =>
+  //     val prev = bm(i-1)
+  //     o(s"from${prev}to${b}")(
+  //       c("pre", "boltMode == 'ur' && urTool == 'atlas'"),
+  //       c("pre", s"urPose == 'at$prev' && $b == 'placed'"),
+  //       c("post", "true", s"urPose := 'at$b'"),
+  //       c("reset", "true"))
+  // }
+
+
   runner("runner")
 
   // share a single driver for all ROS nodes
   driver("ROSdriver", ROSFlatStateDriver.driverType)
 }
 
-class MiR extends ModelDSL {
-  use("pose", new MiRPose)
-  use("mode", new MiRMode)
-}
-
-class MiRPose extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/MiRPoseUniToSP", "/unification_roscontrol/mir_pose_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/MiRPoseSPToUni", "/unification_roscontrol/mir_pose_sp_to_unidriver", 250)
-
-  // abilities
-  a("gotoKitting", List(),
-    c("pre", "true", s"ref_pos := 'kitting'"),
-    c("started", s"got_cmd_ref_pos == 'kitting'"),
-    c("post", s"act_pos == 'kitting'"),
-    c("reset", "true"))
-
-  resource("resource")
-}
-
-class MiRMode extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/MiRModeUniToSP", "/unification_roscontrol/mir_mode_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/MiRModeSPToUni", "/unification_roscontrol/mir_mode_sp_to_unidriver", 250)
-
-  // abilities
-  a("setReady", List(),
-    c("pre", "true", s"set_state_to_ready := true"),
-    c("started", s"got_cmd_set_state_to_ready"), // note that we check the driver state
-    c("post", "true"),
-    c("reset", "true"))
-
-  // blank list of things = take everything
-  resource("resource")
-}
-
-class UR extends ModelDSL {
-  use("pose", new URPose)
-  use("mode", new URMode)
-}
-
-class URMode extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/URModeUniToSP", "/unification_roscontrol/ur_mode_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/URModeSPToUni", "/unification_roscontrol/ur_mode_sp_to_unidriver", 250)
-
-  // abilities
-
-  // blank list of things = take everything
-  resource("resource")
-}
-
-class URPose extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/URPoseUniToSP", "/unification_roscontrol/ur_pose_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/URPoseSPToUni", "/unification_roscontrol/ur_pose_sp_to_unidriver", 250)
-
-  // abilities
-  List("URDummyPose1", "URDummyPose2", "URDummyPose3", "URDummyPose4").foreach { pose =>
-    a("goto"+pose, List(),
-      c("pre", "true", s"ref_pos := '$pose'"),
-      c("started", s"got_cmd_ref_pos == '$pose' && executing"), // note that we check the driver state
-      c("post", s"act_pos == '$pose' && !executing"),
-      c("reset", "true", "got_cmd_ref_pos == ResetJOINT"))
-  }
-
-  // variables needs to be explicit now
-  v("act_pos", "URDummyPose1", List("URDummyPose1","URDummyPose2","URDummyPose3","URDummyPose4","unknown"))
-
-  // add a dummy sequence
-  o("gotoURDummyPose1")(
-    c("pre", "act_pos == 'unknown' || act_pos == 'URDummyPose4'", "act_pos := URDummyPose1"),
-    c("post", "act_pos == 'URDummyPose1'"))
-
-  o("gotoURDummyPose2")(
-    c("pre", "act_pos == 'URDummyPose1'", "act_pos := URDummyPose2"),
-    c("post", "act_pos == 'URDummyPose2'"))
-
-  o("gotoURDummyPose3")(
-    c("pre", "act_pos == 'URDummyPose2'", "act_pos := URDummyPose3"),
-    c("post", "act_pos == 'URDummyPose3'")
-  )
-  o("gotoURDummyPose4")(
-    c("pre", "act_pos == 'URDummyPose3'", "act_pos := URDummyPose4"),
-    c("post", "act_pos == 'URDummyPose4'")
-  )
-
-
-
-  // blank list of things = take everything
-  resource("resource")
-}
 
 object UnificationModel {
   def apply() = new UnificationModel

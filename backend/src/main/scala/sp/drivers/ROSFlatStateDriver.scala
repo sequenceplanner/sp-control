@@ -88,14 +88,20 @@ object ROSHelpers {
     }
   }
 
+  var msgs: Map[String, Option[org.ros.internal.message.Message]] = Map()
+
   def createROSMsg(t: String): Option[org.ros.internal.message.Message] = {
     import org.ros.internal.message.definition.MessageDefinitionReflectionProvider
     import org.ros.internal.message.DefaultMessageFactory
-    Try {
-      val mf = new DefaultMessageFactory(new MessageDefinitionReflectionProvider())
-      val m: org.ros.internal.message.Message = mf.newFromType(t)
+    msgs.get(t).getOrElse {
+      val m = Try {
+        val mf = new DefaultMessageFactory(new MessageDefinitionReflectionProvider())
+        val m: org.ros.internal.message.Message = mf.newFromType(t)
+        m
+      }.toOption
+      msgs += (t -> m)
       m
-    }.toOption
+    }
   }
 
   def ROSMsgToSPAttributes(msg: org.ros.internal.message.Message): Option[SPAttributes] = {
