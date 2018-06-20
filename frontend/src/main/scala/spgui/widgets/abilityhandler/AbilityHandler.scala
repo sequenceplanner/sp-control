@@ -33,7 +33,7 @@ object AbilityHandlerWidget {
         case vdapi.TheVD(_, _, r, _, _) =>
           $.modState(s => s.copy(resources = r.map(_.r))).runNow()
         case x =>
-          println(s"AbilityHandlerWidget - TODO: $x")
+          //println(s"AbilityHandlerWidget - TODO: $x")
       }
     }
 
@@ -47,7 +47,7 @@ object AbilityHandlerWidget {
             val ns = s.abilityState ++ state
             s.copy(abilityState = ns)}.runNow()
         case x =>
-          println(s"AbilityHandlerWidget - answers - TODO: $x")
+          //println(s"AbilityHandlerWidget - answers - TODO: $x")
       }
     }
 

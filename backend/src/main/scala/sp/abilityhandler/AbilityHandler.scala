@@ -83,11 +83,11 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
   def transitionState(newState: State): Unit = context become handleReceive(newState)
 
   def handleReceive(state: State): Receive = {
-    println(state)
+    //println(state)
     import APIAbilityHandler.{topicResponse, AbilityStarted, AbilityCompleted, AbilityState}
     {
       case x: String =>
-        println("handleReceive() string in AbilityHandler.")
+        //println("handleReceive() string in AbilityHandler.")
         SPMessage.fromJson(x).foreach { message =>
           val result = message.oneOf[APIAbilityHandler.Request]
             .or[APIVirtualDevice.Response]
@@ -295,12 +295,14 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
   }
 
   def onVirtualDeviceRequest(currentState: State, header: SPHeader, response: APIVirtualDevice.Response): Unit = {
-    println("VirtualDevice stuff")
+    //println("VirtualDevice stuff")
     if (header.from.contains(virtualDeviceID.toString) || header.reply == SPValue(handlerID)) {
       log.debug("ABH from VD: " + response)
       response match {
         case stateEvent: APIVirtualDevice.StateEvent =>
-          transitionState(currentState.copy(states = currentState.states ++ stateEvent.state))
+          val updS = currentState.copy(states = currentState.states ++ stateEvent.state)
+
+          transitionState(updS)
 
           // Add filters if we need it later. Probably is better that all abilities has
           // the complete state
@@ -308,7 +310,7 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
           //f.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
 
           // The no filter version
-          currentState.abilityStates.foreach { case (_, abilityState) => abilityState.actor ! NewState(currentState.states) }
+          currentState.abilityStates.foreach { case (_, abilityState) => abilityState.actor ! NewState(updS.states) }
 
         case virtualDevice: APIVirtualDevice.TheVD =>
           println("We got the VD!")

@@ -55,6 +55,7 @@ object OperationRunnerWidget {
       * @param mess sp.domain.SPMessage
       */
     def onVDTrackerMessage(mess: SPMessage) = {
+      println("OPRWidget line58: "+mess)
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVDTracker.Response].map {
 
         case APIVDTracker.OpRunnerCreated(id) =>
@@ -70,6 +71,8 @@ object OperationRunnerWidget {
     }
 
     def onOperationRunnerMessage(mess: SPMessage) = {
+      println("OPRWidget line74: "+mess)
+
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIOperationRunner.Response].map {
         // case Runners-message: create new opAbPairs
         case APIOperationRunner.Runners(ids) => {
@@ -156,6 +159,8 @@ object OperationRunnerWidget {
     }
 
     def onAbilityMessage(mess: SPMessage) = {
+      println("OPRWidget line162: "+mess)
+
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIAbilityHandler.Response].map {
         // case AbilityState-message: update the abilityState in the AbilityWithState-map
         case APIAbilityHandler.AbilityState(id, newAbilityState) => {
@@ -201,6 +206,8 @@ object OperationRunnerWidget {
     }
 
     def onModelObsMes(mess: SPMessage): Unit = {
+      println("OPRWidget line209: "+mess)
+
       mess.body.to[mapi.Response].map{
         case mapi.SPItems(items) => {
           $.modState(_.copy(modelIdables = items)).runNow()
