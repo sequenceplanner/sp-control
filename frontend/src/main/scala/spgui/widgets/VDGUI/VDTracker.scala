@@ -30,7 +30,7 @@ object VDTracker {
     latestVDeviceState: Map[ID, SPValue] = Map(),
     availableVDModels: List[String] = List(),
     modelIdables : List[IDAble] = List(),
-    modelID : ID = ID.newID,
+    modelID : Option[ID] = None,
     drivers : List[VD.Driver] = List()
   )
 
@@ -118,7 +118,7 @@ object VDTracker {
       <.div(
         SPWidgetElements.button(
           "reload data",
-          send(APIVDTracker.getModelsInfo(""))
+          sendToVDTrackerService(APIVDTracker.getModelsInfo())
         ),
         SPWidgetElements.buttonGroup(Seq(
           SPWidgetElements.dropdown(
@@ -134,21 +134,25 @@ object VDTracker {
             ).toSeq
           ),
           ModelChoiceDropdown(id => {
-            $.modState(_.copy(modelID = id)) >>
+            $.modState(_.copy(modelID = Some(id))) >>
             sendToModel(id, mapi.GetItemList(0,99999))
           }),
-          SPWidgetElements.button(
-            "Launch VD and Abilities",
-            sendToVDTrackerService(APIVDTracker.launchVDAbilities(s.modelIdables))
-          ),
-          SPWidgetElements.button(
-            "Launch operation runner",
-            sendToVDTrackerService(APIVDTracker.launchOpRunner(s.modelIdables))
-          ),
-          SPWidgetElements.button(
-            "Terminate Everything",
-            terminateAll(s)
-          )
+         s.modelID.whenDefined{id => TagMod(
+            SPWidgetElements.button(
+              s"Launch VD and Abilities",
+              sendToVDTrackerService(APIVDTracker.launchVDAbilities(s.modelIdables))
+            ),
+            SPWidgetElements.button(
+              "Launch operation runner",
+              sendToVDTrackerService(APIVDTracker.launchOpRunner(s.modelIdables))
+            ),
+            SPWidgetElements.button(
+              "Terminate Everything",
+              terminateAll(s)
+            )
+
+
+         )},
         )),
         <.br(),
         renderRunners(s.latestActiveRunner, s.latestRunnerState, s.modelIdables),
