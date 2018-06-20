@@ -64,7 +64,7 @@ class Sp1Talker extends Actor {
       } yield {
         println(b)
         b match {
-          case APIAbilityHandler.Abs(a) =>
+          case APIAbilityHandler.AbilitiesByIdAndName(a) =>
             println("got abilities!!. sending on")
             val reply = SPAttributes("from" -> "AbilityHandler", "abilities" -> a)
             mediator ! Publish("sp1answers", reply)

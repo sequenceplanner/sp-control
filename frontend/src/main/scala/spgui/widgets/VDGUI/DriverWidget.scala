@@ -2,12 +2,12 @@ package spgui.widgets.VDGUI
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.{VD, APIDeviceDriver}
+import sp.devicehandler.{APIDeviceDriver, VD}
 import sp.domain._
 import spgui.communication._
 import spgui.components.SPWidgetElements
 import sendMessages._
-
+import sp.vdtesting.APIVDTracker
 
 object DriverWidget {
 
@@ -18,6 +18,15 @@ object DriverWidget {
 
   private class Backend($: BackendScope[Unit, State]) {
     val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
+    val vdTrackingHandler = BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicRequest)
+
+    def onVDTrackerMessage(mess: SPMessage) : Unit = {
+      mess.getBodyAs[APIVDTracker.Request].map {
+        case APIVDTracker.ResetGUI =>
+          $.modState ( _.copy(cards = List() ) ).runNow()
+        case x =>
+      }
+    }
 
     def onDriverMessage(mess: SPMessage) = {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
@@ -40,16 +49,10 @@ object DriverWidget {
           * if a [[APIDeviceDriver.DriverStateChange]] response is noticed
           * update the driver in the cards with the help method onDriverStateChange()
           */
-        case APIDeviceDriver.DriverStateChange(name, id, state, diff) => {
+        case APIDeviceDriver.DriverStateChange(name, id, state, diff) =>
           onDriverStateChange(name, id, state, diff)
-        }
 
-        case APIDeviceDriver.DriverCommandDone(id, result) => {
-          Callback.empty
-        }
-        case x => {
-          Callback.empty
-        }
+        case x => Callback.empty
       }
       callback.foreach(_.runNow())
     }
@@ -72,23 +75,10 @@ object DriverWidget {
           status = c.status,
           typ = c.driver.driverType,
           setup = c.driver.setup,
-          state = c.driverState//c.driverState.keys.map(k =>(k.toString, c.driverState.get(k).get)).toList
+          state = c.driverState
         )))
       )
     }
-
-    /**********ACTIONS**********/
-    /* "DriverWidget: Edit State-Button clicked") // dummy
-       TODO: Should edit one state of the driver */
-    def onEditStateClicked(card: Card) = ???
-
-
-    def forceWrite(card: Card) = ???
-    /*{
-      // callback to backend to write new SPValues to the driver
-      sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.driver.id, card.driverState))
-      Callback("DriverWidget: Force the driver to write over past state") // dummy
-    }*/
 
     def onUnmount() = Callback{
       println("DriverWidget Unmouting")

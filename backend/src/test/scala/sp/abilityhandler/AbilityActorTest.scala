@@ -49,7 +49,7 @@ class AbilityActorTest(_system: ActorSystem) extends TestKit(_system) with Impli
     TestKit.shutdownActorSystem(system)
   }
 
-  import sp.abilityhandler.AbilityState._
+  import sp.abilityhandler.AbilityStatus._
 
   "Ability is created" - {
     "get ids" in {
@@ -69,9 +69,9 @@ class AbilityActorTest(_system: ActorSystem) extends TestKit(_system) with Impli
       mh.tell(NewState(Map(v1.id -> 2)), probe.ref)
 
       probe.fishForMessage(1 second){
-        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == notEnabled && cnt == 0 => false
-        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == enabled && cnt == 0 => false
-        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == executing && cnt == 1 => true
+        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == NotEnabled && cnt == 0 => false
+        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == Enabled && cnt == 0 => false
+        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == Executing && cnt == 1 => true
       }
     }
     "start" in {
@@ -81,7 +81,7 @@ class AbilityActorTest(_system: ActorSystem) extends TestKit(_system) with Impli
       mh.tell(StartAbility(Map(v1.id -> 1), req, Map()), probe.ref)
 
       probe.fishForMessage(1 second){
-        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == starting && cnt == 0 => false
+        case x @ AbilityStateChange(aid, s, cnt, reqID) if aid == id && s == Starting && cnt == 0 => false
         case x @ StateUpdReq(aid, s) if aid == id && s == Map(v1.id -> SPValue(2)) => true
       }
     }
@@ -108,13 +108,13 @@ class AbilityActorTest(_system: ActorSystem) extends TestKit(_system) with Impli
 
       probe.fishForMessage(1 second){
         case x @ AbilityStateChange(aid, s, cnt, reqID) if
-          aid == id && s == starting && cnt == 0 && reqID.contains(req) => false
+          aid == id && s == Starting && cnt == 0 && reqID.contains(req) => false
         case x @ AbilityStateChange(aid, s, cnt, reqID) if
-          aid == id && s == executing && cnt == 1 && reqID.contains(req) => false
+          aid == id && s == Executing && cnt == 1 && reqID.contains(req) => false
         case x @ AbilityStateChange(aid, s, cnt, reqID) if
-          aid == id && s == finished && cnt == 1 && reqID.contains(req) => false
+          aid == id && s == Finished && cnt == 1 && reqID.contains(req) => false
         case x @ AbilityStateChange(aid, s, cnt, reqID) if
-          aid == id && s == notEnabled && cnt == 1 && reqID.contains(req) => true
+          aid == id && s == NotEnabled && cnt == 1 && reqID.contains(req) => true
         case x @ StateUpdReq(aid, s) if aid == id && s == Map(v1.id -> SPValue(2)) => false
         case x @ StateUpdReq(aid, s) if aid == id && s == Map(v1.id -> SPValue(4)) => false
         case x @ StateUpdReq(aid, s) if aid == id && s == Map(v1.id -> SPValue(1)) => false

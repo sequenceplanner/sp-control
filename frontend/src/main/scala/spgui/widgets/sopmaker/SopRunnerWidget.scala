@@ -33,7 +33,7 @@ object SopRunnerWidget {
     }
   }
   private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
-    .initialState(State(sop = ExampleSops.tinySop))
+    .initialState(State(sop = ExampleSops.giantSop))
     .renderBackend[Backend]
     .build
 

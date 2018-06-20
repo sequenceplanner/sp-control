@@ -20,8 +20,11 @@ object APIVDTracker {
   case class launchOpRunner(idables : List[IDAble]) extends  Request
   case class OpRunnerCreated(id: ID) extends Response
 
+  case object ResetGUI extends Request
 
   object Formats {
+    implicit val fResetGUI: JSFormat[ResetGUI.type ] = deriveCaseObject[ResetGUI.type ]
+
     implicit val fcreateModel: JSFormat[createModel] = Json.format[createModel]
     implicit val flaunchVDAbilities: JSFormat[launchVDAbilities] = Json.format[launchVDAbilities]
     implicit val flaunchOpRunner: JSFormat[launchOpRunner] = Json.format[launchOpRunner]
