@@ -21,9 +21,8 @@ object ExampleSops {
 
   def tinySop = Sequence( List(SOP(ops(0)), SOP(ops(1))))
 
-  def giantSop = {
+  def giantSop: SOP = {
     val (sop, _) = SopGeneration.sop(RNG.Simple(12345))
-    println(SopGeneration.showSop(sop))
     sop
   }
 

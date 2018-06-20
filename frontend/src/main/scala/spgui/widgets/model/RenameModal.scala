@@ -38,18 +38,22 @@ object RenameModal {
     def render(props: Props, state: State) = {
       <.div(
         use(css.container),
-        <.p("Rename model"),
-        <.input(
-          ^.onChange ==> onNameChanged,
-          ^.onKeyPress ==> (e => {
-            val key = e.key
-            onKeyPressed(props, state, key)
-          }),
-          ^.value := state.name),
+        <.div(
+          use(css.inputContainer),
+          <.p(use(css.nameTag), "Name"),
+          <.input(
+            ^.onChange ==> onNameChanged,
+            ^.onKeyPress ==> (e => {
+              val key = e.key
+              onKeyPressed(props, state, key)
+            }),
+            ^.value := state.name
+          )
+        ),
         <.div(
           use(css.innerContainer),
-          button(use(css.button), onClick --> props.close(onSubmit(state)), "Save name"),
-          button(use(css.button), onClick --> props.close(onCancel(state)), "Cancel")
+          button(^.className := "btn btn-default", use(css.button), onClick --> props.close(onSubmit(state)), "Save name"),
+          button(^.className := "btn btn-default", use(css.button), onClick --> props.close(onCancel(state)), "Cancel")
         )
       )
     }

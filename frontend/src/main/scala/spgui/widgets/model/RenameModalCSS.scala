@@ -17,11 +17,22 @@ object RenameModalCSS extends StyleSheet.Inline {
   val innerContainer = style(
     display.flex,
     alignSelf.stretch,
-    justifyContent.spaceBetween
+    justifyContent.flexEnd
+  )
+
+  val inputContainer = style(
+    display.flex,
+    flexDirection.column,
+    justifyContent.flexStart
   )
 
   val button = style(
     margin(0.5.em)
+  )
+
+  val nameTag = style(
+    fontSize(8 pt),
+    color(c"#747474")
   )
 
   this.addToDocument()

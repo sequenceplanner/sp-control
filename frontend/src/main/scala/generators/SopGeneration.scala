@@ -3,6 +3,9 @@ package generators
 import sp.domain._
 import RNG.Rand
 
+/**
+  * Utility for generating a SOP for testing purposes
+  */
 object SopGeneration {
   val operation: Rand[Operation] = RNG.double andThen { case (d, r) => (Operation(d.toString), r) }
 
@@ -11,15 +14,8 @@ object SopGeneration {
 
   val sop: Rand[SOP] = sop()
 
-  implicit class SopWithSize(sop: SOP) {
-    def size: Int = {
-      if (sop.sop.isEmpty) 1
-      else 1 + sop.sop.map(s => s.size).sum
-    }
-  }
-
   def showSop(sop: SOP): String = {
-    def indent(depth: Int): String = List.fill(depth)("  ").foldLeft("")(_ + _)
+    def indent(depth: Int): String = List.fill(depth)("  ").mkString
 
     def show(sop: SOP, depth: Int): String = {
       val name = sop match {
@@ -34,7 +30,7 @@ object SopGeneration {
       }
 
       val r1 = s"${indent(depth)}$name\n"
-      val rest = sop.sop.map(s => show(s, depth + 1)).foldLeft("")(_ + _)
+      val rest = sop.sop.map(s => show(s, depth + 1)).mkString
       r1 + rest
     }
 
@@ -42,43 +38,51 @@ object SopGeneration {
   }
 }
 
+// TODO Add more SOP classes
+// TODO Clean up magic numbers (mostly % chances)
 private object SOPHelpers {
-  import SopGeneration.SopWithSize
+  implicit class SopWithSize(sop: SOP) {
+    def size: Int = {
+      if (sop.sop.isEmpty) 1
+      else 1 + sop.sop.map(s => s.size).sum
+    }
+  }
 
   def wrapSop(s: (SOP, RNG)): (SOP, RNG) = {
-    val (sop, rng) = s
-    val (res, r) = RNG.double(rng)
-    if (sop == EmptySOP) (EmptySOP, r)
+    val (sop, r1) = s
+    val (res, r2) = RNG.double(r1)
+
+    if (sop == EmptySOP) (EmptySOP, r2)
     else {
       val list = List(sop)
 
       val newSop = res match {
         case x if x < 1/3 => Parallel(list)
         case x if x < 2/3 && x >= 1/3 => Sequence(list)
-        case x if x < 3/3 && x >= 2/3 => SOP(list)
+        case x if x <= 1 && x >= 2/3 => SOP(list)
       }
 
-      (newSop, r)
+      (newSop, r2)
     }
   }
 
-  def childSop(allowedSteps: Int, childCountRange: Rand[Int])(s: (SOP, RNG)): (SOP, RNG) = {
-    if (allowedSteps <= 0) s
+  def childSop(allowedSteps: Int, childCountRange: Rand[Int])(data: (SOP, RNG)): (SOP, RNG) = {
+    if (allowedSteps <= 0) data
     else {
+      val (sop, r1) = data
 
-      val (sop, rng) = s
-
-      if (sop == EmptySOP) makeSop(rng)
+      if (sop == EmptySOP) makeSop(r1)
       else {
 
-        val (childCount, r2) = childCountRange(rng)
+        val (childCount, r2) = childCountRange(r1)
         val firstChild = buildSop(allowedSteps)(makeSop(r2))
-        val builtSops = (0 to childCount).scanLeft(firstChild) { case ((_, _r), _) =>
-          buildSop(allowedSteps)(makeSop(_r))
+        val builtSops = (0 to childCount).scanLeft(firstChild) { case ((_, rng), _) =>
+          buildSop(allowedSteps)(makeSop(rng))
         }
-        val (res, r4) = RNG.double(builtSops.last._2)
+        val (_, r4) = builtSops.last
+        val (res, r5) = RNG.double(r4)
 
-        val sops = sop :: builtSops.map(_._1).toList
+        val sops = sop :: builtSops.map { case (newSop, _) => newSop }.toList
 
         val sopResult = res match {
           case x if x < 0.3 => Parallel(sops)
@@ -86,15 +90,16 @@ private object SOPHelpers {
           case _ => SOP(sops)
         }
 
-        (sopResult, r4)
+        (sopResult, r5)
       }
     }
   }
 
   def buildSop(allowedSteps: Int)(s: (SOP, RNG)): (SOP, RNG) = {
-    if (allowedSteps <= 0 || s._1.size > 45) s
+    val (sop, rng) = s
+
+    if (allowedSteps <= 0 || sop.size > 45) s
     else {
-      val (sop, rng) = s
       val (rand, r2) = RNG.double(rng)
 
       rand match {

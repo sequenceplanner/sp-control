@@ -8,7 +8,7 @@ object ModelStatusCSS extends StyleSheet.Inline {
   import dsl._
 
   val container = style(
-    paddingTop(0.5.em),
+    paddingTop(0.5 em),
     display.flex,
     alignItems.center
   )
@@ -20,7 +20,7 @@ object ModelStatusCSS extends StyleSheet.Inline {
 
   val icon = style(
     fontSize(14 pt),
-    paddingRight(1 em)
+    paddingRight(0.5 em)
   )
 
   val text = style(

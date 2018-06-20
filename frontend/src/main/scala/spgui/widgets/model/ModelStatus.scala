@@ -15,7 +15,7 @@ object ModelStatus {
     <.li(
       <.div(
         use(css.container),
-        <.i(use(css.icon), ^.className := "fa fa-eye"),
+        <.i(use(css.icon), ^.className := "fa fa-cubes"),
         <.div(
           use(css.innerContainer),
           <.p(use(css.smallText), "Active model"),
