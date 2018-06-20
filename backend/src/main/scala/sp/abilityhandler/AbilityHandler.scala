@@ -8,6 +8,7 @@ import sp.domain.APISP.StatusResponse
 import sp.domain._
 import sp.domain.Logic._
 import sp.operationmatcher.API
+import sp.operationmatcher.{API => omapi}
 
 object AbilityHandler {
   def props = Props(classOf[AbilityHandlerMaker])
@@ -35,13 +36,12 @@ object AbilityHandler {
   )
 }
 
-/**
-  * This actor keeps track of all abilities. It also handles messages
-  * from the Virtual Device.
-  */
-class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends Actor
+
+// This actor will keep track of the abilities and parse all messages from the VD
+class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
   with ActorLogging
   with AbilityLogic
+  with AbilityComm
   with sp.service.ServiceCommunicationSupport
   with sp.service.MessageBussSupport {
   import context.dispatcher
@@ -50,257 +50,217 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
   // Internal state of the ability
   case class AbilityStorage(ability: APIAbilityHandler.Ability, actor: ActorRef, ids: Set[ID] = Set(), current: Option[AbilityStateChange] = None)
 
-  type AbilityID = ID
-  case class State(
-                    abilityStates: Map[AbilityID, AbilityStorage] = Map(),
-                    resources: List[VD.Resource] = List(),
-                    states: Map[ID, SPValue] = Map()
-                  ) {
-    def abilities: Iterable[APIAbilityHandler.Ability] = abilityStates.values.map(_.ability)
-  }
+  // Internal state of the ability handler
+  var abilities: Map[ID, AbilityStorage] = Map()
+  var resources: List[VD.Resource] = List()
+  var state: Map[ID, SPValue] = Map()
+
 
   subscribe(APIAbilityHandler.topicRequest)
   subscribe(APIVirtualDevice.topicResponse)
 
-  {
-    // Setting up the status response that is used for identifying the service in the cluster
-    val statusResponse: StatusResponse = AbilityHandler.attributes.copy(
-      instanceName = this.name,
-      instanceID = Some(handlerID),
-      attributes = SPAttributes("vd" -> virtualDeviceID)
-    )
+  // Setting up the status response that is used for identifying the service in the cluster
+  val statusResponse = AbilityHandler.attributes.copy(
+    instanceName = this.name,
+    instanceID = Some(handlerID),
+    attributes = SPAttributes("vd" -> vd)
+  )
 
-    // starts waiting for ping requests from service handler
-    triggerServiceRequestComm(statusResponse)
+  // starts waiting for ping requests from service handler
+  triggerServiceRequestComm(statusResponse)
 
-    val getVD: String = SPMessage.makeJson(SPHeader(from = handlerID.toString, to = virtualDeviceID.toString), APIVirtualDevice.GetVD)
-    publish(APIVirtualDevice.topicRequest, getVD)
-  }
 
-  /**
-    * Transition the actor to a new state. The new State will be used for all future handleReceive() calls.
-    */
-  def transitionState(newState: State): Unit = context become handleReceive(newState)
+  val getVD = makeMess(SPHeader(from = handlerID.toString, to = vd.toString), APIVirtualDevice.GetVD)
+  publish(APIVirtualDevice.topicRequest, getVD)
 
-  def handleReceive(state: State): Receive = {
-    println(state)
-    import APIAbilityHandler.{topicResponse, AbilityStarted, AbilityCompleted, AbilityState}
-    {
-      case x: String =>
-        println("handleReceive() string in AbilityHandler.")
-        SPMessage.fromJson(x).foreach { message =>
-          val result = message.oneOf[APIAbilityHandler.Request]
-            .or[APIVirtualDevice.Response]
-            .or[API.Request]
+  override def receive = {
 
-          for (header <- result.header; body <- result.body) body match {
-            case req: APIAbilityHandler.Request => onAbilityHandlerRequest(state, header, req)
-            case response: APIVirtualDevice.Response => onVirtualDeviceRequest(state, header, response)
-            case req: API.Request => onOperationMatcherRequest(state, header, req)
-          }
+    case x: String => handleRequests(x)
+    case x if {log.debug(s"ABH from an ability got: $x"); false} => false
+
+    case CanNotStart(req, abID, error) =>
+      val h = SPHeader(from = handlerID.toString)
+      publish(APIAbilityHandler.topicResponse, makeMess(h, APISP.SPError(s"ability $abID couldn't start. $error")))
+      publish(APIAbilityHandler.topicResponse, makeMess(h, APISP.SPDone()))
+
+    case x @ AbilityStateChange(abID, s, cnt, req) =>
+      val h = SPHeader(from = handlerID.toString, reqID = req.getOrElse(ID.newID))
+      abilities.get(abID).foreach{ as =>
+        abilities += abID -> as.copy(current = Some(x))
+      }
+      val abilityState = SPAttributes(
+        "state" -> s,
+        "counter" -> cnt
+      )
+      val b = APIAbilityHandler.AbilityState(abID, Map(abID -> abilityState))
+      publish(APIAbilityHandler.topicResponse, makeMess(h, b))
+
+      req.foreach{ req =>
+        val res = s match {
+          case "executing" =>
+            publish(APIAbilityHandler.topicResponse, makeMess(h, APIAbilityHandler.AbilityStarted(abID)))
+          case "finished" =>
+            publish(APIAbilityHandler.topicResponse, makeMess(h, APIAbilityHandler.AbilityCompleted(abID, Map())))
+            publish(APIAbilityHandler.topicResponse, makeMess(h, APISP.SPDone()))
+          case _ => Unit
+
+        }
+
       }
 
-      case x if {log.debug(s"ABH from an ability got: $x"); false} => Unit
+    case StateUpdReq(abID, s) =>
+      val res = resources.filter(r => r.things.intersect(s.keySet).nonEmpty)
+      val toSend = res.map{r =>
+        val h = SPHeader(from = handlerID.toString, to = vd.toString, reply = SPValue(handlerID))
+        val b = APIVirtualDevice.VDCommand(r.id, s.filter(kv => r.things.contains(kv._1)))
+        publish(APIVirtualDevice.topicRequest, makeMess(h, b))
+      }
 
-      case CanNotStart(_, abID, error) =>
-        val header = SPHeader(from = handlerID.toString)
-        publish(topicResponse, SPMessage.makeJson(header, APISP.SPError(s"ability $abID couldn't start. $error")))
-        publish(topicResponse, SPMessage.makeJson(header, APISP.SPDone()))
+    case StateIsMissingIDs(abID, ids) =>
+      val h = SPHeader(from = handlerID.toString)
+      val errorAttr = SPAttributes(
+        "ability" -> abilities.get(abID).map(_.ability.name),
+        "id" -> abID, "missingThings" -> ids)
 
-      case x @ AbilityStateChange(abilityID, stateString, count, reqID) =>
-        val header = SPHeader(
-          from = handlerID.toString,
-          reqID = reqID.getOrElse(ID.newID)
-        )
-
-        transitionState(state.copy(
-          abilityStates = state.abilityStates.updateValue(abilityID) { _.copy(current = Some(x)) }
-        ))
-
-        val attributes = SPAttributes("state" -> stateString, "counter" -> count)
-
-        val abilityState = AbilityState(abilityID, Map(abilityID -> attributes))
-        publish(topicResponse, SPMessage.makeJson(header, abilityState))
+      publish("spevents", makeMess(h,
+        APISP.SPError("Ability has ids that is not found in the state. Either the VD is unavailable or something is wrong",
+          errorAttr)
+      ))
 
 
-        if (reqID.isDefined) {
-          stateString match {
-            case AbilityStatus.Executing =>
-              publish(topicResponse, SPMessage.makeJson(header, AbilityStarted(abilityID)))
+    case APIAbilityHandler.SetUpAbilities(xs, hand) => xs.foreach(setupNewAbility)
 
-            case AbilityStatus.Finished =>
-              publish(topicResponse, SPMessage.makeJson(header, AbilityCompleted(abilityID, Map())))
-              publish(topicResponse, SPMessage.makeJson(header, APISP.SPDone()))
-
-            case _ => Unit
-          }
-        }
-
-      case StateUpdReq(_, s) =>
-        val res = state.resources.filter(_.things.intersect(s.keySet).nonEmpty)
-
-        res.foreach { resource =>
-          val header = SPHeader(from = handlerID.toString, to = virtualDeviceID.toString, reply = SPValue(handlerID))
-          val body = APIVirtualDevice.VDCommand(resource.id, s.filter(kv => resource.things.contains(kv._1)))
-          publish(APIVirtualDevice.topicRequest, SPMessage.makeJson(header, body))
-        }
-
-      case StateIsMissingIDs(abID, ids) =>
-        val h = SPHeader(from = handlerID.toString)
-        val errorAttr = SPAttributes(
-          "ability" -> state.abilityStates.get(abID).map(_.ability.name),
-          "id" -> abID,
-          "missingThings" -> ids
-        )
-
-        val error = APISP.SPError(
-          "Ability has ids that is not found in the state. Either the VD is unavailable or something is wrong",
-          errorAttr
-        )
-
-        publish("spevents", SPMessage.makeJson(h, error))
-
-      case APIAbilityHandler.SetUpAbilities(_abilities, _) =>
-        setupAbilityStates(state, _abilities:_*)
-    }
   }
 
 
-  override def receive: Receive = handleReceive(State())
+  def handleRequests(x: String): Unit = {
+    val mess = SPMessage.fromJson(x)
 
-  def onAbilityHandlerRequest(currentState: State, header: SPHeader, req: APIAbilityHandler.Request): Unit = {
-    import APIAbilityHandler.{topicResponse, ForceResetAllAbilities}
+    matchRequests(mess)
+    matchVDMessages(mess)
+    matchOMRequest(mess)
 
-    def isValidHeader(h: SPHeader): Boolean = {
-      Seq(
-        name,
-        handlerID.toString,
-        AbilityHandler.attributes.service
-      ).contains(h.to)
-    }
+  }
 
-    if (isValidHeader(header)) {
-      log.debug(s"ABH req: $req")
-      val responseHeader = header.swapToAndFrom()
+
+  def matchRequests(mess: Option[SPMessage]) = {
+    extractRequest(mess, handlerID, name) foreach { case (h, b) =>
+      log.debug("ABH req: " +b)
+      val updH = h.swapToAndFrom()
 
       // Message was to me so i send an SPACK
-      publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPACK()))
+      publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPACK()))
 
-      req match {
+      b match {
         case APIAbilityHandler.StartAbility(id, params, attr) =>
-          currentState.abilityStates.get(id) match {
+          abilities.get(id) match {
             case Some(a) =>
-              a.actor ! StartAbility(currentState.states, header.reqID, params, attr)
+              a.actor ! StartAbility(state, h.reqID, params, attr)
             case None =>
-              publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPError(s"ability $id does not exists in this handler")))
-              publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPDone()))
+              publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPError(s"ability $id does not exists in this handler")))
+              publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
 
           }
 
         case APIAbilityHandler.ForceResetAbility(id) =>
-          currentState.abilityStates.get(id) match {
+          abilities.get(id) match {
             case Some(a) =>
-              a.actor ! ResetAbility(currentState.states)
+              a.actor ! ResetAbility(state)
             case None =>
-              publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPError(s"ability $id does not exists in this handler")))
+              publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPError(s"ability $id does not exists in this handler")))
           }
-          publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPDone()))
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
 
-        case ForceResetAllAbilities =>
-          val r = ResetAbility(currentState.states)
-          currentState.abilityStates.foreach { case (_, abilityState) =>  abilityState.actor ! r }
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(responseHeader, APISP.SPDone()))
+        case APIAbilityHandler.ForceResetAllAbilities =>
+          val r = ResetAbility(state)
+          abilities.foreach(kv => kv._2.actor ! r)
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
 
-        // TODO to be implemented
         case APIAbilityHandler.ExecuteCmd(cmd) =>
-          val things = currentState.abilityStates.map { case (id, a) =>
-            Unit
+          val things = abilities.map { case (id,a) =>
           }
-
-        case APIAbilityHandler.GetAbility(id) =>
-          val ability = currentState.abilities.find(_.id == id)
-          // make message with header and trigger the response with The Ability
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(responseHeader, APIAbilityHandler.TheAbility(ability)))
+        // to be implemented
 
         case APIAbilityHandler.GetAbilities =>
-          log.debug("Received GetAbilities request.")
+          val xs = abilities.map(_._2.ability).toList
 
-          val currentAbilities = currentState.abilities.toList
-          val abilityData = currentAbilities.map(a => a.id -> a.name)
+          val abs = abilities.map(a=>(a._2.ability.id,a._2.ability.name)).toList
 
-          publish(topicResponse, SPMessage.makeJson(responseHeader, APIAbilityHandler.Abilities(currentAbilities)))
-          publish(topicResponse, SPMessage.makeJson(responseHeader, APIAbilityHandler.AbilitiesByIdAndName(abilityData)))
-          publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPDone()))
+          log.debug("got getabilities request")
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APIAbilityHandler.Abilities(xs)))
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APIAbilityHandler.AbilitiesByIdAndName(abs)))
 
-          currentState.abilityStates.values.foreach(_.actor ! GetState)
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
 
-        case APIAbilityHandler.SetUpAbility(ability, _) =>
-          log.debug(ability.toString)
-          setupAbilityStates(currentState, ability)
-          publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPDone()))
+          abilities.foreach(a => a._2.actor ! GetState)
 
-        case APIAbilityHandler.SetUpAbilities(_abilities, _) =>
-          log.debug(_abilities.toString)
+        case APIAbilityHandler.GetAbility(id) =>
+          // Get a list of all abilities
+          val listOfAbilities = abilities.map(_._2.ability).toList
+          // Try to find the ability in the list that match with id
+          val matchedAbilityInList = listOfAbilities.find{ ability => ability.id == id }
+          // make message with header and trigger the response with The Ability
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APIAbilityHandler.TheAbility(matchedAbilityInList)))
 
-          setupAbilityStates(currentState, _abilities: _*)
-          publish(topicResponse, SPMessage.makeJson(responseHeader, APISP.SPDone()))
 
-        case x => println(s"AbilityHandler received unknown message: $x")
-      }
-    }
-  }
+        case APIAbilityHandler.SetUpAbility(ab, hand) =>
+          log.debug(ab.toString)
+          setupNewAbility(ab)
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
 
-  def newAbilityState(ability: APIAbilityHandler.Ability): AbilityStorage = {
-    val ids = idsFromAbility(ability)
-    val actor = context.actorOf(AbilityActor.props(ability))
-    AbilityStorage(ability, actor, ids)
-  }
+        case APIAbilityHandler.SetUpAbilities(xs, hand) =>
+          log.debug(xs.toString)
 
-  def setupAbilityStates(currentState: State, _abilities: APIAbilityHandler.Ability*): Unit = {
-    val abilityStates = _abilities.map(newAbilityState)
-    // Send initial state to the ability actors
-    abilityStates.foreach { s => s.actor ! NewState(currentState.states.filterKeys(s.ids.contains)) }
-
-    val newAbilityStates = abilityStates.foldLeft(currentState.abilityStates) { (states, s) => states.updated(s.ability.id, s) }
-    transitionState(currentState.copy(abilityStates = newAbilityStates))
-  }
-
-  def onOperationMatcherRequest(currentState: State, header: SPHeader, response: API.Request): Unit = {
-    import sp.operationmatcher.API
-    if (header.to == APIAbilityHandler.service) {
-      log.debug(s"ABH from OP matcher: $response")
-      response match {
-        case API.Find(pairs: Map[String, SPValue]) =>
-          val responseHeader = header.swapToAndFrom()
-
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(responseHeader, APISP.SPACK()))
-
-          val _abilities = currentState.abilities.toSet
-
-          val matchingAbilities = _abilities.filter { ability =>
-            pairs.forall(pair => ability.pairs.exists(_ == pair))
+          xs.foreach { ab =>
+            setupNewAbility(ab)
           }
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
 
-          val neighbors = _abilities.filter { ability =>
-            pairs.forall { case (k, _) => ability.pairs.contains(k) }
-          }.diff(matchingAbilities)
-
-          val matches = API.Matches(matchingAbilities.toList, neighbors.toList)
-          val msg = SPMessage.makeJson(responseHeader, matches)
-
-          publish(APIAbilityHandler.topicResponse, msg)
-          publish(APIAbilityHandler.topicResponse, SPMessage.makeJson(responseHeader, APISP.SPDone()))
+        case other =>
       }
     }
   }
 
-  def onVirtualDeviceRequest(currentState: State, header: SPHeader, response: APIVirtualDevice.Response): Unit = {
-    println("VirtualDevice stuff")
-    if (header.from.contains(virtualDeviceID.toString) || header.reply == SPValue(handlerID)) {
-      log.debug("ABH from VD: " + response)
-      response match {
-        case stateEvent: APIVirtualDevice.StateEvent =>
-          transitionState(currentState.copy(states = currentState.states ++ stateEvent.state))
+  def setupNewAbility(ab: APIAbilityHandler.Ability) = {
+    // TODO: Handle if ability already exists
+    val ids = idsFromAbility(ab)
+    val act = context.actorOf(AbilityActor.props(ab))
+    abilities += ab.id -> AbilityStorage(ab, act, ids)
+    act ! NewState(filterState(ids, state))
+  }
+
+  def filterState(ids: Set[ID], state: Map[ID, SPValue]) = state.filter(kv => ids.contains(kv._1))
+
+  def matchOMRequest(mess: Option[SPMessage]) = {
+    extractOMRequest(mess) foreach { case (h, b) =>
+      log.debug("ABH from OP matcher: " +b)
+      b match {
+        case omapi.Find(pairs: Map[String, SPValue]) =>
+          val updH = h.swapToAndFrom()
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPACK()))
+          val abs = abilities.map(_._2.ability).toSet
+          val a = abs.filter{ a =>
+            val abkeys = a.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
+            pairs.forall{ kv => abkeys.exists(_ == kv) }
+          }
+          val an = (abs.filter{ a =>
+            val abkeys = a.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
+            pairs.forall{ case (k,_) => abkeys.contains(k) }
+          }).diff(a)
+
+          val msg = makeMess(updH, omapi.Matches(a.toList,an.toList))
+          publish(APIAbilityHandler.topicResponse, msg)
+          publish(APIAbilityHandler.topicResponse, makeMess(updH, APISP.SPDone()))
+      }
+    }
+  }
+
+  def matchVDMessages(mess: Option[SPMessage]) = {
+    extractVDReply(mess, handlerID, vd.toString) foreach { case (h, b) =>
+      log.debug("ABH from VD: " +b)
+      b match {
+        case x @ APIVirtualDevice.StateEvent(r, rID, s, d) =>
+          state = state ++ s
 
           // Add filters if we need it later. Probably is better that all abilities has
           // the complete state
@@ -308,70 +268,54 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
           //f.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
 
           // The no filter version
-          currentState.abilityStates.foreach { case (_, abilityState) => abilityState.actor ! NewState(currentState.states) }
+          abilities.foreach(kv => kv._2.actor ! NewState(state))
 
-        case virtualDevice: APIVirtualDevice.TheVD =>
-          println("We got the VD!")
-          println(virtualDevice)
-          val _resources = virtualDevice.resources.map(_.r)
-          val _state = virtualDevice.resources.foldLeft(currentState.states)(_ ++ _.state)
-
-          transitionState(currentState.copy(resources = _resources, states = _state))
-
-          currentState.abilityStates.foreach { case (_, abilityState) =>
-            abilityState.actor ! NewState(currentState.states.filterKeys(abilityState.ids.contains))
-          }
-
-        case _ => Unit
+        case x: APIVirtualDevice.TheVD =>
+          resources = x.resources.map(_.r)
+          state = x.resources.foldLeft(state)(_ ++ _.state)
+          abilities.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
+        case x =>
       }
     }
+
   }
 
-  implicit class MapUpdate[T](map: Map[ID, T]) {
-    /**
-      * Applies f to the value at map(key), if the value is present.
-      * @return A new map with the updated value if the value was present,
-      *         or the old map if the value was not present.
-      */
-    def updateValue(key: ID)(f: T => T): Map[ID, T] = {
-      map.get(key).map(v => map.updated(key, f(v))).getOrElse(map)
-    }
-  }
-
-  implicit class AbilityKeys(ability: APIAbilityHandler.Ability) {
-    /**
-      * Data associated with the ability
-      */
-    def pairs: Map[String, SPValue] = ability.attributes.getAs[Map[String, SPValue]]("pairs").getOrElse(Map())
-  }
-
-  implicit class BetterSPMessage(message: SPMessage) {
-    def as[T](implicit reads: JSReads[T]): Option[(SPHeader, T)] = for {
-      header <- message.getHeaderAs[SPHeader]
-      body <- message.getBodyAs[T]
-    } yield (header, body)
-
-    def oneOf[A](implicit reads: JSReads[A]): OneOf[SPHeader, A] = OneOf[SPHeader, A](message)
-
-    case class OneOf[H, A](message: SPMessage, prevValues: List[Any] = Nil)(implicit reads: JSReads[A], headerReads: JSReads[H]) {
-      val header: Option[H] = message.getHeaderAs[H]
-      val values: List[Any] = message.getBodyAs[A] match {
-        case Some(v) => v :: prevValues
-        case None => prevValues
-      }
-
-      def or[B](implicit bReads: JSReads[B]): OneOf[H, B] = OneOf[H, B](message, values)
-      def body: Option[Any] = values match {
-        case Nil => None
-        case h :: _ => Some(h)
-      }
-
-      def foreach(f: Any => Unit): Unit = body.foreach(f)
-      def map[B](f: Any => B): Option[B] = body.map(f)
-      def isEmpty[B](f: Any => B): Boolean = body.isEmpty
-      def isDefined[B](f: Any => B): Boolean = body.isDefined
-      def nonEmpty[B](f: Any => B): Boolean = body.nonEmpty
-    }
-  }
 }
 
+trait AbilityComm {
+
+  def extractRequest(mess: Option[SPMessage], instanceID: ID, name: String) = for {
+    m <- mess
+    h <- m.getHeaderAs[SPHeader] if h.to == instanceID.toString || h.to == name || h.to == AbilityHandler.attributes.service
+    b <- m.getBodyAs[APIAbilityHandler.Request]
+  } yield (h, b)
+
+  def extractVDReply(mess: Option[SPMessage], instanceID: ID, vd: String) = {
+    for {
+      m <- mess
+      h <- m.getHeaderAs[SPHeader] if h.from.contains(vd) || h.reply == SPValue(instanceID)
+      b <- m.getBodyAs[APIVirtualDevice.Response]
+    } yield (h, b)}
+
+  def extractServiceRequest(mess: Option[SPMessage]) = for {
+    m <- mess
+    h <- m.getHeaderAs[SPHeader]
+    b <- m.getBodyAs[APISP] if b == APISP.StatusRequest
+  } yield {
+    (h, b)
+  }
+
+  def extractOMRequest(mess: Option[SPMessage]) = for {
+    m <- mess
+    h <- m.getHeaderAs[SPHeader]
+    b <- m.getBodyAs[omapi.Request] if h.to == APIAbilityHandler.service
+  } yield {
+    (h, b)
+  }
+
+
+  def makeMess(h: SPHeader, b: APIAbilityHandler.Response) = SPMessage.makeJson[SPHeader, APIAbilityHandler.Response](h, b)
+  def makeMess(h: SPHeader, b: APIVirtualDevice.Request) = SPMessage.makeJson[SPHeader, APIVirtualDevice.Request](h, b)
+  def makeMess(h: SPHeader, b: APISP) = SPMessage.makeJson[SPHeader, APISP](h, b)
+  def makeMess(h: SPHeader, b: omapi.Response) = SPMessage.makeJson[SPHeader, omapi.Response](h, b)
+}
