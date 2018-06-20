@@ -55,7 +55,6 @@ object AvailableModelsHelper {
   import spgui.availablemodelscircuit.{AvailableModelsCircuit => avmc}
 
   def onChange(header: SPHeader, body: APIModelMaker.Response): Unit = {
-    println(s"Received onChange() in AvailableModelsHelper. Header: $header,\nMessage: $body")
     body match {
       case APIModelMaker.ModelCreated(name, attr, modelid) =>
         avmc.dispatch(AddModels(Map(modelid -> name)))

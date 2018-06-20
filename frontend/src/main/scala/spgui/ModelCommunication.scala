@@ -9,7 +9,6 @@ import SPMessageUtil.BetterSPMessage
 import play.api.libs.json.JsString
 
 object ModelCommunication {
-  println("ModelCommunication runs.")
   private val websocketObserver = BackendCommunication.getWebSocketStatusObserver(
     callBack = isConnected => if (isConnected) postRequest(ModelMaker.GetModels),
     topic = ModelMaker.topicResponse
@@ -23,9 +22,11 @@ object ModelCommunication {
     Seq({
 
       ModelsCircuit.subscribe(ModelsCircuit.readState) { reader =>
-        val state = reader()
+        // val state = reader()
+        /*
         println(s"-->\n\tprev: ${state.previousActiveModelId}\n\tcurr: ${state.activeModelId}")
         println(s"")
+        */
       }
     })
   }
@@ -41,8 +42,6 @@ object ModelCommunication {
     * Handles responses from a specific model.
     */
   def onModelResponse(state: ModelsCircuitState, header: SPHeader, res: Model.Response): Unit = {
-    println(s"header: $header")
-
     res match {
       case info: Model.ModelInformation =>
         val value = state.models.get(info.id)
@@ -54,7 +53,6 @@ object ModelCommunication {
 
 
       case Model.SPItems(items) =>
-        println("Model.SPItems")
         val modelId = JsString(header.from).asOpt[ID]
         modelId.foreach { id =>
           ModelsCircuit.dispatch(SetItems(id, items))
