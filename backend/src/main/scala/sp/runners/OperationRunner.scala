@@ -449,7 +449,7 @@ trait OperationRunnerLogic {
 
     val res = enabled.headOption.map{o =>
       // Maybe we need to check again if o is still enabled in state resCompl
-    opsToGo -= o
+      opsToGo -= o
       val updS = runOp(o, resCompl, disableConditionGroups)
       sendState(updS)
 
@@ -521,9 +521,8 @@ trait OperationRunnerLogic {
 
   def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID], disabledGroups: Set[SPValue] = Set()): Boolean = {
     s(o.id) == OperationState.executing &&
-      (!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition")).forall(_.eval(s))) || // always true if no postcond
-        s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished))
-
+      (!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition")).forall(_.eval(s)) || // always true if no postcond
+        s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished)))
 
   }
 

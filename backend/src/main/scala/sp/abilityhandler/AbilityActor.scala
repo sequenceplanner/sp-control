@@ -100,16 +100,18 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
 
     val changed = res._2 != s
 
-    val print = res._1.isDefined || changed
-    println("")
-    println("<<<<<<<<<<<<<<<<<<<")
-    println("checkAndSend v v v")
-    println("the state: " + s)
-    println("new ability state: " + res._1)
-    println("ability updated state: " + res._2)
-    println("checkAndSend END")
-    println(">>>>>>>>>>>>>> >")
-    println("")
+    if (res._1.isDefined || changed){
+      log.debug("")
+      log.debug("<<<<<<<<<<<<<<<<<<<")
+      log.debug("checkAndSend v v v")
+      log.debug("the state: " + s)
+      log.debug("new ability state: " + res._1)
+      log.debug("ability updated state: " + res._2)
+      log.debug("checkAndSend END")
+      log.debug(">>>>>>>>>>>>>> >")
+      log.debug("")
+    }
+
 
     res._1.foreach { updS =>
       sendAbilityState(to)

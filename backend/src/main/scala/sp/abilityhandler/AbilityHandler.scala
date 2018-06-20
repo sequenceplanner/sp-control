@@ -302,6 +302,10 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
         case stateEvent: APIVirtualDevice.StateEvent =>
           val updS = currentState.copy(states = currentState.states ++ stateEvent.state)
 
+          currentState.abilityStates.foreach { case (_, abilityState) =>
+            abilityState.actor ! NewState(updS.states)
+            abilityState.actor ! NewState(updS.states)
+          }
           transitionState(updS)
 
           // Add filters if we need it later. Probably is better that all abilities has
@@ -310,7 +314,6 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
           //f.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
 
           // The no filter version
-          currentState.abilityStates.foreach { case (_, abilityState) => abilityState.actor ! NewState(updS.states) }
 
         case virtualDevice: APIVirtualDevice.TheVD =>
           println("We got the VD!")
