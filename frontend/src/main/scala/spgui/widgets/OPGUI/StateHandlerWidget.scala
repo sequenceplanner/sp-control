@@ -152,7 +152,7 @@ object StateHandlerWidget {
                   val driverThing: Thing = driverThings.find(_.id == idPair._2).getOrElse(Thing("debug-driverThing"))
                   <.tr(
                     <.td(opThing.name),
-                    <.td(opThing.id.toString),
+                    printOperationDomain(opThing),
                     <.td(""),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
                     <.td(virtualDeviceState(driverThing.id).toString())
@@ -174,7 +174,7 @@ object StateHandlerWidget {
                 sortedDriverlessOperationThings.map { operation =>
                   <.tr(
                     <.td(operation.name),
-                    <.td(operation.id.toString),
+                    printOperationDomain(operation),
                     <.td(""),// TODO: Read or Write or No master?
                     <.td(""),
                     <.td("")
@@ -217,12 +217,23 @@ object StateHandlerWidget {
       <.thead(
         <.tr(
           <.td("Operation Name"),
-          <.td("Operation ID"),
+          <.td("Operation Domain"),
           <.td("Read/Write"),
           <.td("Driver Name"),
           <.td("Driver Value")
         )
       )
+    }
+
+    /** Print the attributes of the operationThing
+      *
+      * @param operation The operation as a thing
+      * @return A cell of table-data with the domain value
+      */
+    def printOperationDomain(operation: Thing) = {
+      val s: String =
+        operation.attributes.value.map{spAttribute => "S:" + spAttribute._1 + ", JS:" + spAttribute._2}.toString()
+      <.td(s)
     }
 
     /** When the widget is unmounting, kill message-observer
