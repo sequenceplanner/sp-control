@@ -6,7 +6,7 @@ import sp.domain.Logic._
 class UnificationModelTest extends FreeSpec with Matchers {
   println
   println
-  val idables = DummyExampleExtended().buildModel()
+  val idables = UnificationModel().buildModel()
   println
   println
   println

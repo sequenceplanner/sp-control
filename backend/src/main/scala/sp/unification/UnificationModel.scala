@@ -138,9 +138,12 @@ class UnificationModel extends ModelDSL {
   v("boltMode" ,"ur", List("ur", "human"))
 
   v("urMode", "running", List("running", "float", "stopped"))
-  v("urTool", "atlas", List("none", "lfTool", "atlas", "filterTool"))
+  v("urTool", "none", List("none", "lfTool", "atlas", "filterTool")) // Endre: Maybe init none?
+
+  // Endre edited the following also (added atLfToolFar, atLfToolClose, atOfToolFar, atOfToolClose)
   val urPoseDomain = (List("HOME",
-    "atLfTool", "atAtlas", "atFilterTool", "aboveEngine") ++
+    "atLfTool", "atAtlas", "atFilterTool", "aboveEngine", "atLfToolFar", "atLfToolClose",
+    "atOfToolFar", "atOfToolClose") ++
     bolts.map(farAboveBolt) ++ bolts.map(closeAboveBolt) ++ bolts.map(atBolt) ++
     List("atFilter1", "atFilter2")).map(s=>SPValue(s))
   println(urPoseDomain)
@@ -186,28 +189,61 @@ class UnificationModel extends ModelDSL {
     //   c("reset", "true"))
   }
 
-  // sequence, from aboveEngine to nut 1..2..3..n.. back to aboveEngine
-  val bm = bolts.zipWithIndex.map{case (b,i) => i->b}.toMap
-  bm.foreach {
-    case (0, b) => // FIRST
-      o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
-        c("pre", s"urPose == 'aboveEngine' && $b == 'placed'"), boltUr,
-        c("post", "true", s"urPose := '${farAboveBolt(b)}'"),
-        c("reset", "true"))
 
-    case (i, b) => // OTHERS
-      val prev = bm(i-1)
-      o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
-        c("pre", s"urPose == '${farAboveBolt(prev)}' && $b == 'placed' && $prev == 'tightened'"), boltUr,
-        c("post", "true", s"urPose := '${farAboveBolt(b)}'"),
-        c("reset", "true"))
-  }
+  // Endre adds stuff: start
 
-  val lastB = bolts.last
-  o(s"${farAboveBolt(lastB)}toAboveEngine", "UR.pose.goto_AboveEngineJOINT")(
-    c("pre", s"urPose == '${farAboveBolt(lastB)}' && $lastB == 'tightened'"),
-    c("post", "true", s"urPose := 'aboveEngine'"),
+
+  o(s"gotoPreAttachLFToolFarJOINT", s"UR.pose.goto_PreAttachLFToolFarJOINT")(
+    c("pre", s"urPose == 'HOME'"),
+    c("pre", s"lf_pos == 'on_kitting' && urTool == 'none'"),
+    c("post", "true", s"urPose := 'atLfToolFar'"),
     c("reset", "true"))
+
+  // goto close pre attach pose for the lf tool
+  o(s"gotoPreAttachLFToolCloseTCP", s"UR.pose.goto_PreAttachLFToolCloseTCP")(
+    c("pre", s"urPose == 'atLfToolFar'"),
+    c("pre", s"(lf_pos == 'on_kitting' && urTool == 'none') || (lf_pos == 'on_engine' && urTool == 'lfTool')"),
+    c("post", "true", s"urPose := 'atLfToolClose'"),
+    c("reset", "true"))
+
+  // goto attach pose for the lf tool
+  o(s"gotoAttachLFToolTCP", s"UR.pose.goto_AttachLFToolTCP")(
+    c("pre", s"urPose == 'atLfToolClose'"),
+    c("pre", s"lf_pos == 'on_kitting' && urTool == 'none'"),
+    c("post", "true", s"urPose := 'atLfTool'"),
+    c("reset", "true"))
+
+  // unlock RrsSP connector before attaching LF tool
+//  o(s"releaseRspLfTool", s"RECU.unlock_rsp")(
+//    c("pre", s"urPose == 'atLfToolClose' && urTool == 'none'" ),
+//    c("post", "true", s"urPose := 'atLfTool'"),
+//    c("reset", "true"))
+
+  // Endre adds stuff: end
+
+
+//  // sequence, from aboveEngine to nut 1..2..3..n.. back to aboveEngine
+//  val bm = bolts.zipWithIndex.map{case (b,i) => i->b}.toMap
+//  bm.foreach {
+//    case (0, b) => // FIRST
+//      o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
+//        c("pre", s"urPose == 'aboveEngine' && $b == 'placed'"), boltUr,
+//        c("post", "true", s"urPose := '${farAboveBolt(b)}'"),
+//        c("reset", "true"))
+//
+//    case (i, b) => // OTHERS
+//      val prev = bm(i-1)
+//      o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
+//        c("pre", s"urPose == '${farAboveBolt(prev)}' && $b == 'placed' && $prev == 'tightened'"), boltUr,
+//        c("post", "true", s"urPose := '${farAboveBolt(b)}'"),
+//        c("reset", "true"))
+//  }
+//
+//  val lastB = bolts.last
+//  o(s"${farAboveBolt(lastB)}toAboveEngine", "UR.pose.goto_AboveEngineJOINT")(
+//    c("pre", s"urPose == '${farAboveBolt(lastB)}' && $lastB == 'tightened'"),
+//    c("post", "true", s"urPose := 'aboveEngine'"),
+//    c("reset", "true"))
 
 
 
