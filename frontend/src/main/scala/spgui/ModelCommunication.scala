@@ -24,7 +24,7 @@ object ModelCommunication {
   def run(): Iterable[UnsubscribeFn] = {
     Seq({
 
-      ModelsCircuit.subscribe(ModelsCircuit.readState) { reader =>
+      SOPCircuit.subscribe(SOPCircuit.readModelState) { reader =>
         // val state = reader()
         /*
         println(s"-->\n\tprev: ${state.previousActiveModelId}\n\tcurr: ${state.activeModelId}")
@@ -38,7 +38,7 @@ object ModelCommunication {
     * Helper for dispatching actions on the model circuit
     */
   def dispatchAction[A](modifier: A => A, wrapper: A => ModelAction)(maybeA: Option[A]): Unit = {
-    maybeA.foreach(a => ModelsCircuit.dispatch(wrapper(modifier(a))))
+    maybeA.foreach(a => SOPCircuit.dispatch(wrapper(modifier(a))))
   }
 
   /**
@@ -58,7 +58,7 @@ object ModelCommunication {
       case APIModel.SPItems(items) =>
         val modelId = JsString(header.from).asOpt[ID]
         modelId.foreach { id =>
-          ModelsCircuit.dispatch(SetItems(id, items))
+          SOPCircuit.dispatch(SetItems(id, items))
         }
 
       case APIModel.ModelUpdate(modelId, version, count, _, _, _) =>
@@ -86,14 +86,14 @@ object ModelCommunication {
           Recipient.Model.postRequest(m, APIModel.GetModelHistory)
         }
 
-        ModelsCircuit.dispatch(AddMockModelIds(modelIds))
+        SOPCircuit.dispatch(AddMockModelIds(modelIds))
 
       case created: ModelMaker.ModelCreated =>
         //sendToModel(modelId, Model.PutItems(TestModelInControl.getTestModel))
-        ModelsCircuit.dispatch(AddMockModelIds(created.id))
+        SOPCircuit.dispatch(AddMockModelIds(created.id))
 
       case ModelMaker.ModelDeleted(modelId) =>
-        ModelsCircuit.dispatch(RemoveModel(modelId))
+        SOPCircuit.dispatch(RemoveModel(modelId))
 
       case _ => Unit
     }
@@ -101,7 +101,7 @@ object ModelCommunication {
 
   def onReceiveMessage(message: SPMessage): Unit = {
     val response = message.oneOf[ModelMaker.Response].or[APIModel.Response]
-    val state = ModelsCircuit.readState()
+    val state = SOPCircuit.readModelState()
 
     for (header <- response.header; body <- response.body) {
       body match {

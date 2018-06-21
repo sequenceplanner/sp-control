@@ -18,7 +18,7 @@ import sp.domain._
 import sp.models.APIModel
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.vdtesting.APIVDTracker
-import spgui.availablemodelscircuit.{ModelsCircuit, ModelsCircuitState, SetActiveModel}
+import spgui.availablemodelscircuit.{SOPCircuit, ModelsCircuitState, SetActiveModel}
 import spgui.widgets.virtcom.Style
 
 object VDTracker {
@@ -272,7 +272,7 @@ object VDTracker {
     .componentWillUnmount(_.backend.onUnMount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = ModelsCircuit.connect(state => state)
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = SOPCircuit.connectModels
 
   def apply() = SPWidget(_ => connectCircuit { proxy =>  component(Props(proxy)) })
 }
