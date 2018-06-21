@@ -62,11 +62,11 @@ object SopMakerCSS extends Theming.SPStyleSheet {
   )
 
   val opStateInit = style(
-    backgroundColor := "#00ff00"
+    //backgroundColor := "#00ff00"
   )
 
   val opStateExec = style(
-    backgroundColor(_rgb((theme.value.spOrange)))
+    backgroundColor := "#50ff50"
   )
 
   val opStateFini = style(
@@ -77,8 +77,8 @@ object SopMakerCSS extends Theming.SPStyleSheet {
   )
   val opInner = style(
     height(80 px),
-    width(120 px),
-    borderRadius(15 px),
+    width(200 px),
+    borderRadius(5 px),
     borderWidth(2 px),
     borderStyle:=!"solid",
     color :=! "#000000",
@@ -90,8 +90,7 @@ object SopMakerCSS extends Theming.SPStyleSheet {
   val opNameOuter = style(
     height(100 %%),
     overflow.auto,
-    overflowWrap := "break-word",
-    margin(4 px)
+    overflowWrap := "break-word"
   )
 
   val opName = style(
@@ -100,6 +99,21 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     fontSize(12 px),
     overflow.hidden,
     textOverflow:= ("ellipsis"),
+    fontFamily :=! "monospace"
+  )
+
+  val preCondition = style(
+    width(100 %%),
+    alignSelf.center,
+    height(20 px),
+    borderBottom :=! "solid 1px"
+  )
+
+  val postCondition = style(
+    width(100 %%),
+    alignSelf.center,
+    height(20 px),
+    borderTop :=! "solid 1px"
   )
 
   this.addToDocument()

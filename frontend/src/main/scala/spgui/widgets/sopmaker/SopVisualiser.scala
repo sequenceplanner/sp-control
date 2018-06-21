@@ -54,15 +54,16 @@ object SopVisualiser {
     val Left, Right, Up, Down = Value
   }
 
+
   val parallelBarHeight = 12f
   val opHorizontalBarOffset = 12f
   val opVerticalBarOffset = 12f
   val opHeight = 80f
-  val opWidth = 120f
+  val opWidth = 200f
   val opSpacingX = 10f
-  val opSpacingY = 25f
-  val opSpacingYInsideGroup = 10
-  val opSpacingXInsideGroup = 35f
+  val opSpacingY = 100f
+  val opSpacingYInsideGroup = 0f
+  val opSpacingXInsideGroup = 0f
 
   val paddingTop = 40f
   val paddingLeft = 40f
@@ -299,7 +300,7 @@ object SopVisualiser {
           )
         }
         case s: Sequence => {
-          s.sop.map(e => getTreeHeight(e)).foldLeft(opSpacingY)(_ + _)
+          s.sop.map(e => getTreeHeight(e)).foldLeft(0f)(_ + _) + s.sop.size*opSpacingY -opSpacingY
         }
         case s: OperationNode => opHeight
       }

@@ -55,24 +55,10 @@ object SopMakerWidget {
   var dropZones: scala.collection.mutable.Map[UUID, (UUID, SopVisualiser.DropzoneDirection.Value)] =
     scala.collection.mutable.Map()
 
-  val parallelBarHeight = 12f
-
-  val opHorizontalBarOffset = 12f
-  val opVerticalBarOffset = 12f
-  val opHeight = 80f
-  val opWidth = 120f
-  val opSpacingX = 10f
-  val opSpacingY = 25f
-  val opSpacingYInsideGroup = 10
-  val opSpacingXInsideGroup = 35f
-
   val newOpId = UUID.randomUUID()
   val newParallelId = UUID.randomUUID()
   val newArbitraryId = UUID.randomUUID()
   val newAlternativeId = UUID.randomUUID()
-
-  var xOrigin = 0f
-  var yOrigin = 0f
 
   case class State(sop: SOP)
 
@@ -210,7 +196,7 @@ object SopMakerWidget {
   }
 
   private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
-    .initialState(State(sop = ExampleSops.tinySop))
+    .initialState(State(sop = ExampleSops.randoSop))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .componentDidMount(_.backend.onMount()) 
