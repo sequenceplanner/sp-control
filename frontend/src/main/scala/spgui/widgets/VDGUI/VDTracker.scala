@@ -8,7 +8,7 @@ import sp.devicehandler.VD
 
 import sendMessages._
 
-import spgui.{ModelCommunication, SPWidget}
+import spgui.SPWidget
 import spgui.components.SPWidgetElements
 import spgui.communication._
 import sp.domain.SPMessage
@@ -18,7 +18,7 @@ import sp.domain._
 import sp.models.APIModel
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.vdtesting.APIVDTracker
-import spgui.availablemodelscircuit.{SOPCircuit, ModelsCircuitState, SetActiveModel}
+import spgui.availablemodelscircuit.{VDCircuit, ModelsCircuitState, SetActiveModel}
 import spgui.widgets.virtcom.Style
 
 object VDTracker {
@@ -116,15 +116,15 @@ object VDTracker {
     }
 
     def send(request: APIVDTracker.Request) = Callback {
-      ModelCommunication.Recipient.Device.postRequest(request)
+      CommunicationAPI.Communicator.Device.postRequest(request)
     }
 
     def send(modelId: ID, request: APIModel.Request, from: String = "VDTrackerWidget"): Callback = Callback {
-      ModelCommunication.Recipient.Model.postRequest(modelId, request, from)
+      CommunicationAPI.Communicator.Model.postRequest(modelId, request, from)
     }
 
     def send(request: APIOperationRunner.Request): Callback = Callback {
-      ModelCommunication.Recipient.OperationRunner.postRequest(request)
+      CommunicationAPI.Communicator.OperationRunner.postRequest(request)
     }
 
     def render(props: Props, state: State) = {
@@ -138,7 +138,7 @@ object VDTracker {
       def launchAbilities: Callback = {
         Callback {
           props.modelProxy.value.activeModel.foreach { model =>
-            ModelCommunication.Recipient.Device.postRequest(APIVDTracker.launchVDAbilities(model.items))
+            CommunicationAPI.Communicator.Device.postRequest(APIVDTracker.launchVDAbilities(model.items))
           }
         }
       }
@@ -174,22 +174,22 @@ object VDTracker {
     }
 
     def terminateVDs(): Unit = {
-      ModelCommunication.Recipient.Device.postRequest(APIVirtualDevice.TerminateAllVDs)
+      CommunicationAPI.Communicator.Device.postRequest(APIVirtualDevice.TerminateAllVDs)
     }
 
     def terminateAbilities(): Unit = {
-      ModelCommunication.Recipient.AbilityHandler.postRequest(APIAbilityHandler.TerminateAllAbilities)
+      CommunicationAPI.Communicator.AbilityHandler.postRequest(APIAbilityHandler.TerminateAllAbilities)
     }
 
     def terminateDrivers(drivers : List[VD.Driver]): Unit = {
       drivers.map(_.id).foreach { id =>
-        ModelCommunication.Recipient.Device.postRequest(APIDeviceDriver.TerminateDriver(id))
+        CommunicationAPI.Communicator.Device.postRequest(APIDeviceDriver.TerminateDriver(id))
       }
     }
 
     def terminateRunners(runners: Map[ID, Map[ID,SPValue]]): Callback = {
       runners.keys.foreach { runnerID =>
-        ModelCommunication.Recipient.OperationRunner.postRequest(APIOperationRunner.TerminateRunner(runnerID))
+        CommunicationAPI.Communicator.OperationRunner.postRequest(APIOperationRunner.TerminateRunner(runnerID))
       }
 
       // todo: should wait for new state run runner service...
@@ -197,7 +197,7 @@ object VDTracker {
     }
 
     def terminateRunner(id: ID): Callback = {
-      ModelCommunication.Recipient.OperationRunner.postRequest(APIOperationRunner.TerminateRunner(id))
+      CommunicationAPI.Communicator.OperationRunner.postRequest(APIOperationRunner.TerminateRunner(id))
 
       // todo: should wait for new state run runner service...
       $.modState(state => state.copy(latestRunnerState = state.latestRunnerState - id))
@@ -272,7 +272,7 @@ object VDTracker {
     .componentWillUnmount(_.backend.onUnMount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = SOPCircuit.connectModels
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = VDCircuit.connectModels
 
   def apply() = SPWidget(_ => connectCircuit { proxy =>  component(Props(proxy)) })
 }
