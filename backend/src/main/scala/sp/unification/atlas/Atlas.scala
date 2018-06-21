@@ -10,18 +10,54 @@ import sp.drivers.ROSHelpers
 
 import unification_roscontrol._
 
-class Atlas extends ModelDSL {
-  use("atlas", new Atla)
+class RECU extends ModelDSL with ROSSupport {
+  reader("RECUDriver", "unification_roscontrol/RecuUniToSP", "/unification_roscontrol/recu_unidriver_to_sp")
+  writer("RECUDriver", "unification_roscontrol/RecuSPToUni", "/unification_roscontrol/recu_sp_to_unidriver", 250)
+
+  driver("RECUDriver", ROSFlatStateDriver.driverType)
+
+  a("lock_rsp", List(),
+    c("pre", "true", "lock_rsp:=true","unlock_rsp:=false","open_gripper:=false","close_gripper:=false"),
+    c("started", "got_cmd_lock_rsp"),
+    c("post", "true"),
+    c("reset", "true"))
+
+  a("unlock_rsp", List(),
+    c("pre", "true", "lock_rsp:=false","unlock_rsp:=true","open_gripper:=false","close_gripper:=false"),
+    c("started", "got_cmd_unlock_rsp"),
+    c("post", "true"),
+    c("reset", "true"))
+
+  a("open_gripper", List(),
+    c("pre", "true", "lock_rsp:=false","unlock_rsp:=false","open_gripper:=true","close_gripper:=false"),
+    c("started", "got_cmd_open_gripper"),
+    c("post", "true"),
+    c("reset", "true"))
+
+  a("close_gripper", List(),
+    c("pre", "true", "lock_rsp:=false","unlock_rsp:=false","open_gripper:=false","close_gripper:=true"),
+    c("started", "got_cmd_close_gripper"),
+    c("post", "true"),
+    c("reset", "true"))
+
+  resource("RECU")
 }
 
-class Atla extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/AecuUniToSP", "/unification_roscontrol/aecu_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/AecuSPToUni", "/unification_roscontrol/aecu_sp_to_unidriver", 250)
+class HECU extends ModelDSL with ROSSupport {
+  reader("HECUDriver", "unification_roscontrol/HecuUniToSP", "/unification_roscontrol/hecu_unidriver_to_sp")
+  // this doesnt have a writer
+  driver("HECUDriver", ROSFlatStateDriver.driverType)
+  resource("HECU")
+}
+
+class Atlas extends ModelDSL with ROSSupport {
+  reader("AtlasDriver", "unification_roscontrol/AecuUniToSP", "/unification_roscontrol/aecu_unidriver_to_sp")
+  writer("AtlasDriver", "unification_roscontrol/AecuSPToUni", "/unification_roscontrol/aecu_sp_to_unidriver", 250)
 
   // abilities
   a("lift", List(),
-    c("pre", "true", "activate_lift:=true", "activate_unload:=true"),
-    c("started", "got_cmd_activate_lift && got_cmd_activate_unload"),
+    c("pre", "true", "activate_lift:=true"),
+    c("started", "got_cmd_activate_lift"),
     c("post", "true"),
     c("reset", "true"))
 
@@ -31,7 +67,19 @@ class Atla extends ModelDSL with ROSSupport {
     c("post", "true"),
     c("reset", "true"))
 
+  a("startToolForward", List(),
+    c("pre", "true", "run_tool_forward:=true"),
+    c("started", "got_cmd_run_tool_forward"),
+    c("post", "programmed_torque_reached"),
+    c("reset", "true", "run_tool_forward:='false'"))
 
+  a("stopToolForward", List(),
+    c("pre", "true", "run_tool_forward:=false"),
+    c("started", "!got_cmd_run_tool_forward"),
+    c("post", "true"),
+    c("reset", "true"))
+
+  driver("AtlasDriver", ROSFlatStateDriver.driverType)
   // blank list of things = take everything
   resource("resource")
 }
