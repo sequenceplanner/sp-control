@@ -46,6 +46,10 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
     updated(key, f(data(key)))
   }
 
+  def addAll(xs: Iterable[V]) = {
+    new SimpleSet(hashBy, data ++ xs.map(x => hashBy(x) -> x).toMap)
+  }
+
   def asIterable: Iterable[V] = data.values
   def toList: List[V] = asIterable.toList
   def toSet: Set[V] = asIterable.toSet

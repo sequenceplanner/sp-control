@@ -72,11 +72,9 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
       }
 
     case AddMockModelIds(newIds) =>
-      models.modify { modelSet =>
-        newIds
-          .filterNot(modelSet.contains)
-          .map(ModelMock(_))
-          .foldLeft(modelSet)((set, model) => set + model)
+      models.modify { models =>
+        val newModels = newIds.filterNot(models.contains).map(ModelMock(_))
+        models.addAll(newModels)
       }
 
     case unknownAction =>
