@@ -3,35 +3,6 @@ package sp.unification
 import sp.modelSupport._
 import sp.domain.Logic._
 import sp.domain._
-import sp.devicehandler._
-
-import sp.drivers.ROSFlatStateDriver
-import sp.drivers.ROSHelpers
-
-trait ROSSupport extends ModelDSL {
-  def writer(driver: String, messageType: String, topic: String, rate: Int) = {
-    val emptyMsg = ROSHelpers.createROSMsg(messageType).get // puke if we mis-spell
-    val attr = ROSHelpers.ROSMsgToSPAttributes(emptyMsg).get // puke if we can't parse
-    attr.value.foreach {
-      case (field, nested: SPAttributes) =>
-      // TODO: later
-      case (field, v) =>
-        val ident = messageType + ":" + topic + ":" + field + ":" + rate
-        dv(field, driver, ident, WriteOnly)
-    }
-  }
-  def reader(driver: String, messageType: String, topic: String) = {
-    val emptyMsg = ROSHelpers.createROSMsg(messageType).get // puke if we mis-spell
-    val attr = ROSHelpers.ROSMsgToSPAttributes(emptyMsg).get // puke if we can't parse
-    attr.value.foreach {
-      case (field, nested: SPAttributes) =>
-      // TODO: later
-      case (field, v) =>
-        val ident = messageType + ":" + topic + ":" + field
-        dv(field, driver, ident, ReadOnly)
-    }
-  }
-}
 
 
 
@@ -105,6 +76,21 @@ object UnificationModel {
     FindEngineMid3TCP) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
 
 
+  val AttachLFTool = "AttachLFTool"
+  val DetachLFTool = "DetachLFTool"
+  val AttachAtlas = "AttachAtlas"
+  val DetachAtlas = "DetachAtlas"
+  val AttachOFTool = "AttachOFTool"
+  val DetachOFTool = "DetachOFTool"
+
+  val executorCmd = List(
+    AttachLFTool,
+    DetachLFTool,
+    AttachAtlas,
+    DetachAtlas,
+    AttachOFTool,
+    DetachOFTool
+  )
 
   def apply() = new UnificationModel
 }
@@ -116,6 +102,7 @@ class UnificationModel extends ModelDSL {
 
   use("RECU", new RECU)
   use("HECU", new HECU)
+  use("Executor", new Executor)
 
 
   // runner (TODO: for now runners take everything and must be on the top level of the model)
@@ -146,21 +133,76 @@ class UnificationModel extends ModelDSL {
 
   v("urMode", "running", List("running", "float", "stopped"))
   v("urTool", "atlas", List("none", "lfTool", "atlas", "filterTool"))
-//  val urPoseDomain = (List("HOME",
-//    "atLfTool", "atAtlas", "atFilterTool", "aboveEngine") ++
-//    bolts.map(farAboveBolt) ++ bolts.map(closeAboveBolt) ++ bolts.map(atBolt) ++
-//    List("atFilter1", "atFilter2")).map(s=>SPValue(s))
-//  println(urPoseDomain)
+
 
   val urPoseDomain = poses.map(SPValue(_))
   println(urPoseDomain)
   val urPose = "UR.pose.ref_pos"
   v("UR.pose.ref_pos", HomeJOINT, urPoseDomain)
 
+
+  val executorDomain = executorCmd.map(SPValue(_)) :+ SPValue("reset")
+  println(executorDomain)
+  v("Executor.cmd", "reset", executorDomain)
+
+
+
+
   // operations
 
 
-  // The bolt operation
+  /**
+    * Initial operations
+    * ******************************
+    */
+
+
+
+
+
+
+  /**
+    * Attach LF and go to lifting pose and enter LF mode.
+    * Tell op
+    * ******************************
+    */
+
+
+
+
+
+  /**
+    * Detach LF and attach atlas
+    * Tell op to add 6 pairs of screws
+    * ******************************
+    */
+
+
+
+  /**
+    * Tighten the 6 nuts, and after the op, do more
+    * Tell op to add the rest and pipes, and then oil filter
+    *
+    * ******************************
+    */
+
+
+
+  /**
+    * End bolting, release atlas somewhere, change to OFTool
+    * Tell op to do bolting
+    *
+    * ******************************
+    */
+
+
+
+
+  /**
+    * The bolt operations
+    * ******************************
+    */
+
 //  // goto above engine joint, the starting point for going to above bolt tcp poses
 //  o(s"gotoAboveEngineTCP", s"UR.pose.goto_AboveEngineTCP")(
 //    c("pre", s"$urPose == $HomeJOINT && urTool == 'on_engine'"),
@@ -223,12 +265,24 @@ class UnificationModel extends ModelDSL {
 //
 
 
+  /**
+    * Picking and leaving the LF tool
+    * ******************************
+    */
 
-  // Picking and leaving LF tool
+  val noTool = c("pre", s"urTool == 'none'")
+
+  o(s"DetachOFTool", s"Executor.DetachOFTool")(
+    c("pre", s"$urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'filterTool'"),
+    c("post", s"urTool == 'none'"),
+    c("reset", "true"))
+
 
   o(s"gotoPreAttachLFToolFarJOINT", s"UR.pose.goto_PreAttachLFToolFarJOINT")(
     c("pre", s"$urPose == $HomeJOINT"),
-    c("pre", s"lf_pos == 'on_kitting' && urTool == 'none'"),
+    c("pre", s"lf_pos == 'on_kitting'"),
+    noTool,
     c("reset", "true"))
 
   // goto close pre attach pose for the lf tool
@@ -237,19 +291,37 @@ class UnificationModel extends ModelDSL {
     c("pre", s"(lf_pos == 'on_kitting' && urTool == 'none') || (lf_pos == 'on_engine' && urTool == 'lfTool')"),
     c("reset", "true"))
 
+  //unlock RrsSP connector before attaching LF tool
+  o(s"releaseRspLfTool", s"RECU.unlock_rsp")(
+    c("pre", s"$urPose == $PreAttachLFToolCloseTCP" ),
+    noTool,
+    c("reset", "true"))
+
   // goto attach pose for the lf tool
   o(s"gotoAttachLFToolTCP", s"UR.pose.goto_AttachLFToolTCP")(
     c("pre", s"$urPose == $PreAttachLFToolCloseTCP"),
-    c("pre", s"lf_pos == 'on_kitting' && urTool == 'none'"),
+    c("pre", s"lf_pos == 'on_kitting'"),
+    noTool,
     c("reset", "true"))
 
-  // unlock RrsSP connector before attaching LF tool
-//  o(s"releaseRspLfTool", s"RECU.unlock_rsp")(
-//    c("pre", s"urPose == 'atLfToolClose' && urTool == 'none'" ),
-//    c("post", "true", s"urPose := 'atLfTool'"),
-//    c("reset", "true"))
+  //lock RrsSP connector for the LF tool
+  o(s"attachRspLfTool", s"RECU.lock_rsp")(
+    c("pre", s"$urPose == $AttachLFToolTCP" ),
+    noTool,
+    c("post", "true", s"urTool := lfTool"),
+    c("reset", "true")
+  )
 
-  // Endre adds stuff: end
+
+
+
+
+
+
+
+
+
+
 
 
   runner("runner")
