@@ -256,12 +256,12 @@ object StateHandlerWidget {
       */
     def printOperationDomain(operation: Thing) = {
       val query: String = "domain"
-      val attributeValueMap = operation.attributes.value.filter(_._1 == query)
+      val attributeValueMap = operation.attributes.value.filter { case (key, _) => key == query }
       val tryParseDropdown = Try{
         val values: Seq[VdomNode] = attributeValueMap.flatMap { valMap: (String, JsValue) =>
-          val theDomain: SPValue = valMap._2.to[SPValue].getOrElse(SPValue("Did Not Parse JsValue"))
+          val parsedDomain: SPValue = valMap._2.to[SPValue].getOrElse(SPValue("Did Not Parse JsValue"))
           val seqOfDomainValues: Seq[SPValue] =
-            theDomain.to[Seq[SPValue]].getOrElse(Seq(SPValue("Could Not Parse list")))
+            parsedDomain.to[Seq[SPValue]].getOrElse(Seq(SPValue("Could Not Parse list")))
 //          val json0 = (valMap._2 \ 0).get
 //          val json1 = (valMap._2 \ 1).get
           seqOfDomainValues.map(value =>
