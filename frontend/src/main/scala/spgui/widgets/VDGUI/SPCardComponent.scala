@@ -10,6 +10,7 @@ import sp.devicehandler.VD.Driver
 import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
 import spgui.components.SPWidgetElements
 
+/** CardComponent for the DriverCard and ResourceCard */
 object SPCardGrid {
   case class State(expandedId: Option[ID] = None)
   case class Props(cards: List[RenderCard])
@@ -48,11 +49,11 @@ object SPCardGrid {
     }
 
     def renderCard(
-      cardId: ID,
-      expandedId: Option[ID],
-      cardContentsExpanded: TagMod,
-      cardContentsCollapsed: TagMod
-    ): TagMod = {
+                    cardId: ID,
+                    expandedId: Option[ID],
+                    cardContentsExpanded: TagMod,
+                    cardContentsCollapsed: TagMod
+                  ): TagMod = {
       val isExpanded = expandedId == Some(cardId)
       List(
         <.span(
@@ -162,13 +163,13 @@ object SPCardGrid {
           <.table(
             ^.className :=DriverWidgetCSS.table.htmlClass,
             <.tbody(
-          card.state.map( s => {
-            <.tr(
-              <.td(s._1),
-              <.td(s._2.toString()),  // Todo: a dropdown for boolean?
-              <.td(<.input(^.placeholder := "Change value...", ^.onKeyPress ==> { updateDriverState(card, s._1)}, ^.className := DriverWidgetCSS.input.htmlClass))
-            )
-          }).toTagMod
+              card.state.map( s => {
+                <.tr(
+                  <.td(s._1),
+                  <.td(s._2.toString()),  // Todo: a dropdown for boolean?
+                  <.td(<.input(^.placeholder := "Change value...", ^.onKeyPress ==> { updateDriverState(card, s._1)}, ^.className := DriverWidgetCSS.input.htmlClass))
+                )
+              }).toTagMod
             ))
         ),
         <.span(

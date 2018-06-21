@@ -172,8 +172,9 @@ trait BuildModel {
           val op = Operation(nn(item.name), theCondition)
           val mapping = if(item.ab.nonEmpty) {
             // hard coded mapping
-            val a = searchAbs.find(a=>unnn(a.name)==item.ab).get // break if we mis-spell
-            Some(op.id->a.id)
+            val a = searchAbs.find(a=>unnn(a.name)==item.ab) // break if we mis-spell
+            if(a.isEmpty) { println("no such ability: " + item.ab) }
+            Some(op.id->a.get.id)
           } else {
             // find by operation name, must be on the same "level"
             abs.find(_.name==op.name).map(a=>op.id->a.id)

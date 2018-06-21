@@ -1,9 +1,8 @@
 package spgui
 
 import japgolly.scalajs.react.vdom.html_<^.VdomElement
-import spgui._
 
-object LoadingWidgets {
+object Widgets {
 
   type Widget = (String, SPWidgetBase => VdomElement, Int, Int)
 
@@ -25,21 +24,21 @@ object LoadingWidgets {
 //    ("Live Gantt Example",          widgets.gantt.LiveGanttExample(),                   10, 5),
 
 //      ("OpcUAWidget",                 widgets.examples.OpcUAWidget(),                     5, 4),
-      ("Item explorer",    widgets.itemexplorerincontrol.ItemExplorer(),       3, 4),
+      ("Item explorer",    widgets.itemexplorerincontrol.ItemExplorer(),                  3, 4),
 //      ("Item explorer tree",          widgets.itemtree.ItemExplorer(),                    2, 4),
       ("Gantt Viewer",                widgets.ganttviewer.GanttViewerWidget(),            10, 5),
       ("Ability Handler",             widgets.abilityhandler.AbilityHandlerWidget(),      3, 4),
       ("ServiceList",                 widgets.services.ServiceListWidget(),               3, 4),
       ("SopMaker",                    widgets.sopmaker.SopMakerWidget(),                  3, 4),
       ("SopRunner",                   widgets.sopmaker.SopRunnerWidget(),                 3, 4),
-      ("ModelsWidget",                widgets.examples.ModelsInControlWidget(),           3, 4),
+      ("ModelsWidget",                widgets.model.ModelsWidget(),                       3, 4),
       ("Item Editor",                 widgets.itemeditorincontrol.ItemEditorInControl(),  3, 4),
       ("DummyLiveGantt",              widgets.ganttviewer.DummyLiveGantt(),               10, 5),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
 //      ("VolvoSchedulerWidget",        widgets.virtcom.VolvoSchedulerWidget(),             3, 4),
-      ("VDTracker",                   widgets.VDGUI.VDTracker(),                      5, 5),
+      ("VDTracker",                   widgets.VDGUI.VDTracker(),                          5, 5),
       ("HumanInstructions",           widgets.unification.HumanInstructionsWidget(),      5, 5),
-      ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 5),
+      ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 6),
       ("ResourceWidget",              widgets.VDGUI.ResourceWidget(),                     5, 5),
       ("OperationRunnerWidget",       widgets.OPGUI.OperationRunnerWidget(),              6, 6),
       ("StateHandlerWidget",          widgets.OPGUI.StateHandlerWidget(),                 6, 6)
@@ -47,7 +46,7 @@ object LoadingWidgets {
     )
 
 
-  def loadWidgets: Unit = {
+  def loadWidgets(): Unit = {
     WidgetList.addWidgets(sp)
   }
 }

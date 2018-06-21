@@ -8,7 +8,6 @@ import sp.devicehandler._
 import sp.drivers.ROSFlatStateDriver
 import sp.drivers.ROSHelpers
 
-
 trait ROSSupport extends ModelDSL {
   def writer(driver: String, messageType: String, topic: String, rate: Int) = {
     val emptyMsg = ROSHelpers.createROSMsg(messageType).get // puke if we mis-spell
@@ -34,106 +33,161 @@ trait ROSSupport extends ModelDSL {
   }
 }
 
+
+
+object UnificationModel {
+  val bolts = (1 to 3).map(i => s"BoltPair$i")
+  def farAboveBolt(b: String) = s"FarAbove${b}TCP"
+  def closeAboveBolt(b: String) = s"CloseAbove${b}TCP"
+  def atBolt(b: String) = s"At${b}TCP"
+
+
+  /// UR POSES
+  // joint poses
+  val HomeJOINT = "HomeJOINT"
+  val ResetJOINT = "ResetJOINT"
+  val PreAttachAtlasFarJOINT = "PreAttachAtlasFarJOINT"
+  val PreAttachLFToolFarJOINT = "PreAttachLFToolFarJOINT"
+  val PreAttachOFToolFarJOINT = "PreAttachOFToolFarJOINT"
+  val PreFindEngineJOINT = "PreFindEngineJOINT"
+  val FindEngineRightJOINT = "FindEngineRightJOINT"
+  val FindEngineLeftJOINT = "FindEngineLeftJOINT"
+  val FindEngineMidJOINT = "FindEngineMidJOINT"
+  val AboveEngineJOINT = "AboveEngineJOINT"
+
+  // above bolts
+  val FarAboveBolts = bolts.map(farAboveBolt)
+  val CloseAboveBolts = bolts.map(closeAboveBolt)
+  val AtBolts = bolts.map(atBolt)
+
+  // tcp poses
+  val PreAttachAtlasCloseTCP = "PreAttachAtlasCloseTCP"
+  val AttachAtlasTCP = "AttachAtlasTCP"
+  val PreAttachLFToolCloseTCP = "PreAttachLFToolCloseTCP"
+  val AttachLFToolTCP = "AttachLFToolTCP"
+  val PreAttachOFToolCloseTCP = "PreAttachOFToolCloseTCP"
+  val AttachOFToolTCP = "AttachOFToolTCP"
+  val OFToolFrame1TCP = "OFToolFrame1TCP"
+  val OFToolFrame2TCP = "OFToolFrame2TCP"
+  val OFToolFrame3TCP = "OFToolFrame3TCP"
+  val FindEngineRight2TCP = "FindEngineRight2TCP"
+  val FindEngineLeft2TCP = "FindEngineLeft2TCP"
+  val FindEngineMid2TCP = "FindEngineMid2TCP"
+  val FindEngineRight3TCP = "FindEngineRight3TCP"
+  val FindEngineLeft3TCP = "FindEngineLeft3TCP"
+  val FindEngineMid3TCP = "FindEngineMid3TCP"
+
+  val poses = List(HomeJOINT, ResetJOINT, PreAttachAtlasFarJOINT, PreAttachLFToolFarJOINT, PreAttachOFToolFarJOINT, PreFindEngineJOINT, FindEngineRightJOINT, FindEngineLeftJOINT, FindEngineMidJOINT, AboveEngineJOINT, PreAttachAtlasCloseTCP, AttachAtlasTCP, PreAttachLFToolCloseTCP, AttachLFToolTCP, PreAttachOFToolCloseTCP, AttachOFToolTCP, OFToolFrame1TCP, OFToolFrame2TCP, OFToolFrame3TCP, FindEngineRight2TCP, FindEngineLeft2TCP, FindEngineMid2TCP, FindEngineRight3TCP, FindEngineLeft3TCP, FindEngineMid3TCP) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
+
+
+
+  def apply() = new UnificationModel
+}
+
 class UnificationModel extends ModelDSL {
   use("UR", new UR)
-  use("MiR", new MiR)
+  use("Atlas", new Atlas)
+  // use("MiR", new MiR)
+
+  use("RECU", new RECU)
+  use("HECU", new HECU)
+
 
   // runner (TODO: for now runners take everything and must be on the top level of the model)
+
+
+
+
+  // MAIN MODEL
+
+  import UnificationModel._
+
+  // products
+  v("lf_pos", "on_kitting", List("on_kitting", "on_engine"))
+  bolts.foreach { b => v(b, "placed", List("empty", "placed", "tightened")) }
+  v("filter1", "empty", List("empty", "placed", "tightened"))
+  v("filter2", "empty", List("empty", "placed", "tightened"))
+  v("pipes", "empty", List("empty", "placed"))
+
+  // resources
+  v("boltMode" ,"ur", List("ur", "human"))
+
+  v("urMode", "running", List("running", "float", "stopped"))
+  v("urTool", "atlas", List("none", "lfTool", "atlas", "filterTool"))
+  val urPoseDomain = (List("HOME",
+    "atLfTool", "atAtlas", "atFilterTool", "aboveEngine") ++
+    bolts.map(farAboveBolt) ++ bolts.map(closeAboveBolt) ++ bolts.map(atBolt) ++
+    List("atFilter1", "atFilter2")).map(s=>SPValue(s))
+  println(urPoseDomain)
+  v("urPose", "HOME", urPoseDomain)
+
+  // operations
+
+  // goto above engine joint, the starting point for going to above bolt tcp poses
+  o(s"gotoAboveEngineJOINT", s"UR.pose.goto_AboveEngineJOINT")(
+    c("pre", s"urPose == 'HOME'"),
+    c("post", "true", s"urPose := 'aboveEngine'"),
+    c("reset", "true"))
+
+  val boltUr = c("pre", "boltMode == 'ur' && urTool == 'atlas'")
+  val boltHuman = c("pre", "boltMode == 'human' && (urTool != 'atlas' || urMode == 'float')")
+
+  // go down from far above to nutrunner position and nutrunning, then back up
+  bolts.foreach { b =>
+
+    o(s"${b}goto${closeAboveBolt(b)}", s"UR.pose.goto_${closeAboveBolt(b)}")(
+      c("pre", s"urPose == '${farAboveBolt(b)}' && $b == 'placed'"), boltUr,
+      c("post", "true", s"urPose := '${closeAboveBolt(b)}'"),
+      c("reset", "true"))
+
+    o(s"${b}goto${atBolt(b)}", s"UR.pose.goto_${atBolt(b)}")(
+      c("pre", s"urPose == '${closeAboveBolt(b)}' && $b == 'placed'"), boltUr,
+      c("post", "true", s"urPose := '${atBolt(b)}'"),
+      c("reset", "true"))
+
+    o(s"${b}Tighten", "Atlas.startToolForward")(
+      c("pre", s"urPose == '${closeAboveBolt(b)}' && $b == 'placed'"), boltUr,
+      c("post", "true", s"$b := 'tightened'"),
+      c("reset", "true"))
+
+    o(s"${b}backUpTo${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
+      c("pre", s"urPose == '${atBolt(b)}' && $b == 'tightened'"), boltUr,
+      c("post", "true", s"urPose := '${atBolt(b)}'"),
+      c("reset", "true"))
+
+    // o(s"${b}HumanTightenMotion")(//, s"Human.tightenMotion$b")(
+    //   c("pre", s"$b == 'placed'"), boltHuman,
+    //   c("post", "true", s"urPose := 'atTCPnut$b'"),
+    //   c("reset", "true"))
+  }
+
+  // sequence, from aboveEngine to nut 1..2..3..n.. back to aboveEngine
+  val bm = bolts.zipWithIndex.map{case (b,i) => i->b}.toMap
+  bm.map {
+    case (0, b) => // FIRST
+      o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
+        c("pre", s"urPose == 'aboveEngine' && $b == 'placed'"), boltUr,
+        c("post", "true", s"urPose := '${farAboveBolt(b)}'"),
+        c("reset", "true"))
+
+    case (i, b) => // OTHERS
+      val prev = bm(i-1)
+      o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
+        c("pre", s"urPose == '${farAboveBolt(prev)}' && $b == 'placed'"), boltUr,
+        c("post", "true", s"urPose := '${farAboveBolt(b)}'"),
+        c("reset", "true"))
+  }
+
+  val lastB = bolts.last
+  o(s"${farAboveBolt(lastB)}toAboveEngine", "UR.pose.goto_AboveEngineJOINT")(
+    c("pre", s"urPose == '${farAboveBolt(lastB)}' && $lastB == 'tightened'"),
+    c("post", "true", s"urPose := 'aboveEngine'"),
+    c("reset", "true"))
+
+
+
   runner("runner")
 
   // share a single driver for all ROS nodes
-  driver("ROSdriver", ROSFlatStateDriver.driverType)
-}
-
-class MiR extends ModelDSL {
-  use("pose", new MiRPose)
-  use("mode", new MiRMode)
-}
-
-class MiRPose extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/MiRPoseUniToSP", "/unification_roscontrol/mir_pose_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/MiRPoseSPToUni", "/unification_roscontrol/mir_pose_sp_to_unidriver", 250)
-
-  // abilities
-  a("gotoKitting", List(),
-    c("pre", "true", s"ref_pos := 'kitting'"),
-    c("started", s"got_cmd_ref_pos == 'kitting'"),
-    c("post", s"act_pos == 'kitting'"),
-    c("reset", "true"))
-
-  resource("resource")
-}
-
-class MiRMode extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/MiRModeUniToSP", "/unification_roscontrol/mir_mode_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/MiRModeSPToUni", "/unification_roscontrol/mir_mode_sp_to_unidriver", 250)
-
-  // abilities
-  a("setReady", List(),
-    c("pre", "true", s"set_state_to_ready := true"),
-    c("started", s"got_cmd_set_state_to_ready"), // note that we check the driver state
-    c("post", "true"),
-    c("reset", "true"))
-
-  // blank list of things = take everything
-  resource("resource")
-}
-
-class UR extends ModelDSL {
-  use("pose", new URPose)
-  use("mode", new URMode)
-}
-
-class URMode extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/URModeUniToSP", "/unification_roscontrol/ur_mode_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/URModeSPToUni", "/unification_roscontrol/ur_mode_sp_to_unidriver", 250)
-
-  // abilities
-
-  // blank list of things = take everything
-  resource("resource")
-}
-
-class URPose extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/URPoseUniToSP", "/unification_roscontrol/ur_pose_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/URPoseSPToUni", "/unification_roscontrol/ur_pose_sp_to_unidriver", 250)
-
-  // abilities
-  List("URDummyPose1", "URDummyPose2", "URDummyPose3", "URDummyPose4").foreach { pose =>
-    a("goto"+pose, List(),
-      c("pre", "true", s"ref_pos := '$pose'"),
-      c("started", s"got_cmd_ref_pos == '$pose' && executing"), // note that we check the driver state
-      c("post", s"act_pos == '$pose' && !executing"),
-      c("reset", "true", "got_cmd_ref_pos == ResetJOINT"))
-  }
-
-  // variables needs to be explicit now
-  v("act_pos", "URDummyPose1", List("URDummyPose1","URDummyPose2","URDummyPose3","URDummyPose4","unknown"))
-
-  // add a dummy sequence
-  o("gotoURDummyPose1")(
-    c("pre", "act_pos == 'unknown' || act_pos == 'URDummyPose4'", "act_pos := URDummyPose1"),
-    c("post", "act_pos == 'URDummyPose1'"))
-
-  o("gotoURDummyPose2")(
-    c("pre", "act_pos == 'URDummyPose1'", "act_pos := URDummyPose2"),
-    c("post", "act_pos == 'URDummyPose2'"))
-
-  o("gotoURDummyPose3")(
-    c("pre", "act_pos == 'URDummyPose2'", "act_pos := URDummyPose3"),
-    c("post", "act_pos == 'URDummyPose3'")
-  )
-  o("gotoURDummyPose4")(
-    c("pre", "act_pos == 'URDummyPose3'", "act_pos := URDummyPose4"),
-    c("post", "act_pos == 'URDummyPose4'")
-  )
-
-
-
-  // blank list of things = take everything
-  resource("resource")
-}
-
-object UnificationModel {
-  def apply() = new UnificationModel
+  // driver("ROSdriver", ROSFlatStateDriver.driverType)
 }
