@@ -23,14 +23,17 @@ object Launch extends App {
 
     system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
     system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
-    system.actorOf(sp.drivers.ROSFlatStateDriver.props, "ROSFlatStateDriver")
-    system.actorOf(sp.drivers.URDriver.props, "URDriver")
     system.actorOf(sp.runners.OperationRunner.props, "oprunner")
     system.actorOf(sp.modelSupport.ModelService.props(models))
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
     system.actorOf(sp.drivers.DriverService.props)
 
+
+    // drivers
+    system.actorOf(sp.drivers.URDriver.props, "URDriver")
+    system.actorOf(sp.drivers.HumanDriver.props, "HumanDriver")
+    system.actorOf(sp.drivers.ROSFlatStateDriver.props, "ROSFlatStateDriver")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")

@@ -13,19 +13,13 @@ object HumanInstructionsWidget {
   import sp.driver._
 
   // TODO: Handle different persons...
-  case class State(name: String = "Kristofer",
-                   cmd: Option[Map[String, SPValue]] = None,
-                   ack: Boolean = false,
-                   completed: Boolean = false,
-                   header: Option[SPHeader] = None
-                  )
-
-
+  case class State(humans: Map[ID, APIHumanDriver.HumanStateMessage])
 
   private class Backend($: BackendScope[Unit, State]) {
 
     val driverHandler =
       BackendCommunication.getMessageObserver(onDriverMessage, APIHumanDriver.topicToHuman)
+
 
     def onDriverMessage(mess: SPMessage): Unit = {
       for {
@@ -33,47 +27,52 @@ object HumanInstructionsWidget {
         b <- mess.getBodyAs[APIHumanDriver.ToHuman]
       } yield {
         b match {
-          case x: APIHumanDriver.StateChangeRequest =>
+          case x: APIHumanDriver.HumanStateMessage =>
             $.modState{s =>
-              val updS = s.copy(
-                cmd = Some(x.state),
-                ack = false,
-                completed = false,
-                header = Some(h)
-              )
-
-              sendEvent(updS, false, false)
-
+              println("instr upd state: old: "+s.humans)
+              val updS = State(s.humans + (x.driverID -> x))
+              println("instr upd state: new: "+updS.humans)
               updS
             }.runNow()
         }
       }
-
     }
 
-    def render(p:Unit, s:State) = {
+    def render(p:Unit, s:State): VdomElement = {
       <.div(
-        <.h1(s"The human ${s.name}" ),
-        s.cmd.map { cmd =>
-          <.div(
-            <.div(cmd.toString),
-            <.br(),
-            <.div(if (s.ack) "ack" else ""),
-            <.br(),
-            <.div(if (s.completed) "completed" else "")
-          )
-        }.getOrElse(<.div("")),
-        <.br(),
+        s.humans.toList.map{case (id, h) => // Should only be one human in unification demo
+            if (!h.loggedIn) {
+              <.div(
+                <.h1(s"Need to log in" ),
+                <.div(h.toString)
+              )
+            } else {
+              <.div(
+                <.h1(s"${h.humanName} is logged in"),
+                <.div(h.toString),
+                <.br(),
+                if (h.cmd.nonEmpty){
+                  TagMod(
+                    <.div(s"Operation: ${h.cmd}"),
+                    <.div(s"${h.instructions.getOrElse(h.cmd, "No description for this OP")}"),
+                  )
+                } else {
+                  <.div("Have a break, no instructions now")
+                },
+                <.button(
+                  {if (h.ack) ^.className := "btn btn-success"
+                  else ^.className := "btn btn-default"},
+                  ^.onClick --> sendEvent(h, true, h.done), "Ack"
+                ),
 
-        <.button(
-          ^.className := "btn btn-default",
-          ^.onClick --> sendEvent(s, true, s.completed), "Ack"
-        ),
-
-        <.button(
-          ^.className := "btn btn-default",
-          ^.onClick --> sendEvent(s, s.ack, true), "done"
-        )
+                <.button(
+                  {if (h.done) ^.className := "btn btn-success"
+                  else ^.className := "btn btn-default"},
+                  ^.onClick --> sendEvent(h, h.ack, true), "done"
+                )
+              )
+            }
+        }:_*
       )
     }
 
@@ -84,25 +83,19 @@ object HumanInstructionsWidget {
       Callback.empty
     }
 
-    def sendEvent(s: State, ack: Boolean = false, done: Boolean): Callback = {
-      val humanS = s.cmd.getOrElse(Map()) ++ Map[String, SPValue](
-        "ack" -> ack, "completed" ->  done
-      )
+    def sendEvent(h: APIHumanDriver.HumanStateMessage, ack: Boolean, done: Boolean): Callback = {
+      val header = SPHeader(from = "THE HUMAN WIDGET")
+      val mess = APIHumanDriver.HumanEvent(h.driverID, ack, done)
 
-      val header = s.header.map(_.swapToAndFrom()).getOrElse(SPHeader(from = "THE HUMAN WIDGET"))
-
-      val json = SPMessage.make(header, APIHumanDriver.HumanEvent(s.name, humanS)) // *(...) is a shorthand for toSpValue(...)
+      val json = SPMessage.make(header, mess)
       BackendCommunication.publish(json, APIHumanDriver.topicFromHuman)
-
-      val updCmd = if (done) None else s.cmd
-
-      $.modState(x => x.copy(cmd = updCmd, ack =ack, completed = done, header = None))
+      Callback.empty
     }
   }
 
 
   private val component = ScalaComponent.builder[Unit]("HumanInstruction")
-    .initialState(State())
+    .initialState(State(Map()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build

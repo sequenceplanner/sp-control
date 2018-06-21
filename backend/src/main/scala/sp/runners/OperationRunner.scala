@@ -28,7 +28,6 @@ class OperationRunner extends Actor
 
 
 
-  val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
 
 
 
@@ -52,6 +51,8 @@ class OperationRunner extends Actor
   def matchRequests(mess: Option[SPMessage]) = {
     OperationRunnerComm.extractRequest(mess).foreach { case (h, b) =>
       val updH = h.copy(from = api.service)
+      val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
+
       publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPACK()))
       publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.GetAbilities))
 
@@ -185,6 +186,25 @@ class OperationRunner extends Actor
     publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id, params)))
   }
 
+  // Temp fix to limit states send to the frontend
+  import scala.concurrent.duration._
+  var stateToSend: Map[ID, (api.StateEvent, api.StateEvent)] = Map()
+  def addNewState(id: ID, ev: api.StateEvent) = {
+    val current = stateToSend.getOrElse(id, (ev, ev))
+    val old = current._2
+    stateToSend += id -> (ev, old)
+  }
+
+  context.system.scheduler.schedule(0.2 seconds, 0.5 seconds){
+    val toSend = stateToSend.filter{case (_, pair) => pair._1 != pair._2}
+    toSend.foreach{case (id, pair) =>
+      stateToSend += id -> (pair._1, pair._1)
+      publish(api.topicResponse, OperationRunnerComm.makeMess(SPHeader(from = api.service), pair._1))
+
+    }
+  }
+
+
   // todo: Update this to make it simpler. Fix when simplifying the handling of multiple runners
   val sendState = (s: SPState, id: ID) => {
     log.debug("")
@@ -197,7 +217,10 @@ class OperationRunner extends Actor
     val groups = r.map(_.disableConditionGroups).getOrElse(Set())
 
     val myH = SPHeader(from = api.service)
-    publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state, auto, groups)))
+    val event = api.StateEvent(id, s.state, auto, groups)
+
+    addNewState(id, event)
+    //publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state, auto, groups)))
 
   }
 
@@ -426,7 +449,7 @@ trait OperationRunnerLogic {
 
     val res = enabled.headOption.map{o =>
       // Maybe we need to check again if o is still enabled in state resCompl
-    opsToGo -= o
+      opsToGo -= o
       val updS = runOp(o, resCompl, disableConditionGroups)
       sendState(updS)
 
@@ -498,8 +521,9 @@ trait OperationRunnerLogic {
 
   def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID], disabledGroups: Set[SPValue] = Set()): Boolean = {
     s(o.id) == OperationState.executing &&
-      ((!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition"), disabledGroups).forall(_.eval(s))) || // always true if no postcond
+      (!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition")).forall(_.eval(s)) || // always true if no postcond
         s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished)))
+
   }
 
   def canReset(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()): Boolean = {

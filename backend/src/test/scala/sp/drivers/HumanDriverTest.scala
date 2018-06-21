@@ -25,7 +25,7 @@ class HumanDriverTest(_system: ActorSystem) extends TestKit(_system) with Implic
       |akka.persistence.journal.plugin = "akka.persistence.journal.inmem"
       |akka.persistence.snapshot-store.plugin = "akka.persistence.snapshot-store.local"
       |akka.persistence.snapshot-store.local.dir = "target/snapshotstest/"
-      |akka.loglevel = "INFO"
+      |akka.loglevel = "NONE"
       |akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
       |akka.remote.netty.tcp.hostname="127.0.0.1"
       |akka.remote.netty.hostname.port=2558
@@ -45,6 +45,13 @@ class HumanDriverTest(_system: ActorSystem) extends TestKit(_system) with Implic
     TestKit.shutdownActorSystem(system)
   }
 
+
+  "bluetooth comm test" - {
+    "testing proxy setup" in {
+      val p = new Proxy(_ => false)
+
+    }
+  }
 
 
   "HumanDriverRuntime" - {
@@ -108,11 +115,11 @@ class HumanMockUP extends Actor
       } yield {
         val updH = h.swapToAndFrom()
         val state = b match {
-          case APIHumanDriver.StateChangeRequest(name, s) => s
+          case x: APIHumanDriver.HumanStateMessage => x
         }
-        publish(APIHumanDriver.topicFromHuman, SPMessage.makeJson(
-          updH, APIHumanDriver.HumanEvent("kristofer", state ++ Map("key1" -> SPValue("hej")))
-        ))
+//        publish(APIHumanDriver.topicFromHuman, SPMessage.makeJson(
+//          updH, APIHumanDriver.HumanEvent("kristofer", state ++ Map("key1" -> SPValue("hej")))
+//        ))
       }
     case x => println("HUMAN MOCKUP GOT: " + x)
   }

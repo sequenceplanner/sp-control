@@ -4,7 +4,7 @@ lazy val projectName = "sp-control"
 lazy val projectVersion = "0.9.11"
 
 lazy val core = Def.setting(PublishingSettings.orgNameFull %%% "sp-core" % "0.9.11")
-lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.11")
+lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.12")
 lazy val comm = Def.setting(PublishingSettings.orgNameFull %%% "sp-comm" % "0.9.11")
 lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.11")
 

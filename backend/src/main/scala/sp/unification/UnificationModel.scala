@@ -77,7 +77,32 @@ object UnificationModel {
   val FindEngineLeft3TCP = "FindEngineLeft3TCP"
   val FindEngineMid3TCP = "FindEngineMid3TCP"
 
-  val poses = List(HomeJOINT, ResetJOINT, PreAttachAtlasFarJOINT, PreAttachLFToolFarJOINT, PreAttachOFToolFarJOINT, PreFindEngineJOINT, FindEngineRightJOINT, FindEngineLeftJOINT, FindEngineMidJOINT, AboveEngineJOINT, PreAttachAtlasCloseTCP, AttachAtlasTCP, PreAttachLFToolCloseTCP, AttachLFToolTCP, PreAttachOFToolCloseTCP, AttachOFToolTCP, OFToolFrame1TCP, OFToolFrame2TCP, OFToolFrame3TCP, FindEngineRight2TCP, FindEngineLeft2TCP, FindEngineMid2TCP, FindEngineRight3TCP, FindEngineLeft3TCP, FindEngineMid3TCP) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
+  val poses = List(
+    HomeJOINT,
+    ResetJOINT,
+    PreAttachAtlasFarJOINT,
+    PreAttachLFToolFarJOINT,
+    PreAttachOFToolFarJOINT,
+    PreFindEngineJOINT,
+    FindEngineRightJOINT,
+    FindEngineLeftJOINT,
+    FindEngineMidJOINT,
+    AboveEngineJOINT,
+    PreAttachAtlasCloseTCP,
+    AttachAtlasTCP,
+    PreAttachLFToolCloseTCP,
+    AttachLFToolTCP,
+    PreAttachOFToolCloseTCP,
+    AttachOFToolTCP,
+    OFToolFrame1TCP,
+    OFToolFrame2TCP,
+    OFToolFrame3TCP,
+    FindEngineRight2TCP,
+    FindEngineLeft2TCP,
+    FindEngineMid2TCP,
+    FindEngineRight3TCP,
+    FindEngineLeft3TCP,
+    FindEngineMid3TCP) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
 
 
 
@@ -104,7 +129,7 @@ class UnificationModel extends ModelDSL {
 
   // products
   v("lf_pos", "on_kitting", List("on_kitting", "on_engine"))
-  bolts.foreach { b => v(b, "placed", List("empty", "placed", "tightened")) }
+  bolts.foreach { b => v(b, "placed", List("empty", "placed", "tightened")) } // init state empty after testing
   v("filter1", "empty", List("empty", "placed", "tightened"))
   v("filter2", "empty", List("empty", "placed", "tightened"))
   v("pipes", "empty", List("empty", "placed"))
@@ -163,7 +188,7 @@ class UnificationModel extends ModelDSL {
 
   // sequence, from aboveEngine to nut 1..2..3..n.. back to aboveEngine
   val bm = bolts.zipWithIndex.map{case (b,i) => i->b}.toMap
-  bm.map {
+  bm.foreach {
     case (0, b) => // FIRST
       o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
         c("pre", s"urPose == 'aboveEngine' && $b == 'placed'"), boltUr,
@@ -173,7 +198,7 @@ class UnificationModel extends ModelDSL {
     case (i, b) => // OTHERS
       val prev = bm(i-1)
       o(s"${b}goto${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
-        c("pre", s"urPose == '${farAboveBolt(prev)}' && $b == 'placed'"), boltUr,
+        c("pre", s"urPose == '${farAboveBolt(prev)}' && $b == 'placed' && $prev == 'tightened'"), boltUr,
         c("post", "true", s"urPose := '${farAboveBolt(b)}'"),
         c("reset", "true"))
   }
