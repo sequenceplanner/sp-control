@@ -6,7 +6,8 @@ import sp.domain
 import sp.domain.{ID, IDAble, SPAttributes}
 import sp.models.APIModel.ModelInformation
 import sp.models.{APIModel, APIModelMaker}
-import spgui.{ModelCommunication, SimpleSet}
+import spgui.SimpleSet
+import spgui.communication.CommunicationAPI
 
 /**
   * Actions that can be sent to ModelHandler
@@ -43,18 +44,15 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
   type StateFn = ModelsCircuitState => ModelsCircuitState
 
   override protected def handle: PartialFunction[Any, ActionResult[M]] = {
-    case action: ModelAction =>
-        val f = handleAction(action)
-
-        updated(f(value))
-      }
+    case action: ModelAction => updated(handleAction(action)(value))
+  }
 
 
   def handleAction(action: Any): StateFn = action match {
     case SaveModel(model) => models.modify(_ + model)
 
     case RemoveModel(modelId) =>
-      ModelCommunication.Recipient.Model.postRequest(APIModelMaker.DeleteModel(modelId))
+      CommunicationAPI.Communicator.Model.postRequest(APIModelMaker.DeleteModel(modelId))
       removeModel(modelId)
 
     case UpdateModel(model) =>
@@ -65,7 +63,7 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
       updateActiveId(modelId)
 
     case SetItems(modelId, items) =>
-      ModelCommunication.Recipient.Model.postRequest(modelId, APIModel.PutItems(items))
+      CommunicationAPI.Communicator.Model.postRequest(modelId, APIModel.PutItems(items))
       models.modify { models =>
         val newModel = models.get(modelId).map(_.copy(items = items))
         newModel.fold(models)(models.replace)

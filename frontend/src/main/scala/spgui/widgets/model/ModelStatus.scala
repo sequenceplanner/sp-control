@@ -31,7 +31,7 @@ object ModelStatus {
     .render_P(render)
     .build
 
-  private def connectCircuit = SOPCircuit.connectModels
+  private def connectCircuit = VDCircuit.connectModels
 
   def apply() = connectCircuit(component(_))
 

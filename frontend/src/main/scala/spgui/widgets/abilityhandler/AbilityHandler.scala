@@ -1,11 +1,13 @@
 package spgui.widgets.abilityhandler
 
 import java.util.UUID
+
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import spgui.communication._
 import sp.domain._
 import Logic._
+import CommunicationAPI
 
 object AbilityHandlerWidget {
   import sp.devicehandler._
