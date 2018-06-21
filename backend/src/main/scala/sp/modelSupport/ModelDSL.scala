@@ -135,19 +135,18 @@ trait BuildModel {
           Thing(nn(name), SPAttributes("driverName" -> driverName, "driverIdentifier" -> driverIdentifier, "variableKind" -> kind.toString))
       }
 
+      val dvsDeeper = deeperThings.collect{
+        case t @ Thing(_, attr, _) if attr.get("driverName").isDefined => t
+      }
+
       // dont create them by default anylonger...
       // by default create v:s for dv:s if not already defined
       // val newVs = dvs.filterNot(dv=>vs.exists(_.name == dv.name)).map(dv=>Thing(dv.name))
       val updVs = vs // ++ newVs
       val upddvTovMap: Map[ID,ID] = upddvTovMap_ ++ updVs.flatMap { v =>
-        if (true){
-          println("/////////////////////////////")
-          println(dvs.find(_.name == v.name))
-          println(dvs)
-          println(v.name)
-
-        }
-        dvs.find(_.name == v.name).map(dv=>v.id->dv.id) } .toMap
+        val allD = dvs ++ dvsDeeper
+        allD.find(_.name == v.name).map(dv=>v.id->dv.id)
+      }.toMap
 
       // we can now add abilities and operations matching to the names we have
       val abParseHelpers = dvs ++ dvs.map(dv=> dv.copy(name = unnn(dv.name)))
