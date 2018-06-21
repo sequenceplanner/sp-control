@@ -132,13 +132,13 @@ class UnificationModel extends ModelDSL {
   v("boltMode" ,"ur", List("ur", "human"))
 
   v("urMode", "running", List("running", "float", "stopped"))
-  v("urTool", "atlas", List("none", "lfTool", "atlas", "filterTool"))
+  v("urTool", "none", List("none", "lfTool", "atlas", "filterTool"))
 
 
-  val urPoseDomain = poses.map(SPValue(_))
+  val urPoseDomain = poses.map(SPValue(_)) :+ SPValue("unknown")
   println(urPoseDomain)
   val urPose = "UR.pose.ref_pos"
-  v("UR.pose.ref_pos", HomeJOINT, urPoseDomain)
+  v("UR.pose.ref_pos", "unknown", urPoseDomain)
 
 
   val executorDomain = executorCmd.map(SPValue(_)) :+ SPValue("reset")

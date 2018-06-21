@@ -140,6 +140,13 @@ trait BuildModel {
       // val newVs = dvs.filterNot(dv=>vs.exists(_.name == dv.name)).map(dv=>Thing(dv.name))
       val updVs = vs // ++ newVs
       val upddvTovMap: Map[ID,ID] = upddvTovMap_ ++ updVs.flatMap { v =>
+        if (true){
+          println("/////////////////////////////")
+          println(dvs.find(_.name == v.name))
+          println(dvs)
+          println(v.name)
+
+        }
         dvs.find(_.name == v.name).map(dv=>v.id->dv.id) } .toMap
 
       // we can now add abilities and operations matching to the names we have
