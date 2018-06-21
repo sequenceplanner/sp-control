@@ -134,16 +134,13 @@ class UnificationModel extends ModelDSL {
   v("urMode", "running", List("running", "float", "stopped"))
   v("urTool", "none", List("none", "lfTool", "atlas", "filterTool"))
 
+  v("urReserve", false, List(false, true))
+
 
   val urPoseDomain = poses.map(SPValue(_)) :+ SPValue("unknown")
   println(urPoseDomain)
-  val urPose = "UR.pose.ref_pos"
-  v("UR.pose.ref_pos", "unknown", urPoseDomain)
-
-
-  val executorDomain = executorCmd.map(SPValue(_)) :+ SPValue("reset")
-  println(executorDomain)
-  v("Executor.cmd", "reset", executorDomain)
+  val urPose = "UR.pose.act_pos"
+  v("UR.pose.act_pos", "unknown", urPoseDomain)
 
 
 
@@ -271,23 +268,27 @@ class UnificationModel extends ModelDSL {
     */
 
   val noTool = c("pre", s"urTool == 'none'")
+  val reserve = c("pre", "urReserve == false", "urReserve := true")
+  val release = c("post", "true", "urReserve := false")
 
   o(s"DetachOFTool", s"Executor.DetachOFTool")(
     c("pre", s"$urPose == $HomeJOINT"),
     c("pre", s"urTool == 'filterTool'"),
     c("post", s"urTool == 'none'"),
+    reserve, release,
     c("reset", "true"))
 
 
   o(s"gotoPreAttachLFToolFarJOINT", s"UR.pose.goto_PreAttachLFToolFarJOINT")(
     c("pre", s"$urPose == $HomeJOINT"),
     c("pre", s"lf_pos == 'on_kitting'"),
-    noTool,
+    noTool, reserve, release,
     c("reset", "true"))
 
   // goto close pre attach pose for the lf tool
   o(s"gotoPreAttachLFToolCloseTCP", s"UR.pose.goto_PreAttachLFToolCloseTCP")(
-    c("pre", s"$urPose == $PreAttachAtlasFarJOINT"),
+    c("pre", s"$urPose == $PreAttachLFToolFarJOINT"),
+    reserve, release,
     c("pre", s"(lf_pos == 'on_kitting' && urTool == 'none') || (lf_pos == 'on_engine' && urTool == 'lfTool')"),
     c("reset", "true"))
 
@@ -301,7 +302,7 @@ class UnificationModel extends ModelDSL {
   o(s"gotoAttachLFToolTCP", s"UR.pose.goto_AttachLFToolTCP")(
     c("pre", s"$urPose == $PreAttachLFToolCloseTCP"),
     c("pre", s"lf_pos == 'on_kitting'"),
-    noTool,
+    noTool,reserve, release,
     c("reset", "true"))
 
   //lock RrsSP connector for the LF tool

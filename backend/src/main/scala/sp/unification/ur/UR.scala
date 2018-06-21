@@ -33,11 +33,17 @@ class URPose extends ModelDSL with ROSSupport {
   // abilities
   poses.foreach { pose =>
     a("goto_"+pose, List(),
-      c("pre", "true", s"ref_pos := '$pose'"),
+      c("pre", s"executing == false", s"ref_pos := '$pose'"),
       c("started", s"got_cmd_ref_pos == '$pose' && (executing || act_pos == '$pose')"),
-      c("post", s"!executing && act_pos == '$pose'"),
+      c("post", s"executing == false && act_pos == '$pose'"),
       c("reset", "true", "ref_pos := 'reset'"))
   }
+
+  a("reset", List(),
+    c("pre", "true", s"ref_pos := 'reset'"),
+    c("started", s"true"),
+    c("post", "got_cmd_ref_pos == 'reset'"),
+    c("reset", "true"))
 
   // blank list of things = take everything
 
