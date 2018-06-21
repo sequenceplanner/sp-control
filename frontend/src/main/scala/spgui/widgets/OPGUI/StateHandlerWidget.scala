@@ -1,7 +1,9 @@
 package spgui.widgets.OPGUI
 
+import scala.util.Try
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import play.api.libs.json.JsValue
 import sp.devicehandler.APIVirtualDevice
 import sp.domain.Logic._
 import sp.domain._
@@ -10,6 +12,7 @@ import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import spgui.communication._
 import spgui.components.SPWidgetElements
+
 
 /** Widget for matching the Driver with a Operation */
 object StateHandlerWidget {
@@ -187,8 +190,8 @@ object StateHandlerWidget {
           <.details(^.open := "open",  ^.className := "details-empty-operations",
             <.summary("Operation with no Driver"),
             <.table(
-            ^.className := "table table-striped",  ^.className := "table-empty-operations",
-            tableHead(),
+              ^.className := "table table-striped",  ^.className := "table-empty-operations",
+              tableHead(),
               <.tbody(
                 // for all operation things that do not have its id in operationDriverMap
                 // print the operation
@@ -252,11 +255,28 @@ object StateHandlerWidget {
       * @return A cell of table-data with the domain value
       */
     def printOperationDomain(operation: Thing) = {
-      val s: String =
-        operation.attributes.value.map{spAttribute => "S:" + spAttribute._1 + ", JS:" + spAttribute._2}.toString()
-      <.td(s)
+      val query: String = "domain"
+      val attributeValueMap = operation.attributes.value.filter(_._1 == query)
+      val tryParseDropdown = Try{
+        val values: Seq[VdomNode] = attributeValueMap.flatMap { valMap: (String, JsValue) =>
+          val theDomain: SPValue = valMap._2.to[SPValue].getOrElse(SPValue("Did Not Parse JsValue"))
+          val seqOfDomainValues: Seq[SPValue] =
+            theDomain.to[Seq[SPValue]].getOrElse(Seq(SPValue("Could Not Parse list")))
+//          val json0 = (valMap._2 \ 0).get
+//          val json1 = (valMap._2 \ 1).get
+          seqOfDomainValues.map(value =>
+            SPWidgetElements.dropdownElement(value.toString, operationDomainChange(operation.id, value))
+          )
+        }.toSeq
+        SPWidgetElements.dropdown("domain", values)
+      }
+      tryParseDropdown.map(<.td(_)).getOrElse(<.td("-"))
     }
 
+    // TODO Implement state change for the operation
+    def operationDomainChange(operationID: ID, domainClicked: SPValue): Callback = {
+      Callback.log(s"ID for the operation is $operationID and domain clicked is $domainClicked")
+    }
     /** When the widget is unmounting, kill message-observer
       *
       * @return Callback to kill message-Observers

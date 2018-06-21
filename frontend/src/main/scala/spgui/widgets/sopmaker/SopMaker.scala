@@ -213,7 +213,7 @@ object SopMakerWidget {
     .initialState(State(sop = ExampleSops.tinySop))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
-    .componentDidMount(_.backend.onMount()) 
+    .componentDidMount(_.backend.onMount())
     .build
 
   def apply() = spgui.SPWidget(spwb => component())
