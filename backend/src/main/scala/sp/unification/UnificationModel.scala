@@ -92,6 +92,20 @@ object UnificationModel {
     DetachOFTool
   )
 
+
+  //The instructions to the operator
+  val instructions = Map(
+    "login" -> "You need to log in before working",
+    "mountLF" -> "Mount the LF on the engine. The robot will help",
+    "placeB1to6" -> "Place the first 6 pairs of screws",
+    "placeBRest" -> "Place rest of screws",
+    "placePipes" -> "Place the pipes",
+    "placeOF" -> "Place the oil filter",
+    "atlasOF" -> "Use the nut-runner to tighten the bolts",
+  )
+
+
+
   def apply() = new UnificationModel
 }
 
@@ -103,6 +117,7 @@ class UnificationModel extends ModelDSL {
   use("RECU", new RECU)
   use("HECU", new HECU)
   use("Executor", new Executor)
+  use("OP", new Operator("OP"))
 
 
   // runner (TODO: for now runners take everything and must be on the top level of the model)
@@ -113,14 +128,6 @@ class UnificationModel extends ModelDSL {
   // MAIN MODEL
 
   import UnificationModel._
-
-//  // products
-//  case class VnD(n: String, init: SPValue, d: List[SPValue]) {
-//    def toV() = v(n, init, d)
-//  }
-//
-//  val lf_pos = VnD("lf_pos", "on_kitting", List("on_kitting", "on_engine")).toV()
-
 
   v("lf_pos", "on_kitting", List("on_kitting", "on_engine"))
   bolts.foreach { b => v(b, "placed", List("empty", "placed", "tightened")) } // init state empty after testing

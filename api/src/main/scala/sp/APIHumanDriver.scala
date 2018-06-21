@@ -19,13 +19,16 @@ package sp.driver{
                                  ack: Boolean,
                                  done: Boolean,
                                  bluetooth: Boolean,
-                                 instructions: Map[String, String]
+                                 instructions: Map[String, String],
+                                 alert: String
                               ) extends ToHuman
 
 
     case class HumanEvent(driverID: ID,
                           ack: Boolean,
-                          done: Boolean) extends FromHuman
+                          done: Boolean,
+                          alert: String
+                         ) extends FromHuman
 
 
 

@@ -40,8 +40,15 @@ object HumanInstructionsWidget {
 
     def render(p:Unit, s:State): VdomElement = {
       <.div(
-        s.humans.toList.map{case (id, h) => // Should only be one human in unification demo
-            if (!h.loggedIn) {
+        s.humans.toList.map{case (id, h) => TagMod(// Should only be one human in unification demo
+           if (h.alert.nonEmpty) TagMod(
+             <.h1(h.alert),
+             <.button(
+               ^.className := "btn btn-warning",
+               ^.onClick --> sendEvent(h, h.ack, h.done, ""), "Completed"
+             ))
+           else EmptyVdom,
+           if (!h.loggedIn) {
               <.div(
                 <.h1(s"Need to log in" ),
                 <.div(h.toString)
@@ -54,7 +61,7 @@ object HumanInstructionsWidget {
                 if (h.cmd.nonEmpty){
                   TagMod(
                     <.div(s"Operation: ${h.cmd}"),
-                    <.div(s"${h.instructions.getOrElse(h.cmd, "No description for this OP")}"),
+                    <.div(s"${h.instructions.getOrElse(h.cmd, "No description for this OP")}")
                   )
                 } else {
                   <.div("Have a break, no instructions now")
@@ -62,16 +69,16 @@ object HumanInstructionsWidget {
                 <.button(
                   {if (h.ack) ^.className := "btn btn-success"
                   else ^.className := "btn btn-default"},
-                  ^.onClick --> sendEvent(h, true, h.done), "Ack"
+                  ^.onClick --> sendEvent(h, true, h.done, h.alert), "Ack"
                 ),
 
                 <.button(
                   {if (h.done) ^.className := "btn btn-success"
                   else ^.className := "btn btn-default"},
-                  ^.onClick --> sendEvent(h, h.ack, true), "done"
+                  ^.onClick --> sendEvent(h, h.ack, true, h.alert), "done"
                 )
               )
-            }
+            })
         }:_*
       )
     }
@@ -83,9 +90,9 @@ object HumanInstructionsWidget {
       Callback.empty
     }
 
-    def sendEvent(h: APIHumanDriver.HumanStateMessage, ack: Boolean, done: Boolean): Callback = {
+    def sendEvent(h: APIHumanDriver.HumanStateMessage, ack: Boolean, done: Boolean, alert: String): Callback = {
       val header = SPHeader(from = "THE HUMAN WIDGET")
-      val mess = APIHumanDriver.HumanEvent(h.driverID, ack, done)
+      val mess = APIHumanDriver.HumanEvent(h.driverID, ack, done, alert)
 
       val json = SPMessage.make(header, mess)
       BackendCommunication.publish(json, APIHumanDriver.topicFromHuman)
