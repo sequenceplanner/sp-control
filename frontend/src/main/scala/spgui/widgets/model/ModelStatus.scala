@@ -31,7 +31,7 @@ object ModelStatus {
     .render_P(render)
     .build
 
-  private def connectCircuit = ModelsCircuit.connect(state => state)
+  private def connectCircuit = SOPCircuit.connectModels
 
   def apply() = connectCircuit(component(_))
 
