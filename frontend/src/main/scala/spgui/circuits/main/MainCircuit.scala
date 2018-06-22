@@ -1,9 +1,16 @@
-package spgui.availablemodelscircuit
+package spgui.circuits.main
 
-import diode.{Action, Circuit, FastEq, ModelR}
 import diode.react.{ReactConnectProxy, ReactConnector}
+import diode.{Action, Circuit, FastEq, ModelR}
+import spgui.circuits.availablemodelscircuit._
+import spgui.circuits.main.handlers._
 
-case class FrontendState(modelState: ModelsCircuitState, driverState: DriverHandlerState, abilityState: AbilityHandlerState)
+case class FrontendState(
+                          modelState: ModelsCircuitState,
+                          driverState: DriverHandlerState,
+                          abilityState: AbilityHandlerState,
+                          runnerState: RunnerHandlerState
+                        )
 
 
 case class LocalAction(action: Action) extends Action
@@ -29,7 +36,8 @@ object MainCircuit extends Circuit[FrontendState] with ReactConnector[FrontendSt
     FrontendState(
       modelState = ModelHandler.initialState,
       driverState = DriverHandler.initialState,
-      abilityState = AbilityHandler.initialState
+      abilityState = AbilityHandler.initialState,
+      runnerState = RunnerHandler.initialState
     )
   }
 
@@ -37,7 +45,8 @@ object MainCircuit extends Circuit[FrontendState] with ReactConnector[FrontendSt
     composeHandlers(
       new ModelHandler(zoomRW(_.modelState)((state, modelState) => state.copy(modelState = modelState))),
       new DriverHandler(zoomRW(_.driverState)((state, driverState) => state.copy(driverState = driverState))),
-      new AbilityHandler(zoomRW(_.abilityState)((state, abilityState) => state.copy(abilityState = abilityState)))
+      new AbilityHandler(zoomRW(_.abilityState)((state, abilityState) => state.copy(abilityState = abilityState))),
+      new RunnerHandler(zoomRW(_.runnerState)((state, runnerState) => state.copy(runnerState = runnerState)))
     )
   }
 

@@ -2,9 +2,10 @@ package spgui.communication
 
 import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.availablemodelscircuit._
+import spgui.circuits.main.handlers._
+import spgui.circuits.main.FrontendState
 
-object DeviceCommunication extends CommunicationAPI.Communicator[DriverHandlerState, AbilityAction] {
+object DriverCommunication extends CommunicationAPI.Communicator[DriverHandlerState, DriverAction] {
   println("DeviceCommunication live :)")
   import sp.devicehandler.{APIDeviceDriver => API}
   val responseTopic: String = API.topicResponse
@@ -13,17 +14,22 @@ object DeviceCommunication extends CommunicationAPI.Communicator[DriverHandlerSt
     val response = message.as[API.Response]
     val state = currentState()
 
-    for ((header, body) <- response) body match {
-      case API.DriverCommandDone(requestId, result) =>
-
-      case API.DriverStateChange(name, id, driverState, diff) =>
+    for ((_, body) <- response) body match {
+        // TODO Maybe use diff? Not sure what to use it for (6/22/2018)
+      case API.DriverStateChange(name, id, driverState, _) =>
+        localDispatch(DriverChanged(name, id, driverState))
 
       case API.TheDriver(driver, driverState) =>
+        localDispatch(AddDriver(driver, driverState))
 
       case API.TheDrivers(drivers) =>
+        localDispatch(AddDrivers(drivers))
 
       case API.DriverTerminated(id) =>
+        localDispatch(DriverTerminated(id))
 
+      case x =>
+        println(s"[WARN] Received command $x that has no implemented case.")
     }
   }
 
@@ -37,4 +43,6 @@ object DeviceCommunication extends CommunicationAPI.Communicator[DriverHandlerSt
   }
 
   override protected def stateAccessFunction: FrontendState => DriverHandlerState = _.driverState
+
+  override def defaultReply: String = "DeviceCommunication"
 }

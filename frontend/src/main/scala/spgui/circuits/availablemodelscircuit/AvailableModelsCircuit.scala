@@ -1,4 +1,4 @@
-package spgui.availablemodelscircuit
+package spgui.circuits.availablemodelscircuit
 
 import diode._
 import diode.react._
@@ -52,7 +52,7 @@ object AvailableModelsHelper {
     )
   }
 
-  import spgui.availablemodelscircuit.{AvailableModelsCircuit => avmc}
+  import spgui.circuits.availablemodelscircuit.{AvailableModelsCircuit => avmc}
 
   def onChange(header: SPHeader, body: APIModelMaker.Response): Unit = {
     body match {

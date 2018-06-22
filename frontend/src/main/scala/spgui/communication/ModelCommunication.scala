@@ -3,9 +3,11 @@ package spgui.communication
 import play.api.libs.json.JsString
 import sp.domain.{ID, JSWrites, SPHeader, SPMessage}
 import sp.models.{APIModel, APIModelMaker}
-import spgui.availablemodelscircuit._
+import spgui.circuits.availablemodelscircuit._
 import spgui.SPMessageUtil.BetterSPMessage
 import CommunicationAPI.Communicator
+import spgui.circuits.main.handlers._
+import spgui.circuits.main.FrontendState
 
 object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] {
   println("ModelCommunication live :)")
@@ -32,29 +34,22 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
     res match {
       case info: APIModel.ModelInformation =>
         val value = state.models.get(info.id)
-        dispatchAction(ModelMock.info.set(Some(info)), UpdateModel)(value)
+        value.foreach(localDispatch _ compose UpdateModel compose ModelMock.info.set(Some(info)))
 
       case APIModel.ModelHistory(id, history) =>
-        val value = state.models.get(id)
-        dispatchAction(ModelMock.history.set(Some(history)), UpdateModel)(value)
+        state.models.get(id).foreach(localDispatch _ compose UpdateModel compose ModelMock.history.set(Some(history)))
 
 
       case APIModel.SPItems(items) =>
-        val modelId = JsString(header.from).asOpt[ID]
-        modelId.foreach { id =>
-          dispatch(SetItems(id, items))
-        }
+        JsString(header.from).asOpt[ID].foreach(id => localDispatch(SetItems(id, items)))
 
-      case APIModel.ModelUpdate(modelId, version, count, _, _, _) =>
+      case APIModel.ModelUpdate(modelId, newVersion, newCount, _, _, _) =>
         postRequest(modelId, APIModel.GetModelHistory)
 
         val value = state.models.get(modelId)
-        dispatchAction(
-          ModelMock.info.modify(_.map { info =>
-            APIModel.ModelInformation(info.name, info.id, version, count, info.attributes)
-          }),
-          UpdateModel
-        )(value)
+        val updateInfo = ModelMock.info.modify(_.map(_.copy(version = newVersion, noOfItems = newCount)))
+
+        value.foreach(localDispatch _ compose UpdateModel compose updateInfo)
 
       case x =>
         println(s"[ModelCommunication.onModelResponse] Case $x not captured by match.")
@@ -71,11 +66,11 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
           postRequest(m, APIModel.GetModelHistory)
         }
 
-        dispatch(AddMockModelIds(modelIds))
+        localDispatch(AddMockModelIds(modelIds))
 
       case created: APIModelMaker.ModelCreated =>
         //sendToModel(modelId, Model.PutItems(TestModelInControl.getTestModel))
-        dispatch(AddMockModelIds(created.id))
+        localDispatch(AddMockModelIds(created.id))
 
       case APIModelMaker.ModelDeleted(modelId) =>
         localDispatch(RemoveModel(modelId))
@@ -102,4 +97,6 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
 
   override protected def stateAccessFunction: FrontendState => ModelsCircuitState = _.modelState
   val responseTopic: String = APIModel.topicResponse
+
+  override def defaultReply: String = "ModelCommunication"
 }
