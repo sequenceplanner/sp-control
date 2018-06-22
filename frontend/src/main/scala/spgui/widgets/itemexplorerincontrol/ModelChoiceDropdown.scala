@@ -4,7 +4,7 @@ import diode.react.ModelProxy
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 import sp.domain.ID
-import spgui.availablemodelscircuit.{AvailableModels, AvailableModelsCircuit}
+import spgui.circuits.availablemodelscircuit.{AvailableModels, AvailableModelsCircuit}
 import spgui.components.SPWidgetElements
 
 object ModelChoiceDropdown {

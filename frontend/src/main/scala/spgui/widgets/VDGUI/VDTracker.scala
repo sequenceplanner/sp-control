@@ -5,9 +5,7 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import rx.Obs
 import sp.devicehandler.VD
-
 import sendMessages._
-
 import spgui.SPWidget
 import spgui.components.SPWidgetElements
 import spgui.communication._
@@ -18,7 +16,8 @@ import sp.domain._
 import sp.models.APIModel
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.vdtesting.APIVDTracker
-import spgui.availablemodelscircuit.{MainCircuit, ModelsCircuitState, SetActiveModel}
+import spgui.circuits.main.handlers.{ModelsCircuitState, SetActiveModel}
+import spgui.circuits.main.MainCircuit
 import spgui.widgets.virtcom.Style
 
 object VDTracker {
@@ -183,7 +182,7 @@ object VDTracker {
 
     def terminateDrivers(drivers : List[VD.Driver]): Unit = {
       drivers.map(_.id).foreach { id =>
-        DeviceCommunication.postRequest(APIDeviceDriver.TerminateDriver(id))
+        DriverCommunication.postRequest(APIDeviceDriver.TerminateDriver(id))
       }
     }
 

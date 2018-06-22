@@ -29,7 +29,7 @@ object OperationRunnerWidget {
     * @param activeRunner The runner
     * @param modelIdables All IDables from the model
     * @param abilityStateMapper All ability-information needed
-    * @param operationStateMapper All operation-information needed
+    * @param operations All operation-information needed
     * @param activeOpAbPairs The map between operation id and ability id, that the runner has
     * @param availableOpAbPairs The map between operation id and ability id, that is available to add to the runner
     */
@@ -37,10 +37,12 @@ object OperationRunnerWidget {
                     activeRunner:         Option[Runner] = None,
                     modelIdables:         List[IDAble] = List(),
                     abilityStateMapper:   Map[ID, AbilityWithState] = Map(),
-                    operationStateMapper: Map[ID, OperationWithState] = Map(),
+                    operations: Map[ID, OperationWithState] = Map(),
                     activeOpAbPairs:      List[OpAbPair] = List(), // in the runner
                     availableOpAbPairs:   List[OpAbPair] = List() // in the model with possibility to add to runner
-                  )
+                  ) {
+    def activeRunnerId: Option[ID] = activeRunner.flatMap(_.id)
+  }
 
   private class Backend($: BackendScope[Unit, State]) {
     val operationRunnerHandler =
@@ -129,39 +131,29 @@ object OperationRunnerWidget {
             // try to update state with operationStateMapper and opAbPairs
             sameRunnerSetup.map{setup => state.copy(
               activeOpAbPairs = opAbPairs(setup).toList,
-              operationStateMapper = opStateMapper(setup))
+              operations = opStateMapper(setup))
             }.getOrElse(state)
           }
         }
 
         // TODO: Add runInAuto and disableConditionGroups
-        // case StateEvent-message: see if any operation has been updated
-        // if so, update the operationStateMapper
-        case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap, runInAuto, disableConditionGroups) => {
-          $.modState { state =>
-            // if StateEvent occur, check if the operationState is for the same Runner-id as the widgets activeRunnerId
-            if(state.activeRunner.exists(_.id.contains(runnerID))){
-              // filter newRunnerStateMap on the operationStateMapperKeys
-              // This way we sure we only update the new operation states
-              val existingOperations = newRunnerStateMap.filterKeys(key => state.operationStateMapper.keySet.contains(key))
-              // for each object in operationStateMapper
-              // update the operationState for the operation,
-              // if it has been changed with newRunnerStateMap
-              // else keep old value
-              val updatedOperationStateMapper = state.operationStateMapper.map(oneOperationWithState =>
-                oneOperationWithState._1 -> oneOperationWithState._2.copy(
-                  operationState = if (existingOperations.keySet.contains(oneOperationWithState._1))
-                    Map(oneOperationWithState._1 -> existingOperations(oneOperationWithState._1))
-                  else
-                    oneOperationWithState._2.operationState)
-              )
-              // copy the state with the updated operationStateMapper
-              state.copy(operationStateMapper = updatedOperationStateMapper)
-            } else {
-              state // if the StateEvent is for another Runner, do not modify state}
+        case APIOperationRunner.StateEvent(runnerId, runnerState, _, _) =>
+
+          $.modState { currentState => currentState.activeRunnerId match {
+            case Some(id) if id == runnerId =>
+                val relevantOperations = runnerState.flatMap { case (k, v) =>
+                  currentState.operations.get(k).map(operation => (k, v, operation))
+                }
+
+              val newOperations = relevantOperations.foldLeft(currentState.operations) { case (acc, (k, v, operation)) =>
+                acc + (k -> operation.copy(operationState = Map(k -> v)))
+              }
+
+              currentState.copy(operations = newOperations)
+
+            case _ => currentState
             }
           }
-        }
 
         // for the other messages i VDTracker, return Callback.empty
         case x => Callback.empty
@@ -264,7 +256,7 @@ object OperationRunnerWidget {
         OperationRunnerCardComponent(
           state.modelIdables,
           state.activeOpAbPairs.map{ operationAbilityPair => {
-            val op = state.operationStateMapper(operationAbilityPair.operationID)
+            val op = state.operations(operationAbilityPair.operationID)
             val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
             OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
           }}

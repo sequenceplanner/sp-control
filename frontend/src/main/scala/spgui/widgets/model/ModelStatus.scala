@@ -5,7 +5,9 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.internal.StyleA
 import sp.domain._
-import spgui.availablemodelscircuit._
+import spgui.circuits.availablemodelscircuit._
+import spgui.circuits.main.handlers.ModelsCircuitState
+import spgui.circuits.main.MainCircuit
 
 object ModelStatus {
   import spgui.widgets.model.{ModelStatusCSS => css}
