@@ -1,5 +1,7 @@
-package spgui.availablemodelscircuit
+package spgui.circuits.main.handlers
+
 import diode.{Action, ActionHandler, ActionResult, ModelRW}
+import spgui.circuits.main.LocalAction
 
 /**
   *
@@ -10,6 +12,12 @@ import diode.{Action, ActionHandler, ActionResult, ModelRW}
 abstract class StateHandler[M, S, A](modelRW: ModelRW[M, S]) extends ActionHandler(modelRW) {
   type StateFn = S => S
 
+  /* This method is necessary to allow the subclasses to reject Actions of the wrong type.
+   * The issue can be solved through reflection, but that unfortunately negatively impacts performance
+   * and has therefore been avoided here.
+   */
+  def acceptAction: Action => Boolean
+
   override protected def handle: PartialFunction[Any, ActionResult[M]] = {
     case message: Action =>
       val (action, local) = message match {
@@ -17,10 +25,8 @@ abstract class StateHandler[M, S, A](modelRW: ModelRW[M, S]) extends ActionHandl
         case other => (other, false)
       }
 
-      action match {
-        case modelAction: A =>
-          runReaction(getReaction(modelAction), local)
-      }
+      if (acceptAction(action)) runReaction(onAction(action.asInstanceOf[A]), local)
+      else noChange
   }
 
   private def runReaction(reaction: Reaction, local: Boolean): ActionResult[M] = {
@@ -32,7 +38,7 @@ abstract class StateHandler[M, S, A](modelRW: ModelRW[M, S]) extends ActionHandl
     updated(reaction.stateTransform(value))
   }
 
-  def getReaction: PartialFunction[A, Reaction]
+  def onAction: PartialFunction[A, Reaction]
 
   def react(stateTransformation: S => S) = LocalReaction(stateTransformation)
 

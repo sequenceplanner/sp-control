@@ -1,4 +1,4 @@
-package spgui.availablemodelscircuit
+package spgui.circuits.main.handlers
 
 import diode.{Action, ModelRW}
 import monocle.macros.Lenses
@@ -37,7 +37,7 @@ object AddMockModelIds {
 class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends StateHandler[M, ModelsCircuitState, ModelAction](modelRW) {
   import ModelsCircuitState.models
 
-  def getReaction: PartialFunction[ModelAction, Reaction] = {
+  def onAction: PartialFunction[ModelAction, Reaction] = {
     case SaveModel(model) => models.modify(_ + model)
 
     case RemoveModel(modelId) =>
@@ -88,6 +88,11 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends StateHand
     }
     else s
   })
+
+  override def acceptAction: Action => Boolean = {
+    case _: ModelAction => true
+    case _ => false
+  }
 }
 
 object ModelHandler {

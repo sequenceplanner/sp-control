@@ -2,7 +2,9 @@ package spgui.communication
 
 import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.availablemodelscircuit._
+import spgui.circuits.availablemodelscircuit._
+import spgui.circuits.main.handlers.AbilityAction
+import spgui.circuits.main.FrontendState
 
 object VDTrackerCommunication extends CommunicationAPI.Communicator[String, AbilityAction] {
   import sp.vdtesting.{APIVDTracker => API}
@@ -30,4 +32,6 @@ object VDTrackerCommunication extends CommunicationAPI.Communicator[String, Abil
   }
 
   override protected def stateAccessFunction: FrontendState => String = NoState
+
+  override def defaultReply: String = "VDTrackerCommunication"
 }

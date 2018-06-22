@@ -1,12 +1,12 @@
 package spgui.communication
 
-import diode.FastEq
 import rx.Obs
 import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
 import sp.domain._
 import sp.models.{APIModel, APIModelMaker => ModelMaker}
-import spgui.availablemodelscircuit._
+import spgui.circuits.main.handlers.StateHandler
+import spgui.circuits.main.{FrontendState, MainCircuit}
 
 /**
   * This class is meant to be used as the primary means of communication between frontend and backend.
@@ -38,14 +38,14 @@ object CommunicationAPI {
    */
   List(
     AbilityCommunication,
-    DeviceCommunication,
+    DriverCommunication,
     ModelCommunication,
     OperationRunnerCommunication,
     VDCommunication,
     VDTrackerCommunication
   ).foreach(_.startListening())
 
-  DeviceCommunication.postRequest(APIDeviceDriver.GetDrivers)
+  DriverCommunication.postRequest(APIDeviceDriver.GetDrivers)
 
   type UnsubscribeFn = () => Unit
 
@@ -77,24 +77,28 @@ object CommunicationAPI {
       BackendCommunication.getMessageObserver(onReceiveMessage, responseTopic)
     }
 
-    protected def post[R](body: R, from: String, to: String, topic: String)(implicit writes: JSWrites[R]): Unit = {
-      println("Posting!")
-      val h = SPHeader(from = from, to = to, reply = SPValue("ModelCommunication"))
+    def defaultReply: String
 
-      val json = SPMessage.make(h, body)
+    protected def post[R](body: R, from: String, to: String, topic: String, reply: String = defaultReply, reqID: Option[ID] = None)(implicit writes: JSWrites[R]): Unit = {
+      val headerBase = SPHeader(from = from, to = to, reply = SPValue(reply))
+      val header = reqID match {
+        case None => headerBase
+        case Some(id) => headerBase.copy(reqID = id)
+      }
+
+      val json = SPMessage.make(header, body)
       BackendCommunication.publish(json, topic)
     }
 
     protected def onReceiveMessage(message: SPMessage): Unit
 
-    /**
-      * Helper for dispatching actions on the model circuit
-      */
-    def dispatchAction[V](modifier: V => V, wrapper: V => Action)(maybeA: Option[V]): Unit = {
-      maybeA.foreach(a => MainCircuit.dispatch(wrapper(modifier(a))))
-    }
+    def globalDispatch(action: Action): Unit = MainCircuit.dispatch(action)
 
-    def dispatch(action: Action): Unit = MainCircuit.dispatch(action)
+    /**
+      * Should be used when the dispatch should only trigger non-effectful changes. Practically,
+      * this triggers the [[StateHandler.Reaction.stateTransform]] function
+      * but not the [[StateHandler.GlobalReaction.global]] function.
+      */
     def localDispatch(action: Action): Unit = MainCircuit.localDispatch(action)
 
     def responseTopic: String

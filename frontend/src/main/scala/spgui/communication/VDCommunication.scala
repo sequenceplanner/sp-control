@@ -1,8 +1,10 @@
 package spgui.communication
 
-import sp.domain.SPMessage
+import sp.domain.{APISP, ID, SPHeader, SPMessage}
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.availablemodelscircuit._
+import spgui.circuits.availablemodelscircuit._
+import spgui.circuits.main.handlers.AbilityAction
+import spgui.circuits.main.FrontendState
 
 object VDCommunication extends CommunicationAPI.Communicator[String, AbilityAction] {
   import sp.devicehandler.{APIVirtualDevice => API}
@@ -33,4 +35,6 @@ object VDCommunication extends CommunicationAPI.Communicator[String, AbilityActi
   }
 
   override protected def stateAccessFunction: FrontendState => String = NoState
+
+  override def defaultReply: String = "VDCommunication"
 }
