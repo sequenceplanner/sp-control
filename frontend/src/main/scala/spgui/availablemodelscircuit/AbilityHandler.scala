@@ -17,17 +17,16 @@ object AbilityHandler {
 @Lenses case class AbilityHandlerState(abilities: List[Ability])
 
 
-class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends ActionHandler(modelRW) {
+class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateHandler[M, AbilityHandlerState, AbilityAction](modelRW) {
   import AbilityHandlerState.abilities
 
-  type StateFn = AbilityHandlerState => AbilityHandlerState
+  override def getReaction: PartialFunction[AbilityAction, Reaction] = {
+    case AddAbility(ability) => react {
+      abilities.modify(_ :+ ability)
+    }
 
-  private def handleAction: PartialFunction[AbilityAction, StateFn] = {
-    case AddAbility(ability) => abilities.modify(_ :+ ability)
-    case AddAbilities(newAbilities) => abilities.modify(_ ++ newAbilities)
-  }
-
-  override protected def handle: PartialFunction[Any, ActionResult[M]] = {
-    case action: AbilityAction => updated(handleAction(action)(value))
+    case AddAbilities(newAbilities) => react {
+      abilities.modify(_ ++ newAbilities)
+    }
   }
 }

@@ -25,15 +25,21 @@ object MainCircuit extends Circuit[FrontendState] with ReactConnector[FrontendSt
     */
   def connectComponent[S <: AnyRef](f: FrontendState => S)(implicit feq: FastEq[_ >: S]): ReactConnectProxy[S] = connect(f)
 
-  override protected def initialModel: FrontendState = FrontendState(
-    modelState = ModelHandler.initialState,
-    driverState = DriverHandler.initialState,
-    abilityState = AbilityHandler.initialState
-  )
+  override protected def initialModel: FrontendState = {
+    FrontendState(
+      modelState = ModelHandler.initialState,
+      driverState = DriverHandler.initialState,
+      abilityState = AbilityHandler.initialState
+    )
+  }
 
-  override protected def actionHandler: HandlerFunction = composeHandlers(
-    new ModelHandler(zoomRW(_.modelState)((state, modelState) => state.copy(modelState = modelState))),
-    new DriverHandler(zoomRW(_.driverState)((state, driverState) => state.copy(driverState = driverState))),
-    new AbilityHandler(zoomRW(_.abilityState)((state, abilityState) => state.copy(abilityState = abilityState)))
-  )
+  private val handlers = {
+    composeHandlers(
+      new ModelHandler(zoomRW(_.modelState)((state, modelState) => state.copy(modelState = modelState))),
+      new DriverHandler(zoomRW(_.driverState)((state, driverState) => state.copy(driverState = driverState))),
+      new AbilityHandler(zoomRW(_.abilityState)((state, abilityState) => state.copy(abilityState = abilityState)))
+    )
+  }
+
+  override protected def actionHandler: HandlerFunction = handlers
 }
