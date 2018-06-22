@@ -41,9 +41,14 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
   def getByValue(value: V): Option[V] = data.get(hashBy(value))
   def get(key: K): Option[V] = data.get(key)
   def apply(key: K): V = data(key)
-  def modify(f: V => V)(value: V): SimpleSet[K, V] = {
-    val key = hashBy(value)
-    updated(key, f(data(key)))
+  def modify(f: V => V)(value: V): SimpleSet[K, V] = modifyByKey(f)(hashBy(value))
+  def modifyByKey(f: V => V)(key: K): SimpleSet[K, V] = updated(key, f(data(key)))
+  def findByKey(f: K => Boolean): Option[V] = data.collectFirst {
+    case (k, v) if f(k) => v
+  }
+
+  def find(f: V => Boolean): Option[V] = data.collectFirst {
+    case (k, v) if f(v) => v
   }
 
   def addAll(xs: Iterable[V]) = {
@@ -57,4 +62,5 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
   def contains(key: K): Boolean = data.contains(key)
   def map[B](f: V => B): GenTraversableOnce[B] = data.values.map(f)
   def flatMap[B](f: V => GenTraversableOnce[B]): Iterable[B] = data.values.flatMap(f)
+  def isEmpty: Boolean = data.isEmpty
 }
