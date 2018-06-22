@@ -161,7 +161,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
   import context.dispatcher
 
   import scala.concurrent.duration._
-  val ticker = context.system.scheduler.schedule(1 seconds, 5 seconds, self, "tick")
+  val ticker = context.system.scheduler.schedule(1 seconds, 1 seconds, self, "tick")
 
 
 
@@ -242,14 +242,19 @@ object GotMessage{
 
 
 
-
+import scala.util._
 case object BluetoothConnect
 class BluetoothConnector extends Actor {
   import context.dispatcher
 
+  val blue = new Proxy(self ! _)
 
-  val proxy = new Proxy(self ! _)
-  println("Blutooth started..................")
+  blue.proxy match {
+    case Success(p) => println("Blutooth started..................")
+    case Failure(p) =>
+      println("Blutooth failed..................")
+      println(p.getLocalizedMessage)
+  }
 
   context.parent ! BluetoothConnect
 
@@ -266,7 +271,7 @@ class BluetoothConnector extends Actor {
 
     case x: SendMessage =>
       val mess = SPValue(x).toJson
-      proxy.proxy.send(mess)
+      blue.proxy.map(_.send(mess))
   }
 }
 
@@ -275,7 +280,7 @@ class Proxy(callBack: String => Unit) extends sp.bluetooth.BluetoothMessageListe
   // a device connects to it. Might fail if multiple devices try to
   // connect at the same time.
   println("before bluetooth")
-  val proxy = new BluetoothProxy(this)
+  val proxy: Try[BluetoothProxy] = Failure(new UnsupportedOperationException()) //Try{new BluetoothProxy(this)}
   println(s"after: $proxy")
 
   // Use proxy's send method to send messages to the device
