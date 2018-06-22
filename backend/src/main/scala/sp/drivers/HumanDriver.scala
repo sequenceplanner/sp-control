@@ -161,7 +161,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
   import context.dispatcher
 
   import scala.concurrent.duration._
-  val ticker = context.system.scheduler.schedule(1 seconds, 1 seconds, self, "tick")
+  val ticker = context.system.scheduler.schedule(2 seconds, 2 seconds, self, "tick")
 
 
 
