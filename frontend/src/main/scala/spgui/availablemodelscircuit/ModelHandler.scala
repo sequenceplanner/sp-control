@@ -1,6 +1,6 @@
 package spgui.availablemodelscircuit
 
-import diode.{Action, ActionHandler, ActionResult, ModelRW}
+import diode.{Action, ModelRW}
 import monocle.macros.Lenses
 import sp.domain
 import sp.domain.{ID, IDAble, SPAttributes}
@@ -34,28 +34,18 @@ object AddMockModelIds {
   def activeModel: Option[ModelMock] = activeModelId.map(models.apply)
 }
 
-object ModelHandler {
-  val initialState = ModelsCircuitState(SimpleSet(_.id), None, None)
-}
-
-class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHandler(modelRW) {
+class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends StateHandler[M, ModelsCircuitState, ModelAction](modelRW) {
   import ModelsCircuitState.models
 
-  type StateFn = ModelsCircuitState => ModelsCircuitState
-
-  override protected def handle: PartialFunction[Any, ActionResult[M]] = {
-    case action: ModelAction => updated(handleAction(action)(value))
-  }
-
-
-  def handleAction(action: Any): StateFn = action match {
+  def getReaction: PartialFunction[ModelAction, Reaction] = {
     case SaveModel(model) => models.modify(_ + model)
 
     case RemoveModel(modelId) =>
-      if (value.models.contains(modelId))
-        ModelCommunication.postRequest(APIModelMaker.DeleteModel(modelId))
-
-      removeModel(modelId)
+      react {
+        removeModel(modelId)
+      } globally {
+      ModelCommunication.postRequest(APIModelMaker.DeleteModel(modelId))
+    }
 
     case UpdateModel(model) =>
       // TODO Reflect change in backend
@@ -65,10 +55,13 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
       updateActiveId(modelId)
 
     case SetItems(modelId, items) =>
-      ModelCommunication.postRequest(modelId, APIModel.PutItems(items))
-      models.modify { models =>
-        val newModel = models.get(modelId).map(_.copy(items = items))
-        newModel.fold(models)(models.replace)
+      react {
+        models.modify { models =>
+          val newModel = models.get(modelId).map(_.copy(items = items))
+          newModel.fold(models)(models.replace)
+        }
+      } globally {
+        ModelCommunication.postRequest(modelId, APIModel.PutItems(items))
       }
 
     case AddMockModelIds(newIds) =>
@@ -79,7 +72,7 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
 
     case unknownAction =>
       println(s"[ModelsCircuit] Got unknown action: $unknownAction")
-      s => s
+      Reaction.None
   }
 
   private def updateActiveId(modelId: ID): StateFn = state => {
@@ -95,6 +88,10 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
     }
     else s
   })
+}
+
+object ModelHandler {
+  val initialState = ModelsCircuitState(SimpleSet(_.id), None, None)
 }
 
 object MergeUtility {

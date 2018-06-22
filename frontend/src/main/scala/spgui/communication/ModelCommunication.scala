@@ -78,7 +78,7 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
         dispatch(AddMockModelIds(created.id))
 
       case APIModelMaker.ModelDeleted(modelId) =>
-        dispatch(RemoveModel(modelId))
+        localDispatch(RemoveModel(modelId))
 
       case _ => Unit
     }

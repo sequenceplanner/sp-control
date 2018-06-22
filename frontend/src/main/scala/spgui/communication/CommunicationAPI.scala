@@ -95,6 +95,7 @@ object CommunicationAPI {
     }
 
     def dispatch(action: Action): Unit = MainCircuit.dispatch(action)
+    def localDispatch(action: Action): Unit = MainCircuit.localDispatch(action)
 
     def responseTopic: String
   }
