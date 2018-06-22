@@ -522,7 +522,7 @@ trait OperationRunnerLogic {
   def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID], disabledGroups: Set[SPValue] = Set()): Boolean = {
     s(o.id) == OperationState.executing &&
       (!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition")).forall(_.eval(s)) || // always true if no postcond
-        s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished)))
+        (opAbilityMap.contains(o.id) && s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished))))
 
   }
 
