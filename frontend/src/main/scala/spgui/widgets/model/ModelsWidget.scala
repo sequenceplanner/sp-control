@@ -10,7 +10,7 @@ import spgui.availablemodelscircuit._
 import spgui.circuit.{OpenModal, SPGUICircuit}
 import spgui.modal.ModalResult
 import spgui.SimpleSet
-import spgui.communication.CommunicationAPI
+import spgui.communication.ModelCommunication
 
 object ModelsWidget {
   import sp.models.{APIModel => Model, APIModelMaker => ModelMaker}
@@ -25,7 +25,7 @@ object ModelsWidget {
     def activeModelId: Option[ID] = proxy.value.activeModelId
     def dispatch(action: diode.Action): Callback = proxy.dispatchCB(action)
     def dispatchAction[A](modifier: A => A, wrapper: A => diode.Action)(maybeA: Option[A]): Callback = {
-      maybeA.map(a => dispatch(wrapper(modifier(a)))).getOrElse(Callback.empty)
+      maybeA.fold(Callback.empty)(a => dispatch(wrapper(modifier(a))))
     }
   }
 
@@ -204,7 +204,7 @@ object ModelsWidget {
       }.getOrElse(Callback.empty)
 
       circuitCallback >> Callback {
-        CommunicationAPI.Communicator.Model.postRequest(modelId, Model.UpdateModelAttributes(Some(newName), None))
+        ModelCommunication.postRequest(modelId, Model.UpdateModelAttributes(Some(newName), None))
       }
     }
 
@@ -232,29 +232,30 @@ object ModelsWidget {
 
     def onPreviewModel(props: Props, modelId: ID): Callback =  {
       $.modState((State.uiState ^|-> UIState.selectedModelId).set(Some(modelId))) >>
-      Callback { CommunicationAPI.Communicator.Model.postRequest(modelId, Model.GetItemList()) }
+      Callback { ModelCommunication.postRequest(modelId, Model.GetItemList()) }
     }
 
     def onExportModel(props: Props, modelId: ID): Callback = Callback {
-      CommunicationAPI.Communicator.Model.postRequest(modelId, Model.ExportModel)
+      ModelCommunication.postRequest(modelId, Model.ExportModel)
     }
 
     def onDeleteModel(props: Props, modelId: ID): Callback = props.proxy.dispatchCB(RemoveModel(modelId))
 
     def onRevertVersion(props: Props, modelId: ID, key: Int): Callback = Callback {
-      CommunicationAPI.Communicator.Model.postRequest(modelId, Model.RevertModel(key))
+      ModelCommunication.postRequest(modelId, Model.RevertModel(key))
     }
 
     def onRefreshModels(): Callback = Callback {
-      CommunicationAPI.Communicator.Model.postRequest(ModelMaker.GetModels)
+      ModelCommunication.postRequest(ModelMaker.GetModels)
     }
 
     def onAddDummyItems(props: Props, modelId: ID): Callback = Callback {
-      CommunicationAPI.Communicator.Model.postRequest(modelId, Model.PutItems(testModel))
+      ModelCommunication.postRequest(modelId, Model.PutItems(testModel))
     }
 
     def onCreateModel(): Callback = Callback {
-      CommunicationAPI.Communicator.Model.postRequest(ModelMaker.CreateModel("Test Model"))
+      println("onCreateModel")
+      ModelCommunication.postRequest(ModelMaker.CreateModel("Test Model"))
     }
 
     def onUnmount(): Callback = Callback.empty
@@ -275,7 +276,7 @@ object ModelsWidget {
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = VDCircuit.connectModels
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connect(_.modelState)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 

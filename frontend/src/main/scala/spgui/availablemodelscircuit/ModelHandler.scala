@@ -7,7 +7,7 @@ import sp.domain.{ID, IDAble, SPAttributes}
 import sp.models.APIModel.ModelInformation
 import sp.models.{APIModel, APIModelMaker}
 import spgui.SimpleSet
-import spgui.communication.CommunicationAPI
+import spgui.communication.ModelCommunication
 
 /**
   * Actions that can be sent to ModelHandler
@@ -52,7 +52,9 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
     case SaveModel(model) => models.modify(_ + model)
 
     case RemoveModel(modelId) =>
-      CommunicationAPI.Communicator.Model.postRequest(APIModelMaker.DeleteModel(modelId))
+      if (value.models.contains(modelId))
+        ModelCommunication.postRequest(APIModelMaker.DeleteModel(modelId))
+
       removeModel(modelId)
 
     case UpdateModel(model) =>
@@ -63,7 +65,7 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
       updateActiveId(modelId)
 
     case SetItems(modelId, items) =>
-      CommunicationAPI.Communicator.Model.postRequest(modelId, APIModel.PutItems(items))
+      ModelCommunication.postRequest(modelId, APIModel.PutItems(items))
       models.modify { models =>
         val newModel = models.get(modelId).map(_.copy(items = items))
         newModel.fold(models)(models.replace)
@@ -88,10 +90,10 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends ActionHan
   }
 
   private def removeModel(modelId: ID): StateFn = models.modify(_.removeByKey(modelId)) andThen (s => {
-    if (s.activeModelId.contains(modelId))
+    if (s.activeModelId.contains(modelId)) {
       s.copy(previousActiveModelId = s.activeModelId, activeModelId = None)
-    else
-      s
+    }
+    else s
   })
 }
 

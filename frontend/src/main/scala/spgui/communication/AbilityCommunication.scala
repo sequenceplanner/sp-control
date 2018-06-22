@@ -5,15 +5,14 @@ import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
 import spgui.availablemodelscircuit._
 
-object AbilityCommunication extends CommunicationAPI.Communicator[AbilityAction] {
+object AbilityCommunication extends CommunicationAPI.Communicator[AbilityHandlerState, AbilityAction] {
   import sp.abilityhandler.{APIAbilityHandler => API}
-  val responseTopic: String = APIAbilityHandler.topicResponse
 
   def onReceiveMessage(message: SPMessage): Unit = {
 
 
     val response = message.as[API.Response]
-    for ((header, body) <- response) {
+    for ((header, body) <- response) body match {
       case API.AbilitiesTerminated =>
 
       case API.TheAbility(ability) =>
@@ -40,4 +39,7 @@ object AbilityCommunication extends CommunicationAPI.Communicator[AbilityAction]
       topic = API.topicRequest
     )
   }
+
+  override protected def stateAccessFunction: FrontendState => AbilityHandlerState = _.abilityState
+  val responseTopic: String = APIAbilityHandler.topicResponse
 }
