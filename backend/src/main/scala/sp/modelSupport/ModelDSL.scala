@@ -24,7 +24,7 @@ sealed trait ModelElement
 case class Tdv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) extends ModelElement
 case class Tv(name: String, initState: SPValue, domain: List[SPValue]) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
-case class To(name: String, ab: String, resource: String, conds: List[cond]) extends ModelElement
+case class To(name: String, ab: String, resources: List[String], conds: List[cond]) extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
 case class Tresource(name: String, dvs: List[String] = List()) extends ModelElement
 case class Tdriver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) extends ModelElement
@@ -80,7 +80,7 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
     mes :+= Tv(name, initState, domain)
   }
   def a(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) = mes :+= Ta(name, parameters, pre, running, post, reset)
-  def o(name: String, ab: String="", resource: String = "")(conds: cond*) = mes :+= To(name, ab, resource, conds.toList)
+  def o(name: String, ab: String="", resources: List[String] = List())(conds: cond*) = mes :+= To(name, ab, resources, conds.toList)
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
   def x(name: String, exprs: List[String]) = mes :+= Tx(name, exprs)
 
@@ -89,8 +89,8 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def driver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) = mes :+= Tdriver(name, driverType, setup)
   def use(name: String, other: ModelDSL) = mes :+= Tsubmodel(name, other.mes)
 
-  def sop(name: String, resource: String = "")(conds: cond*)(sops: TStringSOP*) = {
-    o(name, "", resource)(conds:_*)
+  def sop(name: String, resources: List[String] = List())(conds: cond*)(sops: TStringSOP*) = {
+    o(name, "", resources)(conds:_*)
     mes :+= Tsop(name, TsopS(sops.toList))
   }
   def sP(sops: TStringSOP*) = TsopP(sops.toList)
@@ -216,7 +216,7 @@ trait BuildModel {
             // find by operation name, must be on the same "level"
             abs.find(_.name==op.name).map(a=>op.id->a.id)
           }
-          (op, mapping, item.resource)
+          (op, mapping, item.resources)
       }
 
 
@@ -225,15 +225,18 @@ trait BuildModel {
       val resourceBookingMap = opsAndMapping.foldLeft(Map[String, Set[ID]]()) {
         case (aggr, triple) if triple._3.nonEmpty =>
           val o = triple._1
-          val r = triple._3
-          val otherOps = aggr.getOrElse(r,  Set[ID]())
-          aggr + (r -> (otherOps + o.id))
+          val rs = triple._3
+          val addMe = rs.map{r =>
+            val otherOps = aggr.getOrElse(r,  Set[ID]())
+            r -> (otherOps + o.id)
+          }.toMap
+          aggr ++ addMe
         case doNothing => doNothing._1
       }
 
       val opsANdMappingWithResourceBooking: List[(Operation, Option[(ID, ID)])] = opsAndMapping.map {
-        case (o, mapping, resource) if resource.nonEmpty =>
-          val others = resourceBookingMap(resource) - o.id  // key must exists, else the code is wrong
+        case (o, mapping, rs) if rs.nonEmpty =>
+          val others = rs.toSet.flatMap(resourceBookingMap) - o.id  // keys must exists, else the code is wrong
           val notAtTheSameTime = others.toList.map{id =>
             NEQ(SVIDEval(id), ValueHolder(SPValue("e")))
           }

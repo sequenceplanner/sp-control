@@ -13,22 +13,29 @@ class DummyExampleWithSOP extends ModelDSL {
   use("karen", new AHuman("karen"))
 
 
-  o("R1_place1", "R1.moveToPos", "R1")(
+  val r1 = List("r1")
+  val r2 = List("r2")
+  val r3 = List("r3")
+  val z1 = List("z1")
+  val z2 = List("z2")
+
+
+  o("R1_place1", "R1.moveToPos", r1 ++ z1)(
     c("pre", "true", "R1.refPos := 50"),
   )
-  o("R1_remove1", "R1.moveToPos", "R1")(
+  o("R1_remove1", "R1.moveToPos", r1)(
     c("pre", "true", "R1.refPos := 10"),
   )
-  o("R2_place2", "R2.moveToPos", "R2")(
+  o("R2_place2", "R2.moveToPos", r2 ++ z1)(
     c("pre", "true", "R2.refPos := 20"),
   )
-  o("R2_remove2", "R2.moveToPos", "R2")(
+  o("R2_remove2", "R2.moveToPos", r2)(
     c("pre", "true", "R2.refPos := 0"),
   )
-  o("R3_place3", "R3.moveToPos", "R3")(
+  o("R3_place3", "R3.moveToPos", r3)(
     c("pre", "true", "R3.refPos := 50"),
   )
-  o("R3_remove3", "R3.moveToPos", "R3")(
+  o("R3_remove3", "R3.moveToPos", r3)(
     c("pre", "true", "R3.refPos := 90"),
   )
   o("DoSome", "karen.doSomeStuff")()

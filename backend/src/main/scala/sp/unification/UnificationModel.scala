@@ -120,8 +120,8 @@ class UnificationModel extends ModelDSL {
   use("OP", new Operator("OP"))
 
   // booking by not allowing starting if another operation is in executing
-  val useUR = "UR"
-  val useRSP = "RSP"
+  val useUR = List("UR")
+  val useRSP = List("RSP")
 
 
   // runner (TODO: for now runners take everything and must be on the top level of the model)
