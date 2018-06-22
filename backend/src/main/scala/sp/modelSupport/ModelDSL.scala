@@ -5,10 +5,10 @@ import sp.abilityhandler.APIAbilityHandler.Ability
 import sp.devicehandler._
 import sp.domain._
 import sp.domain.Logic._
-import sp.domain.logic.{ActionParser, PropositionParser}
+import sp.domain.logic.{ActionParser, PropositionParser, SOPLogic}
 import sp.runners.APIOperationRunner
-import scala.util.{Try,Success, Failure}
 
+import scala.util.{Failure, Success, Try}
 import sp.supremicaStuff.base._
 
 object VariableKind {
@@ -31,6 +31,20 @@ case class Tdriver(name: String, driverType: String, setup: SPAttributes = SPAtt
 case class Tsubmodel(name: String, model: List[ModelElement]) extends ModelElement
 case class Tx(name: String, exprs: List[String]) extends ModelElement
 case class TpostBuildHook(func: List[IDAble] => List[IDAble]) extends ModelElement
+
+// For adding SOPs for small sub-sequences
+// will create a parent operation that enables the children when it is executing
+// will also reset all its operation when it is done (if their other reset conds allow it)
+case class Tsop(name: String, sop: TStringSOP) extends ModelElement
+sealed trait TStringSOP {
+  val sop: List[TStringSOP]
+}
+case class TsopP(sop: List[TStringSOP]) extends TStringSOP
+case class TsopS(sop: List[TStringSOP]) extends TStringSOP
+case class TsopA(sop: List[TStringSOP]) extends TStringSOP
+case class TsopO(o: String) extends TStringSOP {
+  val sop: List[TStringSOP] = List()
+}
 
 
 
@@ -74,6 +88,16 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def resource(name: String, dvs: List[String] = List()) = mes :+= Tresource(name, dvs)
   def driver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) = mes :+= Tdriver(name, driverType, setup)
   def use(name: String, other: ModelDSL) = mes :+= Tsubmodel(name, other.mes)
+
+  def sop(name: String, resource: String = "")(conds: cond*)(sops: TStringSOP*) = {
+    o(name, "", resource)(conds:_*)
+    mes :+= Tsop(name, TsopS(sops.toList))
+  }
+  def sP(sops: TStringSOP*) = TsopP(sops.toList)
+  def sS(sops: TStringSOP*) = TsopS(sops.toList)
+  def sA(sops: TStringSOP*) = TsopA(sops.toList)
+  def sO(o: String) = TsopO(o)
+
 
   def addPostBuildHook(func: List[IDAble] => List[IDAble]) = mes :+= TpostBuildHook(func)
 }
@@ -174,7 +198,7 @@ trait BuildModel {
       val opsAndMapping = m.model.collect {
         case item: To =>
           val defaultPre = if (item.conds.exists(_.kind == "pre")) None else Some(Condition(AlwaysTrue, List(), attributes = SPAttributes("kind"->"pre")))
-          val defautltPost = if (item.conds.exists(_.kind == "post")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"post")))
+          val defautltPost = if (item.conds.exists(_.kind == "post") || item.ab.isEmpty) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"post")))
           val defautltReset = if (item.conds.exists(_.kind == "reset")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"reset")))
 
 
@@ -226,7 +250,68 @@ trait BuildModel {
       }
 
 
-      val ops = opsANdMappingWithResourceBooking.map{_._1}
+      // Sequences. The operations in a sequence must have unique names. Only works with operations on this level
+      val opNameMap = opsANdMappingWithResourceBooking.map(kv => kv._1.name -> kv._1).toMap
+      val opIDMap = opsANdMappingWithResourceBooking.map(kv => kv._1.id -> kv._1).toMap
+      def makeASOP(sop: TStringSOP): SOP = sop match {
+        case TsopO(o) => OperationNode(opNameMap(o).id) // should break if name is misspelled
+        case TsopP(xs) => Parallel(xs.map(makeASOP))
+        case TsopS(xs) => Sequence(xs.map(makeASOP))
+        case TsopA(xs) => Alternative(xs.map(makeASOP))
+      }
+      val sopsAndStuff = m.model.collect {
+        case Tsop(name, stringSOP) => {
+          val sop = makeASOP(stringSOP)
+          val sopOP = opNameMap(name) // must exist
+          val ops = SOPLogic.extractOps(sop).map(opIDMap)
+
+          val sopCondMap = SOPLogic.extractOperationCondition(sop, "name")
+
+          // all sop operations can only execute when sop (parent op) is executing
+          val childCond = Condition(EQ(SVIDEval(sopOP.id), ValueHolder(SPValue("e"))), List(), SPAttributes(
+            "kind" -> "pre",
+            "group" -> name
+          ))
+
+          val childReset = Condition(NEQ(SVIDEval(sopOP.id), ValueHolder(SPValue("e"))), List(), SPAttributes(
+            "kind" -> "reset",
+            "group" -> name
+          ))
+
+          val updOps = ops.map{o =>
+            val fC = o.conditions.filterNot(p => p.attributes.getAs[String]("kind").contains("reset") && p.guard == AlwaysFalse)
+            o.copy(conditions = (fC :+ childCond :+ childReset) ++ sopCondMap.get(o.id))
+          }
+
+          val sopPostCond = Condition(SOPLogic.getCompleteProposition(sop), List(), SPAttributes(
+            "kind" -> "post",
+            "group" -> name
+          ))
+
+          val allHaveReset = AND(ops.map(o => EQ(SVIDEval(o.id), ValueHolder(SPValue("i")))))
+          val sopResetCond = Condition(allHaveReset, List(), SPAttributes(
+            "kind" -> "reset",
+            "group" -> name
+          ))
+
+          val updSOPOP = sopOP.copy(conditions = sopOP.conditions :+ sopPostCond :+ sopResetCond)
+
+          (SOPSpec(name+"_sop", List(sop)), updOps :+ updSOPOP)
+        }
+      }
+
+      val sops = sopsAndStuff.map(_._1)
+      val modifiedOps = sopsAndStuff.flatMap(_._2.map(o => o.id -> o)).toMap
+
+      println("**************************")
+      sops.foreach(println)
+      modifiedOps.foreach(println)
+      println("**************************")
+
+      val ops = opsANdMappingWithResourceBooking.map{
+        case (o, _) if modifiedOps.contains(o.id) => modifiedOps(o.id)
+        case (o, _) => o
+      }
       val updOpAbMap = updopAbMap_ ++ opsANdMappingWithResourceBooking.flatMap{_._2}.toMap
 
       val forbidden = m.model.collect { case x: Tx =>
@@ -240,7 +325,7 @@ trait BuildModel {
         SPSpec(x.name, SPAttributes("forbiddenExpressions" -> props))
       }
 
-      val levelThings: List[IDAble] = updVs ++ dvs ++ abs ++ ops ++ forbidden
+      val levelThings: List[IDAble] = updVs ++ dvs ++ abs ++ ops ++ forbidden ++ sops
 
       val updResources = updResources_ ++ m.model.collect {
         case Tresource(name: String, dts: List[String]) =>
@@ -319,14 +404,21 @@ trait BuildModel {
     val r = toplevel.model.collect { case r:Trunner => r }.head
     val dvTovMap = x._2
     val opAbMap = x._3
-    val mappedOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
+
+    // Removing ability ops in the runner
+    //val mappedOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
+    val runnerOps = x._1.collect { case o: Operation if !o.attributes.getAs[String]("isa").contains("Ability") => o }.toSet
     val init = x._1.collect { case t: Thing => t }.flatMap{t => t.attributes.get("init").map(v=>t.id->v) }.toMap
     // ability -> params map
-    val absWithParams = x._1.collect { case o: Operation if o.attributes.getAs[String]("isa") == Some("Ability") &&
-      o.attributes.getAs[List[ID]]("parameters").getOrElse(List()) != List() => o }
+    val absWithParams = x._1.collect { case o: Operation if o.attributes.getAs[String]("isa").contains("Ability") &&
+      o.attributes.getAs[List[ID]]("parameters").forall(_.nonEmpty) => o }
     val paramMap = absWithParams.flatMap {a => a.attributes.getAs[List[ID]]("parameters").map(l => a.id -> l.toSet) }.toMap
 
-    val runner = APIOperationRunner.Setup(r.name, ID.newID, mappedOps,
+    println("XXXXXXXXXXXXXXXXXX")
+    runnerOps.foreach(println)
+    opAbMap.map(println)
+
+    val runner = APIOperationRunner.Setup(r.name, ID.newID, runnerOps,
       opAbMap, init, dvTovMap, paramMap) //TODO add parameters
 
     val runnerThing = APIOperationRunner.runnerSetupToThing(runner)

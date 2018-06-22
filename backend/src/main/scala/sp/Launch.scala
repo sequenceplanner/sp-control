@@ -13,7 +13,8 @@ object Launch extends App {
     "URModel" -> sp.unification.UnificationModel(),
     "TurtleModel" -> sp.unification.TurtleModel(),
     "DummyExample" -> sp.unification.DummyExample(),
-    "ExtendedDummy" -> sp.unification.DummyExampleExtended()
+    "ExtendedDummy" -> sp.unification.DummyExampleExtended(),
+    "SOPDummy" -> sp.unification.DummyExampleWithSOP(),
   )
 
   cluster.registerOnMemberUp {
