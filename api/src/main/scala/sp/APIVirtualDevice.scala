@@ -202,9 +202,9 @@ package sp.devicehandler {
     /**
       * The response from the driver that a command has been performed. The result is given in result
       * @param requestID The id of the request given in the header when [[APIDeviceDriver.DriverCommand]] was given.
-      * @param result A boolean if the command was successful or not.
+      * @param successful A boolean if the command was successful or not.
       */
-    case class DriverCommandDone(requestID: ID, result: Boolean) extends Response
+    case class DriverCommandDone(requestID: ID, successful: Boolean) extends Response
 
     /**
       * An event sent out by the driver when its state has changed.
