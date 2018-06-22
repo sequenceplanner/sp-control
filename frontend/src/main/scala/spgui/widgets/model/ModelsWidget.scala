@@ -6,10 +6,12 @@ import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros._
 import sp.domain.Logic._
 import sp.domain._
-import spgui.availablemodelscircuit._
+import spgui.circuits.availablemodelscircuit._
 import spgui.circuit.{OpenModal, SPGUICircuit}
 import spgui.modal.ModalResult
 import spgui.SimpleSet
+import spgui.circuits.main.handlers._
+import spgui.circuits.main.MainCircuit
 import spgui.communication.ModelCommunication
 
 object ModelsWidget {
