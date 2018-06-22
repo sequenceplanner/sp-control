@@ -4,15 +4,14 @@ import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
 import spgui.availablemodelscircuit._
 
-object VDCommunication extends CommunicationAPI.Communicator[AbilityAction] {
+object VDCommunication extends CommunicationAPI.Communicator[String, AbilityAction] {
   import sp.devicehandler.{APIVirtualDevice => API}
   val responseTopic: String = API.topicResponse
 
   def onReceiveMessage(message: SPMessage): Unit = {
     val response = message.as[API.Response]
-    val state = VDCircuit.readModelState
 
-    for ((header, body) <- response) {
+    for ((header, body) <- response) body match {
       case API.StateEvent(resource, id, stateData, diff) =>
 
       case API.TheVD(name, id, resources, drivers, attributes) =>
@@ -32,4 +31,6 @@ object VDCommunication extends CommunicationAPI.Communicator[AbilityAction] {
       topic = API.topicRequest
     )
   }
+
+  override protected def stateAccessFunction: FrontendState => String = NoState
 }

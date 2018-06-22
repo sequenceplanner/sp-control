@@ -18,7 +18,7 @@ import sp.domain._
 import sp.models.APIModel
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.vdtesting.APIVDTracker
-import spgui.availablemodelscircuit.{VDCircuit, ModelsCircuitState, SetActiveModel}
+import spgui.availablemodelscircuit.{MainCircuit, ModelsCircuitState, SetActiveModel}
 import spgui.widgets.virtcom.Style
 
 object VDTracker {
@@ -116,15 +116,15 @@ object VDTracker {
     }
 
     def send(request: APIVDTracker.Request) = Callback {
-      CommunicationAPI.Communicator.Device.postRequest(request)
+      VDTrackerCommunication.postRequest(request)
     }
 
     def send(modelId: ID, request: APIModel.Request, from: String = "VDTrackerWidget"): Callback = Callback {
-      CommunicationAPI.Communicator.Model.postRequest(modelId, request, from)
+      ModelCommunication.postRequest(modelId, request, from)
     }
 
     def send(request: APIOperationRunner.Request): Callback = Callback {
-      CommunicationAPI.Communicator.OperationRunner.postRequest(request)
+      OperationRunnerCommunication.postRequest(request)
     }
 
     def render(props: Props, state: State) = {
@@ -138,7 +138,7 @@ object VDTracker {
       def launchAbilities: Callback = {
         Callback {
           props.modelProxy.value.activeModel.foreach { model =>
-            CommunicationAPI.Communicator.Device.postRequest(APIVDTracker.launchVDAbilities(model.items))
+            VDTrackerCommunication.postRequest(APIVDTracker.launchVDAbilities(model.items))
           }
         }
       }
@@ -174,22 +174,22 @@ object VDTracker {
     }
 
     def terminateVDs(): Unit = {
-      CommunicationAPI.Communicator.Device.postRequest(APIVirtualDevice.TerminateAllVDs)
+      VDCommunication.postRequest(APIVirtualDevice.TerminateAllVDs)
     }
 
     def terminateAbilities(): Unit = {
-      CommunicationAPI.Communicator.AbilityHandler.postRequest(APIAbilityHandler.TerminateAllAbilities)
+      AbilityCommunication.postRequest(APIAbilityHandler.TerminateAllAbilities)
     }
 
     def terminateDrivers(drivers : List[VD.Driver]): Unit = {
       drivers.map(_.id).foreach { id =>
-        CommunicationAPI.Communicator.Device.postRequest(APIDeviceDriver.TerminateDriver(id))
+        DeviceCommunication.postRequest(APIDeviceDriver.TerminateDriver(id))
       }
     }
 
     def terminateRunners(runners: Map[ID, Map[ID,SPValue]]): Callback = {
       runners.keys.foreach { runnerID =>
-        CommunicationAPI.Communicator.OperationRunner.postRequest(APIOperationRunner.TerminateRunner(runnerID))
+        OperationRunnerCommunication.postRequest(APIOperationRunner.TerminateRunner(runnerID))
       }
 
       // todo: should wait for new state run runner service...
@@ -197,7 +197,7 @@ object VDTracker {
     }
 
     def terminateRunner(id: ID): Callback = {
-      CommunicationAPI.Communicator.OperationRunner.postRequest(APIOperationRunner.TerminateRunner(id))
+      OperationRunnerCommunication.postRequest(APIOperationRunner.TerminateRunner(id))
 
       // todo: should wait for new state run runner service...
       $.modState(state => state.copy(latestRunnerState = state.latestRunnerState - id))
@@ -218,14 +218,14 @@ object VDTracker {
           <.table(
             ^.className := "table table-striped", ^.className := "Table",
             <.tbody(
-              state.map(is => {
-                val cI = ids.filter(i => i.id == is._1)
+              state.map{ case (id, value) =>
+                val cI = ids.filter(i => i.id == id)
                 <.tr(
                   <.td(if (cI.nonEmpty) cI.head.name else ""),
-                  <.td(is._1.toString),
-                  <.td(is._2.toString)
+                  <.td(id.toString),
+                  <.td(value.toString())
                 )
-              }).toTagMod
+              }.toTagMod
             )), <.br()
         ).when(state.nonEmpty)
       }.toTagMod.when(runnerStates.nonEmpty)
@@ -247,7 +247,7 @@ object VDTracker {
               <.tr(
                 <.td(thing.name),
                 <.td(thing.id.toString),
-                <.td(value.toString)
+                <.td(value.toString())
               )
             }.toTagMod
           )), <.br()
@@ -272,7 +272,7 @@ object VDTracker {
     .componentWillUnmount(_.backend.onUnMount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = VDCircuit.connectModels
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connectComponent(_.modelState)
 
   def apply() = SPWidget(_ => connectCircuit { proxy =>  component(Props(proxy)) })
 }

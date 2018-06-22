@@ -4,16 +4,15 @@ import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
 import spgui.availablemodelscircuit._
 
-object VDTrackerCommunication extends CommunicationAPI.Communicator[AbilityAction] {
+object VDTrackerCommunication extends CommunicationAPI.Communicator[String, AbilityAction] {
   import sp.vdtesting.{APIVDTracker => API}
   val responseTopic: String = API.topicResponse
 
   def onReceiveMessage(message: SPMessage): Unit = {
     import sp.vdtesting.{APIVDTracker => API}
     val response = message.as[API.Response]
-    val state = VDCircuit.readModelState
 
-    for ((header, body) <- response) {
+    for ((header, body) <- response) body match {
       case API.sendModelsInfo(modelNames) =>
 
       case API.OpRunnerCreated(operationRunnerId) =>
@@ -29,4 +28,6 @@ object VDTrackerCommunication extends CommunicationAPI.Communicator[AbilityActio
       topic = API.topicRequest
     )
   }
+
+  override protected def stateAccessFunction: FrontendState => String = NoState
 }

@@ -5,24 +5,19 @@ import sp.runners.APIOperationRunner
 import spgui.SPMessageUtil.BetterSPMessage
 import spgui.availablemodelscircuit._
 
-object OperationRunnerCommunication extends CommunicationAPI.Communicator[ModelAction] {
-  val responseTopic: String = APIOperationRunner.topicResponse
+object OperationRunnerCommunication extends CommunicationAPI.Communicator[String, ModelAction] {
+  import sp.runners.{APIOperationRunner => API}
+  import API.Response.fOperationRunnerResponse
 
   def onReceiveMessage(message: SPMessage): Unit = {
-    import APIOperationRunner.{Runner, Runners, StateEvent}
+    val response = message.as[API.Response]
 
-    val response = message.oneOf[StateEvent].or[Runner].or[Runners]
-    val state = VDCircuit.readModelState
+    for ((header, body) <- response) body match {
+        case API.StateEvent(runnerID, runnerState, runInAuto, disableConditionGroups) =>
 
-    for ((header, body) <- response.get) {
-      body match {
-        case StateEvent(runnerID, runnerState, runInAuto, disableConditionGroups) =>
+        case API.Runner(setup) =>
 
-        case Runner(setup) =>
-
-        case Runners(setups) =>
-
-      }
+        case API.Runners(setups) =>
     }
   }
 
@@ -34,4 +29,7 @@ object OperationRunnerCommunication extends CommunicationAPI.Communicator[ModelA
       topic = APIOperationRunner.topicRequest
     )
   }
+
+  val responseTopic: String = APIOperationRunner.topicResponse
+  override protected def stateAccessFunction: FrontendState => String = NoState
 }
