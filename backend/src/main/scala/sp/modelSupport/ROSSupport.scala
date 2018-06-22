@@ -13,7 +13,9 @@ trait ROSSupport extends ModelDSL {
       case (field, nested: SPAttributes) =>
       // TODO: later
       case (field, v) =>
-        val ident = messageType + ":" + topic + ":" + field + ":" + rate
+        // simplify names for demo
+        //val ident = messageType + ":" + topic + ":" + field + ":" + rate
+        val ident = field
         dv(field, driver, ident, WriteOnly)
     }
   }
@@ -24,7 +26,8 @@ trait ROSSupport extends ModelDSL {
       case (field, nested: SPAttributes) =>
       // TODO: later
       case (field, v) =>
-        val ident = messageType + ":" + topic + ":" + field
+        //val ident = messageType + ":" + topic + ":" + field
+        val ident = field
         dv(field, driver, ident, ReadOnly)
     }
   }

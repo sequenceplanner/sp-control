@@ -24,7 +24,7 @@ sealed trait ModelElement
 case class Tdv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) extends ModelElement
 case class Tv(name: String, initState: SPValue, domain: List[SPValue]) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
-case class To(name: String, ab: String, conds: List[cond]) extends ModelElement
+case class To(name: String, ab: String, resource: String, conds: List[cond]) extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
 case class Tresource(name: String, dvs: List[String] = List()) extends ModelElement
 case class Tdriver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) extends ModelElement
@@ -66,7 +66,7 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
     mes :+= Tv(name, initState, domain)
   }
   def a(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) = mes :+= Ta(name, parameters, pre, running, post, reset)
-  def o(name: String, ab: String="")(conds: cond*) = mes :+= To(name, ab, conds.toList)
+  def o(name: String, ab: String="", resource: String = "")(conds: cond*) = mes :+= To(name, ab, resource, conds.toList)
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
   def x(name: String, exprs: List[String]) = mes :+= Tx(name, exprs)
 
@@ -164,6 +164,8 @@ trait BuildModel {
           APIAbilityHandler.abilityToOperation(a)
       }
 
+
+      // creating the operations
       val deeperVs = deeperThings.collect { case t: Thing if t.attributes.keys.contains("domain") =>  t}
       val opParseHelpersDeep = deeperVs ++ deeperVs.map(v=> v.copy(name = unnn(v.name)))
       val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name))) ++ opParseHelpersDeep
@@ -174,6 +176,8 @@ trait BuildModel {
           val defaultPre = if (item.conds.exists(_.kind == "pre")) None else Some(Condition(AlwaysTrue, List(), attributes = SPAttributes("kind"->"pre")))
           val defautltPost = if (item.conds.exists(_.kind == "post")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"post")))
           val defautltReset = if (item.conds.exists(_.kind == "reset")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"reset")))
+
+
           val theCondition: List[Condition] = item.conds.toList.map(x =>
             parse(x)(opParseHelpers)
           ) ++ defaultPre ++ defautltPost ++ defautltReset
@@ -188,11 +192,42 @@ trait BuildModel {
             // find by operation name, must be on the same "level"
             abs.find(_.name==op.name).map(a=>op.id->a.id)
           }
-          (op, mapping)
+          (op, mapping, item.resource)
       }
 
-      val ops = opsAndMapping.map{_._1}
-      val updOpAbMap = updopAbMap_ ++ opsAndMapping.flatMap{_._2}.toMap
+
+      // finding resource and what operations that want to use them
+      // will book when an operation is in executing. Only in the same level for now
+      val resourceBookingMap = opsAndMapping.foldLeft(Map[String, Set[ID]]()) {
+        case (aggr, triple) if triple._3.nonEmpty =>
+          val o = triple._1
+          val r = triple._3
+          val otherOps = aggr.getOrElse(r,  Set[ID]())
+          aggr + (r -> (otherOps + o.id))
+        case doNothing => doNothing._1
+      }
+
+      val opsANdMappingWithResourceBooking: List[(Operation, Option[(ID, ID)])] = opsAndMapping.map {
+        case (o, mapping, resource) if resource.nonEmpty =>
+          val others = resourceBookingMap(resource) - o.id  // key must exists, else the code is wrong
+          val notAtTheSameTime = others.toList.map{id =>
+            NEQ(SVIDEval(id), ValueHolder(SPValue("e")))
+          }
+          val guard = if (notAtTheSameTime.nonEmpty) Some(AND(notAtTheSameTime)) else None
+          val cond = guard.map(g => Condition(g, List(), SPAttributes(
+            "kind" -> "pre",
+            "group" -> "resource"
+          )))
+          val updO: Operation = o.copy(conditions = o.conditions ++ cond)
+          println("An operation was updated with resource booking: " + updO)
+          (updO, mapping)
+
+        case (a, b, c) => (a, b)
+      }
+
+
+      val ops = opsANdMappingWithResourceBooking.map{_._1}
+      val updOpAbMap = updopAbMap_ ++ opsANdMappingWithResourceBooking.flatMap{_._2}.toMap
 
       val forbidden = m.model.collect { case x: Tx =>
         // parse expression
@@ -205,7 +240,7 @@ trait BuildModel {
         SPSpec(x.name, SPAttributes("forbiddenExpressions" -> props))
       }
 
-      val levelThings = updVs ++ dvs ++ abs ++ ops ++ forbidden
+      val levelThings: List[IDAble] = updVs ++ dvs ++ abs ++ ops ++ forbidden
 
       val updResources = updResources_ ++ m.model.collect {
         case Tresource(name: String, dts: List[String]) =>
@@ -536,7 +571,8 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
       val updp = sg(p)
       println("changed to: " + updp.toString)
 
-      o.copy(conditions = Condition(updp, List(), SPAttributes("kind" -> synthKind)) :: o.conditions)
+      // KB: We should still use kind -> "pre", but filter on group
+      o.copy(conditions = Condition(updp, List(), SPAttributes("kind" -> synthKind, "group"->"synth")) :: o.conditions)
     })
     newCond
   }
