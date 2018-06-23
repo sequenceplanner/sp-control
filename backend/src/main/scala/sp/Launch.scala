@@ -35,6 +35,7 @@ object Launch extends App {
     system.actorOf(sp.drivers.URDriver.props, "URDriver")
     system.actorOf(sp.drivers.HumanDriver.props, "HumanDriver")
     system.actorOf(sp.drivers.ROSFlatStateDriver.props, "ROSFlatStateDriver")
+    system.actorOf(sp.drivers.TONDriver.props, "TONDriver")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")

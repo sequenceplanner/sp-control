@@ -10,7 +10,8 @@ class DummyExampleWithSOP extends ModelDSL {
   use("R1", new DummyRobot("1"))
   use("R2", new DummyRobot("2"))
   use("R3", new DummyRobot("3"))
-  use("karen", new AHuman("karen"))
+  use("OP", new AHuman("OP"))
+  use("TON", new TON("TON"))
 
 
   val r1 = List("r1")
@@ -20,11 +21,12 @@ class DummyExampleWithSOP extends ModelDSL {
   val z2 = List("z2")
 
 
+
   o("R1_place1", "R1.moveToPos", r1 ++ z1)(
-    c("pre", "true", "R1.refPos := 50"),
+    c("pre", "true", "R1.refPos := 10"),
   )
   o("R1_remove1", "R1.moveToPos", r1)(
-    c("pre", "true", "R1.refPos := 10"),
+    c("pre", "true", "R1.refPos := 0"),
   )
   o("R2_place2", "R2.moveToPos", r2 ++ z1)(
     c("pre", "true", "R2.refPos := 20"),
@@ -36,10 +38,10 @@ class DummyExampleWithSOP extends ModelDSL {
     c("pre", "true", "R3.refPos := 50"),
   )
   o("R3_remove3", "R3.moveToPos", r3)(
-    c("pre", "true", "R3.refPos := 90"),
+    c("pre", "true", "R3.refPos := 60"),
   )
-  o("DoSome", "karen.doSomeStuff")()
-  o("DoElse", "karen.doSomethingElse")()
+  o("DoSome", "OP.doSomeStuff")()
+  o("DoElse", "OP.doSomethingElse")()
 
 
   // testing SOP for simple sequences
@@ -50,8 +52,9 @@ class DummyExampleWithSOP extends ModelDSL {
     c("pre", "true")
   )(
     sO("DoSome"),
-    sP(
+    sS(
       sO("R1_place1"),
+      sOnew(s"delayBefore2", s"TON.delay", List("TON"))(cond("pre", "true", "TON.pt := 2000")),
       sO("R2_place2")
     ),
     sO("R3_place3"),

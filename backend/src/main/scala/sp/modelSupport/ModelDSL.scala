@@ -97,6 +97,10 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def sS(sops: TStringSOP*) = TsopS(sops.toList)
   def sA(sops: TStringSOP*) = TsopA(sops.toList)
   def sO(o: String) = TsopO(o)
+  def sOnew(name: String, ab: String="", resources: List[String] = List())(conds: cond*) = {
+    o(name, ab, resources)(conds:_*)
+    TsopO(name)
+  }
 
 
   def addPostBuildHook(func: List[IDAble] => List[IDAble]) = mes :+= TpostBuildHook(func)

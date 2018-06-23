@@ -106,6 +106,7 @@ object UnificationModel {
 
 
 
+
   def apply() = new UnificationModel
 }
 
@@ -113,17 +114,21 @@ class UnificationModel extends ModelDSL {
   use("UR", new UR)
   use("Atlas", new Atlas)
   // use("MiR", new MiR)
-
   use("RECU", new RECU)
   use("HECU", new HECU)
   use("Executor", new Executor)
   use("OP", new Operator("OP"))
+  use("TON", new TON("TON"))
 
   // booking by not allowing starting if another operation is in executing
   val useUR = List("UR")
   val useRSP = List("RSP")
+  val useOP = List("OP")
+  val useTON = List("TON")
 
 
+  // helper. To make a v for boolean variables
+  def bv = (name: String) => v(name, false, List(true, false))
   // runner (TODO: for now runners take everything and must be on the top level of the model)
 
 
@@ -136,16 +141,21 @@ class UnificationModel extends ModelDSL {
   v("lf_pos", "on_kitting", List("on_kitting", "on_engine"))
   bolts.foreach { b => v(b, "placed", List("empty", "placed", "tightened")) } // init state empty after testing
   v("filter1", "empty", List("empty", "placed", "tightened"))
-  v("filter2", "empty", List("empty", "placed", "tightened"))
   v("pipes", "empty", List("empty", "placed"))
 
   // resources
   v("boltMode" ,"ur", List("ur", "human"))
-
   v("urMode", "running", List("running", "float", "stopped"))
   v("urTool", "none", List("none", "lfTool", "atlas", "filterTool"))
+  v("mir", "outside", List("outside", "atEngine"))
+  v("engine", "notMeasured", List("outside", "notMeasured", "measured"))
 
-  v("urReserve", false, List(false, true))
+
+  bv("OP.loggedIn")
+  v("OP.humanName", "", List("", "Karen", "StandIN"))
+  v("OP.humanID", "", List("", "1234"))
+  v("TON.pt", 1000, List(1000, 2000, 3000))
+
 
 
   val urPoseDomain = poses.map(SPValue(_)) :+ SPValue("unknown")
@@ -163,6 +173,52 @@ class UnificationModel extends ModelDSL {
     * Initial operations
     * ******************************
     */
+
+  o("log_in", s"OP.login", useOP)(
+    c("pre", "NOT OP.loggedIn")
+  )
+  // add another operation that is forwarding the log in
+
+  o("mir_enter")( // add mir ability to move in
+    c("pre", "mir == 'outside'"),
+    c("post", "mir == 'atEngine'"),
+    c("reset", "true")
+  )
+
+
+  sop("measureEngine")(
+    cond("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT")
+  )(List(
+      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_AboveEngineTCP", useUR)()
+    ) ++ List("Right", "Left", "Mid").flatMap{ x =>
+        List(
+          sOnew(s"findingEngine${x}Pre", s"UR.pose.goto_FindEngine${x}JOINT", useUR)(),
+          sOnew(s"findingEngine${x}2", s"UR.pose.goto_FindEngine${x}2TCP", useUR)(),
+          sOnew(s"delayBefore${x}3", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
+          sOnew(s"findingEngine${x}3", s"UR.pose.goto_FindEngine${x}3TCP", useUR)()
+        )
+      } ++ List(
+      sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_AboveEngineTCP", useUR)(
+        cond("pre", s"true", "engine := 'measured'")
+      ),
+      sOnew("toHomeAfterMeasure", s"UR.pose.goto_AboveEngineTCP", useUR)(),
+    ):_*
+  )
+
+//
+//  sop("attachLFToolFromHome")
+//
+//
+//  o("attachLFToolFromHome")(
+//    c("pre", s"urTool == 'none'")
+//  )
+
+//  o("attachLFTool", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(
+//    c("pre", s"$urPose == $HomeJOINT"),
+//    c("pre", s"lf_pos == 'on_kitting'"),
+//    c("reset", "true"))
+//  )
+
 
 
 
