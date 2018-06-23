@@ -122,6 +122,8 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
                 driverState = driverState ++ state
                 //println("HUMAN DRIVER GOT new state: "+ driverState)
 
+                publish(api.topicResponse, SPMessage.makeJson(header, api.DriverCommandDone(h.reqID, true)))
+
                 sendUpdState()
 //
 

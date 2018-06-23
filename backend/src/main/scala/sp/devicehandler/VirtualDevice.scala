@@ -262,17 +262,17 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
     )
   }
 
-//  // A way to keep the state alive upstreams
-//  context.system.scheduler.schedule(1 seconds, 1 seconds){
-//    resourceState.foreach{case (rid, s) =>
-//      val name = resources.get(rid).map(_.r.name).getOrElse("orElseVirtualDeviceLine268")
-//      val header = SPHeader(from = id.toString)
-//      val body = APIVirtualDevice.StateEvent(name, rid, s)
-//
-//      publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(header, body))
-//    }
-//
-//  }
+  // A way to keep the state alive upstreams
+  context.system.scheduler.schedule(1 seconds, 2 seconds){
+    resourceState.foreach{case (rid, s) =>
+      val name = resources.get(rid).map(_.r.name).getOrElse("orElseVirtualDeviceLine268")
+      val header = SPHeader(from = id.toString)
+      val body = APIVirtualDevice.StateEvent(name, rid, s)
+
+      publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(header, body))
+    }
+
+  }
 
 }
 

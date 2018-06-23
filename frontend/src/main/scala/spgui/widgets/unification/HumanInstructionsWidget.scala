@@ -92,7 +92,7 @@ object HumanInstructionsWidget {
 
     def sendEvent(h: APIHumanDriver.HumanStateMessage, ack: Boolean, done: Boolean, alert: String): Callback = {
       val header = SPHeader(from = "THE HUMAN WIDGET")
-      val mess = APIHumanDriver.HumanEvent(h.driverID, ack, done, alert)
+      val mess = APIHumanDriver.HumanEvent(h.driverID, ack && h.cmd.nonEmpty, done && h.cmd.nonEmpty, alert)
 
       val json = SPMessage.make(header, mess)
       BackendCommunication.publish(json, APIHumanDriver.topicFromHuman)
