@@ -17,6 +17,12 @@ object sendMessages {
     BackendCommunication.publish(json, APIDeviceDriver.topicRequest)
   }
 
+  def sendToRunner(mess: APIOperationRunner.Request) = Callback{
+    val h = SPHeader(from = "UI", to = APIOperationRunner.service)
+    val json = SPMessage.make(h, mess)
+    BackendCommunication.publish(json, APIOperationRunner.topicRequest)
+  }
+
   def sendToModel(model: ID, mess: mapi.Request)= Callback{ //  Send message to model
     val h = SPHeader(from = "VDTrackerWidget", to = model.toString,
       reply = SPValue("VDTrackerWidget"))

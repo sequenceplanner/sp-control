@@ -178,6 +178,24 @@ object VDTracker {
       $.modState(s=>s.copy(latestRunnerState = s.latestRunnerState - id))
     }
 
+    def createCorrectTypeOfSPValue(sPValue: SPValue, newValue : String) : SPValue =  { // Convert the incoming string to an SPvalue of the same type as the previous state value
+      if (sPValue.validate[Int].isSuccess)          {SPValue(newValue.toInt)}
+      else if(sPValue.validate[Boolean].isSuccess)  {SPValue(newValue.toBoolean)}
+      else                                          {SPValue(newValue)}
+    }
+
+
+
+    def updateDriverState(runner: ID, state: Map[ID , SPValue], key: ID)(e: ReactKeyboardEventFromInput) = {
+      if(e.key == "Enter") {
+        val newState = state + (key -> createCorrectTypeOfSPValue(state(key), e.target.value))
+        println("upd state: " + newState)
+        sendToRunner(APIOperationRunner.SetState(runner, newState) )
+      }
+      else
+        Callback.empty
+    }
+
     def renderRunners(active: Option[ID], runnerStates: Map[ID, Map[ID , SPValue]], ids : List[IDAble]) = {
       runnerStates.map { case (r, state) =>
         <.details(if (active.contains(r)) ^.open := "open" else EmptyVdom, ^.className := Style.collapsible.htmlClass,
@@ -194,11 +212,12 @@ object VDTracker {
             ^.className := "table table-striped", ^.className := "Table",
             <.tbody(
               state.map(is => {
-                val cI = ids.filter(i => i.id == is._1)
+                val cI = ids.find(i => i.id == is._1)
                 <.tr(
-                  <.td(if (cI.nonEmpty) cI.head.name else ""),
+                  cI.whenDefined(x => <.td(x.name)),
                   <.td(is._1.toString),
-                  <.td(is._2.toString)
+                  <.td(is._2.toString),
+                  <.td(<.input(^.placeholder := "Change value...", ^.onKeyPress ==> { updateDriverState(r, state, is._1)}, ^.className := DriverWidgetCSS.input.htmlClass))
                 )
               }).toTagMod
             )), <.br()

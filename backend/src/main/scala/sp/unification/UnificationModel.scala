@@ -187,7 +187,8 @@ class UnificationModel extends ModelDSL {
 
 
   sop("measureEngine")(
-    cond("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT")
+    cond("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'none'")
   )(List(
       sOnew("toInitPosMeasureEngine", s"UR.pose.goto_AboveEngineTCP", useUR)()
     ) ++ List("Right", "Left", "Mid").flatMap{ x =>
@@ -201,9 +202,18 @@ class UnificationModel extends ModelDSL {
       sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_AboveEngineTCP", useUR)(
         cond("pre", s"true", "engine := 'measured'")
       ),
-      sOnew("toHomeAfterMeasure", s"UR.pose.goto_AboveEngineTCP", useUR)(),
+      sOnew("toHomeAfterMeasure", s"UR.pose.goto_HomeJOINT", useUR)(),
     ):_*
   )
+
+  o(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
+    c("pre", s"engine == 'measured' && $urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'none'"),
+    c("post", s"urTool == 'lfTool'"),
+    c("reset", "true"))
+
+
+
 
 //
 //  sop("attachLFToolFromHome")

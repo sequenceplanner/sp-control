@@ -48,13 +48,6 @@ class TONDriverInstance(d: VD.Driver) extends Actor
     val newIN = sA.getAs[Boolean]("in").getOrElse(in)
     val newPT = sA.getAs[Int]("pt").getOrElse(pt)
 
-    println("AAAAAAAAAAAAAAAAA")
-    println(driverState)
-    println(s)
-    println(sA)
-    println("newIN: " + newIN)
-
-
     pt = newPT
 
     if (!newIN) {
@@ -69,9 +62,6 @@ class TONDriverInstance(d: VD.Driver) extends Actor
       in = true
       q = false
     }
-
-    println("upd s: " + driverState)
-
   }
 
 

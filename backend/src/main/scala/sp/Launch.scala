@@ -10,7 +10,7 @@ object Launch extends App {
   val cluster = akka.cluster.Cluster(system)
 
   val models = Map(
-    "URModel" -> sp.unification.UnificationModel(),
+    "UnificationDemo" -> sp.unification.UnificationModel(),
     "TurtleModel" -> sp.unification.TurtleModel(),
     "DummyExample" -> sp.unification.DummyExample(),
     "ExtendedDummy" -> sp.unification.DummyExampleExtended(),
