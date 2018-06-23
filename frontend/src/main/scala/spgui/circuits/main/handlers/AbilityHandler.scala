@@ -8,40 +8,12 @@ import sp.domain.{Condition, ID, SPAttributes, SPValue}
 import spgui.SimpleSet
 
 
-
-// TODO Count in sp.abilityhandler.AbilityDevice appears to not be doing anything. Is it necessary?
-case class AbilityData(
-                        ability: Ability,
-                        status: AbilityStatus = AbilityStatus.Unavailable,
-                        count: Int = 0,
-                        result: Option[Map[ID, SPValue]] = None) {
-  val name: String = ability.name
-  val id: ID = ability.id
-  val preCondition: Condition = ability.preCondition
-  val started: Condition = ability.started
-  val postCondition: Condition = ability.postCondition
-  val resetCondition: Condition = ability.resetCondition
-  val parameterIDs: List[ID] = ability.parameterIDs
-  val resultIDs: List[ID] = ability.resultIDs
-  val attributes: SPAttributes = ability.attributes
-
-
-
-  def withResult(result: Map[ID, SPValue]): AbilityData = copy(result = Some(result))
-}
-
 trait AbilityAction extends Action
 case class AddAbility(ability: Ability) extends AbilityAction
 case class AddAbilities(abilities: List[Ability]) extends AbilityAction
 case class UpdateAbility(id: ID, f: AbilityData => AbilityData) extends AbilityAction
 
-
-object AbilityHandler {
-  val initialState: AbilityHandlerState = AbilityHandlerState(new SimpleSet(_.id, Map()))
-}
-
 @Lenses case class AbilityHandlerState(abilities: SimpleSet[ID, AbilityData])
-
 
 class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateHandler[M, AbilityHandlerState, AbilityAction](modelRW) {
   import AbilityHandlerState.abilities
@@ -64,4 +36,29 @@ class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateH
     case _: AbilityAction => true
     case _ => false
   }
+}
+
+object AbilityHandler {
+  val initialState: AbilityHandlerState = AbilityHandlerState(new SimpleSet(_.id, Map()))
+}
+
+// TODO Count in sp.abilityhandler.AbilityDevice appears to not be doing anything. Is it necessary?
+case class AbilityData(
+                        ability: Ability,
+                        status: AbilityStatus = AbilityStatus.Unavailable,
+                        count: Int = 0,
+                        result: Option[Map[ID, SPValue]] = None) {
+  val name: String = ability.name
+  val id: ID = ability.id
+  val preCondition: Condition = ability.preCondition
+  val started: Condition = ability.started
+  val postCondition: Condition = ability.postCondition
+  val resetCondition: Condition = ability.resetCondition
+  val parameterIDs: List[ID] = ability.parameterIDs
+  val resultIDs: List[ID] = ability.resultIDs
+  val attributes: SPAttributes = ability.attributes
+
+
+
+  def withResult(result: Map[ID, SPValue]): AbilityData = copy(result = Some(result))
 }

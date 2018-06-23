@@ -5,11 +5,10 @@ import sp.AbilityStatus.Executing
 import sp.abilityhandler.APIAbilityHandler
 import sp.domain.{ID, SPMessage, SPValue}
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.circuits.availablemodelscircuit._
 import spgui.circuits.main.handlers._
 import spgui.circuits.main.FrontendState
 
-object AbilityCommunication extends CommunicationAPI.Communicator[AbilityHandlerState, AbilityAction] {
+object AbilityCommunication extends CommunicationAPI.Communicator[VDHandlerState, AbilityAction] {
   import sp.abilityhandler.{APIAbilityHandler => API}
 
   def onReceiveMessage(message: SPMessage): Unit = {
@@ -76,7 +75,7 @@ object AbilityCommunication extends CommunicationAPI.Communicator[AbilityHandler
     parsedState.flatten.headOption
   }
 
-  override protected def stateAccessFunction: FrontendState => AbilityHandlerState = _.abilityState
+  override protected def stateAccessFunction: FrontendState => VDHandlerState = _.virtualDevices
   val responseTopic: String = APIAbilityHandler.topicResponse
 
   override def defaultReply: String = "AbilityCommunication"

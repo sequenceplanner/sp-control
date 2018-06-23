@@ -6,10 +6,11 @@ import spgui.circuits.availablemodelscircuit._
 import spgui.circuits.main.handlers._
 
 case class FrontendState(
-                          modelState: ModelsCircuitState,
-                          driverState: DriverHandlerState,
-                          abilityState: AbilityHandlerState,
-                          runnerState: RunnerHandlerState
+                          models: ModelsCircuitState,
+                          drivers: DriverHandlerState,
+                          abilities: AbilityHandlerState,
+                          runners: RunnerHandlerState,
+                          virtualDevices: VDHandlerState
                         )
 
 
@@ -34,19 +35,21 @@ object MainCircuit extends Circuit[FrontendState] with ReactConnector[FrontendSt
 
   override protected def initialModel: FrontendState = {
     FrontendState(
-      modelState = ModelHandler.initialState,
-      driverState = DriverHandler.initialState,
-      abilityState = AbilityHandler.initialState,
-      runnerState = RunnerHandler.initialState
+      models = ModelHandler.initialState,
+      drivers = DriverHandler.initialState,
+      abilities = AbilityHandler.initialState,
+      runners = RunnerHandler.initialState,
+      virtualDevices = VDHandler.initialState
     )
   }
 
   private val handlers = {
     composeHandlers(
-      new ModelHandler(zoomRW(_.modelState)((state, modelState) => state.copy(modelState = modelState))),
-      new DriverHandler(zoomRW(_.driverState)((state, driverState) => state.copy(driverState = driverState))),
-      new AbilityHandler(zoomRW(_.abilityState)((state, abilityState) => state.copy(abilityState = abilityState))),
-      new RunnerHandler(zoomRW(_.runnerState)((state, runnerState) => state.copy(runnerState = runnerState)))
+      new ModelHandler(zoomRW(_.models)((state, modelState) => state.copy(models = modelState))),
+      new DriverHandler(zoomRW(_.drivers)((state, driverState) => state.copy(drivers = driverState))),
+      new AbilityHandler(zoomRW(_.abilities)((state, abilityState) => state.copy(abilities = abilityState))),
+      new RunnerHandler(zoomRW(_.runners)((state, runnerState) => state.copy(runners = runnerState))),
+      new VDHandler(zoomRW(_.virtualDevices)((state, vdState) => state.copy(virtualDevices = vdState)))
     )
   }
 

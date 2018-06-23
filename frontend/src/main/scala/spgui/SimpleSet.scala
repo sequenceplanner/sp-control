@@ -1,9 +1,17 @@
 package spgui
 
+import monocle.{Lens, Optional}
+
 import scala.collection.GenTraversableOnce
 
 object SimpleSet {
   def apply[K, V](hashBy: V => K, values: V*) = new SimpleSet[K, V](hashBy, values.map(v => hashBy(v) -> v).toMap)
+
+    /**
+      * @return An Optional lens into a SimpleSet for the value associated with the key id.
+      */
+    def at[K, V](k: K) = Optional[SimpleSet[K, V], V](_.get(k))(v => set => set + v)
+    def upsert[K, V](k: K, default: V) = Lens[SimpleSet[K, V], V](_.getOrElse(k, default))(v => set => set.updated(k, v))
 }
 
 /**
@@ -40,18 +48,18 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
   def updated(key: K, value: V) = new SimpleSet(hashBy, data.updated(key, value))
   def getByValue(value: V): Option[V] = data.get(hashBy(value))
   def get(key: K): Option[V] = data.get(key)
+  def getOrElse(k: K, v: => V): V = data.getOrElse(k, v)
   def apply(key: K): V = data(key)
   def modify(f: V => V)(value: V): SimpleSet[K, V] = modifyByKey(f)(hashBy(value))
-  def modifyByKey(f: V => V)(key: K): SimpleSet[K, V] = updated(key, f(data(key)))
+  def modifyByKey(f: V => V)(key: K): SimpleSet[K, V] = data.get(key).map(f).fold(this)(updated(key, _))
   def findByKey(f: K => Boolean): Option[V] = data.collectFirst {
     case (k, v) if f(k) => v
   }
 
-  def find(f: V => Boolean): Option[V] = data.collectFirst {
-    case (k, v) if f(v) => v
-  }
 
-  def addAll(xs: Iterable[V]) = {
+  def find(f: V => Boolean): Option[V] = data.collectFirst { case (_, v) if f(v) => v }
+
+  def addAll(xs: Iterable[V]): SimpleSet[K, V] = {
     new SimpleSet(hashBy, data ++ xs.map(x => hashBy(x) -> x).toMap)
   }
 

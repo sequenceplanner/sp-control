@@ -271,7 +271,7 @@ object VDTracker {
     .componentWillUnmount(_.backend.onUnMount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connectComponent(_.modelState)
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connectComponent(_.models)
 
   def apply() = SPWidget(_ => connectCircuit { proxy =>  component(Props(proxy)) })
 }

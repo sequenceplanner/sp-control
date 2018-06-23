@@ -14,6 +14,39 @@ case class AddDrivers(driver: List[(Driver, DriverState, DriverStatus)]) extends
 case class DriverTerminated(id: DriverId) extends DriverAction
 case class DriverChanged(name: String, id: DriverId, state: DriverState) extends DriverAction
 
+case class DriverRequest(id: RequestId, requests: List[RequestId]) {
+  def -(id: RequestId): DriverRequest = copy(requests = requests.filter(_ != id))
+}
+@Lenses case class DriverHandlerState(drivers: SimpleSet[DriverId, DriverInfo])
+
+
+class DriverHandler[M](modelRW: ModelRW[M, DriverHandlerState]) extends StateHandler[M, DriverHandlerState, DriverAction](modelRW) {
+  import DriverHandlerState.drivers
+
+  override def onAction: PartialFunction[DriverAction, Reaction] = {
+      case AddDriver(driver, driverState) =>
+        drivers.modify(_ + DriverInfo(driver, driverState))
+
+      case AddDrivers(newDrivers) =>
+        drivers.modify(_.addAll(newDrivers.map(DriverInfo.tupled)))
+
+      case DriverTerminated(driverId) =>
+      drivers.modify(_.modifyByKey(_.terminate)(driverId))
+
+      case DriverChanged(name, id, state) =>
+        val updateDriver = (d: DriverInfo) => d.driverChange(_.copy(name = name, id = id))
+        val updateState = (d: DriverInfo) => d.copy(state = state)
+
+      drivers.modify(_.modifyByKey(updateDriver compose updateState)(id))
+
+  }
+
+  override def acceptAction: Action => Boolean = {
+    case _: DriverAction => true
+    case _ => false
+  }
+}
+
 case class DriverInfo(
                        driver: Driver,
                        state: DriverState,
@@ -46,37 +79,4 @@ object DriverHandler {
   type DriverId = ID
 
   val initialState: DriverHandlerState = DriverHandlerState(new SimpleSet(_.id, Map()))
-}
-
-case class DriverRequest(id: RequestId, requests: List[RequestId]) {
-  def -(id: RequestId): DriverRequest = copy(requests = requests.filter(_ != id))
-}
-@Lenses case class DriverHandlerState(drivers: SimpleSet[DriverId, DriverInfo])
-
-
-class DriverHandler[M](modelRW: ModelRW[M, DriverHandlerState]) extends StateHandler[M, DriverHandlerState, DriverAction](modelRW) {
-  import DriverHandlerState.drivers
-
-  override def onAction: PartialFunction[DriverAction, Reaction] = {
-      case AddDriver(driver, driverState) =>
-        drivers.modify(_ + DriverInfo(driver, driverState))
-
-      case AddDrivers(newDrivers) =>
-        drivers.modify(_.addAll(newDrivers.map(DriverInfo.tupled)))
-
-      case DriverTerminated(driverId) =>
-      drivers.modify(_.modifyByKey(_.terminate)(driverId))
-
-      case DriverChanged(name, id, state) =>
-        val updateDriver = (d: DriverInfo) => d.driverChange(_.copy(name = name, id = id))
-        val updateState = (d: DriverInfo) => d.copy(state = state)
-
-      drivers.modify(_.modifyByKey(updateDriver compose updateState)(id))
-
-  }
-
-  override def acceptAction: Action => Boolean = {
-    case _: DriverAction => true
-    case _ => false
-  }
 }
