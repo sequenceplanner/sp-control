@@ -95,7 +95,7 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
 
   def postRequest(request: APIModelMaker.Request)(implicit writes: JSWrites[APIModel.Request]): Unit = postRequest(request, from = "ModelCommunication")
 
-  override protected def stateAccessFunction: FrontendState => ModelsCircuitState = _.modelState
+  override protected def stateAccessFunction: FrontendState => ModelsCircuitState = _.models
   val responseTopic: String = APIModel.topicResponse
 
   override def defaultReply: String = "ModelCommunication"

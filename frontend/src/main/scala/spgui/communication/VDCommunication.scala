@@ -1,27 +1,29 @@
 package spgui.communication
 
-import sp.domain.{APISP, ID, SPHeader, SPMessage}
+import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.circuits.availablemodelscircuit._
-import spgui.circuits.main.handlers.AbilityAction
+import spgui.circuits.main.handlers.{AddVirtualDevice, UpdateResource, VDAction}
 import spgui.circuits.main.FrontendState
 
-object VDCommunication extends CommunicationAPI.Communicator[String, AbilityAction] {
+object VDCommunication extends CommunicationAPI.Communicator[String, VDAction] {
   import sp.devicehandler.{APIVirtualDevice => API}
   val responseTopic: String = API.topicResponse
 
   def onReceiveMessage(message: SPMessage): Unit = {
     val response = message.as[API.Response]
 
-    for ((header, body) <- response) body match {
-      case API.StateEvent(resource, id, stateData, diff) =>
+    for ((_, body) <- response) body match {
+      case API.StateEvent(_, resourceId, stateData, fullReplace) =>
+        localDispatch(UpdateResource(resourceId, stateData, fullReplace))
 
       case API.TheVD(name, id, resources, drivers, attributes) =>
+        localDispatch(AddVirtualDevice(name, id, resources, drivers, attributes))
 
       case API.TerminatedVD(id) =>
+        // TODO What should be done here?
 
       case API.TerminatedAllVDs =>
-
+      // TODO What should be done here?
     }
   }
 

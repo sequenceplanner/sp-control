@@ -5,53 +5,14 @@ import monocle.macros.Lenses
 import sp.domain._
 import sp.runners.APIOperationRunner.Setup
 import spgui.SimpleSet
-import spgui.circuits.main.handlers.RunnerHandler.{AbilityId, OperationId, OperationModelId, VDModelId}
-
+import spgui.circuits.main.handlers.Aliases._
 
 trait RunnerAction extends Action
 case class UpdateRunner(runnerId: ID, operationStates: Map[OperationId, SPValue], runInAuto: Boolean, disabledGroups: Set[SPValue]) extends RunnerAction
 case class CreateRunner(setup: Setup) extends RunnerAction
 case class CreateRunners(setups: Iterable[Setup]) extends RunnerAction
 
-case class OperationData(operation: Operation, state: Map[ID, SPValue] = Map()) {
-  val name: String = operation.name
-  val conditions: List[Condition] = operation.conditions
-  val attributes: SPAttributes = operation.attributes
-  val id: OperationId = operation.id
-}
-
-// TODO Are disabled groups necessary? They seem to not be used anywhere, at least not in the frontend
-// TODO Are all these different maps really necessary? Structure should probably be looked over
-case class Runner private (
-                   id: ID,
-                   operations: SimpleSet[ID, OperationData] = new SimpleSet(_.id, Map()),
-                   disabledGroups: Set[SPValue] = Set(),
-                   initialState: Map[ID, SPValue] = Map(), // What ID?
-                   variables: Map[OperationModelId, VDModelId] = Map(),
-                   associations: Map[OperationId, AbilityId] = Map(),
-                   abilityParameters: Map[AbilityId, Set[OperationModelId]] = Map(),
-                   runInAuto: Boolean = false // TODO Not sure if false is desired default value
-                 )
-
-object Runner {
-  import sp.runners.{APIOperationRunner => API}
-  def fromSetup(setup: API.Setup): Runner = {
-    val runner = Runner(setup.runnerID)
-    runner.copy(
-      operations = runner.operations.addAll(setup.ops.map(OperationData(_))),
-      initialState = setup.initialState,
-      variables = setup.variableMap,
-      associations = setup.opAbilityMap,
-      abilityParameters = setup.abilityParameters
-    )
-  }
-}
-
 object RunnerHandler {
-  type OperationModelId = ID
-  type VDModelId = ID
-  type OperationId = ID
-  type AbilityId = ID
   val initialState: RunnerHandlerState = RunnerHandlerState(new SimpleSet(_.id, Map()))
 }
 
@@ -99,4 +60,38 @@ class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHan
     case _ => false
   }
 
+}
+
+case class OperationData(operation: Operation, state: Map[ID, SPValue] = Map()) {
+  val name: String = operation.name
+  val conditions: List[Condition] = operation.conditions
+  val attributes: SPAttributes = operation.attributes
+  val id: OperationId = operation.id
+}
+
+// TODO Are disabled groups necessary? They seem to not be used anywhere, at least not in the frontend
+// TODO Are all these different maps really necessary? Structure should probably be looked over
+case class Runner private (
+                            id: ID,
+                            operations: SimpleSet[ID, OperationData] = new SimpleSet(_.id, Map()),
+                            disabledGroups: Set[SPValue] = Set(),
+                            initialState: Map[ID, SPValue] = Map(), // What ID?
+                            variables: Map[OperationModelId, VDModelId] = Map(),
+                            associations: Map[OperationId, AbilityId] = Map(),
+                            abilityParameters: Map[AbilityId, Set[OperationModelId]] = Map(),
+                            runInAuto: Boolean = false // TODO Not sure if false is desired default value
+                          )
+
+object Runner {
+  import sp.runners.{APIOperationRunner => API}
+  def fromSetup(setup: API.Setup): Runner = {
+    val runner = Runner(setup.runnerID)
+    runner.copy(
+      operations = runner.operations.addAll(setup.ops.map(OperationData(_))),
+      initialState = setup.initialState,
+      variables = setup.variableMap,
+      associations = setup.opAbilityMap,
+      abilityParameters = setup.abilityParameters
+    )
+  }
 }

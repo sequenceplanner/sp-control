@@ -42,7 +42,7 @@ object DriverCommunication extends CommunicationAPI.Communicator[DriverHandlerSt
     )
   }
 
-  override protected def stateAccessFunction: FrontendState => DriverHandlerState = _.driverState
+  override protected def stateAccessFunction: FrontendState => DriverHandlerState = _.drivers
 
   override def defaultReply: String = "DeviceCommunication"
 }

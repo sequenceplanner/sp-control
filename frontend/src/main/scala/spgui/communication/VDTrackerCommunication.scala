@@ -2,11 +2,10 @@ package spgui.communication
 
 import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.circuits.availablemodelscircuit._
-import spgui.circuits.main.handlers.AbilityAction
+import spgui.circuits.main.handlers.{ModelNames, RunnerCreated, VDAction}
 import spgui.circuits.main.FrontendState
 
-object VDTrackerCommunication extends CommunicationAPI.Communicator[String, AbilityAction] {
+object VDTrackerCommunication extends CommunicationAPI.Communicator[String, VDAction] {
   import sp.vdtesting.{APIVDTracker => API}
   val responseTopic: String = API.topicResponse
 
@@ -14,11 +13,12 @@ object VDTrackerCommunication extends CommunicationAPI.Communicator[String, Abil
     import sp.vdtesting.{APIVDTracker => API}
     val response = message.as[API.Response]
 
-    for ((header, body) <- response) body match {
+    for ((_, body) <- response) body match {
       case API.sendModelsInfo(modelNames) =>
+        localDispatch(ModelNames(modelNames))
 
       case API.OpRunnerCreated(operationRunnerId) =>
-
+        localDispatch(RunnerCreated(operationRunnerId))
     }
   }
 
