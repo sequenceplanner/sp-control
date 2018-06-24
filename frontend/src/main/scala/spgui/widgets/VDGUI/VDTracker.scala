@@ -237,6 +237,7 @@ object VDTracker {
       } yield {
         thing -> spval
       }).toList.sortBy(tv => tv._1.name)
+
       <.details(^.open := "open", ^.className := Style.collapsible.htmlClass,
         <.summary(name),
         <.table(

@@ -45,9 +45,7 @@ class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, 
       availableVDModels.set(names)
 
     case RunnerCreated(id) =>
-      println(s"??? RunnerCreated($id)")
       latestActiveRunnerId.set(Some(id))
-
   }
 
   def createDevice(props: AddVirtualDevice): VDData = {

@@ -11,7 +11,7 @@ import spgui.communication.OperationRunnerCommunication
 trait RunnerAction extends Action
 case class UpdateRunner(runnerId: ID, operationStates: Map[OperationId, SPValue], runInAuto: Boolean, disabledGroups: Set[SPValue]) extends RunnerAction
 case class CreateRunner(setup: Setup, associations: Map[OperationId, AbilityId]) extends RunnerAction
-case class CreateRunners(setups: Iterable[Setup]) extends RunnerAction
+case class UpdateRunners(setups: List[Setup]) extends RunnerAction
 
 object RunnerHandler {
   val initialState: RunnerHandlerState = RunnerHandlerState(new SimpleSet(_.id, Map()))
@@ -44,16 +44,16 @@ class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHan
           disabledGroups = update.disabledGroups
         )
       }(runnerId))
-
     }
 
     case CreateRunner(setup, associations) =>
       runners.modify(_ + Runner.fromSetup(setup, associations))
 
-    case CreateRunners(setups) =>
+    case UpdateRunners(setups) =>
       setups
         .map(setup => runners.modify(_ + Runner.fromSetup(setup, OperationRunnerCommunication.getAssociations(setup))))
         .foldLeft(identityState)(_ compose _)
+      .andThen(runners.modify(_.filterKeys( key => setups.exists(_.runnerID == key)))) // Remove old runners
   }
 
   override def acceptAction: Action => Boolean = {

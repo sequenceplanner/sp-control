@@ -33,7 +33,7 @@ object AbilityCommunication extends CommunicationAPI.Communicator[VDHandlerState
 
       case API.AbilityState(id, state) =>
         for ((newStatus, newCount) <- parseAbilityState(state))
-          localDispatch(UpdateAbility(id, _.copy(status = newStatus, count = newCount)))
+          localDispatch(UpdateAbility(id, _.copy(status = newStatus, count = newCount, state = state)))
 
       case API.Abilities(abilities) =>
         abilities.map(_.id).foreach(id => postRequest(GetAbility(id), reqId = Some(ID.newID)))
