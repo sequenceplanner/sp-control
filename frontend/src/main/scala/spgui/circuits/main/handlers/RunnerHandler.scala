@@ -6,10 +6,11 @@ import sp.domain._
 import sp.runners.APIOperationRunner.Setup
 import spgui.SimpleSet
 import spgui.circuits.main.handlers.Aliases._
+import spgui.communication.OperationRunnerCommunication
 
 trait RunnerAction extends Action
 case class UpdateRunner(runnerId: ID, operationStates: Map[OperationId, SPValue], runInAuto: Boolean, disabledGroups: Set[SPValue]) extends RunnerAction
-case class CreateRunner(setup: Setup) extends RunnerAction
+case class CreateRunner(setup: Setup, associations: Map[OperationId, AbilityId]) extends RunnerAction
 case class CreateRunners(setups: Iterable[Setup]) extends RunnerAction
 
 object RunnerHandler {
@@ -46,12 +47,12 @@ class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHan
 
     }
 
-    case CreateRunner(setup) =>
-      runners.modify(_ + Runner.fromSetup(setup))
+    case CreateRunner(setup, associations) =>
+      runners.modify(_ + Runner.fromSetup(setup, associations))
 
     case CreateRunners(setups) =>
       setups
-        .map(setup => runners.modify(_ + Runner.fromSetup(setup)))
+        .map(setup => runners.modify(_ + Runner.fromSetup(setup, OperationRunnerCommunication.getAssociations(setup))))
         .foldLeft(identityState)(_ compose _)
   }
 
@@ -63,10 +64,20 @@ class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHan
 }
 
 case class OperationData(operation: Operation, state: Map[ID, SPValue] = Map()) {
+  import sp.domain.logic.AttributeLogic._
+
   val name: String = operation.name
   val conditions: List[Condition] = operation.conditions
   val attributes: SPAttributes = operation.attributes
   val id: OperationId = operation.id
+
+  def preConditions: Iterable[Condition] = {
+    conditions.filter(c => c.attributes.getAs[String]("kind").contains("pre"))
+  }
+
+  def postConditions: Iterable[Condition] = {
+    conditions.filter(c => c.attributes.getAs[String]("kind").contains("post"))
+  }
 }
 
 // TODO Are disabled groups necessary? They seem to not be used anywhere, at least not in the frontend
@@ -80,17 +91,24 @@ case class Runner private (
                             associations: Map[OperationId, AbilityId] = Map(),
                             abilityParameters: Map[AbilityId, Set[OperationModelId]] = Map(),
                             runInAuto: Boolean = false // TODO Not sure if false is desired default value
-                          )
+                          ) {
+  /**
+    * Set an association between an operation and an ability.
+    */
+  def associate(operationId: OperationId, abilityId: AbilityId): Runner = {
+    copy(associations = associations + (operationId -> abilityId))
+  }
+}
 
 object Runner {
   import sp.runners.{APIOperationRunner => API}
-  def fromSetup(setup: API.Setup): Runner = {
+  def fromSetup(setup: API.Setup, associations: Map[OperationId, AbilityId]): Runner = {
     val runner = Runner(setup.runnerID)
     runner.copy(
       operations = runner.operations.addAll(setup.ops.map(OperationData(_))),
       initialState = setup.initialState,
       variables = setup.variableMap,
-      associations = setup.opAbilityMap,
+      associations = associations,
       abilityParameters = setup.abilityParameters
     )
   }

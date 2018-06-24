@@ -6,7 +6,6 @@ import spgui.circuits.main.handlers._
 import spgui.circuits.main.FrontendState
 
 object DriverCommunication extends CommunicationAPI.Communicator[DriverHandlerState, DriverAction] {
-  println("DeviceCommunication live :)")
   import sp.devicehandler.{APIDeviceDriver => API}
   val responseTopic: String = API.topicResponse
 

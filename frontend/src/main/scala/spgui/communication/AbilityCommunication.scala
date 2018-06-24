@@ -3,6 +3,7 @@ package spgui.communication
 import sp.AbilityStatus
 import sp.AbilityStatus.Executing
 import sp.abilityhandler.APIAbilityHandler
+import sp.abilityhandler.APIAbilityHandler.GetAbility
 import sp.domain.{ID, SPMessage, SPValue}
 import spgui.SPMessageUtil.BetterSPMessage
 import spgui.circuits.main.handlers._
@@ -35,6 +36,8 @@ object AbilityCommunication extends CommunicationAPI.Communicator[VDHandlerState
           localDispatch(UpdateAbility(id, _.copy(status = newStatus, count = newCount)))
 
       case API.Abilities(abilities) =>
+        abilities.map(_.id).foreach(id => postRequest(GetAbility(id), reqId = Some(ID.newID)))
+
         localDispatch(AddAbilities(abilities))
 
       case API.AbilitiesByIdAndName(abilityData) =>
@@ -42,12 +45,14 @@ object AbilityCommunication extends CommunicationAPI.Communicator[VDHandlerState
     }
   }
 
-  def postRequest(request: API.Request): Unit = {
+  def postRequest(request: API.Request, reqId: Option[ID] = None, reply: String = defaultReply): Unit = {
     post(
       request,
-      from = "VDTrackerWidget",
+      from = "AbilityCommunication",
       to = API.service,
-      topic = API.topicRequest
+      topic = API.topicRequest,
+      reqId = reqId,
+      reply = reply
     )
   }
 

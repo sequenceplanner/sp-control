@@ -269,7 +269,7 @@ object ModelsWidget {
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connect(_.modelState)
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connect(_.models)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 

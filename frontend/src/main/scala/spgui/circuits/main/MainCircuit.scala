@@ -44,7 +44,7 @@ object MainCircuit extends Circuit[FrontendState] with ReactConnector[FrontendSt
   }
 
   private val handlers = {
-    composeHandlers(
+    foldHandlers(
       new ModelHandler(zoomRW(_.models)((state, modelState) => state.copy(models = modelState))),
       new DriverHandler(zoomRW(_.drivers)((state, driverState) => state.copy(drivers = driverState))),
       new AbilityHandler(zoomRW(_.abilities)((state, abilityState) => state.copy(abilities = abilityState))),

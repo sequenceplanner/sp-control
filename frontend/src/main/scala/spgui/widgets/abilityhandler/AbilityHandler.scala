@@ -30,7 +30,7 @@ object AbilityHandlerWidget {
     def handleVDMess(mess: SPMessage): Unit = {
       mess.body.to[vdapi.Response].map{
         case vdapi.TheVD(_, _, r, _, _) =>
-          $.modState(s => s.copy(resources = r.map(_.r))).runNow()
+          $.modState(s => s.copy(resources = r.map(_.resource))).runNow()
         case x =>
           println(s"AbilityHandlerWidget - TODO: $x")
       }

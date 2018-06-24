@@ -3,17 +3,13 @@ package spgui.communication
 import play.api.libs.json.JsString
 import sp.domain.{ID, JSWrites, SPHeader, SPMessage}
 import sp.models.{APIModel, APIModelMaker}
-import spgui.circuits.availablemodelscircuit._
 import spgui.SPMessageUtil.BetterSPMessage
 import CommunicationAPI.Communicator
 import spgui.circuits.main.handlers._
 import spgui.circuits.main.FrontendState
 
 object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] {
-  println("ModelCommunication live :)")
     override def onReceiveMessage(message: SPMessage): Unit = {
-      println("onReceiveMessage ModelCommunication")
-      println(message)
       val response = message.oneOf[APIModelMaker.Response].or[APIModel.Response]
       val state = currentState()
 
@@ -30,7 +26,6 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
     * Handles responses from a specific model.
     */
   def onModelResponse(state: ModelsCircuitState, header: SPHeader, res: APIModel.Response): Unit = {
-    println("onModelResponse")
     res match {
       case info: APIModel.ModelInformation =>
         val value = state.models.get(info.id)
@@ -58,7 +53,6 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
   }
 
   def onModelMakerResponse(state: ModelsCircuitState, res: APIModelMaker.Response): Unit = {
-    println("onModelMakerResponse")
     res match {
       case APIModelMaker.ModelList(modelIds) =>
         modelIds.foreach { m =>
@@ -89,7 +83,6 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
   }
 
   def postRequest(request: APIModelMaker.Request, from: String): Unit = {
-    println("postRequest in Model")
     post(request, from, to = APIModelMaker.service, topic = APIModelMaker.topicRequest)
   }
 
