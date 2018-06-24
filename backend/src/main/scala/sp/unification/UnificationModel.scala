@@ -24,6 +24,10 @@ object UnificationModel {
   val FindEngineLeftUpJOINT = "FindEngineLeftUpJOINT"
   val FindEngineMidUpJOINT = "FindEngineMidUpJOINT"
   val AboveEngineTCP = "AboveEngineTCP"
+  val ToLF1 = "ToLF1"
+  val ToLF2 = "ToLF2"
+  val ToLF3 = "ToLF3"
+  val PreLF = "PreLF"
 
   // above bolts
   val FarAboveBolts = bolts.map(farAboveBolt)
@@ -71,7 +75,12 @@ object UnificationModel {
     FindEngineMidDownTCP,
     FindEngineRightCollideTCP,
     FindEngineLeftCollideTCP,
-    FindEngineMidCollideTCP) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
+    FindEngineMidCollideTCP,
+    ToLF1,
+    ToLF2,
+    ToLF3,
+    PreLF,
+  ) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
 
 
   val AttachLFTool = "AttachLFTool"
@@ -80,6 +89,7 @@ object UnificationModel {
   val DetachAtlas = "DetachAtlas"
   val AttachOFTool = "AttachOFTool"
   val DetachOFTool = "DetachOFTool"
+  val LFMagic = "LFMagic"
 
   val executorCmd = List(
     AttachLFTool,
@@ -87,7 +97,8 @@ object UnificationModel {
     AttachAtlas,
     DetachAtlas,
     AttachOFTool,
-    DetachOFTool
+    DetachOFTool,
+    LFMagic
   )
 
 
@@ -183,66 +194,49 @@ class UnificationModel extends ModelDSL {
 //    c("reset", "true")
 //  )
 
+// For all three sides...
+//  sop("measureEngine")(
+//    c("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
+//    c("pre", s"urTool == 'none'")
+//  )(List(
+//      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)()
+//    ) ++ List("Right", "Left", "Mid").flatMap{ x =>
+//        List(
+//          sOnew(s"findingEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)(),
+//          sOnew(s"findingEngine${x}Down", s"UR.pose.goto_FindEngine${x}DownTCP", useUR)(),
+//          //sOnew(s"delayBefore${x}Collide", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
+//          sOnew(s"findingEngine${x}Collide", s"UR.pose.goto_FindEngine${x}CollideTCP", useUR)(),
+//          sOnew(s"AfterCollideEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)()
+//        )
+//      } ++ List(
+//      sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(
+//        cond("pre", s"true", "engine := 'measured'")
+//      ),
+//      sOnew("toHomeAfterMeasure", s"UR.pose.goto_HomeJOINT", useUR)(),
+//    ):_*
+//  )
 
-  //
-  sop("measureEngine")(
+
+  // just one side for demo
+  sop("measureEngineSimple")(
     c("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
     c("pre", s"urTool == 'none'")
-  )(List(
-      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)()
-    ) ++ List("Right", "Left", "Mid").flatMap{ x =>
-        List(
-          sOnew(s"findingEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)(),
-          sOnew(s"findingEngine${x}Down", s"UR.pose.goto_FindEngine${x}DownTCP", useUR)(),
-          //sOnew(s"delayBefore${x}Collide", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
-          sOnew(s"findingEngine${x}Collide", s"UR.pose.goto_FindEngine${x}CollideTCP", useUR)(),
-          sOnew(s"AfterCollideEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)()
-        )
-      } ++ List(
-      sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(
-        cond("pre", s"true", "engine := 'measured'")
-      ),
-      sOnew("toHomeAfterMeasure", s"UR.pose.goto_HomeJOINT", useUR)(),
-    ):_*
-  )
-
-
-
-
-  sop("attachLFToolWithExecutor")(
-    c("pre", s"OP.loggedIn && engine == 'measured' && $urPose == $HomeJOINT"),
-    c("pre", s"urTool == 'none'")
-  )(
-    sOnew("toPreAttachLF", s"UR.pose.PreAttachLFToolFarJOINT", useUR)(),
-    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
-      c("post", s"urTool == 'lfTool'")
+  )(List("Right").flatMap{ x =>
+    List(
+      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(),
+      sOnew(s"findingEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)(),
+      sOnew(s"findingEngine${x}Down", s"UR.pose.goto_FindEngine${x}DownTCP", useUR)(),
+      //sOnew(s"delayBefore${x}Collide", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
+      sOnew(s"findingEngine${x}Collide", s"UR.pose.goto_FindEngine${x}CollideTCP", useUR)(),
+      sOnew(s"AfterCollideEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)()
+    )
+  } ++ List(
+    sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(
+      cond("pre", s"true", "engine := 'measured'")
     ),
-    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
+    sOnew("toHomeAfterMeasure", s"UR.pose.goto_HomeJOINT", useUR)(),
+  ):_*
   )
-
-
-
-
-
-
-
-
-
-//
-//  sop("attachLFToolFromHome")
-//
-//
-//  o("attachLFToolFromHome")(
-//    c("pre", s"urTool == 'none'")
-//  )
-
-//  o("attachLFTool", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(
-//    c("pre", s"$urPose == $HomeJOINT"),
-//    c("pre", s"lf_pos == 'on_kitting'"),
-//    c("reset", "true"))
-//  )
-
-
 
 
 
@@ -254,6 +248,50 @@ class UnificationModel extends ModelDSL {
     * ******************************
     */
 
+  sop("attachLFToolWithExecutor")(
+    c("pre", s"OP.loggedIn && engine == 'measured' && $urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'none'"),
+    c("pre", s"lf_pos == 'on_kitting'")
+  )(
+    sOnew("toPreAttachLF", s"UR.pose.PreAttachLFToolFarJOINT", useUR)(),
+    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
+      c("post", s"urTool == 'lfTool'")
+    ),
+    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
+  )
+
+  sop("goToMirToDoLF")(
+    c("pre", s"mir == 'atEngine' && $urPose == $HomeJOINT"),
+    c("pre", s"$urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'lfTool'"),
+    c("pre", s"lf_pos == 'on_kitting'")
+  )(
+    sOnew("toLFMagic1", s"UR.pose.$ToLF1", useUR)(),
+    sOnew("toLFMagic2", s"UR.pose.$ToLF2", useUR)(),
+    sOnew("toLFMagic3", s"UR.pose.$ToLF3", useUR)(),
+    sOnew("toLFMagicFinal", s"UR.pose.$PreLF", useUR)(),
+  )
+
+
+
+  sop("doLFMagicAndBack")(
+    c("pre", s"mir == 'atEngine'"),
+    c("pre", s"$urPose == $PreLF"),
+    c("pre", s"urTool == 'lfTool'"),
+    c("pre", s"lf_pos == 'on_kitting'")
+  )(
+    sP(
+      sOnew("OPlfMounting", s"OP.mountLF", useOP)(),
+      sS(
+        sOnew(s"doLFMagic", s"Executor.$LFMagic", useUR)(
+          c("post", s"lf_pos == 'on_engine'")
+        ),
+        sOnew("toHomeAfterLFMagic", s"UR.pose.goto_HomeJOINT", useUR)()
+      )
+    )
+  )
+
+
 
 
 
@@ -263,6 +301,25 @@ class UnificationModel extends ModelDSL {
     * Tell op to add 6 pairs of screws
     * ******************************
     */
+
+
+  o("log_in", s"OP.placeB1to6", useOP)(
+    c("pre", "OP.loggedIn"),
+    c("pre", s"lf_pos == 'on_engine'")
+  )
+
+
+  sop("detachLFToolWithExecutor")(
+    c("pre", s"OP.loggedIn && $urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'lfTool'"),
+    c("pre", s"lf_pos == 'on_engine'")
+  )(
+    sOnew("toPreDetachLF", s"UR.pose.PreAttachLFToolFarJOINT", useUR)(),
+    sOnew(s"DetachLF", s"Executor.$DetachLFTool", useUR)(
+      c("post", s"urTool == 'none'")
+    ),
+    sOnew("toHomeAfterDetachLD", s"UR.pose.goto_HomeJOINT", useUR)()
+  )
 
 
 
@@ -290,6 +347,22 @@ class UnificationModel extends ModelDSL {
     * ******************************
     */
 
+//  sop("theBoltingSequence")(
+//    c("pre", s"lf_pos == 'on_engine' && $urPose == $HomeJOINT"),
+//    c("pre", s"urTool == 'atlas'")
+//  )(
+//    sP( // running some parallel ops.
+//      sS(
+//        sOnew("BeforeBoltingGotoAboveEngineTCP", s"UR.pose.goto_AboveEngineTCP", useUR)(),), // the UR sequence
+//      sP() // support operations
+//    )
+//
+//    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
+//      c("post", s"urTool == 'lfTool'")
+//    ),
+//    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
+//  )
+//
 //  // goto above engine joint, the starting point for going to above bolt tcp poses
 //  o(s"gotoAboveEngineTCP", s"UR.pose.goto_AboveEngineTCP")(
 //    c("pre", s"$urPose == $HomeJOINT && urTool == 'on_engine'"),
@@ -349,7 +422,7 @@ class UnificationModel extends ModelDSL {
 //  o(s"${farAboveBolt(lastB)}toAboveEngine", "UR.pose.goto_AboveEngineTCP")(
 //    c("pre", s"$urPose == '${farAboveBolt(lastB)}' && $lastB == 'tightened'"),
 //    c("reset", "true"))
-//
+
 
 
   /**
