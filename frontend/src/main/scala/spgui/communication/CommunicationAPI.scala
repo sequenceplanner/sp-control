@@ -73,15 +73,14 @@ object CommunicationAPI {
     protected val NoState: FrontendState => String = _ => "Unused"
 
     def startListening(): Obs = {
-      println(s"messageObserver for $responseTopic")
       BackendCommunication.getMessageObserver(onReceiveMessage, responseTopic)
     }
 
     def defaultReply: String
 
-    protected def post[R](body: R, from: String, to: String, topic: String, reply: String = defaultReply, reqID: Option[ID] = None)(implicit writes: JSWrites[R]): Unit = {
+    protected def post[R](body: R, from: String, to: String, topic: String, reply: String = defaultReply, reqId: Option[ID] = None)(implicit writes: JSWrites[R]): Unit = {
       val headerBase = SPHeader(from = from, to = to, reply = SPValue(reply))
-      val header = reqID match {
+      val header = reqId match {
         case None => headerBase
         case Some(id) => headerBase.copy(reqID = id)
       }

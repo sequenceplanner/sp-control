@@ -5,9 +5,11 @@ import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import sp.abilityhandler.APIAbilityHandler.Abilities
-import sp.devicehandler.{VD, APIVirtualDevice, APIDeviceDriver}
+import sp.devicehandler.VD.{OneToOneMapper, Resource, ResourceWithState}
+import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice, VD}
 import sp.domain._
 import spgui.communication._
+import spgui.widgets.VDGUI.SPCardGrid.RenderCard
 
 /** Widget to visualize the Resources and it's status*/
 object ResourceWidget {
@@ -64,7 +66,7 @@ object ResourceWidget {
         case APIVirtualDevice.StateEvent(_, id, newState, _) =>
           $.modState { s: State =>
             s.copy(resources = s.resources.map { res =>
-                if(res.r.id == id) res.copy(state = res.state ++ newState) else res})
+                if(res.resource.id == id) res.copy(state = res.state ++ newState) else res})
           }
 
         case x => Callback.empty
@@ -89,34 +91,30 @@ object ResourceWidget {
       * @return The Widget GUI
       */
     def render(state: State) = {
+      val cards = state.resources.map { resourceData =>
+        renderResourceCard(state, resourceData.resource, resourceData.state)
+      }
+
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        SPCardGrid(
-          state.resources.map { rws: VD.ResourceWithState =>
-            SPCardGrid.ResourceCard(
-              cardId = rws.r.id,
-              name = rws.r.name,
-              driverStatuses = {
-                val relatedDrivers: List[ID] = rws.r.stateMap.map{
-                  case mapper:VD.OneToOneMapper => mapper.driverID
-                }.distinct
-                val selectDrivers: List[(VD.Driver, VD.DriverState, String)] =
-                  state.theDrivers.filter{
-                    driver: (VD.Driver, VD.DriverState, String) => relatedDrivers.contains(driver._1.id)
-                  }
-                selectDrivers.map{
-                  driver => (driver._1.name, driver._3)
-                }
-              },
-              state = rws.r.stateMap.map {case mapper: VD.OneToOneMapper =>
-                val a: SPValue = rws.state.get(mapper.thing).get
-                val b: SPValue = rws.state(mapper.thing)
-                println(s".get(id).get = $a and .(key) = $b")
-                  (mapper.driverIdentifier.toString, rws.state.get(mapper.thing).get)
-              }
-            )
-          }
-        )
+        SPCardGrid(cards)
+      )
+    }
+
+    def renderResourceCard(state: State, resource: Resource, resourceState: Map[ID, SPValue]): RenderCard = {
+      val relatedDrivers = resource.stateMap.map { case OneToOneMapper(_, driverId, _) => driverId}.distinct
+      val selectedDrivers = state.theDrivers.filter { case (driver, _, _) => relatedDrivers.contains(driver.id) }
+      val driverStatuses = selectedDrivers.map { case (driver, _, status) => (driver.name, status) }
+
+      val resultState = resource.stateMap.map { case mapper: VD.OneToOneMapper =>
+        (mapper.driverIdentifier.toString, resourceState(mapper.thing))
+      }
+
+      SPCardGrid.ResourceCard(
+        cardId = resource.id,
+        name = resource.name,
+        driverStatuses = driverStatuses,
+        state = resultState
       )
     }
 

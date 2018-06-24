@@ -10,7 +10,7 @@ import spgui.circuits.main.handlers.DriverHandler.DriverId
 
 trait VDAction extends Action
 case class AddVirtualDevice(name: String, id: VirtualDeviceId, resources: Iterable[ResourceWithState], drivers: Iterable[DriverWithState], attributes: SPAttributes) extends VDAction
-case class UpdateResource(resourceId: ID, state: Map[ID, SPValue], diff: Boolean = false) extends VDAction
+case class UpdateResource(resourceId: ResourceId, state: Map[ID, SPValue], diff: Boolean = false) extends VDAction
 case class ModelNames(names: List[VDModelName]) extends VDAction
 case class RunnerCreated(id: RunnerId) extends VDAction
 
@@ -26,7 +26,7 @@ object VDHandlerState {
 }
 
 class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, VDHandlerState, VDAction](modelRW) {
-  import VDHandlerState.{virtualDevices, resource, device, availableVDModels}
+  import VDHandlerState.{virtualDevices, resource, device, availableVDModels, latestActiveRunnerId}
 
   override def onAction: PartialFunction[VDAction, Reaction] = {
     case props: AddVirtualDevice =>
@@ -43,6 +43,11 @@ class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, 
 
     case ModelNames(names) =>
       availableVDModels.set(names)
+
+    case RunnerCreated(id) =>
+      println(s"??? RunnerCreated($id)")
+      latestActiveRunnerId.set(Some(id))
+
   }
 
   def createDevice(props: AddVirtualDevice): VDData = {

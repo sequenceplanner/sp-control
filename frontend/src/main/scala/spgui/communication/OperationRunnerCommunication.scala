@@ -1,10 +1,13 @@
 package spgui.communication
 
+import sp.abilityhandler.APIAbilityHandler.GetAbility
 import sp.domain.SPMessage
 import sp.runners.APIOperationRunner
+import sp.runners.APIOperationRunner.Setup
 import spgui.SPMessageUtil.BetterSPMessage
 import spgui.circuits.main.handlers.{CreateRunner, CreateRunners, RunnerAction, UpdateRunner}
 import spgui.circuits.main.FrontendState
+import spgui.circuits.main.handlers.Aliases.{AbilityId, OperationId}
 
 object OperationRunnerCommunication extends CommunicationAPI.Communicator[String, RunnerAction] {
   import sp.runners.{APIOperationRunner => API}
@@ -19,11 +22,24 @@ object OperationRunnerCommunication extends CommunicationAPI.Communicator[String
           localDispatch(UpdateRunner(runnerID, operationStates, runInAuto, disableConditionGroups))
 
         case API.Runner(setup) =>
-          localDispatch(CreateRunner(setup))
+          val associations = getAssociations(setup)
+          // Request information about the abilities
+          associations.foreach { case(_, abilityId) => AbilityCommunication.postRequest(GetAbility(abilityId)) }
+
+          localDispatch(CreateRunner(setup, associations))
 
         case API.Runners(setups) =>
         localDispatch(CreateRunners(setups))
     }
+  }
+
+  def getAssociations(setup: Setup): Map[OperationId, AbilityId] = {
+      val data = for {
+        operation <- setup.ops
+        abilityId <- setup.opAbilityMap.get(operation.id)
+      } yield operation.id -> abilityId
+
+      data.toMap
   }
 
   def postRequest(request: APIOperationRunner.Request): Unit = {

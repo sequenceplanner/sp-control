@@ -21,7 +21,8 @@ abstract class StateHandler[M, S, A](modelRW: ModelRW[M, S]) extends ActionHandl
   override protected def handle: PartialFunction[Any, ActionResult[M]] = {
     case message: Action =>
       val (action, local) = message match {
-        case LocalAction(newAction) => (newAction, true)
+        case LocalAction(newAction) =>
+          (newAction, true)
         case other => (other, false)
       }
 

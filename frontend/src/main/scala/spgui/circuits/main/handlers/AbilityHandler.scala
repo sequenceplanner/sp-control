@@ -17,6 +17,7 @@ case class UpdateAbility(id: ID, f: AbilityData => AbilityData) extends AbilityA
 
 class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateHandler[M, AbilityHandlerState, AbilityAction](modelRW) {
   import AbilityHandlerState.abilities
+  import SimpleSet.upsert
 
   override def onAction: PartialFunction[AbilityAction, Reaction] = {
     case AddAbility(ability) => react {
@@ -28,7 +29,7 @@ class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateH
     }
 
     case UpdateAbility(id, f) => react {
-      abilities.modify(_.modifyByKey(f)(id))
+      abilities.modify(as => upsert(id, AbilityData(Ability("N/A", id))).modify(f)(as))
     }
   }
 
