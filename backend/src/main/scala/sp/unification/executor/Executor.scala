@@ -17,7 +17,7 @@ class Executor extends ModelDSL with ROSSupport {
       c("pre", "!done", s"cmd := $cmd"),
       c("started", s"got_cmd == $cmd"),
       c("post", "done"),
-      c("reset", "true", s"cmd := 'reset'"))
+      c("reset", "true", s"cmd := ''"))
   )
 
   driver("Executor", ROSFlatStateDriver.driverType)
