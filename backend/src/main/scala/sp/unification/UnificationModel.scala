@@ -20,9 +20,9 @@ object UnificationModel {
   val PreAttachLFToolFarJOINT = "PreAttachLFToolFarJOINT"
   val PreAttachOFToolFarJOINT = "PreAttachOFToolFarJOINT"
   val PreFindEngineJOINT = "PreFindEngineJOINT"
-  val FindEngineRightJOINT = "FindEngineRightJOINT"
-  val FindEngineLeftJOINT = "FindEngineLeftJOINT"
-  val FindEngineMidJOINT = "FindEngineMidJOINT"
+  val FindEngineRightUpJOINT = "FindEngineRightUpJOINT"
+  val FindEngineLeftUpJOINT = "FindEngineLeftUpJOINT"
+  val FindEngineMidUpJOINT = "FindEngineMidUpJOINT"
   val AboveEngineTCP = "AboveEngineTCP"
 
   // above bolts
@@ -40,12 +40,12 @@ object UnificationModel {
   val OFToolFrame1TCP = "OFToolFrame1TCP"
   val OFToolFrame2TCP = "OFToolFrame2TCP"
   val OFToolFrame3TCP = "OFToolFrame3TCP"
-  val FindEngineRight2TCP = "FindEngineRight2TCP"
-  val FindEngineLeft2TCP = "FindEngineLeft2TCP"
-  val FindEngineMid2TCP = "FindEngineMid2TCP"
-  val FindEngineRight3TCP = "FindEngineRight3TCP"
-  val FindEngineLeft3TCP = "FindEngineLeft3TCP"
-  val FindEngineMid3TCP = "FindEngineMid3TCP"
+  val FindEngineRightDownTCP = "FindEngineRightDownTCP"
+  val FindEngineLeftDownTCP = "FindEngineLeftDownTCP"
+  val FindEngineMidDownTCP = "FindEngineMidDownTCP"
+  val FindEngineRightCollideTCP = "FindEngineRightCollideTCP"
+  val FindEngineLeftCollideTCP = "FindEngineLeftCollideTCP"
+  val FindEngineMidCollideTCP = "FindEngineMidCollideTCP"
 
   val poses = List(
     HomeJOINT,
@@ -53,9 +53,9 @@ object UnificationModel {
     PreAttachLFToolFarJOINT,
     PreAttachOFToolFarJOINT,
     PreFindEngineJOINT,
-    FindEngineRightJOINT,
-    FindEngineLeftJOINT,
-    FindEngineMidJOINT,
+    FindEngineRightUpJOINT,
+    FindEngineLeftUpJOINT,
+    FindEngineMidUpJOINT,
     AboveEngineTCP,
     PreAttachAtlasCloseTCP,
     AttachAtlasTCP,
@@ -66,12 +66,12 @@ object UnificationModel {
     OFToolFrame1TCP,
     OFToolFrame2TCP,
     OFToolFrame3TCP,
-    FindEngineRight2TCP,
-    FindEngineLeft2TCP,
-    FindEngineMid2TCP,
-    FindEngineRight3TCP,
-    FindEngineLeft3TCP,
-    FindEngineMid3TCP) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
+    FindEngineRightDownTCP,
+    FindEngineLeftDownTCP,
+    FindEngineMidDownTCP,
+    FindEngineRightCollideTCP,
+    FindEngineLeftCollideTCP,
+    FindEngineMidCollideTCP) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
 
 
   val AttachLFTool = "AttachLFTool"
@@ -177,11 +177,11 @@ class UnificationModel extends ModelDSL {
   )
   // add another operation that is forwarding the log in
 
-  o("mir_enter")( // add mir ability to move in
-    c("pre", "mir == 'outside'"),
-    c("post", "mir == 'atEngine'"),
-    c("reset", "true")
-  )
+//  o("mir_enter")( // add mir ability to move in
+//    c("pre", "mir == 'outside'"),
+//    c("post", "mir == 'atEngine'"),
+//    c("reset", "true")
+//  )
 
 
   //
@@ -189,16 +189,17 @@ class UnificationModel extends ModelDSL {
     c("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
     c("pre", s"urTool == 'none'")
   )(List(
-      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_AboveEngineTCP", useUR)()
+      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)()
     ) ++ List("Right", "Left", "Mid").flatMap{ x =>
         List(
-          sOnew(s"findingEngine${x}Pre", s"UR.pose.goto_FindEngine${x}JOINT", useUR)(),
-          sOnew(s"findingEngine${x}2", s"UR.pose.goto_FindEngine${x}2TCP", useUR)(),
-          sOnew(s"delayBefore${x}3", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
-          sOnew(s"findingEngine${x}3", s"UR.pose.goto_FindEngine${x}3TCP", useUR)()
+          sOnew(s"findingEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)(),
+          sOnew(s"findingEngine${x}Down", s"UR.pose.goto_FindEngine${x}DownTCP", useUR)(),
+          //sOnew(s"delayBefore${x}Collide", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
+          sOnew(s"findingEngine${x}Collide", s"UR.pose.goto_FindEngine${x}CollideTCP", useUR)(),
+          sOnew(s"AfterCollideEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)()
         )
       } ++ List(
-      sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_AboveEngineTCP", useUR)(
+      sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(
         cond("pre", s"true", "engine := 'measured'")
       ),
       sOnew("toHomeAfterMeasure", s"UR.pose.goto_HomeJOINT", useUR)(),
