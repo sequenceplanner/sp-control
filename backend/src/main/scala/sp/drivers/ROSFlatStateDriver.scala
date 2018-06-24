@@ -179,6 +179,7 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   case class RosVar(did: String, msgType: String, topic: String, field: String, rate: Int)
   val rosVars = driverIdentifiers.map(s => {
     val strs = s.split(":")
+    if (strs.size < 3) println("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP" + s + strs)
     RosVar(s, strs(0), strs(1), strs(2), if(strs.size == 4) strs(3).toInt else 0)
   })
 
