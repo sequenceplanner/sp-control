@@ -11,7 +11,7 @@ package sp.devicehandler {
 
     case class Resource(name: String, id: ID, things: Set[ID], stateMap: List[DriverStateMapper], setup: SPAttributes, sendOnlyDiffs: Boolean = false)
     case class Driver(name: String, id: ID, driverType: String, setup: SPAttributes)
-    case class ResourceWithState(r: Resource, state: State)
+    case class ResourceWithState(resource: Resource, state: State)
     case class DriverWithState(d: Driver, state: DriverState)
 
 
