@@ -58,6 +58,15 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
 
 
   def find(f: V => Boolean): Option[V] = data.collectFirst { case (_, v) if f(v) => v }
+  def filter(f: (K, V) => Boolean): SimpleSet[K, V] = {
+    val res = data.filter { case (k, v) => f(k, v) }.values.toSeq
+    SimpleSet(hashBy, res:_*)
+  }
+
+  def filterKeys(f: K => Boolean): SimpleSet[K, V] = {
+    val res = data.filterKeys(f).values.toSeq
+    SimpleSet(hashBy, res:_*)
+  }
 
   def addAll(xs: Iterable[V]): SimpleSet[K, V] = {
     new SimpleSet(hashBy, data ++ xs.map(x => hashBy(x) -> x).toMap)
@@ -68,7 +77,7 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
   def toSet: Set[V] = asIterable.toSet
   def containsValue(value: V): Boolean = data.get(hashBy(value)).contains(value)
   def contains(key: K): Boolean = data.contains(key)
-  def map[B](f: V => B): GenTraversableOnce[B] = data.values.map(f)
-  def flatMap[B](f: V => GenTraversableOnce[B]): Iterable[B] = data.values.flatMap(f)
+  def map[B](f: V => B): Iterable[B] = data.values.map(f)
+  def flatMap[B](f: V => Iterable[B]): Iterable[B] = data.values.flatMap(f)
   def isEmpty: Boolean = data.isEmpty
 }

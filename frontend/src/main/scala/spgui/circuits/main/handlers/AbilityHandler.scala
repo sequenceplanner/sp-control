@@ -47,6 +47,7 @@ object AbilityHandler {
 case class AbilityData(
                         ability: Ability,
                         status: AbilityStatus = AbilityStatus.Unavailable,
+                        state: Map[ID, SPValue] = Map(),
                         count: Int = 0,
                         result: Option[Map[ID, SPValue]] = None) {
   val name: String = ability.name
@@ -58,8 +59,6 @@ case class AbilityData(
   val parameterIDs: List[ID] = ability.parameterIDs
   val resultIDs: List[ID] = ability.resultIDs
   val attributes: SPAttributes = ability.attributes
-
-
 
   def withResult(result: Map[ID, SPValue]): AbilityData = copy(result = Some(result))
 }
