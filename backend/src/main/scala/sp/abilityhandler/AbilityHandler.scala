@@ -313,19 +313,11 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
 
           // The no filter version
 
-        case virtualDevice: APIVirtualDevice.TheVD =>
-          println("We got the VD!")
-          println(virtualDevice)
-          val _resources = virtualDevice.resources.map(_.r)
-          val _state = virtualDevice.resources.foldLeft(currentState.states)(_ ++ _.state)
-
-          transitionState(currentState.copy(resources = _resources, states = _state))
-
-          currentState.abilityStates.foreach { case (_, abilityState) =>
-            abilityState.actor ! NewState(currentState.states.filterKeys(abilityState.ids.contains))
-          }
-
-        case _ => Unit
+        case x: APIVirtualDevice.TheVD =>
+          resources = x.resources.map(_.resource)
+          state = x.resources.foldLeft(state)(_ ++ _.state)
+          abilities.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
+        case x =>
       }
     }
   }
