@@ -192,7 +192,7 @@ class UnificationModel extends ModelDSL {
 
 //  o("mir_enter")( // add mir ability to move in
 //    c("pre", "mir == 'outside'"),
-//    c("post", "mir == 'atEngine'"),
+//    c("post", "true", "mir := 'atEngine'"),
 //    c("reset", "true")
 //  )
 
@@ -257,7 +257,7 @@ class UnificationModel extends ModelDSL {
 //  )(
 //    sOnew("toPreAttachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
 //    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
-//      c("post", s"urTool == 'lfTool'")
+//      c("post", "true", s"urTool := 'lfTool'")
 //    ),
 //    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
 //  )
@@ -287,7 +287,7 @@ class UnificationModel extends ModelDSL {
       sOnew("OPlfMounting", s"OP.mountLF", useOP)(),
       sS(
         sOnew(s"doLFMagic", s"Executor.$LFMagic", useUR)(
-          c("post", s"lf_pos == 'on_engine'")
+          c("post", "true", s"lf_pos := 'on_engine'")
         ),
         sOnew("toHomeAfterLFMagic", s"UR.pose.goto_HomeJOINT", useUR)()
       )
@@ -319,7 +319,7 @@ class UnificationModel extends ModelDSL {
   )(
     sOnew("toPreDetachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
     sOnew(s"DetachLF", s"Executor.$DetachLFTool", useUR)(
-      c("post", s"urTool == 'none'")
+      c("post", "true", s"urTool := 'none'")
     ),
     sOnew("toHomeAfterDetachLD", s"UR.pose.goto_HomeJOINT", useUR)()
   )
@@ -361,7 +361,7 @@ class UnificationModel extends ModelDSL {
 //    )
 //
 //    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
-//      c("post", s"urTool == 'lfTool'")
+//      c("post", "true", s"urTool := 'lfTool'")
 //    ),
 //    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
 //  )
@@ -441,7 +441,7 @@ class UnificationModel extends ModelDSL {
 //  o(s"DetachOFTool", s"Executor.DetachOFTool", useUR)(
 //    c("pre", s"$urPose == $HomeJOINT"),
 //    c("pre", s"urTool == 'filterTool'"),
-//    c("post", s"urTool == 'none'"),
+//    c("post", "true", s"urTool := 'none'"),
 //    c("reset", "true"))
 //
 //
