@@ -82,7 +82,7 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
       val runnerSetup = APIOperationRunner.runnerThingToSetup(s).copy(runnerID = ID.newID)
       val exSetupRunner = APIOperationRunner.CreateRunner(runnerSetup)
 
-      println("RUNNER SETUP: " + exSetupRunner.toString)
+      //println("RUNNER SETUP: " + exSetupRunner.toString)
 
       publish(
         APIOperationRunner.topicRequest,

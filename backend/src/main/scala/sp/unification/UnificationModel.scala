@@ -16,7 +16,6 @@ object UnificationModel {
   /// UR POSES
   // joint poses
   val HomeJOINT = "HomeJOINT"
-  val ResetJOINT = "ResetJOINT"
   val PreAttachAtlasFarJOINT = "PreAttachAtlasFarJOINT"
   val PreAttachLFToolFarJOINT = "PreAttachLFToolFarJOINT"
   val PreAttachOFToolFarJOINT = "PreAttachOFToolFarJOINT"
@@ -50,7 +49,6 @@ object UnificationModel {
 
   val poses = List(
     HomeJOINT,
-    ResetJOINT,
     PreAttachAtlasFarJOINT,
     PreAttachLFToolFarJOINT,
     PreAttachOFToolFarJOINT,
@@ -186,8 +184,9 @@ class UnificationModel extends ModelDSL {
   )
 
 
+  //
   sop("measureEngine")(
-    cond("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
+    c("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
     c("pre", s"urTool == 'none'")
   )(List(
       sOnew("toInitPosMeasureEngine", s"UR.pose.goto_AboveEngineTCP", useUR)()
@@ -206,11 +205,24 @@ class UnificationModel extends ModelDSL {
     ):_*
   )
 
-  o(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
-    c("pre", s"engine == 'measured' && $urPose == $HomeJOINT"),
-    c("pre", s"urTool == 'none'"),
-    c("post", s"urTool == 'lfTool'"),
-    c("reset", "true"))
+
+
+
+  sop("attachLFToolWithExecutor")(
+    c("pre", s"OP.loggedIn && engine == 'measured' && $urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'none'")
+  )(
+    sOnew("toPreAttachLF", s"UR.pose.PreAttachLFToolFarJOINT", useUR)(),
+    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
+      c("post", s"urTool == 'lfTool'")
+    ),
+    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
+  )
+
+
+
+
+
 
 
 
@@ -344,50 +356,50 @@ class UnificationModel extends ModelDSL {
     * ******************************
     */
 
-  val noTool = c("pre", s"urTool == 'none'")
-  val reserve = c("pre", "urReserve == false", "urReserve := true")
-  val release = c("post", "true", "urReserve := false")
-
-
-  o(s"DetachOFTool", s"Executor.DetachOFTool", useUR)(
-    c("pre", s"$urPose == $HomeJOINT"),
-    c("pre", s"urTool == 'filterTool'"),
-    c("post", s"urTool == 'none'"),
-    c("reset", "true"))
-
-
-  o(s"gotoPreAttachLFToolFarJOINT", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(
-    c("pre", s"$urPose == $HomeJOINT"),
-    c("pre", s"lf_pos == 'on_kitting'"),
-    noTool,
-    c("reset", "true"))
-
-  // goto close pre attach pose for the lf tool
-  o(s"gotoPreAttachLFToolCloseTCP", s"UR.pose.goto_PreAttachLFToolCloseTCP", useUR)(
-    c("pre", s"$urPose == $PreAttachLFToolFarJOINT"),
-    c("pre", s"(lf_pos == 'on_kitting' && urTool == 'none') || (lf_pos == 'on_engine' && urTool == 'lfTool')"),
-    c("reset", "true"))
-
-  //unlock RrsSP connector before attaching LF tool
-  o(s"releaseRspLfTool", s"RECU.unlock_rsp", useRSP)(
-    c("pre", s"$urPose == $PreAttachLFToolCloseTCP" ),
-    noTool,
-    c("reset", "true"))
-
-  // goto attach pose for the lf tool
-  o(s"gotoAttachLFToolTCP", s"UR.pose.goto_AttachLFToolTCP", useUR)(
-    c("pre", s"$urPose == $PreAttachLFToolCloseTCP"),
-    c("pre", s"lf_pos == 'on_kitting'"),
-    noTool,
-    c("reset", "true"))
-
-  //lock RrsSP connector for the LF tool
-  o(s"attachRspLfTool", s"RECU.lock_rsp", useRSP)(
-    c("pre", s"$urPose == $AttachLFToolTCP" ),
-    noTool,
-    c("post", "true", s"urTool := lfTool"),
-    c("reset", "true")
-  )
+//  val noTool = c("pre", s"urTool == 'none'")
+//  val reserve = c("pre", "urReserve == false", "urReserve := true")
+//  val release = c("post", "true", "urReserve := false")
+//
+//
+//  o(s"DetachOFTool", s"Executor.DetachOFTool", useUR)(
+//    c("pre", s"$urPose == $HomeJOINT"),
+//    c("pre", s"urTool == 'filterTool'"),
+//    c("post", s"urTool == 'none'"),
+//    c("reset", "true"))
+//
+//
+//  o(s"gotoPreAttachLFToolFarJOINT", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(
+//    c("pre", s"$urPose == $HomeJOINT"),
+//    c("pre", s"lf_pos == 'on_kitting'"),
+//    noTool,
+//    c("reset", "true"))
+//
+//  // goto close pre attach pose for the lf tool
+//  o(s"gotoPreAttachLFToolCloseTCP", s"UR.pose.goto_PreAttachLFToolCloseTCP", useUR)(
+//    c("pre", s"$urPose == $PreAttachLFToolFarJOINT"),
+//    c("pre", s"(lf_pos == 'on_kitting' && urTool == 'none') || (lf_pos == 'on_engine' && urTool == 'lfTool')"),
+//    c("reset", "true"))
+//
+//  //unlock RrsSP connector before attaching LF tool
+//  o(s"releaseRspLfTool", s"RECU.unlock_rsp", useRSP)(
+//    c("pre", s"$urPose == $PreAttachLFToolCloseTCP" ),
+//    noTool,
+//    c("reset", "true"))
+//
+//  // goto attach pose for the lf tool
+//  o(s"gotoAttachLFToolTCP", s"UR.pose.goto_AttachLFToolTCP", useUR)(
+//    c("pre", s"$urPose == $PreAttachLFToolCloseTCP"),
+//    c("pre", s"lf_pos == 'on_kitting'"),
+//    noTool,
+//    c("reset", "true"))
+//
+//  //lock RrsSP connector for the LF tool
+//  o(s"attachRspLfTool", s"RECU.lock_rsp", useRSP)(
+//    c("pre", s"$urPose == $AttachLFToolTCP" ),
+//    noTool,
+//    c("post", "true", s"urTool := lfTool"),
+//    c("reset", "true")
+//  )
 
 
 

@@ -29,9 +29,7 @@ object HumanInstructionsWidget {
         b match {
           case x: APIHumanDriver.HumanStateMessage =>
             $.modState{s =>
-              println("instr upd state: old: "+s.humans)
               val updS = State(s.humans + (x.driverID -> x))
-              println("instr upd state: new: "+updS.humans)
               updS
             }.runNow()
         }
