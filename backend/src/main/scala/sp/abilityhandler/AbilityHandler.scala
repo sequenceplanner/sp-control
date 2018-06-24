@@ -272,7 +272,7 @@ class AbilityHandler(name: String, handlerID: ID, vd: ID) extends Actor
           abilities.foreach(kv => kv._2.actor ! NewState(state))
 
         case x: APIVirtualDevice.TheVD =>
-          resources = x.resources.map(_.r)
+          resources = x.resources.map(_.resource)
           state = x.resources.foldLeft(state)(_ ++ _.state)
           abilities.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
         case x =>
