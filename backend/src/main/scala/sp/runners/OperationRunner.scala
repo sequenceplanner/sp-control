@@ -114,9 +114,9 @@ class OperationRunner extends Actor
         case api.RunnerControl(id, auto, groups) =>
           updRunner(id, Set(), Set(), Map(), startAbility, sendState(_, id), Some(auto), Some(groups))
 
-        case api.ManualControl(id, opToStart, bwd) =>
+        case api.ManualControl(id, opToStart, force, forceCompl, bwd) =>
           // bwd not implemented yet
-          tickRunner(id, startAbility, sendState(_, id), opToStart)
+          tickRunner(id, startAbility, sendState(_, id), opToStart, force, forceCompl)
 
       }
 
@@ -355,7 +355,10 @@ trait OperationRunnerLogic {
   def tickRunner(runnerID: ID,
                  startAbility: (ID, Map[ID, SPValue]) => Unit,
                  sendState: SPState => Unit,
-                 tryToStartOP: Option[ID] = None): Unit = {
+                 tryToStartOP: Option[ID] = None,
+                 forceTheStart: Boolean = false,
+                 forceCompleteOperation: Option[ID] = None
+                ): Unit = {
     runners.get(runnerID).foreach { x =>
       val theState = SPState(state = x.currentState)
       val updS = newState(
@@ -366,7 +369,10 @@ trait OperationRunnerLogic {
         sendState,
         x.runInAuto,
         x.disableConditionGroups,
-        tryToStartOP)
+        tryToStartOP,
+        forceTheStart,
+        forceCompleteOperation
+      )
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
@@ -411,7 +417,9 @@ trait OperationRunnerLogic {
                      sendState: SPState => Unit,
                      runInAuto: Boolean,
                      disableConditionGroups: Set[SPValue],
-                     tryToStartOP: Option[ID]
+                     tryToStartOP: Option[ID] = None,
+                     forceTheStart: Boolean = false,
+                     forceCompleteOperation: Option[ID] = None
                     ): SPState = {
 
     val filterOps = ops.foldLeft((List[Operation](), List[Operation](), List[Operation]())){case (aggr, o) =>
@@ -424,10 +432,27 @@ trait OperationRunnerLogic {
       } else aggr
     }
 
-    val enabled: List[Operation] = if (runInAuto) filterOps._1 else {
-      List() ++ filterOps._1.find(o => tryToStartOP.contains(o.id))
+    // handling the manual force start here
+    val enabled: List[Operation] = tryToStartOP match {
+        case Some(id) if forceTheStart && runInAuto && !filterOps._1.exists(_.id == id)=>
+          filterOps._1 ++ ops.find(_.id == id)
+        case Some(id) if forceTheStart && !runInAuto =>
+          List() ++ ops.find(_.id == id)
+        case Some(id) if !forceTheStart && !runInAuto =>
+          List() ++ filterOps._1.find(_.id == id)
+        case x if runInAuto => filterOps._1
+        case _ => List()
+
     }
-    val complete = filterOps._2
+
+
+    // Handling the force complete here
+    val complete = filterOps._2 ++ {
+      if (!filterOps._2.exists(o => forceCompleteOperation.contains(o.id)))
+        ops.find(o => forceCompleteOperation.contains(o.id))
+      else None
+    }
+
     val reset = filterOps._3
 
     var opsToGo = ops
