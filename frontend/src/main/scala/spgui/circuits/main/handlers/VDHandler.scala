@@ -13,6 +13,7 @@ case class AddVirtualDevice(name: String, id: VirtualDeviceId, resources: Iterab
 case class UpdateResource(resourceId: ResourceId, state: Map[ID, SPValue], diff: Boolean = false) extends VDAction
 case class ModelNames(names: List[VDModelName]) extends VDAction
 case class RunnerCreated(id: RunnerId) extends VDAction
+case object TerminateAllVirtualDevices extends VDAction
 
 @Lenses case class VDHandlerState(
                                    virtualDevices: SimpleSet[VirtualDeviceId, VDData],
@@ -30,6 +31,8 @@ class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, 
 
   override def onAction: PartialFunction[VDAction, Reaction] = {
     case props: AddVirtualDevice =>
+      //println("AddVirtualDevice")
+      //props.resources.map(data => ResourceData(data.resource, data.state)).foreach(println)
       // Assumes that if there is a VD with the same ID, it should be replaced with the incoming one.
       virtualDevices.modify(_ + createDevice(props))
 
@@ -46,6 +49,12 @@ class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, 
 
     case RunnerCreated(id) =>
       latestActiveRunnerId.set(Some(id))
+
+    case TerminateAllVirtualDevices =>
+      println("TerminateAllVirtualDevices")
+      react {
+      virtualDevices.set(SimpleSet[VirtualDeviceId, VDData](_.id)) compose latestActiveRunnerId.set(None)
+    }
   }
 
   def createDevice(props: AddVirtualDevice): VDData = {

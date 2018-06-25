@@ -6,14 +6,16 @@ import sp.AbilityStatus
 import sp.abilityhandler.APIAbilityHandler.Ability
 import sp.domain.{Condition, ID, SPAttributes, SPValue}
 import spgui.SimpleSet
+import spgui.circuits.main.handlers.Aliases.AbilityId
 
 
 trait AbilityAction extends Action
 case class AddAbility(ability: Ability) extends AbilityAction
 case class AddAbilities(abilities: List[Ability]) extends AbilityAction
-case class UpdateAbility(id: ID, f: AbilityData => AbilityData) extends AbilityAction
+case class UpdateAbility(id: AbilityId, f: AbilityData => AbilityData) extends AbilityAction
+case object TerminateAllAbilities extends AbilityAction
 
-@Lenses case class AbilityHandlerState(abilities: SimpleSet[ID, AbilityData])
+@Lenses case class AbilityHandlerState(abilities: SimpleSet[AbilityId, AbilityData])
 
 class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateHandler[M, AbilityHandlerState, AbilityAction](modelRW) {
   import AbilityHandlerState.abilities
@@ -30,6 +32,10 @@ class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateH
 
     case UpdateAbility(id, f) => react {
       abilities.modify(as => upsert(id, AbilityData(Ability("N/A", id))).modify(f)(as))
+    }
+
+    case TerminateAllAbilities => react {
+      abilities.set(SimpleSet[AbilityId, AbilityData](_.id))
     }
   }
 

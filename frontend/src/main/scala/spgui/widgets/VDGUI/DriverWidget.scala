@@ -5,8 +5,6 @@ import japgolly.scalajs.react.vdom.html_<^._
 import sp.devicehandler.{APIDeviceDriver, VD}
 import sp.domain._
 import spgui.communication._
-import spgui.components.SPWidgetElements
-import sendMessages._
 import sp.vdtesting.APIVDTracker
 
 /** Widget for visualising the drivers status */
@@ -80,7 +78,7 @@ object DriverWidget {
           sendToDeviceDriver(APIDeviceDriver.GetDrivers)
         ),
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        SPCardGrid(state.cards.map(card => SPCardGrid.DriverCard(
+        SPCardComponent(state.cards.map(card => SPCardComponent.DriverCard(
           cardId = card.cardId,
           name = card.driver.name,
           status = card.status,
@@ -101,12 +99,11 @@ object DriverWidget {
       vdTrackerHandler.kill()
     }
 
-    /** When the widget is mounting, try to get a list of drivers from backend
-      *
-      * @return Callback
+    /**
+      * When the widget is mounting, try to get a list of drivers from backend
       */
-    def onMount: Callback = {
-      sendToDeviceDriver(APIDeviceDriver.GetDrivers)
+    def onMount: Callback = Callback {
+      DriverCommunication.postRequest(APIDeviceDriver.GetDrivers)
     }
   }
 
@@ -117,6 +114,6 @@ object DriverWidget {
     .componentWillUnmount(_.backend.onUnmount)
     .build
 
-  def apply() = spgui.SPWidget(spwb => driverWidgetComponent())
+  def apply() = spgui.SPWidget(_ => driverWidgetComponent())
 }
 

@@ -6,7 +6,7 @@ import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import spgui.SPMessageUtil.BetterSPMessage
 import spgui.circuits.main.handlers.{CreateRunner, UpdateRunners, RunnerAction, UpdateRunner}
-import spgui.circuits.main.FrontendState
+import spgui.circuits.main.{FrontendState, MainCircuit}
 import spgui.circuits.main.handlers.Aliases.{AbilityId, OperationId}
 
 object OperationRunnerCommunication extends CommunicationAPI.Communicator[String, RunnerAction] {
