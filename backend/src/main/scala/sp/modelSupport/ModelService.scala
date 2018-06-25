@@ -125,7 +125,7 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
       )
     }
 
-    context.system.scheduler.scheduleOnce(0.2 seconds) {
+    context.system.scheduler.scheduleOnce(1 seconds) {
       publish(
         APIModel.topicRequest,
         SPMessage.makeJson(SPHeader(from = "ModelService", to = cm.id.toString), addItems)

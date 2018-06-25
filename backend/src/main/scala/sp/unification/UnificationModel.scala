@@ -29,6 +29,10 @@ object UnificationModel {
   val LFOperationMidpoint3JOINT = "LFOperationMidpoint3JOINT"
   val LFOperationMidpoint4JOINT = "LFOperationMidpoint4JOINT"
   val LFOperationMidpoint5JOINT = "LFOperationMidpoint5JOINT"
+  val AfterLFOperationJOINT = "AfterLFOperationJOINT"
+  val PreHomeJOINT = "PreHomeJOINT"
+  val OFMidpoint1JOINT = "OFMidpoint1JOINT"
+  val OFMidpoint2JOINT = "OFMidpoint2JOINT"
 
   // above bolts
   val FarAboveBolts = bolts.map(farAboveBolt)
@@ -82,6 +86,10 @@ object UnificationModel {
     LFOperationMidpoint3JOINT,
     LFOperationMidpoint4JOINT,
     LFOperationMidpoint5JOINT,
+    PreHomeJOINT,
+    AfterLFOperationJOINT,
+    OFMidpoint1JOINT,
+    OFMidpoint2JOINT
   ) ++ FarAboveBolts ++ CloseAboveBolts ++ AtBolts
 
 
@@ -124,7 +132,7 @@ object UnificationModel {
 class UnificationModel extends ModelDSL {
   use("UR", new UR)
   use("Atlas", new Atlas)
-  // use("MiR", new MiR)
+  use("MiR", new MiR)
   use("RECU", new RECU)
   use("HECU", new HECU)
   use("Executor", new Executor)
@@ -157,7 +165,7 @@ class UnificationModel extends ModelDSL {
   // resources
   v("boltMode" ,"ur", List("ur", "human"))
   v("urMode", "running", List("running", "float", "stopped"))
-  v("urTool", "none", List("none", "lfTool", "atlas", "filterTool"))
+  v("urTool", "none", List("none", "lfTool", "atlas", "ofTool"))
   v("mir", "outside", List("outside", "atEngine"))
   v("engine", "notMeasured", List("outside", "notMeasured", "measured"))
 
@@ -190,11 +198,11 @@ class UnificationModel extends ModelDSL {
   )
   // add another operation that is forwarding the log in
 
-//  o("mir_enter")( // add mir ability to move in
-//    c("pre", "mir == 'outside'"),
-//    c("post", "true", "mir := 'atEngine'"),
-//    c("reset", "true")
-//  )
+  o("mir_enter", "MiR.pose.goto_Assembly")( // add mir ability to move in
+    c("pre", "mir == 'outside'"),
+    c("post", "true", "mir := 'atEngine'"),
+    c("reset", "true")
+  )
 
 // For all three sides...
 //  sop("measureEngine")(
@@ -220,25 +228,25 @@ class UnificationModel extends ModelDSL {
 
 
   // just one side for demo
-//  sop("measureEngineSimple")(
-//    c("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
-//    c("pre", s"urTool == 'none'")
-//  )(List("Right").flatMap{ x =>
-//    List(
-//      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(),
-//      sOnew(s"findingEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)(),
-//      sOnew(s"findingEngine${x}Down", s"UR.pose.goto_FindEngine${x}DownTCP", useUR)(),
-//      //sOnew(s"delayBefore${x}Collide", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
-//      sOnew(s"findingEngine${x}Collide", s"UR.pose.goto_FindEngine${x}CollideTCP", useUR)(),
-//      sOnew(s"AfterCollideEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)()
-//    )
-//  } ++ List(
-//    sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(
-//      cond("pre", s"true", "engine := 'measured'")
-//    ),
-//    sOnew("toHomeAfterMeasure", s"UR.pose.goto_HomeJOINT", useUR)(),
-//  ):_*
-//  )
+  sop("measureEngineSimple")(
+    c("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'none'")
+  )(List("Right").flatMap{ x =>
+    List(
+      sOnew("toInitPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(),
+      sOnew(s"findingEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)(),
+      sOnew(s"findingEngine${x}Down", s"UR.pose.goto_FindEngine${x}DownTCP", useUR)(),
+      //sOnew(s"delayBefore${x}Collide", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
+      sOnew(s"findingEngine${x}Collide", s"UR.pose.goto_FindEngine${x}CollideTCP", useUR)(),
+      sOnew(s"AfterCollideEngine${x}UpPre", s"UR.pose.goto_FindEngine${x}UpJOINT", useUR)()
+    )
+  } ++ List(
+    sOnew("toAfterPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(
+      cond("pre", s"true", "engine := 'measured'")
+    ),
+    sOnew("toHomeAfterMeasure", s"UR.pose.goto_HomeJOINT", useUR)(),
+  ):_*
+  )
 
 
 
@@ -250,17 +258,17 @@ class UnificationModel extends ModelDSL {
     * ******************************
     */
 
-//  sop("attachLFToolWithExecutor")(
-//    c("pre", s"OP.loggedIn && engine == 'measured' && $urPose == $HomeJOINT"),
-//    c("pre", s"urTool == 'none'"),
-//    c("pre", s"lf_pos == 'on_kitting'")
-//  )(
-//    sOnew("toPreAttachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
-//    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
-//      c("post", "true", s"urTool := 'lfTool'")
-//    ),
-//    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
-//  )
+  sop("attachLFToolWithExecutor")(
+    c("pre", s"OP.loggedIn && engine == 'measured' && $urPose == $HomeJOINT"),
+    c("pre", s"urTool == 'none'"),
+    c("pre", s"lf_pos == 'on_kitting'")
+  )(
+    sOnew("toPreAttachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
+    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
+      c("post", "true", s"urTool := 'lfTool'")
+    ),
+    sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
+  )
 
   sop("goToMirToDoLF")(
     c("pre", s"mir == 'atEngine' && $urPose == $HomeJOINT"),
@@ -289,7 +297,11 @@ class UnificationModel extends ModelDSL {
         sOnew(s"doLFMagic", s"Executor.$LFMagic", useUR)(
           c("post", "true", s"lf_pos := 'on_engine'")
         ),
-        sOnew("toHomeAfterLFMagic", s"UR.pose.goto_HomeJOINT", useUR)()
+        sOnew(s"delayBeforeHome", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
+        sOnew(s"resetBeforeHome", s"UR.pose.reset", useTON)(cond("pre", "true")),
+        sOnew("toHomeAfterLFMagic1", s"UR.pose.goto_AfterLFOperationJOINT", useUR)(),
+        sOnew("toHomeAfterLFMagic2", s"UR.pose.goto_PreHomeJOINT", useUR)(),
+        sOnew("toHomeAfterLFMagicFinal", s"UR.pose.goto_HomeJOINT", useUR)()
       )
     )
   )
@@ -341,6 +353,19 @@ class UnificationModel extends ModelDSL {
     *
     * ******************************
     */
+
+//  sop("attachOFToolWithExecutor")(
+//    c("pre", s"$urPose == $HomeJOINT"),
+//    c("pre", s"urTool == 'none'"),
+//    c("pre", s"filter1 == 'placed'")
+//  )(
+//    sOnew("toPreAttachLF", s"UR.pose.goto_$PreAttachOFToolFarJOINT", useUR)(),
+//    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachOFTool", useUR)(
+//      c("post", "true", s"urTool := 'ofTool'")
+//    ),
+//    sOnew("toFilterAfterLF1", s"UR.pose.goto_$OFMidpoint1JOINT", useUR)()
+//  )
+
 
 
 

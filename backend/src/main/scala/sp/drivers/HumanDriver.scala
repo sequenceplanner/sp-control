@@ -194,7 +194,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
     val ackS = sA.getAs[Boolean](ack).get
     val doneS = sA.getAs[Boolean](done).get
     val alertS = sA.getAs[String](alert).get
-    val mess = SendMessage(cmdS, ackS, doneS, alert)
+    val mess = SendMessage(cmdS, ackS, doneS, alertS)
 
     if (blueToothConnected) bluetooth ! mess
   }

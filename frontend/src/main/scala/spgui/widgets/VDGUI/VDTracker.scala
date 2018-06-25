@@ -178,6 +178,14 @@ object VDTracker {
       $.modState(s=>s.copy(latestRunnerState = s.latestRunnerState - id))
     }
 
+    def pauseRunner(id: ID): Callback = {
+      sendToRunner(APIOperationRunner.RunnerControl(id, false))
+    }
+
+    def playRunner(id: ID): Callback = {
+      sendToRunner(APIOperationRunner.RunnerControl(id, true))
+    }
+
     def createCorrectTypeOfSPValue(sPValue: SPValue, newValue : String) : SPValue =  { // Convert the incoming string to an SPvalue of the same type as the previous state value
       if (sPValue.validate[Int].isSuccess)          {SPValue(newValue.toInt)}
       else if(sPValue.validate[Boolean].isSuccess)  {SPValue(newValue.toBoolean)}
@@ -203,6 +211,18 @@ object VDTracker {
             s"Operation runner state ($r)",
             <.button(
               ^.className := "btn",
+              ^.title := "play runner",
+              ^.onClick --> playRunner(r),
+              <.i(^.className := "fa fa-play")
+            ),
+            <.button(
+              ^.className := "btn",
+              ^.title := "pause runner",
+              ^.onClick --> pauseRunner(r),
+              <.i(^.className := "fa fa-pause")
+            ),
+            <.button(
+              ^.className := "btn",
               ^.title := "Kill runner",
               ^.onClick --> terminateRunner(r),
               <.i(^.className := "fa fa-bolt")
@@ -215,7 +235,6 @@ object VDTracker {
                 val cI = ids.find(i => i.id == is._1)
                 <.tr(
                   cI.whenDefined(x => <.td(x.name)),
-                  <.td(is._1.toString),
                   <.td(is._2.toString),
                   <.td(<.input(^.placeholder := "Change value...", ^.onKeyPress ==> { updateDriverState(r, state, is._1)}, ^.className := DriverWidgetCSS.input.htmlClass))
                 )
@@ -240,7 +259,6 @@ object VDTracker {
             state.map { case (t,v) => {
               <.tr(
                 <.td(t.name),
-                <.td(t.id.toString),
                 <.td(v.toString)
               )
             }}.toTagMod

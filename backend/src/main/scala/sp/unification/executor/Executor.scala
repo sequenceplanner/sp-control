@@ -20,6 +20,13 @@ class Executor extends ModelDSL with ROSSupport {
       c("reset", "true", s"cmd := ''"))
   )
 
+  a("reset", List(),
+    c("pre", "true", s"cmd := ''"),
+    c("started", "true"),
+    c("post", "true"),
+    c("reset", "true")
+  )
+
   driver("Executor", ROSFlatStateDriver.driverType)
   // blank list of things = take everything
   resource("resource")
