@@ -57,7 +57,7 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
   val marginCTS = 3.px
   val cardTitleSmall = style(
     fontSize(12.px),
-    textOverflow:= ("ellipsis"),
+    textOverflow:= "ellipsis",
     overflow.hidden,
     marginTop(marginCTS),
     marginLeft(marginCTS),

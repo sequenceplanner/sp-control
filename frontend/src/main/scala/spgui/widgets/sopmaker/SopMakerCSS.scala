@@ -62,7 +62,7 @@ object SopMakerCSS extends Theming.SPStyleSheet {
   )
 
   val opStateInit = style(
-    //backgroundColor := "#00ff00"
+    backgroundColor := "#ffffff"
   )
 
   val opStateExec = style(
@@ -82,7 +82,20 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     borderWidth(2 px),
     borderStyle:=!"solid",
     color :=! "#000000",
-    //backgroundColor := "#ffffff",
+    backgroundColor := "#ffffff",
+    display.flex,
+    flexDirection.column
+  )
+
+  // used by OperationRunnerCardComponent
+  val tinyOpInner = style(
+    height(50 px),
+    width(80 px),
+    borderRadius(5 px),
+    borderWidth(2 px),
+    borderStyle:=!"solid",
+    color :=! "#000000",
+    backgroundColor := "#ffffff",
     display.flex,
     flexDirection.column
   )

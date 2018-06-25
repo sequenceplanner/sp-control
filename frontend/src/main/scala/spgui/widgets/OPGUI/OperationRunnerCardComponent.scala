@@ -66,7 +66,7 @@ object OperationRunnerCardComponent {
         <.span(
           ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
           renderSmallOp(
-            opab.op.operation.name
+            opab.op.operation.name, List(), List(), getOpState(opab.op.operationState) 
           ),
           renderOpState(opab.op.operationState)
         ),
@@ -237,44 +237,92 @@ object OperationRunnerCardComponent {
     )
   }
 
-  def renderSmallOp(name: String, preConditions: List[String] = List(), postConditions: List[String] = List()) = {
-    <.div(
-      ^.className := OperationRunnerWidgetCSS.smallOpInner.htmlClass,
-      {
-        if(preConditions.isEmpty) {
-          EmptyVdom
-        } else {
-          <.div(
-            ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
-            preConditions.map(
-              pre => <.div(pre)
-            ).toTagMod
-          )
-        }
-      },
+
+  import spgui.widgets.sopmaker.SopMakerCSS
+  val opHeight = 50
+  val opWidth = 60
+  def renderSmallOp(
+    name: String,
+    preConditions: List[String] = List(),
+    postConditions: List[String] = List(),
+    state: String = "NoneState"
+  ) = {
+    <.span(
       <.div(
-        ^.className := OperationRunnerWidgetCSS.opNameOuter.htmlClass,
+        ^.className := SopMakerCSS.opInner.htmlClass,
         <.div(
-          ^.className := OperationRunnerWidgetCSS.smallOpName.htmlClass,
-          name
-        )
-      ),
-      {
-        if(postConditions.isEmpty) {
-          EmptyVdom
-        } else {
+          ^.className := SopMakerCSS.preCondition.htmlClass
+        ),
+        <.div(
+          ^.className := SopMakerCSS.opNameOuter.htmlClass,
+          {
+            state match {
+              case "i" => ^.className := SopMakerCSS.opStateInit.htmlClass
+              case "e" => ^.className := SopMakerCSS.opStateExec.htmlClass
+              case "f" => ^.className := SopMakerCSS.opStateFini.htmlClass
+              case _ => ^.className := SopMakerCSS.opStateNone.htmlClass
+            }
+          },
           <.div(
-            ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
-            postConditions.map(
-              post => <.div(post)
-            ).toTagMod
+            ^.className := SopMakerCSS.opName.htmlClass,
+            name
           )
-        }
-      }
+        ),
+        <.div(
+          ^.className := SopMakerCSS.postCondition.htmlClass
+        )
+      )
     )
   }
 
 
+  // def renderSmallOp(name: String, preConditions: List[String] = List(), postConditions: List[String] = List()) = {
+  //   <.div(
+  //     ^.className := OperationRunnerWidgetCSS.smallOpInner.htmlClass,
+  //     {
+  //       if(preConditions.isEmpty) {
+  //         EmptyVdom
+  //       } else {
+  //         <.div(
+  //           ^.className := OperationRunnerWidgetCSS.opPrecondition.htmlClass,
+  //           preConditions.map(
+  //             pre => <.div(pre)
+  //           ).toTagMod
+  //         )
+  //       }
+  //     },
+  //     <.div(
+  //       ^.className := OperationRunnerWidgetCSS.opNameOuter.htmlClass,
+  //       <.div(
+  //         ^.className := OperationRunnerWidgetCSS.smallOpName.htmlClass,
+  //         name
+  //       )
+  //     ),
+  //     {
+  //       if(postConditions.isEmpty) {
+  //         EmptyVdom
+  //       } else {
+  //         <.div(
+  //           ^.className := OperationRunnerWidgetCSS.opPostcondition.htmlClass,
+  //           postConditions.map(
+  //             post => <.div(post)
+  //           ).toTagMod
+  //         )
+  //       }
+  //     }
+  //   )
+  // }
+
+  def getOpState(state: Map[ID, SPValue]) = {
+    state.map{case (key, value) => {
+      value.toString match {
+        case "\"i\"" => "i"
+        case "\"e\"" => "e"
+        case "\"f\"" => "f"
+        case _ => "NoneState"
+      }
+    }}.head
+  }
 
   def renderOpState(state: Map[ID, SPValue]) = {
     <.span(
@@ -282,15 +330,15 @@ object OperationRunnerCardComponent {
       state.map{case (key, value) => {
         value.toString match {
           case "\"i\"" => <.span(
-            ^.className := OperationRunnerWidgetCSS.green.htmlClass,
+            ^.className := OperationRunnerWidgetCSS.opStateInit.htmlClass,
             "initialised"
           )
           case "\"e\"" => <.span(
-            ^.className := OperationRunnerWidgetCSS.spOrange.htmlClass,
+            ^.className := OperationRunnerWidgetCSS.opStateExec.htmlClass,
             "executing"
           )
           case "\"f\"" => <.span(
-            ^.className := OperationRunnerWidgetCSS.blue.htmlClass,
+            ^.className := OperationRunnerWidgetCSS.opStateFini.htmlClass,
             "finished"
           )
           case _ => <.span(value.toString)
