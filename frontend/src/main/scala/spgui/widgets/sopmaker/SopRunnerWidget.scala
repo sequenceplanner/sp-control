@@ -73,11 +73,13 @@ object SopRunnerWidget {
 
     def render(props: Props, state: State) = {
       <.div(
-        SPWidgetElements.dropdown(
-          "Choose SOP",
-          state.sopSpecs.map(
-            spec => SPWidgetElements.dropdownElement(spec.name, setSopSpec(spec))
-          )
+        SPWidgetElements.buttonGroup(Seq(
+          SPWidgetElements.dropdown(
+            "Choose SOP",
+            state.sopSpecs.map(
+              spec => SPWidgetElements.dropdownElement(spec.name, setSopSpec(spec))
+            )
+          ))
         ),
         state.currentSop match {
           case Some(sop) => SopVisualiser(sop, state.modelOps, state.opStates)
