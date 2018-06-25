@@ -5,15 +5,19 @@ import sp.domain._
 import spgui.communication._
 import sp.devicehandler.APIDeviceDriver
 import japgolly.scalajs.react.vdom.all.svg
+
 import scala.scalajs.js
 import sp.domain.logic.{PropositionConditionLogic => PCL}
 
 /** Cardcomponents for the OperationRunnerWidget */
 object OperationRunnerCardComponent {
   case class State(expandedId: Option[ID] = None)
-  case class Props(modelIdables: List[IDAble], cards: List[OperationRunnerCard])
+  case class Props(modelIdables: List[IDAble], cards: List[RunnerCard])
 
-  case class OperationRunnerCard(cardId: ID, ab: OperationRunnerWidget.AbilityWithState, op: OperationRunnerWidget.OperationWithState)
+  trait RunnerCard
+  case class OperationRunnerLonelyOp(lonelyCardId: ID, op: OperationRunnerWidget.OperationWithState) extends RunnerCard
+  case class OperationRunnerCard(cardId: ID, ab: OperationRunnerWidget.AbilityWithState, op: OperationRunnerWidget.OperationWithState) extends RunnerCard
+
 
   class Backend($: BackendScope[Props, State]) {
     def render(p:Props, s: State) = {
@@ -27,15 +31,23 @@ object OperationRunnerCardComponent {
             case true  => ^.className := OperationRunnerWidgetCSS.cardGroupExpanded.htmlClass
             case false => ^.className := OperationRunnerWidgetCSS.cardGroupCollapsed.htmlClass
           }},
-          p.cards.map(
-            c => c match {
-              case opab: OperationRunnerCard => {
-                val smallCard = cardSmall(opab, propositionPrinter)
-                val expandedCard = cardExpanded(opab, propositionPrinter)
-                renderCard(opab.cardId, s.expandedId, expandedCard, smallCard)
+          p.cards.map{
+            card =>
+              val a: TagMod = card match {
+                case opab: OperationRunnerCard => {
+                  val smallCard = cardSmall(opab, propositionPrinter)
+                  val expandedCard = cardExpanded(opab, propositionPrinter)
+                  renderCard(opab.cardId, s.expandedId, expandedCard, smallCard)
+                }
+                case op: OperationRunnerLonelyOp => {
+                  val smallCard = lonelyCardSmall(op, propositionPrinter)
+                  val expandedCard = lonelyCardExpanded(op, propositionPrinter)
+                  renderCard(op.lonelyCardId, s.expandedId, expandedCard, smallCard)
+                }
+                case _ => <.div()
               }
-            }
-          ).toTagMod
+              a
+          }.toTagMod
         )
       )
     }
@@ -87,13 +99,41 @@ object OperationRunnerCardComponent {
         )
       )
     }
+    def lonelyCardSmall(operation: OperationRunnerLonelyOp, printer: (Proposition) => String) = {
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            operation.op.operation.name
+          ),
+          renderOpState(operation.op.operationState)
+        )
+      )
+    }
+    def lonelyCardExpanded(operation: OperationRunnerLonelyOp, printer: (Proposition) => String) = {
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            operation.op.operation.name,
+            operation.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "pre" => printer(c.guard)}).flatten,
+            operation.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "post" => printer(c.guard)}).flatten
+          ),
+          renderOpState(operation.op.operationState)
+        )
+      )
+    }
 
     def renderCard(
-      cardId: ID,
-      expandedId: Option[ID],
-      cardContentsExpanded: TagMod,
-      cardContentsCollapsed: TagMod
-    ): TagMod = {
+                    cardId: ID,
+                    expandedId: Option[ID],
+                    cardContentsExpanded: TagMod,
+                    cardContentsCollapsed: TagMod
+                  ): TagMod = {
       val isExpanded = expandedId == Some(cardId)
       List(
         <.span(
@@ -260,7 +300,7 @@ object OperationRunnerCardComponent {
           case AbilityStateEnum.forcedReset => "forcedReset"
           case AbilityStateEnum.failed => "failed"
           case "invalidState" => "invalidState"
-        }        
+        }
       }.toTagMod
     )
   }
@@ -270,5 +310,5 @@ object OperationRunnerCardComponent {
     .renderBackend[Backend]
     .build
 
-  def apply(modelIdables: List[IDAble], cards: List[OperationRunnerCard]) = component(Props(modelIdables, cards))
+  def apply(modelIdables: List[IDAble], cards: List[RunnerCard]) = component(Props(modelIdables, cards))
 }

@@ -9,7 +9,9 @@ import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import sp.vdtesting.APIVDTracker
 import spgui.communication._
-import sp.models.{APIModel}
+import sp.models.APIModel
+import spgui.widgets.OPGUI
+import spgui.widgets.OPGUI.OperationRunnerCardComponent.RunnerCard
 
 /** Widget to visualize the pairs of abilities/operations */
 object OperationRunnerWidget {
@@ -34,12 +36,13 @@ object OperationRunnerWidget {
     * @param availableOpAbPairs The map between operation id and ability id, that is available to add to the runner
     */
   case class State(
-                    activeRunner:         Option[Runner] = None,
-                    modelIdables:         List[IDAble] = List(),
-                    abilityStateMapper:   Map[ID, AbilityWithState] = Map(),
-                    operationStateMapper: Map[ID, OperationWithState] = Map(),
-                    activeOpAbPairs:      List[OpAbPair] = List(), // in the runner
-                    availableOpAbPairs:   List[OpAbPair] = List() // in the model with possibility to add to runner
+                    activeRunner:           Option[Runner] = None,
+                    modelIdables:           List[IDAble] = List(),
+                    abilityStateMapper:     Map[ID, AbilityWithState] = Map(),
+                    operationStateMapper:   Map[ID, OperationWithState] = Map(),
+                    activeOpAbPairs:        List[OpAbPair] = List(), // in the runner
+                    operationAbilityMap:    Map[ID, ID] = Map(),
+                    availableOpAbPairs:     List[OpAbPair] = List() // in the model with possibility to add to runner
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -129,7 +132,8 @@ object OperationRunnerWidget {
             // try to update state with operationStateMapper and opAbPairs
             sameRunnerSetup.map{setup => state.copy(
               activeOpAbPairs = opAbPairs(setup).toList,
-              operationStateMapper = opStateMapper(setup))
+              operationStateMapper = opStateMapper(setup),
+              operationAbilityMap = setup.opAbilityMap)
             }.getOrElse(state)
           }
         }
@@ -137,7 +141,7 @@ object OperationRunnerWidget {
         // TODO: Add runInAuto and disableConditionGroups
         // case StateEvent-message: see if any operation has been updated
         // if so, update the operationStateMapper
-        case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap, runInAuto, disableConditionGroups) => {
+        case APIOperationRunner.StateEvent(runnerID, newRunnerStateMap, _, _) => {
           $.modState { state =>
             // if StateEvent occur, check if the operationState is for the same Runner-id as the widgets activeRunnerId
             if(state.activeRunner.exists(_.id.contains(runnerID))){
@@ -262,12 +266,23 @@ object OperationRunnerWidget {
       <.div(
         ^.className := OperationRunnerWidgetCSS.widgetRoot.htmlClass,
         OperationRunnerCardComponent(
-          state.modelIdables,
-          state.activeOpAbPairs.map{ operationAbilityPair => {
-            val op = state.operationStateMapper(operationAbilityPair.operationID)
-            val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
-            OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
-          }}
+          state.modelIdables, {
+            val opAbCards: List[RunnerCard] = state.activeOpAbPairs.map { operationAbilityPair => {
+              val op = state.operationStateMapper(operationAbilityPair.operationID)
+              val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
+              OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
+            }
+            }
+            val lonelyOperationMap: Map[ID, OperationWithState] =
+              state.operationStateMapper.filter{operationWithState => !state.operationAbilityMap.contains(operationWithState._1)}
+            println(s"Lonely Operations: $lonelyOperationMap \nStateMapper: ${state.operationStateMapper}")
+            val lonelyOperations: List[OperationWithState] = lonelyOperationMap.values.toList
+            val lonelyCards: List[RunnerCard] = lonelyOperations.map{lonelyOp =>
+              OperationRunnerCardComponent.OperationRunnerLonelyOp(lonelyOp.operation.id, lonelyOp)
+            }
+            val mergeCards: List[RunnerCard] = opAbCards ++ lonelyCards
+            mergeCards
+          }
         )
       )
     }
