@@ -274,22 +274,33 @@ object OperationRunnerWidget {
             }
             }
             // TODO: Fix the backend issue with operations as things and no information about the state of the operation
-            val things = state.modelIdables.filter{_.attributes.keys.contains("domain")}
+            val operationThings = state.modelIdables.filter{_.attributes.keys.contains("domain")}
             val operations = state.modelIdables.collect {case o: Operation => o}
-            println(s"Things: $things \n" +
-              s"Operations: $operations")
-            val lonelyThings = things.filterNot{opThing => state.operationAbilityMap.contains(opThing.id)}
+            /*println(s"Things: $things \n" +
+              s"Operations: $operations")*/
+            val lonelyThings = operationThings.filterNot{opThing => state.operationAbilityMap.contains(opThing.id)}
             val lonelyOperationMap: Map[ID, OperationWithState] =
               state.operationStateMapper.filterNot{operationWithState => state.operationAbilityMap.contains(operationWithState._1)}
 
-            val lonelyCards: List[RunnerCard] = lonelyThings.map{thing =>
+            val lonelyOpCards: List[RunnerCard] = lonelyThings.map{thing =>
               val newOperation = Operation(name = thing.name,conditions = List(), attributes = thing.attributes, id = thing.id )
               OperationRunnerCardComponent.OperationRunnerLonelyOp(
                 thing.id,
                 OperationWithState(newOperation, Map())
               )
+
             }
-            val mergeCards: List[RunnerCard] = opAbCards ++ lonelyCards
+
+            val lonelyAbilityMap: Map[ID, OperationRunnerWidget.AbilityWithState] = state.abilityStateMapper.filterNot{ability =>
+              state.activeOpAbPairs.contains(ability._1)
+            }
+            val lonelyAbCards: List[RunnerCard] = lonelyAbilityMap.map{ab =>
+              OperationRunnerCardComponent.OperationRunnerLonelyAb(
+                ab._1, ab._2
+              )
+            }.toList
+
+            val mergeCards: List[RunnerCard] = opAbCards ++ lonelyOpCards ++ lonelyAbCards
             mergeCards
           }
         )

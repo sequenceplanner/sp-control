@@ -266,9 +266,7 @@ object StateHandlerWidget {
             SPWidgetElements.dropdownElement(value.toString, operationDomainChange(operation.id, value))
           )
         }.toSeq
-
-          println(s"$dropDownElements")
-          SPWidgetElements.dropdown("domain", dropDownElements)
+        SPWidgetElements.dropdown("domain", dropDownElements)
       }
       tryParseDropdown.map(<.td(_)).getOrElse(<.td("-"))
     }

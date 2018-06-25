@@ -16,6 +16,7 @@ object OperationRunnerCardComponent {
 
   trait RunnerCard
   case class OperationRunnerLonelyOp(lonelyCardId: ID, op: OperationRunnerWidget.OperationWithState) extends RunnerCard
+  case class OperationRunnerLonelyAb(lonelyCardId: ID, ab: OperationRunnerWidget.AbilityWithState) extends RunnerCard
   case class OperationRunnerCard(cardId: ID, ab: OperationRunnerWidget.AbilityWithState, op: OperationRunnerWidget.OperationWithState) extends RunnerCard
 
 
@@ -43,6 +44,11 @@ object OperationRunnerCardComponent {
                   val smallCard = lonelyCardSmall(op, propositionPrinter)
                   val expandedCard = lonelyCardExpanded(op, propositionPrinter)
                   renderCard(op.lonelyCardId, s.expandedId, expandedCard, smallCard)
+                }
+                case ab: OperationRunnerLonelyAb => {
+                  val smallCard = lonelyCardSmall(ab, propositionPrinter)
+                  val expandedCard = lonelyCardExpanded(ab, propositionPrinter)
+                  renderCard(ab.lonelyCardId, s.expandedId, expandedCard, smallCard)
                 }
                 case _ => <.div()
               }
@@ -105,9 +111,21 @@ object OperationRunnerCardComponent {
         <.span(
           ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
           renderSmallOp(
-            operation.op.operation.name
+            "OP: " + operation.op.operation.name
           ),
           renderOpState(operation.op.operationState)
+        )
+      )
+    }
+    def lonelyCardSmall(ability: OperationRunnerLonelyAb, printer: (Proposition) => String) = {
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            "AB: " + ability.ab.ability.name
+          ),
+          renderOpState(ability.ab.abilityState)
         )
       )
     }
@@ -117,13 +135,27 @@ object OperationRunnerCardComponent {
         <.span(
           ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
           renderOp(
-            operation.op.operation.name,
+            "OP: " + operation.op.operation.name,
             operation.op.operation.conditions.map(c =>
               c.attributes.getAs[String]("kind").collect{case "pre" => printer(c.guard)}).flatten,
             operation.op.operation.conditions.map(c =>
               c.attributes.getAs[String]("kind").collect{case "post" => printer(c.guard)}).flatten
           ),
           renderOpState(operation.op.operationState)
+        )
+      )
+    }
+    def lonelyCardExpanded(ability: OperationRunnerLonelyAb, printer: (Proposition) => String) = {
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            "AB: " + ability.ab.ability.name,
+            List(printer(ability.ab.ability.preCondition.guard)),
+            List(printer(ability.ab.ability.postCondition.guard))
+          ),
+          renderAbState(ability.ab.abilityState)
         )
       )
     }
