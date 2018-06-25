@@ -8,34 +8,97 @@ import japgolly.scalajs.react.vdom.all.svg
 
 import spgui.communication._
 import sp.domain._
+import sp.domain.Logic._
 import scalacss.ScalaCssReact._
 import scala.scalajs.js
 import spgui.components.SPWidgetElements
 
-
-import spgui.dragging._
+import diode.react.{ModelProxy, ReactConnectProxy}
 import spgui.circuit._
 
 import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.Icon
+import spgui.communication._
+import sp.runners.APIOperationRunner
+import sp.runners.APIOperationRunner.Setup
+import spgui.availablemodelscircuit._
+
 object SopRunnerWidget {
 
-  case class State(sop: SOP)
-
-  val idm = ExampleSops.ops.map(o => o.id -> o).toMap
+  case class State(
+    sopSpecs: List[SOPSpec] = List(),
+    modelOps: List[Operation] = List(),
+    opStates: Map[ID, SPValue] = Map(),
+    currentSop: Option[SOP] = None
+  )
+  case class Props(proxy: ModelProxy[ModelsCircuitState])
  
-  private class Backend($: BackendScope[Unit, State]) {
-    def render(state: State) = {
+  private class Backend($: BackendScope[Props, State]) {
+    val operationRunnerHandler =
+      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
+
+    def onOperationRunnerMessage(mess: SPMessage) = 
+      mess.getBodyAs[APIOperationRunner.Response].map {
+        case APIOperationRunner.Runners(setups) => {
+          $.modState(_.copy(opStates = setups.head.initialState)).runNow()
+        }
+        case APIOperationRunner.StateEvent(
+          runnerID, newRunnerStateMap, runInAuto, disableConditionGroups) => {
+          $.modState(s => s.copy(opStates = s.opStates ++ newRunnerStateMap)).runNow()
+        }
+        case _ => Unit
+      }
+
+    def onReceiveProps(props: Props) = {
+      $.modState(state => {
+        props.proxy.value.activeModel.map{ model =>
+          val sopSpecs = model.items.collect {
+            case spec:SOPSpec => spec
+          }
+          val ops = model.items.collect{
+            case o:Operation => o
+          }
+          state.copy(
+            sopSpecs = sopSpecs,
+            modelOps = ops
+          )
+        }.getOrElse(state)
+      })
+    }
+
+    def setSopSpec(spec: SOPSpec) = $.modState(_.copy(
+      currentSop = Some(spec.sop.head)
+    ))
+
+    def render(props: Props, state: State) = {
       <.div(
-        SopVisualiser(state.sop, ExampleSops.ops)
+        SPWidgetElements.dropdown(
+          "Choose SOP",
+          state.sopSpecs.map(
+            spec => SPWidgetElements.dropdownElement(spec.name, setSopSpec(spec))
+          )
+        ),
+        state.currentSop match {
+          case Some(sop) => SopVisualiser(sop, state.modelOps, state.opStates)
+          case None => EmptyVdom
+        }
+        // state.sops.map{ sop => 
+        //   SopVisualiser(sop, state.modelOps, state.opStates)
+        // }.toTagMod
       )
     }
   }
-  private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
-    .initialState(State(sop = ExampleSops.giantSop))
+
+  private val component = ScalaComponent.builder[Props]("SopRunnerWidget")
+    .initialState(State())
     .renderBackend[Backend]
+    .componentWillReceiveProps{
+      scope => scope.backend.onReceiveProps(scope.nextProps)
+    }
     .build
 
-  def apply() = spgui.SPWidget(spwb => component())
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = ModelsCircuit.connect(state => state)
+
+  def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 }

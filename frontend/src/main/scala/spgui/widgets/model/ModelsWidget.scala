@@ -10,7 +10,8 @@ import spgui.availablemodelscircuit._
 import spgui.circuit.{OpenModal, SPGUICircuit}
 import spgui.modal.ModalResult
 import spgui.{ModelCommunication, SimpleSet}
-
+import sp.models.APIModel
+import spgui.communication.BackendCommunication
 
 object ModelsWidget {
   import sp.models.{APIModel => Model, APIModelMaker => ModelMaker}
@@ -27,6 +28,13 @@ object ModelsWidget {
     def dispatchAction[A](modifier: A => A, wrapper: A => diode.Action)(maybeA: Option[A]): Callback = {
       maybeA.map(a => dispatch(wrapper(modifier(a)))).getOrElse(Callback.empty)
     }
+  }
+
+  def sendToModel(model: ID, mess: APIModel.Request)= Callback{ //  Send message to model
+    val h = SPHeader(from = "ModelsWidget", to = model.toString,
+      reply = SPValue("ModelsWidget"))
+    val json = SPMessage.make(h, mess)
+    BackendCommunication.publish(json, APIModel.topicRequest)
   }
 
 
@@ -218,7 +226,8 @@ object ModelsWidget {
     }
 
     def onSetActive(props: Props, modelId: ID): Callback = {
-      props.proxy.dispatchCB(SetActiveModel(modelId))
+      props.proxy.dispatchCB(SetActiveModel(modelId)) >>
+      sendToModel(modelId, APIModel.GetItemList(0,99999))
     }
 
     def onPreviewModel(props: Props, modelId: ID): Callback =  {
@@ -237,7 +246,7 @@ object ModelsWidget {
     }
 
     def onRefreshModels(): Callback = Callback {
-      ModelCommunication.postRequest(ModelMaker.GetModels)
+      ModelCommunication.postRequest(ModelMaker.GetModels) 
     }
 
     def onAddDummyItems(props: Props, modelId: ID): Callback = Callback {
@@ -251,7 +260,9 @@ object ModelsWidget {
     def onUnmount(): Callback = Callback.empty
 
 
-    def onMount(): Callback = Callback.empty
+    def onMount() =  Callback{
+      ModelCommunication.postRequest(ModelMaker.GetModels)
+    }
   }
 
   val initialUIState: UIState = UIState(Set(), None)
