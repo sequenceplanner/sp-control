@@ -1,6 +1,8 @@
 package sp
 
 import akka.actor._
+import sp.VDAggregator.AggregatorService
+
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -29,7 +31,7 @@ object Launch extends App {
     system.actorOf(sp.modelSupport.ModelService.props(models))
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
-    system.actorOf(sp.drivers.DriverService.props)
+    system.actorOf(AggregatorService.props)
 
   }
 

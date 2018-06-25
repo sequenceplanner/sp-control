@@ -4,8 +4,9 @@ import sp.domain._
 import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.abilityhandler.APIAbilityHandler.Abilities
-import sp.devicehandler.{VD, APIVirtualDevice, APIDeviceDriver}
+import sp.devicehandler.{VD}
+
+import sp.VDAggregator.APIVDAggregator
 import sp.domain._
 import spgui.communication._
 
@@ -18,67 +19,38 @@ object ResourceWidget {
 
   private class Backend($: BackendScope[Unit, State]) {
 
-    val deviceHandler = BackendCommunication.getMessageObserver(onDeviceMessage, APIVirtualDevice.topicResponse)
-    val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
+    val messHandler = BackendCommunication.getMessageObserver(onMessage, APIVDAggregator.topicResponse)
 
     /** Handle APIDeviceDriver-messages.
       *
-      * If a [[APIDeviceDriver.TheDrivers]] response is noticed,
+      * If a [[APIVDAggregator.TheDrivers]] response is noticed,
       * update the local list of driver.
       *
-      * If something else, Empty Callback.
       *
       * @param mess SPMessage from APIDeviceDriver
       */
-    def onDriverMessage(mess: SPMessage): Unit = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
-        case APIDeviceDriver.TheDrivers(drivers) => {
+    def onMessage(mess: SPMessage): Unit = {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVDAggregator.Response].map {
+        case APIVDAggregator.TheDrivers(drivers) =>
           $.modState { s =>
-            s.copy(theDrivers = drivers.map(d => (d._1, d._2, d._3)))
+            s.copy(theDrivers = drivers.map(d => (d.driver, d.driverState, d.status)))
           }
-        }
-        case x => Callback.empty
-      }
-      callback.foreach(_.runNow())
-    }
-
-    /** Handle APIVirtualDevice-messages.
-      *
-      * If a [[APIVirtualDevice.TheVD]] response is noticed,
-      * update the local list of resources.
-      *
-      * If a [[APIVirtualDevice.StateEvent]] response is noticed,
-      * update the local state of resource with same ID.
-      *
-      * If something else, Empty Callback.
-      *
-      * @param mess SPMessage from APIDeviceDriver
-      */
-    def onDeviceMessage(mess: SPMessage): Unit = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
-        case APIVirtualDevice.TheVD(_, _, newResources, _ , _) =>
-          $.modState { s: State => s.copy(resources = s.resources ++ newResources)}
-
-        // in case of StateEvent from VD,
-        // update the resource-state to the new value
-        case APIVirtualDevice.StateEvent(_, id, newState, _) =>
-          $.modState { s: State =>
-            s.copy(resources = s.resources.map { res =>
-                if(res.r.id == id) res.copy(state = res.state ++ newState) else res})
-          }
+          case APIVDAggregator.TheResources(resources) =>
+          $.modState { s: State => s.copy(resources = s.resources ++ resources)}
 
         case x => Callback.empty
       }
       callback.foreach(_.runNow())
     }
 
-    /** Set SPHeader and send SPMessage to APIVirtualDevice
+
+    /** Set SPHeader and send SPMessage to APIVDAggregator
       *
-      * @param mess SPMessage of APIVirtualDevice
+      * @param mess SPMessage of APIVDAggregator
       */
-    def sendToVirtualDevice(mess: APIVirtualDevice.Request): Unit = {
-      val header = SPHeader(from = "ResourceWidget", to = "", reply = SPValue("ResourceWidget"))
-      BackendCommunication.publish(SPMessage.make(header, mess), APIVirtualDevice.topicRequest)
+    def sendToAggregator(mess: APIVDAggregator.Request): Unit = {
+      val header = SPHeader(from = "ResourceWidget", to = APIVDAggregator.service, reply = SPValue("ResourceWidget"))
+      BackendCommunication.publish(SPMessage.make(header, mess), APIVDAggregator.topicRequest)
     }
 
     /** Render-function in Backend.
@@ -127,8 +99,7 @@ object ResourceWidget {
       */
     def onUnmount: Callback = Callback{
       println("ResourceWidget Unmouting")
-      deviceHandler.kill()
-      driverHandler.kill()
+      messHandler.kill()
     }
 
     /** When the widget did mount, try to get all VD that is active.
@@ -136,8 +107,8 @@ object ResourceWidget {
       * @return Callback
       */
     def didMount: Callback = Callback{
-      println(s"Resource Widget didMount and is requesting GetVD")
-      sendToVirtualDevice(APIVirtualDevice.GetVD)
+      println(s"Resource Widget didMount and is requesting GetResources")
+      sendToAggregator(APIVDAggregator.GetResources)
     }
   }
 

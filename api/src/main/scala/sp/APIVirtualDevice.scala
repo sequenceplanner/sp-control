@@ -173,8 +173,6 @@ package sp.devicehandler {
       */
     case object GetDriver extends Request
 
-    case object GetDrivers extends Request
-
 
     /**
       * A request to set up a new driver instance. Sometimes this will also start the generic driver, but
@@ -223,8 +221,6 @@ package sp.devicehandler {
       */
     case class TheDriver(x: Driver, driverState: DriverState) extends Response
 
-    case class TheDrivers(Drivers: List[(Driver, DriverState, String)]) extends Response
-
     /**
       * A response that the driver has been terminated. The message is not guranteed to come, for example
       * if the driver crashes.
@@ -235,13 +231,11 @@ package sp.devicehandler {
     object Formats {
       import play.api.libs.json._
       implicit lazy val fGetDriver:     JSFormat[GetDriver.type]     = deriveCaseObject[GetDriver.type]
-      implicit lazy val fGetDrivers:     JSFormat[GetDrivers.type]     = deriveCaseObject[GetDrivers.type]
       implicit lazy val fSetUpDeviceDriver: JSFormat[SetUpDeviceDriver] = Json.format[SetUpDeviceDriver]
       implicit lazy val fDriverStateChange:     JSFormat[DriverStateChange]     = Json.format[DriverStateChange]
       implicit lazy val fDriverCommand:     JSFormat[DriverCommand]     = Json.format[DriverCommand]
       implicit lazy val fDriverCommandDone:     JSFormat[DriverCommandDone]     = Json.format[DriverCommandDone]
       implicit lazy val fTheDriver:     JSFormat[TheDriver]     = Json.format[TheDriver]
-      implicit lazy val fTheDrivers:     JSFormat[TheDrivers]     = Json.format[TheDrivers]
       implicit lazy val fDriverTerminated:     JSFormat[DriverTerminated]     = Json.format[DriverTerminated]
       implicit lazy val fTerminateDriver:     JSFormat[TerminateDriver]     = Json.format[TerminateDriver]
       def fDeviceDriverRequest: JSFormat[Request] = Json.format[Request]

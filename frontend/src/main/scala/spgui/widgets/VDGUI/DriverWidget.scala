@@ -2,7 +2,8 @@ package spgui.widgets.VDGUI
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.{APIDeviceDriver, VD}
+import sp.devicehandler.VD
+import sp.VDAggregator.APIVDAggregator
 import sp.domain._
 import spgui.communication._
 import spgui.components.SPWidgetElements
@@ -21,7 +22,7 @@ object DriverWidget {
 
   private class Backend($: BackendScope[Unit, State]) {
     val driverHandler =
-      BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
+      BackendCommunication.getMessageObserver(onDriverMessage, APIVDAggregator.topicResponse)
     val vdTrackerHandler = BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicRequest)
 
     def onVDTrackerMessage(mess: SPMessage) : Unit = {
@@ -34,34 +35,24 @@ object DriverWidget {
 
     /** Handle APIDeviceDriver-messages.
       *
-      * If a [[APIDeviceDriver.TheDrivers]] response is noticed,
+      * If a [[APIVDAggregator.TheDrivers]] response is noticed,
       * add the driver to a card.
-      *
-      * If a [[APIDeviceDriver.DriverStateChange]] response is noticed,
-      * update the driver in the cards.
-      *
       * If something else, Empty Callback.
-      *
       * @param mess SPMessage
       */
     def onDriverMessage(mess: SPMessage): Unit = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
-        case APIDeviceDriver.TheDrivers(drivers) => {
+      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVDAggregator.Response].map {
+        case APIVDAggregator.TheDrivers(drivers) =>
           $.modState { _.copy(
             cards = drivers.map(d => Card(
-              driver = d._1,
-              driverState = d._2,
-              status = d._3,
-              cardId = d._1.id
+              driver = d.driver,
+              driverState = d.driverState,
+              status = d.status,
+              cardId = d.driver.id
             ))
           )}
-        }
-        case APIDeviceDriver.DriverStateChange(_, id, state, _) => {
-          $.modState(s => s.copy(cards = s.cards.map(c => if(c.driver.id == id) c.copy(driverState = state) else c)))
-        }
-        case x => {
+        case x =>
           Callback.empty
-        }
       }
       callback.foreach(_.runNow())
     }
@@ -102,7 +93,7 @@ object DriverWidget {
       * @return Callback
       */
     def onMount: Callback = {
-      sendToDeviceDriver(APIDeviceDriver.GetDrivers)
+      sendToVDAggregator(APIVDAggregator.GetDrivers)
     }
   }
 

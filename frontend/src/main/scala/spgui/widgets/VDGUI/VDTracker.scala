@@ -18,6 +18,8 @@ import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import sp.vdtesting.APIVDTracker
 import spgui.widgets.virtcom.Style
 
+import sp.VDAggregator.APIVDAggregator
+
 object VDTracker {
   import sp.devicehandler.APIDeviceDriver
   import sp.runners.APIOperationRunner
@@ -42,20 +44,18 @@ object VDTracker {
     val virtualDeviceHandler =  BackendCommunication.getMessageObserver(onVirtualDeviceMessage, APIVirtualDevice.topicResponse)
     val modelMessObs =  BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
     val vdModelObs =    BackendCommunication.getMessageObserver(onVDTmsg, APIVDTracker.topicResponse)
-    val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
+
+    val aggregatorHandler = BackendCommunication.getMessageObserver(onAggregatorMessage, APIVDAggregator.topicResponse)
 
     val vdtObs = BackendCommunication.getWebSocketStatusObserver(mess => {
       if (mess) sendToVDTrackerService(APIVDTracker.getModelsInfo())
     }, APIVDTracker.topicResponse)
 
 
-    def onDriverMessage(mess: SPMessage) : Unit = {
-      mess.body.to[APIDeviceDriver.Response].map {
-        case APIDeviceDriver.TheDrivers(ds) =>
-          $.modState ( _.copy(drivers = ds.map(_._1) ) ).runNow()
-        case APIDeviceDriver.DriverTerminated(id) =>
-          val td = $.state.runNow().drivers.find(d => d.id == id)
-          if(td.nonEmpty) println("Terminated " + td.get.name)
+    def onAggregatorMessage(mess: SPMessage) : Unit = {
+      mess.body.to[APIVDAggregator.Response].map {
+        case APIVDAggregator.TheDrivers(ds) =>
+          $.modState ( _.copy(drivers = ds.map(_.driver) ) ).runNow()
         case x =>
       }
     }
@@ -231,7 +231,7 @@ object VDTracker {
       virtualDeviceHandler.kill()
       modelMessObs.kill()
       vdModelObs.kill()
-      driverHandler.kill()
+      aggregatorHandler.kill()
       vdtObs.kill()
     }
   }
