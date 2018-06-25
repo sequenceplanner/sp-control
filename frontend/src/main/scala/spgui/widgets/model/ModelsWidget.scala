@@ -51,7 +51,7 @@ object ModelsWidget {
 
       <.table(
         ^.className := "table table-striped",
-        <.caption("Models"),
+        //<.caption("Models"),
         <.thead(<.tr(
           <.th("id"),
           <.th("name"),
@@ -176,11 +176,11 @@ object ModelsWidget {
 
     def render(props: Props, state: State): VdomElement = {
       <.div(
-        btnWithTags("", onCreateModel(), "fa fa-bolt", " Create test model", small = false)(^.className := css.mainButton.htmlClass),
-        btnWithTags("", onRefreshModels(), "fa fa-refresh", " Refresh models", small = false)(^.className := css.mainButton.htmlClass),
+        ^.className := css.container.htmlClass,
         renderModels(props, state),
         renderModelPreview(props, state),
-        ^.className := css.container.htmlClass
+        btnWithTags("", onCreateModel(), "fa fa-bolt", " Create test model", small = false)(^.className := css.mainButton.htmlClass),
+        btnWithTags("", onRefreshModels(), "fa fa-refresh", " Refresh models", small = false)(^.className := css.mainButton.htmlClass)
       )
     }
 

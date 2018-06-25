@@ -456,6 +456,61 @@ class OperationRunnerLogicTest(_system: ActorSystem) extends TestKit(_system) wi
     }
 
 
+    "run ops in pause mode with force start" in {
+      val logic = new OperationRunnerLogic{def log = akka.event.Logging.getLogger(system, this)}
+
+      val newS = setup.copy(
+        opAbilityMap = Map(),
+        ops = Set(o1, o2, o3)
+      )
+
+      var starting = List[ID]()
+      val f = (o: ID, map: Map[ID, SPValue]) => starting = o :: starting
+
+      var states = List[SPState]()
+      val f2 = (o: SPState) => states = o :: states
+
+      logic.addRunner(newS)
+
+      logic.updRunner(
+        newS.runnerID,
+        Set(),
+        Set(),
+        Map(),
+        f,
+        f2,
+        Some(false),
+        None
+      )
+
+      logic.setRunnerState(setup.runnerID, initState, f, f2)
+
+
+
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+      logic.tickRunner(setup.runnerID, f, f2)
+
+      states shouldEqual List() // no operation to start in paus
+
+
+      // Start and complete the op that we force start in pause
+      logic.tickRunner(setup.runnerID, f, f2, Some(o2.id), true)
+      logic.tickRunner(setup.runnerID, f, f2, None)
+      logic.tickRunner(setup.runnerID, f, f2, None)
+      assert(states.nonEmpty)
+      states.head.get(o2.id).get shouldEqual  SPValue(OperationState.finished)
+
+      // force complete ops .
+      //val newState = states.head.copy(state = states.head.state + (o2.id->OperationState.executing))
+      logic.tickRunner(setup.runnerID, f, f2, None, false, Some(o3.id))
+      logic.tickRunner(setup.runnerID, f, f2, None)
+      states.head.get(o3.id).get shouldEqual  SPValue(OperationState.finished)
+
+    }
+
 
     "testing messages" in {
       val s = OperationRunnerInfo.apischema

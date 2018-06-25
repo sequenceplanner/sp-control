@@ -5,10 +5,10 @@ import sp.abilityhandler.APIAbilityHandler.Ability
 import sp.devicehandler._
 import sp.domain._
 import sp.domain.Logic._
-import sp.domain.logic.{ActionParser, PropositionParser}
+import sp.domain.logic.{ActionParser, PropositionParser, SOPLogic}
 import sp.runners.APIOperationRunner
-import scala.util.{Try,Success, Failure}
 
+import scala.util.{Failure, Success, Try}
 import sp.supremicaStuff.base._
 
 object VariableKind {
@@ -24,13 +24,30 @@ sealed trait ModelElement
 case class Tdv(name: String, driverName: String, driverIdentifier: String, kind: VariableKind = ReadOnly) extends ModelElement
 case class Tv(name: String, initState: SPValue, domain: List[SPValue]) extends ModelElement
 case class Ta(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) extends ModelElement
-case class To(name: String, ab: String, conds: List[cond]) extends ModelElement
+case class To(name: String, ab: String, resources: List[String], conds: List[cond]) extends ModelElement
 case class Trunner(name: String, initState: Map[String, SPValue] = Map(), ops: List[String] = List()) extends ModelElement
 case class Tresource(name: String, dvs: List[String] = List()) extends ModelElement
 case class Tdriver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) extends ModelElement
 case class Tsubmodel(name: String, model: List[ModelElement]) extends ModelElement
 case class Tx(name: String, exprs: List[String]) extends ModelElement
 case class TpostBuildHook(func: List[IDAble] => List[IDAble]) extends ModelElement
+
+// For adding SOPs for small sub-sequences
+// will create a parent operation that enables the children when it is executing
+// will also reset all its operation when it is done (if their other reset conds allow it)
+case class Tsop(name: String, sop: TStringSOP) extends ModelElement
+sealed trait TStringSOP {
+  val sop: List[TStringSOP]
+}
+case class TsopP(sop: List[TStringSOP]) extends TStringSOP
+case class TsopS(sop: List[TStringSOP]) extends TStringSOP
+case class TsopA(sop: List[TStringSOP]) extends TStringSOP
+case class TsopO(o: String) extends TStringSOP {
+  val sop: List[TStringSOP] = List()
+}
+
+
+
 
 trait ModelDSL extends BuildModel with SynthesizeModel {
   def buildModel(name: String = "") = {
@@ -63,7 +80,7 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
     mes :+= Tv(name, initState, domain)
   }
   def a(name: String, parameters: List[String], pre:cond, running:cond, post:cond, reset:cond=cond("reset", "true")) = mes :+= Ta(name, parameters, pre, running, post, reset)
-  def o(name: String, ab: String="")(conds: cond*) = mes :+= To(name, ab, conds.toList)
+  def o(name: String, ab: String="", resources: List[String] = List())(conds: cond*) = mes :+= To(name, ab, resources, conds.toList)
   def x(name: String, expr: String) = mes :+= Tx(name, List(expr))
   def x(name: String, exprs: List[String]) = mes :+= Tx(name, exprs)
 
@@ -71,6 +88,20 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def resource(name: String, dvs: List[String] = List()) = mes :+= Tresource(name, dvs)
   def driver(name: String, driverType: String, setup: SPAttributes = SPAttributes()) = mes :+= Tdriver(name, driverType, setup)
   def use(name: String, other: ModelDSL) = mes :+= Tsubmodel(name, other.mes)
+
+  def sop(name: String, resources: List[String] = List())(conds: cond*)(sops: TStringSOP*) = {
+    o(name, "", resources)(conds:_*)
+    mes :+= Tsop(name, TsopS(sops.toList))
+  }
+  def sP(sops: TStringSOP*) = TsopP(sops.toList)
+  def sS(sops: TStringSOP*) = TsopS(sops.toList)
+  def sA(sops: TStringSOP*) = TsopA(sops.toList)
+  def sO(o: String) = TsopO(o)
+  def sOnew(name: String, ab: String="", resources: List[String] = List())(conds: cond*) = {
+    o(name, ab, resources)(conds:_*)
+    TsopO(name)
+  }
+
 
   def addPostBuildHook(func: List[IDAble] => List[IDAble]) = mes :+= TpostBuildHook(func)
 }
@@ -132,12 +163,18 @@ trait BuildModel {
           Thing(nn(name), SPAttributes("driverName" -> driverName, "driverIdentifier" -> driverIdentifier, "variableKind" -> kind.toString))
       }
 
+      val dvsDeeper = deeperThings.collect{
+        case t @ Thing(_, attr, _) if attr.get("driverName").isDefined => t
+      }
+
       // dont create them by default anylonger...
       // by default create v:s for dv:s if not already defined
       // val newVs = dvs.filterNot(dv=>vs.exists(_.name == dv.name)).map(dv=>Thing(dv.name))
       val updVs = vs // ++ newVs
       val upddvTovMap: Map[ID,ID] = upddvTovMap_ ++ updVs.flatMap { v =>
-        dvs.find(_.name == v.name).map(dv=>v.id->dv.id) } .toMap
+        val allD = dvs ++ dvsDeeper
+        allD.find(_.name == v.name).map(dv=>v.id->dv.id)
+      }.toMap
 
       // we can now add abilities and operations matching to the names we have
       val abParseHelpers = dvs ++ dvs.map(dv=> dv.copy(name = unnn(dv.name)))
@@ -155,6 +192,8 @@ trait BuildModel {
           APIAbilityHandler.abilityToOperation(a)
       }
 
+
+      // creating the operations
       val deeperVs = deeperThings.collect { case t: Thing if t.attributes.keys.contains("domain") =>  t}
       val opParseHelpersDeep = deeperVs ++ deeperVs.map(v=> v.copy(name = unnn(v.name)))
       val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name))) ++ opParseHelpersDeep
@@ -163,8 +202,10 @@ trait BuildModel {
       val opsAndMapping = m.model.collect {
         case item: To =>
           val defaultPre = if (item.conds.exists(_.kind == "pre")) None else Some(Condition(AlwaysTrue, List(), attributes = SPAttributes("kind"->"pre")))
-          val defautltPost = if (item.conds.exists(_.kind == "post")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"post")))
+          val defautltPost = if (item.conds.exists(_.kind == "post") || item.ab.isEmpty) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"post")))
           val defautltReset = if (item.conds.exists(_.kind == "reset")) None else Some(Condition(AlwaysFalse, List(), attributes = SPAttributes("kind"->"reset")))
+
+
           val theCondition: List[Condition] = item.conds.toList.map(x =>
             parse(x)(opParseHelpers)
           ) ++ defaultPre ++ defautltPost ++ defautltReset
@@ -179,11 +220,106 @@ trait BuildModel {
             // find by operation name, must be on the same "level"
             abs.find(_.name==op.name).map(a=>op.id->a.id)
           }
-          (op, mapping)
+          (op, mapping, item.resources)
       }
 
-      val ops = opsAndMapping.map{_._1}
-      val updOpAbMap = updopAbMap_ ++ opsAndMapping.flatMap{_._2}.toMap
+
+      // finding resource and what operations that want to use them
+      // will book when an operation is in executing. Only in the same level for now
+      val resourceBookingMap = opsAndMapping.foldLeft(Map[String, Set[ID]]()) {
+        case (aggr, triple) if triple._3.nonEmpty =>
+          val o = triple._1
+          val rs = triple._3
+          val addMe = rs.map{r =>
+            val otherOps = aggr.getOrElse(r,  Set[ID]())
+            r -> (otherOps + o.id)
+          }.toMap
+          aggr ++ addMe
+        case doNothing => doNothing._1
+      }
+
+      val opsANdMappingWithResourceBooking: List[(Operation, Option[(ID, ID)])] = opsAndMapping.map {
+        case (o, mapping, rs) if rs.nonEmpty =>
+          val others = rs.toSet.flatMap(resourceBookingMap) - o.id  // keys must exists, else the code is wrong
+          val notAtTheSameTime = others.toList.map{id =>
+            NEQ(SVIDEval(id), ValueHolder(SPValue("e")))
+          }
+          val guard = if (notAtTheSameTime.nonEmpty) Some(AND(notAtTheSameTime)) else None
+          val cond = guard.map(g => Condition(g, List(), SPAttributes(
+            "kind" -> "pre",
+            "group" -> "resource"
+          )))
+          val updO: Operation = o.copy(conditions = o.conditions ++ cond)
+          println("An operation was updated with resource booking: " + updO)
+          (updO, mapping)
+
+        case (a, b, c) => (a, b)
+      }
+
+
+      // Sequences. The operations in a sequence must have unique names. Only works with operations on this level
+      val opNameMap = opsANdMappingWithResourceBooking.map(kv => kv._1.name -> kv._1).toMap
+      val opIDMap = opsANdMappingWithResourceBooking.map(kv => kv._1.id -> kv._1).toMap
+      def makeASOP(sop: TStringSOP): SOP = sop match {
+        case TsopO(o) => OperationNode(opNameMap(o).id) // should break if name is misspelled
+        case TsopP(xs) => Parallel(xs.map(makeASOP))
+        case TsopS(xs) => Sequence(xs.map(makeASOP))
+        case TsopA(xs) => Alternative(xs.map(makeASOP))
+      }
+      val sopsAndStuff = m.model.collect {
+        case Tsop(name, stringSOP) => {
+          val sop = makeASOP(stringSOP)
+          val sopOP = opNameMap(name) // must exist
+          val ops = SOPLogic.extractOps(sop).map(opIDMap)
+
+          val sopCondMap = SOPLogic.extractOperationCondition(sop, "name")
+
+          // all sop operations can only execute when sop (parent op) is executing
+          val childCond = Condition(EQ(SVIDEval(sopOP.id), ValueHolder(SPValue("e"))), List(), SPAttributes(
+            "kind" -> "pre",
+            "group" -> name
+          ))
+
+          val childReset = Condition(NEQ(SVIDEval(sopOP.id), ValueHolder(SPValue("e"))), List(), SPAttributes(
+            "kind" -> "reset",
+            "group" -> name
+          ))
+
+          val updOps = ops.map{o =>
+            val fC = o.conditions.filterNot(p => p.attributes.getAs[String]("kind").contains("reset") && p.guard == AlwaysFalse)
+            o.copy(conditions = (fC :+ childCond :+ childReset) ++ sopCondMap.get(o.id))
+          }
+
+          val sopPostCond = Condition(SOPLogic.getCompleteProposition(sop), List(), SPAttributes(
+            "kind" -> "post",
+            "group" -> name
+          ))
+
+          val allHaveReset = AND(ops.map(o => EQ(SVIDEval(o.id), ValueHolder(SPValue("i")))))
+          val sopResetCond = Condition(allHaveReset, List(), SPAttributes(
+            "kind" -> "reset",
+            "group" -> name
+          ))
+
+          val updSOPOP = sopOP.copy(conditions = sopOP.conditions :+ sopPostCond :+ sopResetCond)
+
+          (SOPSpec(name+"_sop", List(sop)), updOps :+ updSOPOP)
+        }
+      }
+
+      val sops = sopsAndStuff.map(_._1)
+      val modifiedOps = sopsAndStuff.flatMap(_._2.map(o => o.id -> o)).toMap
+
+      println("**************************")
+      sops.foreach(println)
+      modifiedOps.foreach(println)
+      println("**************************")
+
+      val ops = opsANdMappingWithResourceBooking.map{
+        case (o, _) if modifiedOps.contains(o.id) => modifiedOps(o.id)
+        case (o, _) => o
+      }
+      val updOpAbMap = updopAbMap_ ++ opsANdMappingWithResourceBooking.flatMap{_._2}.toMap
 
       val forbidden = m.model.collect { case x: Tx =>
         // parse expression
@@ -196,7 +332,7 @@ trait BuildModel {
         SPSpec(x.name, SPAttributes("forbiddenExpressions" -> props))
       }
 
-      val levelThings = updVs ++ dvs ++ abs ++ ops ++ forbidden
+      val levelThings: List[IDAble] = updVs ++ dvs ++ abs ++ ops ++ forbidden ++ sops
 
       val updResources = updResources_ ++ m.model.collect {
         case Tresource(name: String, dts: List[String]) =>
@@ -275,14 +411,21 @@ trait BuildModel {
     val r = toplevel.model.collect { case r:Trunner => r }.head
     val dvTovMap = x._2
     val opAbMap = x._3
-    val mappedOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
+
+    // Removing ability ops in the runner
+    //val mappedOps = x._1.collect { case o: Operation if opAbMap.contains(o.id) => o }.toSet
+    val runnerOps = x._1.collect { case o: Operation if !o.attributes.getAs[String]("isa").contains("Ability") => o }.toSet
     val init = x._1.collect { case t: Thing => t }.flatMap{t => t.attributes.get("init").map(v=>t.id->v) }.toMap
     // ability -> params map
-    val absWithParams = x._1.collect { case o: Operation if o.attributes.getAs[String]("isa") == Some("Ability") &&
-      o.attributes.getAs[List[ID]]("parameters").getOrElse(List()) != List() => o }
+    val absWithParams = x._1.collect { case o: Operation if o.attributes.getAs[String]("isa").contains("Ability") &&
+      o.attributes.getAs[List[ID]]("parameters").forall(_.nonEmpty) => o }
     val paramMap = absWithParams.flatMap {a => a.attributes.getAs[List[ID]]("parameters").map(l => a.id -> l.toSet) }.toMap
 
-    val runner = APIOperationRunner.Setup(r.name, ID.newID, mappedOps,
+    println("XXXXXXXXXXXXXXXXXX")
+    runnerOps.foreach(println)
+    opAbMap.map(println)
+
+    val runner = APIOperationRunner.Setup(r.name, ID.newID, runnerOps,
       opAbMap, init, dvTovMap, paramMap) //TODO add parameters
 
     val runnerThing = APIOperationRunner.runnerSetupToThing(runner)
@@ -527,7 +670,8 @@ case class ParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List
       val updp = sg(p)
       println("changed to: " + updp.toString)
 
-      o.copy(conditions = Condition(updp, List(), SPAttributes("kind" -> synthKind)) :: o.conditions)
+      // KB: We should still use kind -> "pre", but filter on group
+      o.copy(conditions = Condition(updp, List(), SPAttributes("kind" -> synthKind, "group"->"synth")) :: o.conditions)
     })
     newCond
   }

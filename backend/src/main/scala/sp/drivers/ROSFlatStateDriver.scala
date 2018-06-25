@@ -177,9 +177,20 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
   val driverIdentifiers = d.setup.getAs[List[String]]("identifiers").getOrElse(List())
 
   case class RosVar(did: String, msgType: String, topic: String, field: String, rate: Int)
-  val rosVars = driverIdentifiers.map(s => {
-    val strs = s.split(":")
-    RosVar(s, strs(0), strs(1), strs(2), if(strs.size == 4) strs(3).toInt else 0)
+  val rosVars = driverIdentifiers.flatMap(s => {
+    s.split(":").toList match {
+      case msg :: topic :: field :: freq :: Nil  =>
+        val f = Try{freq.toInt}.getOrElse(0)
+        Some(RosVar(s, msg, topic, field, f))
+      case msg :: topic :: field :: Nil =>
+        Some(RosVar(s, msg, topic, field, 0))
+      case _ =>
+        println("****************************")
+        println("The driver identifier is not correctly formed for ROS!")
+        println("Should be msg_type:topic:field:freq, where freq is an int or can be omitted")
+        println("You wrote: " + s)
+        None
+    }
   })
 
   val didToVar = rosVars.map(r => r.did -> r).toMap
@@ -305,10 +316,10 @@ class ROSFlatStateDriverInstance(d: VD.Driver) extends Actor with NodeMain
           if(updSpState != spState) {
             // new state!
             spState = updSpState
-            println("============================================================")
-            println("got new ros state: ")
-            println(spState.mkString("\n"))
-            println("============================================================")
+            log.debug("============================================================")
+            log.debug("got new ros state: ")
+            log.debug(spState.mkString("\n"))
+            log.debug("============================================================")
             publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, updSpState)))
           }
         }
