@@ -180,16 +180,16 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     textAlign.center
   )
 
-  val blue = style(
-    color :=! "#0000ff"
+  val opStateInit = style(
+    color := "#000000"
   )
 
-  val spOrange = style(
-    color(_rgb((theme.value.spOrange)))
+  val opStateExec = style(
+    backgroundColor := "#50ff50"
   )
 
-  val green = style(
-    color :=! "#00ff00"
+  val opStateFini = style(
+    backgroundColor := "#0000ff"
   )
 
 
