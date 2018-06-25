@@ -16,7 +16,7 @@ import spgui.components.SPWidgetElements
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import spgui.widgets.virtcom.Style
 
-object NewVDTracker {
+object VDTrackerWidget {
   import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
   import sp.runners.APIOperationRunner
@@ -64,8 +64,8 @@ object NewVDTracker {
       val models = props.availableVDModels.map { model => SPWidgetElements.dropdownElement(model, onModelClick(model)) }
       val idAbles = props.activeModel.map(_.items).getOrElse(List())
       val runners = props.runners.toList
-      val abilityStates = props.abilities.map(_.state).reduce(_ ++ _)
-      val resourceStates = props.virtualDevices.flatMap(_.resources.toList).map(_.state).reduce(_ ++ _)
+      val abilityStates = props.abilities.map(_.state).reduceOption(_ ++ _).getOrElse(Map())
+      val resourceStates = props.virtualDevices.flatMap(_.resources.toList).map(_.state).reduceOption(_ ++ _).getOrElse(Map())
 
       <.div(
         SPWidgetElements.buttonGroup(Seq(
@@ -85,19 +85,18 @@ object NewVDTracker {
     }
 
     def terminateAll(props: Props): Callback = Callback {
-      terminateAbilities()
+      terminateAbilities(props)
       terminateDrivers(props.drivers.map(_.id)) // Todo: also remove all drivers from gui disp? */
-      terminateVDs()
+      terminateVDs(props)
 
       println("Terminating runners..")
-      terminateRunners(props.runners.map(_.id))
-      // Todo: terminate virtualDevice
+      terminateRunners(props)
     }
 
     def renderRunners(activeRunnerId: RunnerId, runners: List[Runner], ids : List[IDAble]): TagMod = {
       runners.map { runner =>
         val active = runner.id == activeRunnerId
-        val state = runner.operations.flatMap(_.state).toMap
+        val state = runner.state
 
         val rows = state.map { case (id, value) =>
             val name = ids.find(_.id == id).map(_.name).getOrElse("")
@@ -109,11 +108,13 @@ object NewVDTracker {
             )
         }.toTagMod
 
+        val summaryText = s"Operation runner state (${runner.id})"
+
         <.details(
           (^.open := "open").when(active),
           ^.className := Style.collapsible.htmlClass,
           <.summary(
-            s"Operation runner state (${runner.id})",
+            summaryText,
             <.button(
               ^.className := "btn",
               ^.title := "Kill runner",
@@ -150,12 +151,14 @@ object NewVDTracker {
       ).when(data.nonEmpty)
     }
 
-    def terminateVDs(): Unit = {
+    def terminateVDs(props: Props): Unit = {
       VDCommunication.postRequest(APIVirtualDevice.TerminateAllVDs)
+      props.proxy.dispatchCB(TerminateAllVirtualDevices).runNow()
     }
 
-    def terminateAbilities(): Unit = {
+    def terminateAbilities(props: Props): Unit = {
       AbilityCommunication.postRequest(APIAbilityHandler.TerminateAllAbilities)
+      props.proxy.dispatchCB(TerminateAllAbilities).runNow()
     }
 
     def terminateDrivers(driverIds : Iterable[DriverId]): Unit = {
@@ -164,10 +167,8 @@ object NewVDTracker {
       }
     }
 
-    def terminateRunners(runners: Iterable[RunnerId]): Unit = {
-      runners.foreach { runnerId =>
-        OperationRunnerCommunication.postRequest(APIOperationRunner.TerminateRunner(runnerId))
-      }
+    def terminateRunners(props: Props): Unit = {
+      props.proxy.dispatchCB(TerminateAllRunners).runNow()
     }
 
     def terminateRunner(id: RunnerId): Unit = {
