@@ -194,7 +194,8 @@ class UnificationModel extends ModelDSL {
     */
 
   o("log_in", s"OP.login", useOP)(
-    c("pre", "NOT OP.loggedIn")
+    c("pre", "NOT OP.loggedIn"),
+    c("reset", "true")
   )
   // add another operation that is forwarding the log in
 
@@ -230,7 +231,8 @@ class UnificationModel extends ModelDSL {
   // just one side for demo
   sop("measureEngineSimple")(
     c("pre", s"OP.loggedIn && engine == 'notMeasured' && $urPose == $HomeJOINT"),
-    c("pre", s"urTool == 'none'")
+    c("pre", s"urTool == 'none'"),
+    c("reset", "true")
   )(List("Right").flatMap{ x =>
     List(
       sOnew("toInitPosMeasureEngine", s"UR.pose.goto_PreFindEngineJOINT", useUR)(),
@@ -261,7 +263,8 @@ class UnificationModel extends ModelDSL {
   sop("attachLFToolWithExecutor")(
     c("pre", s"OP.loggedIn && engine == 'measured' && $urPose == $HomeJOINT"),
     c("pre", s"urTool == 'none'"),
-    c("pre", s"lf_pos == 'on_kitting'")
+    c("pre", s"lf_pos == 'on_kitting'"),
+    c("reset", "true")
   )(
     sOnew("toPreAttachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
     sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
@@ -274,7 +277,8 @@ class UnificationModel extends ModelDSL {
     c("pre", s"mir == 'atEngine' && $urPose == $HomeJOINT"),
     c("pre", s"$urPose == $HomeJOINT"),
     c("pre", s"urTool == 'lfTool'"),
-    c("pre", s"lf_pos == 'on_kitting'")
+    c("pre", s"lf_pos == 'on_kitting'"),
+    c("reset", "true")
   )(
     sOnew("toLFMagic1", s"UR.pose.goto_$LFOperationMidpoint1JOINT", useUR)(),
     sOnew("toLFMagic2", s"UR.pose.goto_$LFOperationMidpoint2JOINT", useUR)(),
@@ -289,7 +293,8 @@ class UnificationModel extends ModelDSL {
     c("pre", s"mir == 'atEngine'"),
     c("pre", s"$urPose == $LFOperationMidpoint5JOINT"),
     c("pre", s"urTool == 'lfTool'"),
-    c("pre", s"lf_pos == 'on_kitting'")
+    c("pre", s"lf_pos == 'on_kitting'"),
+    c("reset", "true")
   )(
     sP(
       sOnew("OPlfMounting", s"OP.mountLF", useOP)(),
@@ -327,7 +332,8 @@ class UnificationModel extends ModelDSL {
   sop("detachLFToolWithExecutor")(
     c("pre", s"OP.loggedIn && $urPose == $HomeJOINT"),
     c("pre", s"urTool == 'lfTool'"),
-    c("pre", s"lf_pos == 'on_engine'")
+    c("pre", s"lf_pos == 'on_engine'"),
+    c("reset", "true")
   )(
     sOnew("toPreDetachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
     sOnew(s"DetachLF", s"Executor.$DetachLFTool", useUR)(

@@ -56,7 +56,7 @@ class Atlas extends ModelDSL with ROSSupport {
 
   // abilities
   a("lift", List(),
-    c("pre", "true", "activate_lift:=true"),
+    c("pre", "true", "activate_lift:=true", "activate_unload:=false"),
     c("started", "got_cmd_activate_lift"),
     c("post", "true"),
     c("reset", "true"))
