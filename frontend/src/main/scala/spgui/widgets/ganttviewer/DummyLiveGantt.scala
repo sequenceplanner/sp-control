@@ -11,6 +11,7 @@ import sp.runners.{APIOperationRunner => oprapi}
 import sp.abilityhandler.{APIAbilityHandler => ahapi}
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.communication.APIComm.StreamHelper
+import spgui.components.SPWidgetElements
 import spgui.widgets.gantt.{Row, SPGantt, SPGanttOptions, Task}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -110,10 +111,23 @@ object DummyGanttComponent {
   class Backend($: BackendScope[Props, State]) {
 
     var spGantt: SPGantt = _
+    var autoscrollRight: () => Unit = _
+    var scrollingStopped = false
+
+    def toggleAutoscroll = Callback {
+      if(scrollingStopped) {
+        scrollingStopped = false
+        autoscrollRight = () => spGantt.scroll(Int.MaxValue)
+      } else {
+        scrollingStopped = true
+        autoscrollRight = () => Unit
+      }
+    }
 
     def render(p: Props) = {
       <.div(
-        HtmlTagOf[dom.html.Element]("gantt-component") // becomes <gantt-component></gantt-component>
+          HtmlTagOf[dom.html.Element]("gantt-component"), // becomes <gantt-component></gantt-component>
+        SPWidgetElements.button("toggle live scrolling", toggleAutoscroll)
       )
     }
   }
@@ -129,6 +143,7 @@ object DummyGanttComponent {
     .renderBackend[Backend]
     .componentDidMount(ctx => Callback {
       ctx.backend.spGantt = SPGantt(ctx.getDOMNode, SPGanttOptions(headers = js.Array("second"), viewScale = "1 seconds"))
+      ctx.backend.autoscrollRight = () => ctx.backend.spGantt.scroll(Int.MaxValue)
     })
     .componentWillReceiveProps { ctx =>
       val now = new js.Date()
@@ -152,6 +167,7 @@ object DummyGanttComponent {
     }
     .componentDidUpdate(ctx => Callback {
       ctx.backend.spGantt.setData(ctx.currentState.rows.values.map(_._2).toJSArray)
+      ctx.backend.autoscrollRight()
     })
     .build
 
