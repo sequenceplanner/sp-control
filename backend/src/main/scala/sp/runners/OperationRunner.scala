@@ -1,6 +1,7 @@
 package sp.runners
 
 import akka.actor._
+import sp.AbilityStatus
 
 import scala.util.{Failure, Random, Success, Try}
 import sp.domain._
@@ -108,7 +109,7 @@ class OperationRunner extends Actor
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
 
         case api.ForceComplete(id) =>
-          newAbilityState(id, sp.abilityhandler.AbilityStatus.Finished, startAbility, sendState)
+          newAbilityState(id, AbilityStatus.FinishedTag, startAbility, sendState)
 
         case api.RunnerControl(id, auto, groups) =>
           updRunner(id, Set(), Set(), Map(), startAbility, sendState(_, id), Some(auto), Some(groups))
@@ -139,7 +140,7 @@ class OperationRunner extends Actor
             val ops = getOPFromAbility(id).flatMap(_._2)
             log.debug(s"The ability with id $id completed for operations: $ops")
 
-            newAbilityState(id, sp.abilityhandler.AbilityStatus.Finished, startAbility, sendState)
+            newAbilityState(id, AbilityStatus.FinishedTag, startAbility, sendState)
 
           case abilityAPI.AbilityState(id, s) =>
             //val ops = getOPFromAbility(id).flatMap(_._2)
@@ -499,7 +500,7 @@ trait OperationRunnerLogic {
   def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID], disabledGroups: Set[SPValue] = Set()): Boolean = {
     s(o.id) == OperationState.executing &&
       ((!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition"), disabledGroups).forall(_.eval(s))) || // always true if no postcond
-        s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished)))
+        s.get(opAbilityMap(o.id)).contains(SPValue(AbilityStatus.FinishedTag)))
   }
 
   def canReset(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()): Boolean = {

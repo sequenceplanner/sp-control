@@ -37,4 +37,6 @@ object AbilityStatus {
     case FailedTag => Some(Failed)
     case _ => None
   }
+
+  implicit def asString(abilityStatus: AbilityStatus): String = abilityStatus.tag
 }

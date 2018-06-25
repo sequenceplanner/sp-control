@@ -84,19 +84,19 @@ trait AbilityActorLogic extends AbilityLogic{
   val ability: APIAbilityHandler.Ability
   lazy val ids = idsFromAbility(ability)
 
-  import AbilityStatus._
+  import sp.AbilityStatus
 
-  var state: String = Unavailable
+  var state: String = AbilityStatus.UnavailableTag
   var count: Long = 0
   var currentCaller = SPAttributes()
 
 
-  def makeUnavailable() = state = Unavailable
-  def makeAvailable() = state = NotEnabled
+  def makeUnavailable() = state = AbilityStatus.Unavailable
+  def makeAvailable() = state = AbilityStatus.NotEnabled
 
   def start(s: Map[ID, SPValue]): Option[Map[ID, SPValue]] = {
     val tH = evalState(s, "start")
-    if (state == Starting || state == Executing){
+    if (state == AbilityStatus.StartingTag || state == AbilityStatus.ExecutingTag){
       Some(tH._2)
     } else None
   }
@@ -137,40 +137,40 @@ trait AbilityActorLogic extends AbilityLogic{
     */
   def updateState(theState: SPState, cmd: String): (String, SPState) = state match {
     case x if cmd == "start" &&
-      (x == Enabled || x == NotEnabled || x == Unavailable) &&
+      (x == AbilityStatus.EnabledTag || x == AbilityStatus.NotEnabledTag || x == AbilityStatus.UnavailableTag) &&
       ability.preCondition.eval(theState) =>
 
       if (ability.started.eval(theState)) // skipping starting for simple abilities
-        (Executing, ability.started.next(ability.preCondition.next(theState)))
+        (AbilityStatus.Executing, ability.started.next(ability.preCondition.next(theState)))
       else
-        (Starting, ability.preCondition.next(theState))
+        (AbilityStatus.Starting, ability.preCondition.next(theState))
 
-    case x if cmd == "reset" && !(x == ForcedReset || x == Unavailable || x == Enabled || x == NotEnabled) =>
-      (ForcedReset, theState)
+    case x if cmd == "reset" && !(x == AbilityStatus.ForcedResetTag || x == AbilityStatus.UnavailableTag || x == AbilityStatus.EnabledTag || x == AbilityStatus.NotEnabledTag) =>
+      (AbilityStatus.ForcedReset, theState)
 
-    case x if x == ForcedReset =>
+    case x if x == AbilityStatus.ForcedResetTag =>
       val updS =  ability.resetCondition.next(theState)
       (checkEnabled(updS), updS)
 
-    case x if x == Unavailable && theState.state.nonEmpty =>
-      (NotEnabled, theState)
+    case x if x == AbilityStatus.UnavailableTag && theState.state.nonEmpty =>
+      (AbilityStatus.NotEnabled, theState)
 
-    case x if x != Executing && syncedExecution(ability) && ability.started.eval(theState) =>
-      (Executing, theState)
-    case x if x != Finished && syncedFinished(ability) && ability.postCondition.eval(theState) =>
-      (Finished, theState)
+    case x if x != AbilityStatus.ExecutingTag && syncedExecution(ability) && ability.started.eval(theState) =>
+      (AbilityStatus.ExecutingTag, theState)
+    case x if x != AbilityStatus.FinishedTag && syncedFinished(ability) && ability.postCondition.eval(theState) =>
+      (AbilityStatus.FinishedTag, theState)
 
-    case x if x == NotEnabled && ability.preCondition.eval(theState) =>
-      (Enabled, theState)
-    case x if x == Enabled && !ability.preCondition.eval(theState) =>
-      (NotEnabled, theState)
+    case x if x == AbilityStatus.NotEnabledTag && ability.preCondition.eval(theState) =>
+      (AbilityStatus.EnabledTag, theState)
+    case x if x == AbilityStatus.EnabledTag && !ability.preCondition.eval(theState) =>
+      (AbilityStatus.NotEnabledTag, theState)
 
 
-    case x if x == Starting && ability.started.eval(theState) =>
-      (Executing, ability.started.next(theState))
-    case x if x == Executing && ability.postCondition.eval(theState) =>
-      (Finished, ability.postCondition.next(theState))
-    case x if x == Finished && ability.resetCondition.eval(theState) =>
+    case x if x == AbilityStatus.StartingTag && ability.started.eval(theState) =>
+      (AbilityStatus.ExecutingTag, ability.started.next(theState))
+    case x if x == AbilityStatus.ExecutingTag && ability.postCondition.eval(theState) =>
+      (AbilityStatus.FinishedTag, ability.postCondition.next(theState))
+    case x if x == AbilityStatus.FinishedTag && ability.resetCondition.eval(theState) =>
       val updS = ability.resetCondition.next(theState)
       (checkEnabled(updS), updS)
 
@@ -181,7 +181,7 @@ trait AbilityActorLogic extends AbilityLogic{
 
   }
 
-  def checkEnabled(tS: SPState): String = if (ability.preCondition.eval(tS)) Enabled else NotEnabled
+  def checkEnabled(tS: SPState): String = if (ability.preCondition.eval(tS)) AbilityStatus.Enabled else AbilityStatus.NotEnabled
 
 
 
