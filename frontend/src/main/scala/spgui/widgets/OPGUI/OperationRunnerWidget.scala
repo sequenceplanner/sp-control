@@ -57,14 +57,21 @@ object OperationRunnerWidget {
               OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
             }
             }
-            val things = state.modelIdables.collect{ case t: Thing if t.attributes.keys.contains("domain") => t}
+            // TODO: Fix the backend issue with operations as things and no information about the state of the operation
+            val things = state.modelIdables.filter{_.attributes.keys.contains("domain")}
+            val operations = state.modelIdables.collect {case o: Operation => o}
+            println(s"Things: $things \n" +
+              s"Operations: $operations")
+            val lonelyThings = things.filterNot{opThing => state.operationAbilityMap.contains(opThing.id)}
             val lonelyOperationMap: Map[ID, OperationWithState] =
-              state.operationStateMapper.filter{operationWithState => !state.operationAbilityMap.contains(operationWithState._1)}
-            println(s"Lonely Operations: $lonelyOperationMap \nStateMapper: ${state.operationStateMapper} " +
-              s"\nOperationThings: $things")
-            val lonelyOperations: List[OperationWithState] = lonelyOperationMap.values.toList
-            val lonelyCards: List[RunnerCard] = lonelyOperations.map{lonelyOp =>
-              OperationRunnerCardComponent.OperationRunnerLonelyOp(lonelyOp.operation.id, lonelyOp)
+              state.operationStateMapper.filterNot{operationWithState => state.operationAbilityMap.contains(operationWithState._1)}
+
+            val lonelyCards: List[RunnerCard] = lonelyThings.map{thing =>
+              val newOperation = Operation(name = thing.name,conditions = List(), attributes = thing.attributes, id = thing.id )
+              OperationRunnerCardComponent.OperationRunnerLonelyOp(
+                thing.id,
+                OperationWithState(newOperation, Map())
+              )
             }
             val mergeCards: List[RunnerCard] = opAbCards ++ lonelyCards
             mergeCards
