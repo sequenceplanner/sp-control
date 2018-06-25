@@ -138,6 +138,7 @@ class UnificationModel extends ModelDSL {
   use("Executor", new Executor)
   use("OP", new Operator("OP"))
   use("TON", new TON("TON"))
+  use("OPLogin", new ReadLogIn)
 
   // booking by not allowing starting if another operation is in executing
   val useUR = List("UR")
