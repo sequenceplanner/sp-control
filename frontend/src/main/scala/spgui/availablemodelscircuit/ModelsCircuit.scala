@@ -82,6 +82,11 @@ object ModelsCircuit extends Circuit[ModelsCircuitState] with ReactConnector[Mod
     state
   }
 
+  // fetch everything from backend
+  private def onStartup() = {
+
+  }
+
   def handleByLens(action: Any): StateFn = action match {
     case SaveModel(model) => models.modify(_ + model)
 

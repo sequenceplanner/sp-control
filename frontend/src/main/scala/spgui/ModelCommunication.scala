@@ -107,8 +107,6 @@ object ModelCommunication {
         case _ => Unit
       }
     }
-
-
   }
 
   /**
