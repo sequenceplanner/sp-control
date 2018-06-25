@@ -61,7 +61,7 @@ object SopVisualiser {
   val opHeight = 80f
   val opWidth = 200f
   val opSpacingX = 10f
-  val opSpacingY = 100f
+  val opSpacingY = 10f
   val opSpacingYInsideGroup = 0f
   val opSpacingXInsideGroup = 0f
 

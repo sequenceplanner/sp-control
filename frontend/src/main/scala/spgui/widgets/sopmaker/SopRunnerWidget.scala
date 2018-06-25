@@ -27,9 +27,10 @@ import spgui.availablemodelscircuit._
 object SopRunnerWidget {
 
   case class State(
-    sops: List[SOP] = List(),
+    sopSpecs: List[SOPSpec] = List(),
     modelOps: List[Operation] = List(),
-    opStates: Map[ID, SPValue] = Map()
+    opStates: Map[ID, SPValue] = Map(),
+    currentSop: Option[SOP] = None
   )
   case class Props(proxy: ModelProxy[ModelsCircuitState])
  
@@ -52,25 +53,39 @@ object SopRunnerWidget {
     def onReceiveProps(props: Props) = {
       $.modState(state => {
         props.proxy.value.activeModel.map{ model =>
-          val sops = model.items.collect {
-            case SOPSpec(name, sop, attributes, id) => sop
-          }.flatten
+          val sopSpecs = model.items.collect {
+            case spec:SOPSpec => spec
+          }
           val ops = model.items.collect{
             case o:Operation => o
           }
           state.copy(
-            sops = sops,
+            sopSpecs = sopSpecs,
             modelOps = ops
           )
         }.getOrElse(state)
       })
     }
 
+    def setSopSpec(spec: SOPSpec) = $.modState(_.copy(
+      currentSop = Some(spec.sop.head)
+    ))
+
     def render(props: Props, state: State) = {
       <.div(
-        state.sops.map{ sop => 
-          SopVisualiser(sop, state.modelOps, state.opStates)
-        }.toTagMod
+        SPWidgetElements.dropdown(
+          "Choose SOP",
+          state.sopSpecs.map(
+            spec => SPWidgetElements.dropdownElement(spec.name, setSopSpec(spec))
+          )
+        ),
+        state.currentSop match {
+          case Some(sop) => SopVisualiser(sop, state.modelOps, state.opStates)
+          case None => EmptyVdom
+        }
+        // state.sops.map{ sop => 
+        //   SopVisualiser(sop, state.modelOps, state.opStates)
+        // }.toTagMod
       )
     }
   }
