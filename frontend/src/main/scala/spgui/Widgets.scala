@@ -33,7 +33,7 @@ object Widgets {
       ("SopRunner",                   widgets.sopmaker.SopRunnerWidget(),                 3, 4),
       ("ModelsWidget",                widgets.model.ModelsWidget(),                       3, 4),
       ("Item Editor",                 widgets.itemeditorincontrol.ItemEditorInControl(),  3, 4),
-      ("DummyLiveGantt",              widgets.ganttviewer.DummyLiveGantt(),               10, 5),
+      ("Live Gantt",                  widgets.ganttviewer.LiveGantt(),                    10, 5),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
 //      ("VolvoSchedulerWidget",        widgets.virtcom.VolvoSchedulerWidget(),             3, 4),
       ("VDTracker",                   widgets.VDGUI.VDTracker(),                          5, 5),

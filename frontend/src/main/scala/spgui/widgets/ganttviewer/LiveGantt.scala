@@ -17,7 +17,7 @@ import spgui.widgets.gantt.{Row, SPGantt, SPGanttOptions, Task}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-object DummyLiveGantt {
+object LiveGantt {
 
   // TODO runnerID should possibly be props
   case class State(
@@ -70,7 +70,7 @@ object DummyLiveGantt {
 
     def render(s: State) = {
       <.div(
-        "Open VDTracker -> Create model \"DummyExample\" -> click both Launch buttons to get data",
+        //"Open VDTracker -> Create model \"DummyExample\" -> click both Launch buttons to get data",
         /*
         <.button("getRunner", ^.onClick --> getAbilityNames(s.runnerID)),
         <.div(s.abilityNames.mkString),
@@ -80,13 +80,13 @@ object DummyLiveGantt {
           }
         ),
         */
-        DummyGanttComponent(s.abilityNames, s.oprState)
+        LiveGanttComponent(s.abilityNames, s.oprState)
       )
     }
 
   }
 
-  private val component = ScalaComponent.builder[SPWidgetBase]("DummyLiveGantt")
+  private val component = ScalaComponent.builder[SPWidgetBase]("LiveGantt")
     .initialState(State())
     .renderBackend[Backend]
     .componentDidUpdate { ctx =>
@@ -100,7 +100,7 @@ object DummyLiveGantt {
 
 }
 
-object DummyGanttComponent {
+object LiveGanttComponent {
 
   case class Props(abilityNames: Map[ID, String], oprState: Map[ID, String])
   case class State(
@@ -132,7 +132,7 @@ object DummyGanttComponent {
     }
   }
 
-  private val component = ScalaComponent.builder[Props]("DummyGanttComponent")
+  private val component = ScalaComponent.builder[Props]("LiveGanttComponent")
     /*
     .initialStateFromProps { p =>
       val rows = p.abilityNames.map { case (id, name) => id -> (false, Row(name, js.Array())) }
