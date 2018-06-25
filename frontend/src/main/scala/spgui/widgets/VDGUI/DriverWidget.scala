@@ -6,6 +6,7 @@ import sp.devicehandler.{APIDeviceDriver, VD}
 import sp.domain._
 import spgui.communication._
 import sp.vdtesting.APIVDTracker
+import spgui.components.SPWidgetElements
 
 /** Widget for visualising the drivers status */
 object DriverWidget {
@@ -75,7 +76,7 @@ object DriverWidget {
       <.div(
         SPWidgetElements.button(
           "reload data",
-          sendToDeviceDriver(APIDeviceDriver.GetDrivers)
+          Callback { DriverCommunication.postRequest(APIDeviceDriver.GetDrivers) }
         ),
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         SPCardComponent(state.cards.map(card => SPCardComponent.DriverCard(

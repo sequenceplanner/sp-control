@@ -6,6 +6,7 @@ import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros._
 import sp.domain.Logic._
 import sp.domain._
+import sp.models.APIModel
 import spgui.circuits.availablemodelscircuit._
 import spgui.circuit.{OpenModal, SPGUICircuit}
 import spgui.modal.ModalResult
@@ -29,13 +30,6 @@ object ModelsWidget {
     def dispatchAction[A](modifier: A => A, wrapper: A => diode.Action)(maybeA: Option[A]): Callback = {
       maybeA.fold(Callback.empty)(a => dispatch(wrapper(modifier(a))))
     }
-  }
-
-  def sendToModel(model: ID, mess: APIModel.Request)= Callback{ //  Send message to model
-    val h = SPHeader(from = "ModelsWidget", to = model.toString,
-      reply = SPValue("ModelsWidget"))
-    val json = SPMessage.make(h, mess)
-    BackendCommunication.publish(json, APIModel.topicRequest)
   }
 
 
@@ -228,8 +222,9 @@ object ModelsWidget {
     }
 
     def onSetActive(props: Props, modelId: ID): Callback = {
-      props.proxy.dispatchCB(SetActiveModel(modelId)) >>
-      sendToModel(modelId, APIModel.GetItemList(0,99999))
+      props.proxy.dispatchCB(SetActiveModel(modelId)) >> Callback {
+        ModelCommunication.postRequest(modelId, APIModel.GetItemList(0,99999))
+      }
     }
 
     def onPreviewModel(props: Props, modelId: ID): Callback =  {

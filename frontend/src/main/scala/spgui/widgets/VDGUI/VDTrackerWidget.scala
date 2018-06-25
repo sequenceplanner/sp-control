@@ -23,6 +23,7 @@ object VDTrackerWidget {
 
   case class Props(proxy: ModelProxy[FrontendState]) {
     val activeModel: Option[ModelMock] = proxy.value.models.activeModel
+    val activeModelId: Option[ID] = proxy.value.models.activeModelId
     val activeRunnerId: Option[RunnerId] = proxy.value.virtualDevices.latestActiveRunnerId
 
     def activeRunner: Option[Runner] = {
@@ -71,9 +72,11 @@ object VDTrackerWidget {
         SPWidgetElements.buttonGroup(Seq(
           SPWidgetElements.dropdown("Create Model", models),
           ModelChoiceDropdown(onModelChoiceClick),
-          SPWidgetElements.button("Launch VD and Abilities", launchAbilities),
-          SPWidgetElements.button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles)) }),
-          SPWidgetElements.button("Terminate Everything", terminateAll(props))
+          TagMod(
+            SPWidgetElements.button("Launch VD and Abilities", launchAbilities),
+            SPWidgetElements.button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles)) }),
+            SPWidgetElements.button("Terminate Everything", terminateAll(props))
+          ).when(props.activeModelId.isDefined)
         )),
         <.br(),
         props.activeRunnerId.map(activeRunnerId => renderRunners(activeRunnerId, runners, idAbles)).whenDefined,
@@ -88,6 +91,8 @@ object VDTrackerWidget {
       terminateAbilities(props)
       terminateDrivers(props.drivers.map(_.id)) // Todo: also remove all drivers from gui disp? */
       terminateVDs(props)
+      VDTrackerCommunication.postRequest(APIVDTracker.ResetGUI)
+
 
       println("Terminating runners..")
       terminateRunners(props)

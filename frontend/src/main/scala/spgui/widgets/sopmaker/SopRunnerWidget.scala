@@ -1,28 +1,15 @@
 package spgui.widgets.sopmaker
 
-import java.util.UUID
 import japgolly.scalajs.react._
-
 import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.vdom.all.svg
-
-import spgui.communication._
 import sp.domain._
-import sp.domain.Logic._
-import scalacss.ScalaCssReact._
-import scala.scalajs.js
+
 import spgui.components.SPWidgetElements
-
 import diode.react.{ModelProxy, ReactConnectProxy}
-import spgui.circuit._
-
-import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
-import spgui.{SPWidget, SPWidgetBase}
-import spgui.components.Icon
 import spgui.communication._
 import sp.runners.APIOperationRunner
-import sp.runners.APIOperationRunner.Setup
-import spgui.availablemodelscircuit._
+import spgui.circuits.main.MainCircuit
+import spgui.circuits.main.handlers.ModelsCircuitState
 
 object SopRunnerWidget {
 
@@ -95,7 +82,7 @@ object SopRunnerWidget {
     }
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = ModelsCircuit.connect(state => state)
+  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connect(_.models)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 }
