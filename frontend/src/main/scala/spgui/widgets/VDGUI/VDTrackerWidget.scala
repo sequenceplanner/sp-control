@@ -93,7 +93,6 @@ object VDTrackerWidget {
       terminateVDs(props)
       VDTrackerCommunication.postRequest(APIVDTracker.ResetGUI)
 
-
       println("Terminating runners..")
       terminateRunners(props)
     }

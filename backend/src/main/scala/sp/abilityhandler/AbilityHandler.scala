@@ -341,6 +341,7 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
       */
     def updateValue(key: ID)(f: T => T): Map[ID, T] = {
       map.get(key).map(v => map.updated(key, f(v))).getOrElse(map)
+
     }
   }
 
@@ -356,6 +357,7 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
       header <- message.getHeaderAs[SPHeader]
       body <- message.getBodyAs[T]
     } yield (header, body)
+
 
     def oneOf[A](implicit reads: JSReads[A]): OneOf[SPHeader, A] = OneOf[SPHeader, A](message)
 
@@ -380,3 +382,4 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
     }
   }
 }
+
