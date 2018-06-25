@@ -46,6 +46,27 @@ object OperationRunnerWidget {
       <.div(
         ^.className := css.widgetRoot.htmlClass,
         OperationRunnerCard(props.modelIdAbles, cards)
+        /*
+        OperationRunnerCardComponent(
+          state.modelIdables, {
+            val opAbCards: List[RunnerCard] = state.activeOpAbPairs.map { operationAbilityPair => {
+              val op = state.operationStateMapper(operationAbilityPair.operationID)
+              val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
+              OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
+            }
+            }
+            val lonelyOperationMap: Map[ID, OperationWithState] =
+              state.operationStateMapper.filter{operationWithState => !state.operationAbilityMap.contains(operationWithState._1)}
+            println(s"Lonely Operations: $lonelyOperationMap \nStateMapper: ${state.operationStateMapper}")
+            val lonelyOperations: List[OperationWithState] = lonelyOperationMap.values.toList
+            val lonelyCards: List[RunnerCard] = lonelyOperations.map{lonelyOp =>
+              OperationRunnerCardComponent.OperationRunnerLonelyOp(lonelyOp.operation.id, lonelyOp)
+            }
+            val mergeCards: List[RunnerCard] = opAbCards ++ lonelyCards
+            mergeCards
+          }
+        )
+        */
       )
     }
   }
