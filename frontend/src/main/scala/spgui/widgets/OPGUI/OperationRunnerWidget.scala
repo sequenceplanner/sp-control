@@ -22,8 +22,6 @@ object OperationRunnerWidget {
   // The runner
   case class Runner(id: Option[ID] = None, runInAuto: Boolean = true,
                     startOperation: Option[ID] = None, stepBackward: Boolean = false)
-  // Pairs of ID:s from the Runner.Setup.opAbilityMap
-  case class OpAbPair(abilityID: ID, operationID: ID)
 
   /** We need to separate the activeCards (the pairs the runner is using)
     * and the Operation/Ability-pair available, which we later can add to the runner
@@ -33,16 +31,14 @@ object OperationRunnerWidget {
     * @param abilityStateMapper All ability-information needed
     * @param operationStateMapper All operation-information needed
     * @param activeOpAbPairs The map between operation id and ability id, that the runner has
-    * @param availableOpAbPairs The map between operation id and ability id, that is available to add to the runner
     */
   case class State(
                     activeRunner:           Option[Runner] = None,
                     modelIdables:           List[IDAble] = List(),
                     abilityStateMapper:     Map[ID, AbilityWithState] = Map(),
                     operationStateMapper:   Map[ID, OperationWithState] = Map(),
-                    activeOpAbPairs:        List[OpAbPair] = List(), // in the runner
-                    operationAbilityMap:    Map[ID, ID] = Map(),
-                    availableOpAbPairs:     List[OpAbPair] = List() // in the model with possibility to add to runner
+                    activeOpAbPairs:        Map[ID, ID] = Map(), // in the runner
+                    operationAbilityMap:    Map[ID, ID] = Map()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -108,16 +104,16 @@ object OperationRunnerWidget {
               * foreach operation get the ability that is mapped
               * with this operation in [[Setup.opAbilityMap]]
               * @param setup: Setup - the [[APIOperationRunner.Setup]] that the runner have
-              * @return Set of [[OperationRunnerWidget.OpAbPair]]
+              * @return Map of abilityId to operationId
               */
-            def opAbPairs(setup: Setup): Set[OpAbPair] = setup.ops.flatMap { operation =>
+            def opAbPairs(setup: Setup): Map[ID, ID] = setup.ops.flatMap { operation =>
               setup.opAbilityMap.get(operation.id).map { abilityID =>
                 // Send [[APIAbilityHandler.GetAbility(id)]] with the abilityId
                 sendToAbilityHandler(APIAbilityHandler.GetAbility(abilityID))
                 // Create a new Pair
-                OpAbPair(abilityID, operation.id)
-              }
-            }
+                abilityID -> operation.id
+              }.toMap
+            }.toMap
 
             /**
               * map each operationId in [[Setup.ops]]: Set[Operation] to
@@ -131,7 +127,7 @@ object OperationRunnerWidget {
 
             // try to update state with operationStateMapper and opAbPairs
             sameRunnerSetup.map{setup => state.copy(
-              activeOpAbPairs = opAbPairs(setup).toList,
+              activeOpAbPairs = opAbPairs(setup),
               operationStateMapper = opStateMapper(setup),
               operationAbilityMap = setup.opAbilityMap)
             }.getOrElse(state)
@@ -268,32 +264,46 @@ object OperationRunnerWidget {
         OperationRunnerCardComponent(
           state.modelIdables, {
             val opAbCards: List[RunnerCard] = state.activeOpAbPairs.map { operationAbilityPair => {
-              val op = state.operationStateMapper(operationAbilityPair.operationID)
-              val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
+              val op = state.operationStateMapper(operationAbilityPair._2)
+              val ab = state.abilityStateMapper(operationAbilityPair._1)
               OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
             }
-            }
+            }.toList
             // TODO: Fix the backend issue with operations as things and no information about the state of the operation
             val operationThings = state.modelIdables.filter{_.attributes.keys.contains("domain")}
-            val operations = state.modelIdables.collect {case o: Operation => o}
+            val operations = operationThings.map{opThing =>
+              opThing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
+            }.flatten
+            val unusedOperations = operations.filterNot{op =>
+              state.activeOpAbPairs.contains(op.id)
+            }
+            val lonelyOpCards = unusedOperations.map{op =>
+              OperationRunnerCardComponent.OperationRunnerLonelyOp(
+                op.id,
+                OperationWithState(op, Map())
+              )
+            }
+//            val operations = state.modelIdables.collect {case o: Operation => o}
             /*println(s"Things: $things \n" +
               s"Operations: $operations")*/
-            val lonelyThings = operationThings.filterNot{opThing => state.operationAbilityMap.contains(opThing.id)}
+           /* val lonelyThings = operationThings.filterNot{opThing => state.operationAbilityMap.contains(opThing.id)}
             val lonelyOperationMap: Map[ID, OperationWithState] =
               state.operationStateMapper.filterNot{operationWithState => state.operationAbilityMap.contains(operationWithState._1)}
 
-            val lonelyOpCards: List[RunnerCard] = lonelyThings.map{thing =>
+            */
+           /* val lonelyOpCards: List[RunnerCard] = lonelyThings.map{thing =>
               val newOperation = Operation(name = thing.name,conditions = List(), attributes = thing.attributes, id = thing.id )
               OperationRunnerCardComponent.OperationRunnerLonelyOp(
                 thing.id,
                 OperationWithState(newOperation, Map())
               )
 
-            }
+            }*/
 
-            val lonelyAbilityMap: Map[ID, OperationRunnerWidget.AbilityWithState] = state.abilityStateMapper.filterNot{ability =>
+            val lonelyAbilityMap = state.abilityStateMapper.filterNot{ability =>
               state.activeOpAbPairs.contains(ability._1)
             }
+
             val lonelyAbCards: List[RunnerCard] = lonelyAbilityMap.map{ab =>
               OperationRunnerCardComponent.OperationRunnerLonelyAb(
                 ab._1, ab._2
