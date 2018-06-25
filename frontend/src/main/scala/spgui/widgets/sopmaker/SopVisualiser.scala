@@ -180,7 +180,11 @@ object SopVisualiser {
               )
             )
             case alt:RenderArbitrary => List(
-              SopMakerGraphics.arbitrary(xOffset - n.w/2, yOffset,n.w- opSpacingX),
+              SopMakerGraphics.arbitrary(
+                xOffset - n.w/2,
+                yOffset,
+                n.w - opSpacingX
+              ),
               SopMakerGraphics.arbitrary(
                 xOffset - n.w/2,
                 yOffset + n.h - parallelBarHeight,

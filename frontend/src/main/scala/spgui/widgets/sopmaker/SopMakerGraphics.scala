@@ -125,7 +125,22 @@ object SopMakerGraphics {
                   svg.width:= dottedLinewidth/2,
                   svg.height:=4,
                   svg.fill := "black",
+                ),
+                svg.rect(
+                  svg.x := xdot * dottedLinewidth +dottedLinewidth/2,
+                  svg.y := 0,
+                  svg.width:=dottedLinewidth/2,
+                  svg.height:=4,
+                  svg.fill := "#777777",
+                ),
+                svg.rect(
+                  svg.x := xdot*dottedLinewidth+ dottedLinewidth/2,
+                  svg.y :=  8,
+                  svg.width:= dottedLinewidth/2,
+                  svg.height:=4,
+                  svg.fill := "#777777",
                 )
+
               ).toTagMod
             ).toTagMod
           }
@@ -134,8 +149,32 @@ object SopMakerGraphics {
     )
 
 
-  def alternative(x: Float, y: Float, h: Float): TagMod =
-    <.span("yo")
+  def alternative(x: Float, y: Float, w: Float): TagMod =
+    <.span(
+      ^.className := SopMakerCSS.sopComponent.htmlClass,
+      ^.style := {
+        var rect =  (js.Object()).asInstanceOf[Rect]
+        rect.left = x + SopVisualiser.opWidth/2
+        rect.top = y
+        rect.height = 12
+        rect.width = w
+        rect
+      },
+      svg.svg(
+        svg.width := "100%",
+        svg.svg(
+          svg.width := w.toInt,
+          svg.height := 12,
+          svg.rect(
+            svg.x := 0,
+            svg.y := 4,
+            svg.width:=w.toInt,
+            svg.height:=4,
+            svg.fill := "black"
+          )
+        )
+      )
+    )
 
   def sopConnectionLine(x: Float, y: Float, h: Float): TagMod =
     <.span(
