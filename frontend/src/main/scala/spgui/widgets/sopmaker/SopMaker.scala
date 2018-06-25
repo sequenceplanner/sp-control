@@ -196,7 +196,7 @@ object SopMakerWidget {
   }
 
   private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
-    .initialState(State(sop = ExampleSops.randoSop))
+    .initialState(State(sop = ExampleSops.giantSop))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .componentDidMount(_.backend.onMount())
