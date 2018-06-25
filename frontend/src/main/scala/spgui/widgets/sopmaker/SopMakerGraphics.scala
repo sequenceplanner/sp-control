@@ -19,98 +19,50 @@ object SopMakerGraphics {
     var height: Float = js.native
   }
 
-  def sop(label: String, x: Int, y: Int) =
+  def op(label: String, x: Int, y: Int, state: String = "NoneState") = {
     <.span(
       ^.className := SopMakerCSS.sopComponent.htmlClass,
       ^.style := {
         var rect =  (js.Object()).asInstanceOf[Rect]
         rect.left = x
         rect.top = y
-        rect.height = SopMakerWidget.opHeight
-        rect.width = SopMakerWidget.opWidth
+        rect.height = SopVisualiser.opHeight
+        rect.width = SopVisualiser.opWidth
         rect
       },
-      svg.svg(
-        svg.width := SopMakerWidget.opWidth.toInt,
-        svg.height:= SopMakerWidget.opHeight.toInt,
-        svg.svg(
-          svg.width := SopMakerWidget.opWidth.toInt,
-          svg.height:= SopMakerWidget.opHeight.toInt,
-          svg.x := 0,
-          svg.y := 0,
-          svg.rect(
-            svg.x := 0,
-            svg.y := 0,
-            svg.width := SopMakerWidget.opWidth.toInt,
-            svg.height:= SopMakerWidget.opHeight.toInt,
-            svg.rx := 6, svg.ry := 6,
-            svg.fill := "white",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Top horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y := SopMakerWidget.opHorizontalBarOffset.toInt,
-            svg.width := SopMakerWidget.opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Bottom horizontal line
-          svg.rect(
-            svg.x := 0,
-            svg.y :=  (SopMakerWidget.opHeight - SopMakerWidget.opHorizontalBarOffset).toInt,
-            svg.width := SopMakerWidget.opWidth.toInt,
-            svg.height:= 1,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Left vertical line
-          svg.rect(
-            svg.x := SopMakerWidget.opVerticalBarOffset.toInt,
-            svg.y := SopMakerWidget.opHorizontalBarOffset,
-            svg.width := 1,
-            svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          // Right vertical line
-          svg.rect(
-            svg.x := SopMakerWidget.opWidth - SopMakerWidget.opVerticalBarOffset.toInt,
-            svg.y := SopMakerWidget.opHorizontalBarOffset,
-            svg.width := 1,
-            svg.height:= SopMakerWidget.opHeight.toInt - 2*SopMakerWidget.opHorizontalBarOffset,
-            svg.rx := 0, svg.ry := 0,
-            svg.fill := "black",
-            svg.stroke := "black",
-            svg.strokeWidth := 1
-          ),
-          svg.svg(    
-            svg.text(
-              svg.x := "50%",
-              svg.y := "50%",
-              svg.textAnchor := "middle",
-              svg.dy := ".3em",
-              label
-            )
+      <.div(
+        ^.className := SopMakerCSS.opInner.htmlClass,
+        <.div(
+          ^.className := SopMakerCSS.preCondition.htmlClass
+        ),
+        <.div(
+          ^.className := SopMakerCSS.opNameOuter.htmlClass,
+          {
+            state match {
+              case "\"i\"" => ^.className := SopMakerCSS.opStateInit.htmlClass
+              case "\"e\"" => ^.className := SopMakerCSS.opStateExec.htmlClass
+              case "\"f\"" => ^.className := SopMakerCSS.opStateFini.htmlClass
+              case _ => ^.className := SopMakerCSS.opStateNone.htmlClass
+            }
+          },
+          <.div(
+            ^.className := SopMakerCSS.opName.htmlClass,
+            label
           )
+        ),
+        <.div(
+          ^.className := SopMakerCSS.postCondition.htmlClass
         )
       )
     )
+  }
 
   def parallelBars(x: Float, y: Float, w:Float): TagMod =
     <.span(
       ^.className := SopMakerCSS.sopComponent.htmlClass,
       ^.style := {
         var rect =  (js.Object()).asInstanceOf[Rect]
-        rect.left = x + SopMakerWidget.opWidth/2
+        rect.left = x + SopVisualiser.opWidth/2
         rect.top = y
         rect.height = 12
         rect.width = w
@@ -144,7 +96,7 @@ object SopMakerGraphics {
       ^.className := SopMakerCSS.sopComponent.htmlClass,
       ^.style := {
         var rect =  (js.Object()).asInstanceOf[Rect]
-        rect.left = x + SopMakerWidget.opWidth/2
+        rect.left = x + SopVisualiser.opWidth/2
         rect.top = y
         rect.height = h
         rect.width = 4

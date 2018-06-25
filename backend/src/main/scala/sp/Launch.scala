@@ -12,10 +12,11 @@ object Launch extends App {
   val cluster = akka.cluster.Cluster(system)
 
   val models = Map(
-    "URModel" -> sp.unification.UnificationModel(),
+    "UnificationDemo" -> sp.unification.UnificationModel(),
     "TurtleModel" -> sp.unification.TurtleModel(),
     "DummyExample" -> sp.unification.DummyExample(),
-    "ExtendedDummy" -> sp.unification.DummyExampleExtended()
+    "ExtendedDummy" -> sp.unification.DummyExampleExtended(),
+    "SOPDummy" -> sp.unification.DummyExampleWithSOP(),
   )
 
   cluster.registerOnMemberUp {
@@ -25,14 +26,18 @@ object Launch extends App {
 
     system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
     system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
-    system.actorOf(sp.drivers.ROSFlatStateDriver.props, "ROSFlatStateDriver")
-    system.actorOf(sp.drivers.URDriver.props, "URDriver")
     system.actorOf(sp.runners.OperationRunner.props, "oprunner")
     system.actorOf(sp.modelSupport.ModelService.props(models))
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
     system.actorOf(AggregatorService.props)
 
+
+    // drivers
+    system.actorOf(sp.drivers.URDriver.props, "URDriver")
+    system.actorOf(sp.drivers.HumanDriver.props, "HumanDriver")
+    system.actorOf(sp.drivers.ROSFlatStateDriver.props, "ROSFlatStateDriver")
+    system.actorOf(sp.drivers.TONDriver.props, "TONDriver")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")

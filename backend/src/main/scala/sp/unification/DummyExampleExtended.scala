@@ -17,8 +17,8 @@ class DummyRobot(n: String) extends ModelDSL {
   dv("refPos", dn, "refPos")
 
   // Klurigt med integer som domän...
-  v("refPos", 0, List())
-  v("currentPos", 0, List())
+  v("refPos", 0, List(0))
+  v("currentPos", 0, List(0))
 
   a("moveToPos", List("refPos"),
     c("pre", "true", "active := true"),
@@ -31,48 +31,79 @@ class DummyRobot(n: String) extends ModelDSL {
   resource(rn) // blank list of things = take everything
 }
 
+class AHuman(name: String) extends ModelDSL {
+
+  val dn=name + "driver"
+  val rn= name + "resource"
+
+  dv("humanName", dn,"humanName")
+  dv("humanID", dn,"humanID")
+  dv("loggedIn", dn,"loggedIn")
+  dv("cmd", dn,"cmd")
+  dv("ack", dn,"ack")
+  dv("done", dn,"done")
+
+  val instructions = Map(
+    "doSomeStuff" -> "You should do some stuff",
+    "doSomethingElse" -> "Please do something else"
+  )
+
+  instructions.keys.foreach { an =>
+    a(an, List(),
+      c("pre", "true", s"cmd := $an"),
+      c("started", "ack || done"),  // maybe change to cmd != ''
+      c("post", "done", "cmd := ''", "ack := false", "done := false"),
+      c("reset", "true")
+    )
+  }
+
+  driver(dn, sp.drivers.HumanDriver.driverType, SPAttributes("instructions" -> instructions))
+  resource(rn) // blank list of things = take everything
+}
+
 class DummyExampleExtended extends ModelDSL {
   use("R1", new DummyRobot("1"))
   use("R2", new DummyRobot("2"))
   use("R3", new DummyRobot("3"))
+  use("karen", new AHuman("karen"))
 
   v("part1", false, List(false, true))
   v("part2", false, List(false, true))
   v("part3", false, List(false, true))
 
   o("R1_place1", "R1.moveToPos")(
-    c("pre", "!part1 && !part3", "R1.refPos = 100"),
-    c("post", "false", "part1 = true"),
+    c("pre", "!part1 && !part3 && R1.refPos = 0", "R1.refPos := 50"),
+    c("post", "false", "part1 := true"),
     c("reset", "true")
   )
 
   o("R1_remove1", "R1.moveToPos")(
-    c("pre", "part1 && part3", "R1.refPos = 10"),
-    c("post", "false", "part1 = false"),
+    c("pre", "part1 && part3 && R1.refPos = 50", "R1.refPos := 0"),
+    c("post", "false", "part1 := false"),
     c("reset", "true")
   )
 
   o("R2_place2", "R2.moveToPos")(
     c("pre", "!part2 && !part3", "R2.refPos = 75"),
-    c("post", "false", "part2 = true"),
+    c("post", "false", "part2 := true"),
     c("reset", "true")
   )
 
   o("R2_remove2", "R2.moveToPos")(
     c("pre", "part2 && part3", "R2.refPos = 10"),
-    c("post", "false", "part2 = false"),
+    c("post", "false", "part2 := false"),
     c("reset", "true")
   )
 
   o("R3_place3", "R3.moveToPos")(
     c("pre", "!part3 && part1 && part2", "R3.refPos = 50"),
-    c("post", "false", "part3 = true"),
+    c("post", "false", "part3 := true"),
     c("reset", "true")
   )
 
   o("R3_remove3", "R3.moveToPos")(
     c("pre", "part3 && !part1 && !part2", "R3.refPos = 0"),
-    c("post", "false", "part3 = false"),
+    c("post", "false", "part3 := false"),
     c("reset", "true")
   )
 

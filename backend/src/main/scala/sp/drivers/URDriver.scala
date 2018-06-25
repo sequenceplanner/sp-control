@@ -40,6 +40,9 @@ class URDriverInstance(d: VD.Driver) extends Actor
 
   subscribe(api.topicRequest)
 
+  println("DUMMYROBOT DRIVER *********************")
+  println("started")
+
 
   // the internal state of the UR-robot, Using a case class to simplify life
   var urState = URStream(
@@ -69,7 +72,7 @@ class URDriverInstance(d: VD.Driver) extends Actor
       if (urState != x) log.debug(x.toString)
       sendStateToBus(streamToMap(urState))
       urState = x
-      log.debug(s"${d.name} pos: ${x.currentPos}")
+      //log.debug(s"${d.name} pos: ${x.currentPos}")
 
     case x: String =>
       // SPMessage uses the APIParser to parse the json string
