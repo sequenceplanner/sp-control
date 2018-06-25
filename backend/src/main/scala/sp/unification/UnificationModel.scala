@@ -147,6 +147,7 @@ class UnificationModel extends ModelDSL {
   val useRSP = List("RSP")
   val useOP = List("OP")
   val useTON = List("TON")
+  val useAtlas = List("Atlas")
 
 
   // helper. To make a v for boolean variables
@@ -443,32 +444,36 @@ class UnificationModel extends ModelDSL {
   // go down from far above to nutrunner position and nutrunning, then back up
   bolts.foreach { b =>
 
-    o(s"${b}goto${closeAboveBolt(b)}", s"UR.pose.goto_${closeAboveBolt(b)}")(
+    sop(s"${b}bolting", useUR ++ useAtlas)(
       c("pre", s"$urPose == '${farAboveBolt(b)}' && $b == 'placed'"),
       boltUr,
-      c("reset", "true"))
-
-    o(s"${b}goto${atBolt(b)}", s"UR.pose.goto_${atBolt(b)}")(
-      c("pre", s"$urPose == '${closeAboveBolt(b)}' && $b == 'placed'"),
-      boltUr,
-      c("reset", "true"))
-
-    o(s"${b}Tighten", "Atlas.startToolForward")(
-      c("pre", s"$urPose == '${closeAboveBolt(b)}' && $b == 'placed'"),
-      boltUr,
-      c("post", "true", s"$b := 'tightened'"),
-      c("reset", "true"))
-
+      c("reset", "true")
+    )(
+      sOnew(s"${b}goto${closeAboveBolt(b)}", s"UR.pose.goto_${closeAboveBolt(b)}")(
+        boltUr
+      ),
+      sP(
+        sOnew(s"${b}goto${atBolt(b)}", s"UR.pose.goto_${atBolt(b)}")(
+          boltUr
+         ),
+        sOnew(s"${b}Tighten", "Atlas.startToolForward")(
+          boltUr,
+          c("post", "true", s"$b := 'tightened'")
+        )
+      )
+    )
 
     o(s"${b}backUpTo${farAboveBolt(b)}", s"UR.pose.goto_${farAboveBolt(b)}")(
       c("pre", s"$urPose == '${atBolt(b)}' && $b == 'tightened'"),
       boltUr,
       c("reset", "true"))
 
-     o(s"${b}HumanTightenMotion")(//, s"Human.tightenMotion$b")(
-       c("pre", s"$b == 'placed'"), boltHuman,
-       c("post", "true", s"urPose := 'atTCPnut$b'"),
-       c("reset", "true"))
+
+
+//     o(s"${b}HumanTightenMotion")(//, s"Human.tightenMotion$b")(
+//       c("pre", s"$b == 'placed'"), boltHuman,
+//       c("post", "true", s"urPose := 'atTCPnut$b'"),
+//       c("reset", "true"))
   }
 //
 //  // sequence, from aboveEngine to nut 1..2..3..n.. back to aboveEngine
@@ -499,7 +504,8 @@ class UnificationModel extends ModelDSL {
     c("reset", "true")
   )(
     sOnew("inProtective", "UR.mode.doNotProtect")(),
-    //sOnew("cont", "UR.pose.continue")(),
+    sOnew("resetAtlas", "Atlas.stopToolForward")(),
+    //sOnew("cont", "UR.pose.continue")()
   )
 
 

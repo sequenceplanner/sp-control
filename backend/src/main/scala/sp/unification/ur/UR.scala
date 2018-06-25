@@ -50,11 +50,11 @@ class URPose extends ModelDSL with ROSSupport {
     c("post", "got_cmd_ref_pos == 'reset'"),
     c("reset", "true"))
 
-//  a("continue", List(),
-//    c("pre", "true", s"ref_pos := 'reset'"),
-//    c("started", s"true", s"ref_pos := got_cmd_ref_pos"),
-//    c("post", "true"),
-//    c("reset", "true"))
+  a("continue", List(),
+    c("pre", "true", s"ref_pos := 'reset'"),
+    c("started", s"true", s"ref_pos := got_cmd_ref_pos"),
+    c("post", "true"),
+    c("reset", "true"))
 
   // blank list of things = take everything
 
