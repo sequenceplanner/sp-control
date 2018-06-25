@@ -23,18 +23,24 @@ class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateH
 
   override def onAction: PartialFunction[AbilityAction, Reaction] = {
     case AddAbility(ability) => react {
-      abilities.modify(_ + AbilityData(ability))
+      val abilityData = AbilityData(ability)
+
+      (abilities ^|-> upsert(ability.id, abilityData)).modify(_.merge(abilityData))
     }
 
     case AddAbilities(newAbilities) => react {
-      abilities.modify(_.addAll(newAbilities.map(AbilityData(_))))
+      newAbilities.map(AbilityData(_))
+          .map(a => (abilities ^|-> upsert(a.id, a)).modify(_.merge(a)))
+          .foldLeft(identity[AbilityHandlerState] _)(_ compose _)
     }
 
     case UpdateAbility(id, f) => react {
+      println(s"UpdateAbility $id")
       abilities.modify(as => upsert(id, AbilityData(Ability("N/A", id))).modify(f)(as))
     }
 
     case TerminateAllAbilities => react {
+      println("TerminateAllAbilities")
       abilities.set(SimpleSet[AbilityId, AbilityData](_.id))
     }
   }
@@ -67,4 +73,13 @@ case class AbilityData(
   val attributes: SPAttributes = ability.attributes
 
   def withResult(result: Map[ID, SPValue]): AbilityData = copy(result = Some(result))
+
+  /**
+    * TODO This function merges state right now. Probably needs to be updated to capture all requirements.
+    */
+  def merge(other: AbilityData): AbilityData = {
+    other.copy(
+      state = state ++ other.state
+    )
+  }
 }

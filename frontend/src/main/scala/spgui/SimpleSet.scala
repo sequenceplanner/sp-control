@@ -81,4 +81,6 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
   def flatMap[B](f: V => Iterable[B]): Iterable[B] = data.values.flatMap(f)
   def isEmpty: Boolean = data.isEmpty
   def foreach(f: V => Unit): Unit = data.values.foreach(f)
+
+  override def toString: String = s"SimpleSet(${data.values.mkString(", ")})"
 }
