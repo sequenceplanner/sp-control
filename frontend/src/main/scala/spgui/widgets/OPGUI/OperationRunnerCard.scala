@@ -69,7 +69,7 @@ object OperationRunnerCard {
       <.div(
         css.card,
         section(card.operation.name, content = renderOperationState(card.operation.state)),
-        section(card.ability.name, content = <.span(css.opabState, card.ability.status.tag))
+        section(card.ability.name, content = <.span(css.emphasizeText, card.ability.status.tag))
       )
     }
 
@@ -88,7 +88,7 @@ object OperationRunnerCard {
         <.span(
           css.opOuter,
           renderConditions(card.ability.name, List(card.ability.preCondition), List(card.ability.postCondition)),
-          <.span(css.opabState, card.ability.status.tag)
+          <.span(css.emphasizeText, card.ability.status.tag)
         )
       )
     }
@@ -110,7 +110,7 @@ object OperationRunnerCard {
     def renderOperationState(state: Map[ID, SPValue]): TagMod = {
       val renderMap = Map(
         "i" -> (css.green, "initialised"),
-        "e" -> (css.spOrange, "executing"),
+        "e" -> (css.orange, "executing"),
         "f" -> (css.blue, "finished")
       )
 
@@ -121,7 +121,7 @@ object OperationRunnerCard {
       val presentContent = present.map(renderMap).map { case (style, text) => <.span(style, text) }.toTagMod
       val unknownContent = unknown.map(<.span(_)).toTagMod
 
-      <.span(css.opabState, presentContent, unknownContent)
+      <.span(css.emphasizeText, presentContent, unknownContent)
     }
   }
 

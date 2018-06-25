@@ -3,15 +3,17 @@ package spgui.circuits.main.handlers
 import diode.{Action, ModelRW}
 import monocle.macros.Lenses
 import sp.domain._
+import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import spgui.SimpleSet
 import spgui.circuits.main.handlers.Aliases._
 import spgui.communication.OperationRunnerCommunication
 
 trait RunnerAction extends Action
-case class UpdateRunner(runnerId: ID, operationStates: Map[OperationId, SPValue], runInAuto: Boolean, disabledGroups: Set[SPValue]) extends RunnerAction
+case class UpdateRunner(runnerId: ID, runnerState: Map[ID, SPValue], runInAuto: Boolean, disabledGroups: Set[SPValue]) extends RunnerAction
 case class CreateRunner(setup: Setup, associations: Map[OperationId, AbilityId]) extends RunnerAction
 case class UpdateRunners(setups: List[Setup]) extends RunnerAction
+case object TerminateAllRunners extends RunnerAction
 
 object RunnerHandler {
   val initialState: RunnerHandlerState = RunnerHandlerState(new SimpleSet(_.id, Map()))
@@ -27,19 +29,10 @@ class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHan
 
 
   override def onAction: PartialFunction[RunnerAction, Reaction] = {
-    case update @ UpdateRunner(runnerId, operationStates, _, _) => react {
+    case update @ UpdateRunner(runnerId, state, _, _) => react {
       runners.modify(_.modifyByKey { runner =>
 
-        val relevantOperations = operationStates.flatMap { case (k, v) =>
-          runner.operations.get(k).map(operation => (k, v, operation))
-        }
-
-        val newOperations = relevantOperations.foldLeft(runner.operations) { case (acc, (k, v, operation)) =>
-          acc + operation.copy(state = Map(k -> v))
-        }
-
-        runner.copy(
-          operations = newOperations,
+        runner.updateState(state).copy(
           runInAuto = update.runInAuto,
           disabledGroups = update.disabledGroups
         )
@@ -50,10 +43,25 @@ class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHan
       runners.modify(_ + Runner.fromSetup(setup, associations))
 
     case UpdateRunners(setups) =>
-      setups
-        .map(setup => runners.modify(_ + Runner.fromSetup(setup, OperationRunnerCommunication.getAssociations(setup))))
-        .foldLeft(identityState)(_ compose _)
-      .andThen(runners.modify(_.filterKeys( key => setups.exists(_.runnerID == key)))) // Remove old runners
+      react {
+        runners.modify { runners =>
+          val newRunners = setups
+            .filterNot(setup => runners.contains(setup.runnerID))
+            .map(setup => Runner.fromSetup(setup, OperationRunnerCommunication.getAssociations(setup)))
+
+          runners
+            .filterKeys(id => setups.exists(_.runnerID == id)) // Remove old runners
+            .addAll(newRunners)
+        }
+      }
+
+    case TerminateAllRunners => react {
+      runners.set(SimpleSet[RunnerId, Runner](_.id))
+    } globally {
+      value.runners.map(_.id).foreach { runnerId =>
+        OperationRunnerCommunication.postRequest(APIOperationRunner.TerminateRunner(runnerId))
+      }
+    }
   }
 
   override def acceptAction: Action => Boolean = {
@@ -86,7 +94,7 @@ case class Runner private (
                             id: ID,
                             operations: SimpleSet[ID, OperationData] = new SimpleSet(_.id, Map()),
                             disabledGroups: Set[SPValue] = Set(),
-                            initialState: Map[ID, SPValue] = Map(), // What ID?
+                            state: Map[ID, SPValue] = Map(),
                             variables: Map[OperationModelId, VDModelId] = Map(),
                             associations: Map[OperationId, AbilityId] = Map(),
                             abilityParameters: Map[AbilityId, Set[OperationModelId]] = Map(),
@@ -98,6 +106,18 @@ case class Runner private (
   def associate(operationId: OperationId, abilityId: AbilityId): Runner = {
     copy(associations = associations + (operationId -> abilityId))
   }
+
+  def updateState(state: Map[ID, SPValue]): Runner = {
+    val relevantOperations = state.flatMap { case (k, v) =>
+      operations.get(k).map(operation => (k, v, operation))
+    }
+
+    val newOperations = relevantOperations.foldLeft(operations) { case (acc, (k, v, operation)) =>
+      acc + operation.copy(state = Map(k -> v))
+    }
+
+    copy(state = state, operations = newOperations)
+  }
 }
 
 object Runner {
@@ -106,10 +126,12 @@ object Runner {
     val runner = Runner(setup.runnerID)
     runner.copy(
       operations = runner.operations.addAll(setup.ops.map(OperationData(_))),
-      initialState = setup.initialState,
+      state = setup.initialState,
       variables = setup.variableMap,
       associations = associations,
       abilityParameters = setup.abilityParameters
     )
   }
+
+
 }

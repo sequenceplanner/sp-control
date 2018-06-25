@@ -5,6 +5,7 @@ import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
 import sp.domain._
 import sp.models.{APIModel, APIModelMaker => ModelMaker}
+import sp.vdtesting.APIVDTracker
 import spgui.circuits.main.handlers.StateHandler
 import spgui.circuits.main.{FrontendState, MainCircuit}
 
@@ -31,6 +32,10 @@ object CommunicationAPI {
   }
   onSocketChange(APIVirtualDevice.topicResponse) {
     VDCommunication.postRequest(APIVirtualDevice.GetVD)
+  }
+
+  onSocketChange(APIVDTracker.topicResponse) {
+    VDTrackerCommunication.postRequest(APIVDTracker.getModelsInfo())
   }
 
   /* This is necessary because responseTopics are instantiated after the calls in the Communicator trait,

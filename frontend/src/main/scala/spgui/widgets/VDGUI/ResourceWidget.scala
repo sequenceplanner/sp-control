@@ -1,15 +1,12 @@
 package spgui.widgets.VDGUI
 
-import sp.domain._
-import sp.domain.Logic._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.abilityhandler.APIAbilityHandler.Abilities
-import sp.devicehandler.VD.{OneToOneMapper, Resource, ResourceWithState}
+import sp.devicehandler.VD.{OneToOneMapper, Resource}
 import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice, VD}
 import sp.domain._
 import spgui.communication._
-import spgui.widgets.VDGUI.SPCardGrid.RenderCard
+import spgui.widgets.VDGUI.SPCardComponent.RenderableCard
 
 /** Widget to visualize the Resources and it's status*/
 object ResourceWidget {
@@ -85,7 +82,7 @@ object ResourceWidget {
 
     /** Render-function in Backend.
       *
-      * Make a SPCardGrid and for all the resources in state, map it against a ResourceCard.
+      * Make a SPCardComponent and for all the resources in state, map it against a ResourceCard.
       *
       * @param state Current state in Backend-class
       * @return The Widget GUI
@@ -97,11 +94,11 @@ object ResourceWidget {
 
       <.div(
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        SPCardGrid(cards)
+        SPCardComponent(cards)
       )
     }
 
-    def renderResourceCard(state: State, resource: Resource, resourceState: Map[ID, SPValue]): RenderCard = {
+    def renderResourceCard(state: State, resource: Resource, resourceState: Map[ID, SPValue]): RenderableCard = {
       val relatedDrivers = resource.stateMap.map { case OneToOneMapper(_, driverId, _) => driverId}.distinct
       val selectedDrivers = state.theDrivers.filter { case (driver, _, _) => relatedDrivers.contains(driver.id) }
       val driverStatuses = selectedDrivers.map { case (driver, _, status) => (driver.name, status) }
@@ -110,7 +107,7 @@ object ResourceWidget {
         (mapper.driverIdentifier.toString, resourceState(mapper.thing))
       }
 
-      SPCardGrid.ResourceCard(
+      SPCardComponent.ResourceCard(
         cardId = resource.id,
         name = resource.name,
         driverStatuses = driverStatuses,

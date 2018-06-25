@@ -36,13 +36,12 @@ object Widgets {
       ("DummyLiveGantt",              widgets.ganttviewer.DummyLiveGantt(),               10, 5),
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
 //      ("VolvoSchedulerWidget",        widgets.virtcom.VolvoSchedulerWidget(),             3, 4),
-      ("VDTracker",                   widgets.VDGUI.VDTracker(),                          5, 5),
+      ("Virtual Device Tracker",                  widgets.VDGUI.VDTrackerWidget(),        5, 5),
       ("HumanInstructions",           widgets.unification.HumanInstructionsWidget(),      5, 5),
       ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 6),
       ("ResourceWidget",              widgets.VDGUI.ResourceWidget(),                     5, 5),
       ("OperationRunnerWidget",       widgets.OPGUI.OperationRunnerWidget(),              6, 6),
       ("StateHandlerWidget",          widgets.OPGUI.StateHandlerWidget(),                 6, 6)
-
     )
 
 

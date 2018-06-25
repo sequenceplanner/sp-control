@@ -1,23 +1,22 @@
 package spgui.widgets.VDGUI
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import org.scalajs.dom
-import play.api.libs.json.JsSuccess
 import sp.domain._
 import spgui.communication._
-import sendMessages._
 import sp.devicehandler.VD.Driver
-import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
+import sp.devicehandler.APIDeviceDriver
 import spgui.components.SPWidgetElements
 
 /** CardComponent for the DriverCard and ResourceCard */
-object SPCardGrid {
+object SPCardComponent {
   case class State(expandedId: Option[ID] = None)
-  case class Props(cards: List[RenderCard])
+  case class Props(cards: List[RenderableCard])
 
-  trait RenderCard{val cardId: ID}
-  case class DriverCard(cardId: ID, name: String, status: String, typ: String, setup : SPAttributes, state: Map[String, SPValue]) extends RenderCard
-  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, String)], state: List[(String, SPValue)]) extends RenderCard
+  trait RenderableCard {
+    val cardId: ID
+  }
+  case class DriverCard(cardId: ID, name: String, status: String, typ: String, setup : SPAttributes, state: Map[String, SPValue]) extends RenderableCard
+  case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(String, String)], state: List[(String, SPValue)]) extends RenderableCard
 
 
   class Backend($: BackendScope[Props, State]) {
@@ -184,6 +183,10 @@ object SPCardGrid {
       )
     }
 
+    def sendToDeviceDriver(request: APIDeviceDriver.Request): Callback = Callback {
+      DriverCommunication.postRequest(request)
+    }
+
     def createCorrectTypeOfSPValue(sPValue: SPValue, newValue : String) : SPValue =  { // Convert the incoming string to an SPvalue of the same type as the previous state value
       if (sPValue.validate[Int].isSuccess)          {SPValue(newValue.toInt)}
       else if(sPValue.validate[Boolean].isSuccess)  {SPValue(newValue.toBoolean)}
@@ -192,7 +195,7 @@ object SPCardGrid {
 
     def updateDriverState(card: DriverCard, s1 : String)(e: ReactKeyboardEventFromInput) = {
       if(e.key == "Enter") {
-        val newState = (card.state + (s1 -> createCorrectTypeOfSPValue(card.state(s1), e.target.value ) ) )
+        val newState = card.state + (s1 -> createCorrectTypeOfSPValue(card.state(s1), e.target.value))
         sendToDeviceDriver(APIDeviceDriver.DriverCommand(card.cardId, newState) )
       }
       else
@@ -289,5 +292,5 @@ object SPCardGrid {
     .renderBackend[Backend]
     .build
 
-  def apply(cards: List[RenderCard]) = component(Props(cards))
+  def apply(cards: List[RenderableCard]) = component(Props(cards))
 }
