@@ -273,9 +273,11 @@ object OperationRunnerWidget {
               OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
             }
             }
+            val things = state.modelIdables.collect{ case t: Thing if t.attributes.keys.contains("domain") => t}
             val lonelyOperationMap: Map[ID, OperationWithState] =
               state.operationStateMapper.filter{operationWithState => !state.operationAbilityMap.contains(operationWithState._1)}
-            println(s"Lonely Operations: $lonelyOperationMap \nStateMapper: ${state.operationStateMapper}")
+            println(s"Lonely Operations: $lonelyOperationMap \nStateMapper: ${state.operationStateMapper} " +
+              s"\nOperationThings: $things")
             val lonelyOperations: List[OperationWithState] = lonelyOperationMap.values.toList
             val lonelyCards: List[RunnerCard] = lonelyOperations.map{lonelyOp =>
               OperationRunnerCardComponent.OperationRunnerLonelyOp(lonelyOp.operation.id, lonelyOp)
