@@ -10,7 +10,6 @@ import spgui.components.SPWidgetElements
 import spgui.communication._
 import sp.domain.Logic._
 import sp.models.{APIModel => mapi}
-
 import sendMessages._
 
 import sp.domain._
@@ -21,7 +20,6 @@ import spgui.widgets.virtcom.Style
 import sp.VDAggregator.APIVDAggregator
 
 object VDTracker {
-  import sp.devicehandler.APIDeviceDriver
   import sp.runners.APIOperationRunner
   import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.APIVirtualDevice

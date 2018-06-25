@@ -2,6 +2,7 @@
 package sp.VDAggregator {
 
   import sp.abilityhandler.APIAbilityHandler
+  import sp.abilityhandler.APIAbilityHandler.Formats.fAbility
   import sp.devicehandler.VD.{Driver, DriverState, ResourceWithState}
   import sp.domain._
   import sp.domain.Logic._
@@ -25,7 +26,7 @@ package sp.VDAggregator {
 
     case class TheDrivers(Drivers: List[driverInfo]) extends Response
     case class TheResources(resources: List[ResourceWithState]) extends Response
-    case class TheAbilities(abilities: List[APIAbilityHandler.Ability])
+    case class TheAbilities(abilities: List[APIAbilityHandler.Ability]) extends Response
 
     object Formats {
 

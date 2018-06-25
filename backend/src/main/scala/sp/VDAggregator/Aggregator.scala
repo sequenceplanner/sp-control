@@ -51,7 +51,7 @@ class AggregatorService extends Actor  with ActorLogging with  sp.service.Servic
                 sendAnswer(SPMessage.makeJson(spHeader, APIVDAggregator.TheAbilities(abilities))) //Todo: would like the previous mess to complete first..
 
               case apiDriver.TheDriver(driver, driverState) => // if a new or already existing driver is received, the map should be updated with the driver, state and active status: Online
-                drivers += driver.id -> (driver, driverState, Online)
+                drivers += driver.id -> driverInfo(driver, driverState, Online)
               case apiDriver.DriverStateChange(name,id,state,diff) => // if we receive a state change, update the driver
                 if (drivers.get(id).nonEmpty) drivers += id -> drivers(id).copy(driverState = state)
               case apiDriver.DriverTerminated(id) => // if the driver is terminated, its active status is set to Offline // Todo: Sometimes this message is not received, instead the driver will show as unresponsive even tho it is terminated
