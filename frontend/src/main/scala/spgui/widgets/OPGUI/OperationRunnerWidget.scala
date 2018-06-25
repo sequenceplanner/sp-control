@@ -241,8 +241,8 @@ object OperationRunnerWidget {
       * @param mess APIOperationRunner-Request
       */
     def sendToRunner(mess: APIOperationRunner.Request): Unit = {
-      val h = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
-      BackendCommunication.publish(SPMessage.make(h, mess), APIOperationRunner.topicRequest)
+      val header = SPHeader(from = "OperationRunnerWidget", to = "", reply = SPValue("OperationRunnerWidget"))
+      BackendCommunication.publish(SPMessage.make(header, mess), APIOperationRunner.topicRequest)
     }
 
     /** Set SPHeader and send SPMessage to APIAbilityHandler
@@ -250,9 +250,9 @@ object OperationRunnerWidget {
       * @param mess APIAbilityHandler-Request
       */
     def sendToAbilityHandler(mess: APIAbilityHandler.Request): Unit = {
-      val h = SPHeader(from = "OperationRunnerWidget", to = APIAbilityHandler.service,
+      val header = SPHeader(from = "OperationRunnerWidget", to = APIAbilityHandler.service,
         reply = SPValue("OperationRunnerWidget"), reqID = java.util.UUID.randomUUID())
-      BackendCommunication.publish(SPMessage.make(h, mess), APIAbilityHandler.topicRequest)
+      BackendCommunication.publish(SPMessage.make(header, mess), APIAbilityHandler.topicRequest)
     }
 
     /** Render-function in Backend.
