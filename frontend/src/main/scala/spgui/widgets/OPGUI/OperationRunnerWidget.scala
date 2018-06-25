@@ -28,7 +28,7 @@ object OperationRunnerWidget {
   }
 
   private class Backend($: BackendScope[Props, Unit]) {
-    def render(props: Props) = {
+    def render(props: Props): VdomElement = {
       val renderCard: (OperationId, AbilityId) => Option[CardData] = (operationId, abilityId) => {
         for {
           ability <- props.abilities.get(abilityId)
@@ -52,32 +52,46 @@ object OperationRunnerWidget {
         OperationRunnerCardComponent(
           state.modelIdables, {
             val opAbCards: List[RunnerCard] = state.activeOpAbPairs.map { operationAbilityPair => {
-              val op = state.operationStateMapper(operationAbilityPair.operationID)
-              val ab = state.abilityStateMapper(operationAbilityPair.abilityID)
+              val op = state.operationStateMapper(operationAbilityPair._2)
+              val ab = state.abilityStateMapper(operationAbilityPair._1)
               OperationRunnerCardComponent.OperationRunnerCard(op.operation.id, ab, op)
             }
-            }
+            }.toList
             // TODO: Fix the backend issue with operations as things and no information about the state of the operation
             val operationThings = state.modelIdables.filter{_.attributes.keys.contains("domain")}
-            val operations = state.modelIdables.collect {case o: Operation => o}
+            val operations = operationThings.map{opThing =>
+              opThing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set())
+            }.flatten
+            val unusedOperations = operations.filterNot{op =>
+              state.activeOpAbPairs.contains(op.id)
+            }
+            val lonelyOpCards = unusedOperations.map{op =>
+              OperationRunnerCardComponent.OperationRunnerLonelyOp(
+                op.id,
+                OperationWithState(op, Map())
+              )
+            }
+//            val operations = state.modelIdables.collect {case o: Operation => o}
             /*println(s"Things: $things \n" +
               s"Operations: $operations")*/
-            val lonelyThings = operationThings.filterNot{opThing => state.operationAbilityMap.contains(opThing.id)}
+           /* val lonelyThings = operationThings.filterNot{opThing => state.operationAbilityMap.contains(opThing.id)}
             val lonelyOperationMap: Map[ID, OperationWithState] =
               state.operationStateMapper.filterNot{operationWithState => state.operationAbilityMap.contains(operationWithState._1)}
 
-            val lonelyOpCards: List[RunnerCard] = lonelyThings.map{thing =>
+            */
+           /* val lonelyOpCards: List[RunnerCard] = lonelyThings.map{thing =>
               val newOperation = Operation(name = thing.name,conditions = List(), attributes = thing.attributes, id = thing.id )
               OperationRunnerCardComponent.OperationRunnerLonelyOp(
                 thing.id,
                 OperationWithState(newOperation, Map())
               )
 
-            }
+            }*/
 
-            val lonelyAbilityMap: Map[ID, OperationRunnerWidget.AbilityWithState] = state.abilityStateMapper.filterNot{ability =>
+            val lonelyAbilityMap = state.abilityStateMapper.filterNot{ability =>
               state.activeOpAbPairs.contains(ability._1)
             }
+
             val lonelyAbCards: List[RunnerCard] = lonelyAbilityMap.map{ab =>
               OperationRunnerCardComponent.OperationRunnerLonelyAb(
                 ab._1, ab._2
@@ -89,7 +103,7 @@ object OperationRunnerWidget {
           }
         )
         */
-      )
+      ).render
     }
   }
 
