@@ -68,9 +68,9 @@ class Atlas extends ModelDSL with ROSSupport {
     c("reset", "true"))
 
   a("startToolForward", List(),
-    c("pre", "true", "run_tool_forward:=true"),
+    c("pre", "true", "run_tool_forward:=true", "set_tool_idle := false"),
     c("started", "got_cmd_run_tool_forward"),
-    c("post", "programmed_torque_reached"),
+    c("post", "programmed_torque_reached", "set_tool_idle := true"),
     c("reset", "true", "run_tool_forward:=false"))
 
   a("stopToolForward", List(),

@@ -19,6 +19,11 @@ class URMode extends ModelDSL with ROSSupport {
   writer("URdriver", "unification_roscontrol/URModeSPToUni", "/unification_roscontrol/ur_mode_sp_to_unidriver", 250)
 
   // abilities
+  a("doNotProtect", List(),
+    c("pre", "true", s"ur_disengage_protective := true"),
+    c("started", s"true"),
+    c("post", "NOT protective_stop", s"ur_disengage_protective := false"),
+    c("reset", "true"))
 
   // blank list of things = take everything
   resource("resource")
@@ -44,6 +49,12 @@ class URPose extends ModelDSL with ROSSupport {
     c("started", s"true"),
     c("post", "got_cmd_ref_pos == 'reset'"),
     c("reset", "true"))
+
+//  a("continue", List(),
+//    c("pre", "true", s"ref_pos := 'reset'"),
+//    c("started", s"true", s"ref_pos := got_cmd_ref_pos"),
+//    c("post", "true"),
+//    c("reset", "true"))
 
   // blank list of things = take everything
 

@@ -186,6 +186,7 @@ class UnificationModel extends ModelDSL {
   val urPose = "UR.pose.act_pos"
   v("UR.pose.act_pos", "unknown", urPoseDomain)
 
+  v("UR.mode.protective_stop", false, List(true, false))
 
 
 
@@ -492,6 +493,14 @@ class UnificationModel extends ModelDSL {
     c("pre", s"$urPose == '${farAboveBolt(lastB)}' && $lastB == 'tightened'"),
     c("reset", "true"))
 
+
+  sop("SuperSafety")(
+    c("pre", s"UR.mode.protective_stop"),
+    c("reset", "true")
+  )(
+    sOnew("inProtective", "UR.mode.doNotProtect")(),
+    //sOnew("cont", "UR.pose.continue")(),
+  )
 
 
   /**
