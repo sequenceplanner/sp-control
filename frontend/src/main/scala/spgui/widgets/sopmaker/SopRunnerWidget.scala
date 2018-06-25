@@ -83,9 +83,6 @@ object SopRunnerWidget {
           case Some(sop) => SopVisualiser(sop, state.modelOps, state.opStates)
           case None => EmptyVdom
         }
-        // state.sops.map{ sop => 
-        //   SopVisualiser(sop, state.modelOps, state.opStates)
-        // }.toTagMod
       )
     }
   }

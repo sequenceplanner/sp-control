@@ -40,7 +40,7 @@ case class RenderSometimeSequencenode(
 case class RenderOther(
   nodeId: UUID, w: Float, h:Float, children: List[RenderNode]) extends RenderGroup
 case class RenderSequence(
-  nodeId: UUID, w: Float, h:Float, children: List[RenderSequenceElement]) extends RenderGroup
+  nodeId: UUID, w: Float, h:Float, children: List[RenderSequenceElement]) extends RenderNode
 case class RenderSequenceElement(
   nodeId: UUID, w: Float, h:Float, self: RenderNode) extends RenderNode
 case class RenderOperationNode(
@@ -93,7 +93,7 @@ object SopVisualiser {
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
       val isInteractive = !$.props.runNow().onDropEvent.isEmpty
       node match {
-        case n: RenderParallel => {
+        case n: RenderGroup => {
           var w = 0f
           var children = List[TagMod]()
           for(e <- n.children) {
@@ -116,7 +116,8 @@ object SopVisualiser {
             )
             w += e.w
           }
-          {
+
+          val maybeDropzones = {
             if(isInteractive) {
               List(
                 dropZone(   // Left dropzone
@@ -159,16 +160,41 @@ object SopVisualiser {
             } else {
               List()
             }
-          } ++
-          List(
-            SopMakerGraphics.parallelBars(xOffset - n.w/2, yOffset,n.w- opSpacingX)) ++
-          children ++
-          List(SopMakerGraphics.parallelBars(
-            xOffset - n.w/2,
-            yOffset + n.h - parallelBarHeight,
-            n.w - opSpacingX
-          ))
+          } 
+
+          val groupingGraphics = n match {
+            case par:RenderParallel => List(
+              SopMakerGraphics.parallelBars(xOffset - n.w/2, yOffset,n.w- opSpacingX),
+              SopMakerGraphics.parallelBars(
+                xOffset - n.w/2,
+                yOffset + n.h - parallelBarHeight,
+                n.w - opSpacingX
+              )
+            )
+            case alt:RenderAlternative => List(
+              SopMakerGraphics.alternative(xOffset - n.w/2, yOffset,n.w- opSpacingX),
+              SopMakerGraphics.alternative(
+                xOffset - n.w/2,
+                yOffset + n.h - parallelBarHeight,
+                n.w - opSpacingX
+              )
+            )
+            case alt:RenderArbitrary => List(
+              SopMakerGraphics.arbitrary(
+                xOffset - n.w/2,
+                yOffset,
+                n.w - opSpacingX
+              ),
+              SopMakerGraphics.arbitrary(
+                xOffset - n.w/2,
+                yOffset + n.h - parallelBarHeight,
+                n.w - opSpacingX
+              )
+            )
+          }
+          children ++ groupingGraphics ++ maybeDropzones
         }
+
         case n: RenderSequence =>  getRenderSequence(n.children, xOffset, yOffset)
           
         case n: RenderOperationNode => {
@@ -250,6 +276,18 @@ object SopVisualiser {
           h = getTreeHeight(s),
           children = sop.sop.collect{case e => traverseTree(e)}
         )
+        case s: Alternative => RenderAlternative(
+          nodeId = s.nodeID,
+          w = getTreeWidth(s),
+          h = getTreeHeight(s),
+          children = sop.sop.collect{case e => traverseTree(e)}
+        )
+        case s: Arbitrary => RenderArbitrary(
+          nodeId = s.nodeID,
+          w = getTreeWidth(s),
+          h = getTreeHeight(s),
+          children = sop.sop.collect{case e => traverseTree(e)}
+        )
         case s: Sequence => traverseSequence(s)
         case s: OperationNode => RenderOperationNode(
           nodeId = s.operation,
@@ -280,6 +318,8 @@ object SopVisualiser {
       sop match {
         // groups are as wide as the sum of all children widths + its own padding
         case s: Parallel => s.sop.map(e => getTreeWidth(e)).sum + 2*opSpacingX + opSpacingXInsideGroup *2 + opSpacingX
+        case s: Alternative => s.sop.map(e => getTreeWidth(e)).sum + 2*opSpacingX + opSpacingXInsideGroup *2 + opSpacingX
+        case s: Arbitrary => s.sop.map(e => getTreeWidth(e)).sum + 2*opSpacingX + opSpacingXInsideGroup *2 + opSpacingX
         case s: Sequence => { // sequences are as wide as their widest elements
           if(s.sop.isEmpty) 0
           else math.max(getTreeWidth(s.sop.head), getTreeWidth(Sequence(s.sop.tail)))
@@ -293,6 +333,20 @@ object SopVisualiser {
     def getTreeHeight(sop: SOP): Float = {
       sop match  {
         case s: Parallel => {
+          if(s.sop.isEmpty) 0
+          else math.max(
+            getTreeHeight(s.sop.head) + (2*parallelBarHeight + 2*opSpacingY + 2*opSpacingYInsideGroup),
+            getTreeHeight(Parallel(s.sop.tail))
+          )
+        }
+        case s: Alternative => {
+          if(s.sop.isEmpty) 0
+          else math.max(
+            getTreeHeight(s.sop.head) + (2*parallelBarHeight + 2*opSpacingY + 2*opSpacingYInsideGroup),
+            getTreeHeight(Parallel(s.sop.tail))
+          )
+        }
+        case s: Arbitrary => {
           if(s.sop.isEmpty) 0
           else math.max(
             getTreeHeight(s.sop.head) + (2*parallelBarHeight + 2*opSpacingY + 2*opSpacingYInsideGroup),
@@ -330,7 +384,6 @@ object SopVisualiser {
     def dropZone(
       direction: DropzoneDirection.Value, sop:Any, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
     {
-      println("making a dropzone " + id.toString)
       SPWidgetElements.DragoverZoneRect(
         $.props.runNow().onDropEvent.get(id, direction), DroppedOnSOP(sop), x, y, w, h)
     }

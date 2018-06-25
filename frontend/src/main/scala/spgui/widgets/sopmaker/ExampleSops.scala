@@ -19,7 +19,19 @@ object ExampleSops {
     Operation("test")
   )
 
-  def tinySop = Sequence( List(SOP(ops(0)), SOP(ops(1))))
+  def tinySop = Arbitrary(
+    List(
+      SOP(ops(0)),
+      SOP(ops(1)),
+      Alternative(
+        List(
+          SOP(ops(0)),
+          SOP(ops(1))
+        )
+      )
+    )
+  )
+
 
 
   def randoSop = SopGeneration.sop(RNG.Simple(12345))._1
@@ -27,7 +39,7 @@ object ExampleSops {
   def giantSop = Sequence(List(
     Sequence(
       List(SOP(ops(3)), SOP(ops(8)))),
-    Parallel(
+    Arbitrary(
       List(
         SOP(ops(0)),
         SOP(ops(0)),
@@ -47,9 +59,9 @@ object ExampleSops {
         )
       )
     ),
-    Parallel(
+    Alternative(
       List(
-        Parallel(
+        Alternative(
           List(
             SOP(ops(11)),
             SOP(ops(11))
