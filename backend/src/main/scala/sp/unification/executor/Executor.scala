@@ -23,7 +23,7 @@ class Executor extends ModelDSL with ROSSupport {
   }
 
   a("reset", List(),
-    c("pre", "true", s"cmd := ''"),
+    c("pre", "true", s"cmd := 'reset'"),
     c("started", "true"),
     c("post", "true"),
     c("reset", "true")

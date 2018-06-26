@@ -188,7 +188,7 @@ class UnificationModel extends ModelDSL {
   v("boltMode" ,"ur", List("ur", "human"))
   v("urMode", "running", List("running", "float", "stopped"))
   v("urTool", "none", List("none", "lfTool", "atlas", "ofTool"))
-  v("mir", "outside", List("outside", "atEngine"))
+  v("mir", "atEngine", List("outside", "atEngine"))
   v("engine", "measured", List("outside", "notMeasured", "measured"))
 
 
@@ -217,17 +217,25 @@ class UnificationModel extends ModelDSL {
     * ******************************
     */
 
-  o("log_in", s"OP.login", useOP)(
-    c("pre", "NOT OP.loggedIn"),
-    c("reset", "true")
-  )
+//  o("log_in", s"OP.login")(
+//    c("pre", "NOT OP.loggedIn"),
+//    c("reset", "true")
+//  )
+
+
   // add another operation that is forwarding the log in
 
-  o("mir_enter", "MiR.pose.goto_Assembly")( // add mir ability to move in
-    c("pre", "mir == 'outside' && OP.loggedIn"),
-    c("post", "true", "mir := 'atEngine'"),
-    c("reset", "true")
-  )
+//  o("mir_reset", "MiR.pose.reset")( // add mir ability to move in
+//    c("pre", "true"),
+//    c("post", "true"),
+//    c("reset", "false")
+//  )
+//
+//  o("mir_enter", "MiR.pose.goto_Assembly")( // add mir ability to move in
+//    c("pre", "mir == 'outside' && OP.loggedIn"),
+//    c("post", "true", "mir := 'atEngine'"),
+//    c("reset", "true")
+//  )
 
 // For all three sides...
 //  sop("measureEngine")(
@@ -291,7 +299,7 @@ class UnificationModel extends ModelDSL {
     c("reset", "true")
   )(
     sOnew("toPreAttachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
-    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool", useUR)(
+    sOnew(s"AttachLFAfterMeasure", s"Executor.$AttachLFTool")(
       c("post", "true", s"urTool := 'lfTool'")
     ),
     sOnew("toHomeAfterLF", s"UR.pose.goto_HomeJOINT", useUR)(),
@@ -323,10 +331,10 @@ class UnificationModel extends ModelDSL {
     sP(
       sOnew("OPlfMounting", s"OP.mountLF", useOP)(),
       sS(
-        sOnew(s"doLFMagic", s"Executor.$LFMagic", useUR)(
+        sOnew(s"doLFMagic", s"Executor.$LFMagic")(
           c("post", "true", s"lf_pos := 'on_engine'")
         ),
-        sOnew(s"delayBeforeHome", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
+        sOnew(s"delayBeforeHome", s"TON.delay")(cond("pre", "true", "TON.pt := 3000")),
         //sOnew(s"resetBeforeHome", s"UR.pose.reset", useUR)(cond("pre", "true")),
         sOnew("toHomeAfterLFMagic1", s"UR.pose.goto_AfterLFOperationJOINT", useUR)(),
         sOnew("toHomeAfterLFMagic2", s"UR.pose.goto_PreHomeJOINT", useUR)(),
@@ -363,8 +371,8 @@ class UnificationModel extends ModelDSL {
     c("pre", s"lf_pos == 'on_engine'"),
     c("reset", "true")
   )(
-    sOnew("toPreDetachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(),
-    sOnew(s"DetachLF", s"Executor.$DetachLFTool", useUR)(
+    sOnew("toPreDetachLF", s"UR.pose.goto_PreAttachLFToolFarJOINT", useUR)(), // maybe remove resouce booking
+    sOnew(s"DetachLF", s"Executor.$DetachLFTool")(
       c("post", "true", s"urTool := 'none'")
     ),
     sOnew("toHomeAfterDetachLD", s"UR.pose.goto_HomeJOINT", useUR)()
@@ -382,7 +390,7 @@ class UnificationModel extends ModelDSL {
     sOnew("toLifting", s"Atlas.lift", useAtlas)(),
     sOnew("toPreAttachAtlas", s"UR.pose.goto_PreAttachAtlasFarJOINT", useUR)(),
     sOnew("toFloating", s"Atlas.float", useAtlas)(),
-    sOnew(s"AttachAtlasAfterLF", s"Executor.$AttachAtlas", useUR)(
+    sOnew(s"AttachAtlasAfterLF", s"Executor.$AttachAtlas")(
       c("post", "true", s"urTool := 'atlas'")
     ),
     sOnew("toSpecialHomeWithAtlas", s"UR.pose.goto_$AAPRAtlasTCP", useUR)(),
@@ -526,7 +534,7 @@ class UnificationModel extends ModelDSL {
     sOnew("toLiftingotherthing", s"Atlas.lift", useAtlas)(),
     sOnew("toOFMid1", s"UR.pose.goto_$OFMidpoint1JOINT", useUR)(),
     sOnew("toFarOFJoint", s"UR.pose.goto_$PreAttachOFToolFarJOINT", useUR)(),
-    sOnew(s"AttachOFE", s"Executor.$AttachOFTool", useUR)(
+    sOnew(s"AttachOFE", s"Executor.$AttachOFTool")(
       c("post", "true", s"urTool := 'ofTool'")
     ),
     sOnew("toOFMid1Again", s"UR.pose.goto_$OFMidpoint1JOINT", useUR)(),
@@ -539,15 +547,15 @@ class UnificationModel extends ModelDSL {
     c("pre", s"urTool == 'ofTool'"),
     c("reset", "true")
   )(
-    sOnew(s"makeOF1", s"Executor.$OFMagicA", useUR)(),
+    sOnew(s"makeOF1", s"Executor.$OFMagicA")(),
     sOnew("toOFMid2BetweenOFs", s"UR.pose.goto_$OFMidpoint2JOINT", useUR)(),
-    sOnew(s"makeOF2", s"Executor.$OFMagicB", useUR)(
+    sOnew(s"makeOF2", s"Executor.$OFMagicB")(
       c("post", "true", s"filters := 'tightened'")
     ),
     sOnew("toOFMid2forTheLastTime", s"UR.pose.goto_$OFMidpoint2JOINT", useUR)(),
     sOnew("toOFMid1oNo", s"UR.pose.goto_$OFMidpoint1JOINT", useUR)(),
     sOnew("toFarOFJointAgain", s"UR.pose.goto_$PreAttachOFToolFarJOINT", useUR)(),
-    sOnew(s"detachOFTheEnd", s"Executor.$DetachOFTool", useUR)(),
+    sOnew(s"detachOFTheEnd", s"Executor.$DetachOFTool")(),
     sOnew("toHomePosFinal", s"UR.pose.goto_$HomeJOINT", useUR)(),
   )
 
