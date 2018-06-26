@@ -8,6 +8,7 @@ import japgolly.scalajs.react.vdom.all.svg
 
 import scala.scalajs.js
 import sp.domain.logic.{PropositionConditionLogic => PCL}
+import spgui.widgets.OPGUI.OperationRunnerWidget.{AbilityWithState, OperationWithState}
 
 /** Cardcomponents for the OperationRunnerWidget */
 object OperationRunnerCardComponent {
@@ -17,7 +18,8 @@ object OperationRunnerCardComponent {
   trait RunnerCard
   case class OperationRunnerLonelyOp(lonelyCardId: ID, op: OperationRunnerWidget.OperationWithState) extends RunnerCard
   case class OperationRunnerLonelyAb(lonelyCardId: ID, ab: OperationRunnerWidget.AbilityWithState) extends RunnerCard
-  case class OperationRunnerCard(cardId: ID, ab: OperationRunnerWidget.AbilityWithState, op: OperationRunnerWidget.OperationWithState) extends RunnerCard
+  case class OperationRunnerCard(cardId: ID, ab: AbilityWithState, op: OperationWithState) extends RunnerCard
+  case class AvailableCard(cardId: ID, ab: AbilityWithState, op: OperationWithState) extends RunnerCard
 
 
   class Backend($: BackendScope[Props, State]) {
@@ -34,25 +36,28 @@ object OperationRunnerCardComponent {
           }},
           p.cards.map{
             card =>
-              val a: TagMod = card match {
+              card match {
                 case opab: OperationRunnerCard => {
                   val smallCard = cardSmall(opab, propositionPrinter)
                   val expandedCard = cardExpanded(opab, propositionPrinter)
-                  renderCard(opab.cardId, s.expandedId, expandedCard, smallCard)
+                  <.div(renderCard(opab.cardId, s.expandedId, expandedCard, smallCard))
                 }
                 case op: OperationRunnerLonelyOp => {
                   val smallCard = lonelyCardSmall(op, propositionPrinter)
                   val expandedCard = lonelyCardExpanded(op, propositionPrinter)
-                  renderCard(op.lonelyCardId, s.expandedId, expandedCard, smallCard)
+                  <.div(renderCard(op.lonelyCardId, s.expandedId, expandedCard, smallCard))
                 }
                 case ab: OperationRunnerLonelyAb => {
                   val smallCard = lonelyCardSmall(ab, propositionPrinter)
                   val expandedCard = lonelyCardExpanded(ab, propositionPrinter)
-                  renderCard(ab.lonelyCardId, s.expandedId, expandedCard, smallCard)
+                  <.div(renderCard(ab.lonelyCardId, s.expandedId, expandedCard, smallCard))
                 }
+                case available: AvailableCard =>
+                  val smallCard = smallAvailableCard(available, propositionPrinter)
+                  val expandedCard = expandedAvailableCard(available, propositionPrinter)
+                  <.div(renderCard(available.cardId, s.expandedId, expandedCard, smallCard))
                 case _ => <.div()
               }
-              a
           }.toTagMod
         )
       )
@@ -105,6 +110,53 @@ object OperationRunnerCardComponent {
         )
       )
     }
+
+    def smallAvailableCard(availableCard: AvailableCard, propositionToString: (Proposition) => String) = {
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            "Available " + availableCard.op.operation.name, List(), List(), getOpState(availableCard.op.operationState)
+          ),
+          renderOpState(availableCard.op.operationState)
+        ),
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.smallOpOuter.htmlClass,
+          renderSmallOp(
+            "Available " + availableCard.ab.ability.name
+          ),
+          renderAbState(availableCard.ab.abilityState)
+        )
+      )
+    }
+
+    def expandedAvailableCard(availableCard: AvailableCard, printer: (Proposition) => String) = {
+      <.div(
+        ^.className := OperationRunnerWidgetCSS.card.htmlClass,
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            "Available Operation: " + availableCard.op.operation.name,
+            availableCard.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "pre" => printer(c.guard)}).flatten,
+            availableCard.op.operation.conditions.map(c =>
+              c.attributes.getAs[String]("kind").collect{case "post" => printer(c.guard)}).flatten
+          ),
+          renderOpState(availableCard.op.operationState)
+        ),
+        <.span(
+          ^.className := OperationRunnerWidgetCSS.opOuter.htmlClass,
+          renderOp(
+            "Available Ability: " + availableCard.ab.ability.name,
+            List(printer(availableCard.ab.ability.preCondition.guard)),
+            List(printer(availableCard.ab.ability.postCondition.guard))
+          ),
+          renderAbState(availableCard.ab.abilityState)
+        )
+      )
+    }
+
     def lonelyCardSmall(operation: OperationRunnerLonelyOp, printer: (Proposition) => String) = {
       <.div(
         ^.className := OperationRunnerWidgetCSS.card.htmlClass,
