@@ -34,6 +34,9 @@ object AddMockModelIds {
   def activeModel: Option[ModelMock] = activeModelId.map(models.apply)
 }
 
+// TODO Someone with domain knowledge needs to take a look at how updates happen.
+// TODO It is probably incorrect in several places. For example, state might be
+// TODO when it should actually be merged, etc.
 class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends StateHandler[M, ModelsCircuitState, ModelAction](modelRW) {
   import ModelsCircuitState.models
 

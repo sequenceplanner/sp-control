@@ -26,6 +26,9 @@ object VDHandlerState {
   def resource(id: ResourceId) = VDData.resources ^|-? SimpleSet.at[ResourceId, ResourceData](id)
 }
 
+// TODO Someone with domain knowledge needs to take a look at how updates happen.
+// TODO It is probably incorrect in several places. For example, state might be
+// TODO when it should actually be merged, etc.
 class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, VDHandlerState, VDAction](modelRW) {
   import VDHandlerState.{virtualDevices, resource, device, availableVDModels, latestActiveRunnerId}
 
