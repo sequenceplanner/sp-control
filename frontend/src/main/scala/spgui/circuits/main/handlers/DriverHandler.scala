@@ -19,13 +19,16 @@ case class DriverRequest(id: RequestId, requests: List[RequestId]) {
 }
 @Lenses case class DriverHandlerState(drivers: SimpleSet[DriverId, DriverInfo])
 
-
+// TODO Someone with domain knowledge needs to take a look at how updates happen.
+// TODO It is probably incorrect in several places. For example, state might be
+// TODO when it should actually be merged, etc.
 class DriverHandler[M](modelRW: ModelRW[M, DriverHandlerState]) extends StateHandler[M, DriverHandlerState, DriverAction](modelRW) {
   import DriverHandlerState.drivers
 
   override def onAction: PartialFunction[DriverAction, Reaction] = {
       case AddDriver(driver, driverState) =>
-        drivers.modify(_ + DriverInfo(driver, driverState))
+        val newDriver = DriverInfo(driver, driverState)
+        (drivers ^|-> SimpleSet.upsert(driver.id, newDriver)).modify(_.copy(state = driverState))
 
       case AddDrivers(newDrivers) =>
         drivers.modify(_.addAll(newDrivers.map(DriverInfo.tupled)))

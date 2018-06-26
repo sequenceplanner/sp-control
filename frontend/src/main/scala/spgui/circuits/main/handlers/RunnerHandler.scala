@@ -21,7 +21,9 @@ object RunnerHandler {
 
 @Lenses case class RunnerHandlerState(runners: SimpleSet[ID, Runner])
 
-
+// TODO Someone with domain knowledge needs to take a look at how updates happen.
+// TODO It is probably incorrect in several places. For example, state might be
+// TODO when it should actually be merged, etc.
 class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHandler[M, RunnerHandlerState, RunnerAction](modelRW) {
   import RunnerHandlerState.runners
 

@@ -17,6 +17,9 @@ case object TerminateAllAbilities extends AbilityAction
 
 @Lenses case class AbilityHandlerState(abilities: SimpleSet[AbilityId, AbilityData])
 
+// TODO Someone with domain knowledge needs to take a look at how updates happen.
+// TODO It is probably incorrect in several places. For example, state might be
+// TODO when it should actually be merged, etc.
 class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateHandler[M, AbilityHandlerState, AbilityAction](modelRW) {
   import AbilityHandlerState.abilities
   import SimpleSet.upsert

@@ -11,7 +11,6 @@ object DriverCommunication extends CommunicationAPI.Communicator[DriverHandlerSt
 
   def onReceiveMessage(message: SPMessage): Unit = {
     val response = message.as[API.Response]
-    val state = currentState()
 
     for ((_, body) <- response) body match {
         // TODO Maybe use diff? Not sure what to use it for (6/22/2018)
