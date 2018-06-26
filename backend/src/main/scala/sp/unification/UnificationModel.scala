@@ -327,7 +327,7 @@ class UnificationModel extends ModelDSL {
           c("post", "true", s"lf_pos := 'on_engine'")
         ),
         sOnew(s"delayBeforeHome", s"TON.delay", useTON)(cond("pre", "true", "TON.pt := 1000")),
-        sOnew(s"resetBeforeHome", s"UR.pose.reset", useTON)(cond("pre", "true")),
+        //sOnew(s"resetBeforeHome", s"UR.pose.reset", useUR)(cond("pre", "true")),
         sOnew("toHomeAfterLFMagic1", s"UR.pose.goto_AfterLFOperationJOINT", useUR)(),
         sOnew("toHomeAfterLFMagic2", s"UR.pose.goto_PreHomeJOINT", useUR)(),
         sOnew("toHomeAfterLFMagicFinal", s"UR.pose.goto_HomeJOINT", useUR)()
@@ -374,14 +374,14 @@ class UnificationModel extends ModelDSL {
 
   sop("attachAtlasWithExecutor")(
     c("pre", s"$urPose == $HomeJOINT"),
-    c("pre", s"lfPos == 'on_engine'"),
-    c("pre", s"urTool == 'none'"),
+//    c("pre", s"lfPos == 'on_engine'"),
+//    c("pre", s"urTool == 'none'"),
     c("pre", s"BoltPair1 == 'placed'"),
     c("reset", "true")
   )(
-    sOnew("toLifting", s"Atlas.lift", useUR)(),
+    sOnew("toLifting", s"Atlas.lift", useAtlas)(),
     sOnew("toPreAttachAtlas", s"UR.pose.goto_PreAttachAtlasFarJOINT", useUR)(),
-    sOnew("toFloating", s"Atlas.float", useUR)(),
+    sOnew("toFloating", s"Atlas.float", useAtlas)(),
     sOnew(s"AttachAtlasAfterLF", s"Executor.$AttachAtlas", useUR)(
       c("post", "true", s"urTool := 'atlas'")
     ),
@@ -523,6 +523,7 @@ class UnificationModel extends ModelDSL {
     c("pre", s"urTool == 'none'"),
     c("reset", "true")
   )(
+    sOnew("toLiftingotherthing", s"Atlas.lift", useAtlas)(),
     sOnew("toOFMid1", s"UR.pose.goto_$OFMidpoint1JOINT", useUR)(),
     sOnew("toFarOFJoint", s"UR.pose.goto_$PreAttachOFToolFarJOINT", useUR)(),
     sOnew(s"AttachOFE", s"Executor.$AttachOFTool", useUR)(
@@ -547,7 +548,7 @@ class UnificationModel extends ModelDSL {
     sOnew("toOFMid1oNo", s"UR.pose.goto_$OFMidpoint1JOINT", useUR)(),
     sOnew("toFarOFJointAgain", s"UR.pose.goto_$PreAttachOFToolFarJOINT", useUR)(),
     sOnew(s"detachOFTheEnd", s"Executor.$DetachOFTool", useUR)(),
-
+    sOnew("toHomePosFinal", s"UR.pose.goto_$HomeJOINT", useUR)(),
   )
 
 
