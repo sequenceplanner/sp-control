@@ -19,12 +19,12 @@ class Executor extends ModelDSL with ROSSupport {
       c("pre", "!done", s"cmd := $cmd"),
       c("started", s"got_cmd == $cmd"),
       c("post", "done"),
-      c("reset", "true", s"cmd := ''"))
+      c("reset", "true"))
   }
 
   a("reset", List(),
     c("pre", "true", s"cmd := ''"),
-    c("started", "true"),
+    c("started", s"got_cmd == ''"),
     c("post", "true"),
     c("reset", "true")
   )
