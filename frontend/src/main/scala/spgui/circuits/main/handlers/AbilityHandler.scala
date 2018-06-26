@@ -35,12 +35,10 @@ class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateH
     }
 
     case UpdateAbility(id, f) => react {
-      println(s"UpdateAbility $id")
       abilities.modify(as => upsert(id, AbilityData(Ability("N/A", id))).modify(f)(as))
     }
 
     case TerminateAllAbilities => react {
-      println("TerminateAllAbilities")
       abilities.set(SimpleSet[AbilityId, AbilityData](_.id))
     }
   }

@@ -51,7 +51,6 @@ class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, 
       latestActiveRunnerId.set(Some(id))
 
     case TerminateAllVirtualDevices =>
-      println("TerminateAllVirtualDevices")
       react {
       virtualDevices.set(SimpleSet[VirtualDeviceId, VDData](_.id)) compose latestActiveRunnerId.set(None)
     }
