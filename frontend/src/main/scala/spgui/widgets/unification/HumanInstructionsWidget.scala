@@ -53,16 +53,16 @@ object HumanInstructionsWidget {
               )
             } else {
               <.div(
-                <.h1(s"${h.humanName} is logged in"),
-                <.div(h.toString),
+                <.div(s"${h.humanName} is logged in"),
+                //<.div(h.toString),
                 <.br(),
                 if (h.cmd.nonEmpty){
                   TagMod(
-                    <.div(s"Operation: ${h.cmd}"),
-                    <.div(s"${h.instructions.getOrElse(h.cmd, "No description for this OP")}")
+                    <.h1(s"Operation: ${h.cmd}"),
+                    <.h1(s"${h.instructions.getOrElse(h.cmd, "No description for this OP")}")
                   )
                 } else {
-                  <.div("Have a break, no instructions now")
+                  <.h1("Have a break, no instructions now")
                 },
                 <.button(
                   {if (h.ack) ^.className := "btn btn-success"

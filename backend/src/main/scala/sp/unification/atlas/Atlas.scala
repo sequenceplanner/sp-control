@@ -56,7 +56,7 @@ class Atlas extends ModelDSL with ROSSupport {
 
   // abilities
   a("lift", List(),
-    c("pre", "true", "activate_lift:=true"),
+    c("pre", "true", "activate_lift:=true", "activate_unload:=false"),
     c("started", "got_cmd_activate_lift"),
     c("post", "true"),
     c("reset", "true"))
@@ -68,13 +68,13 @@ class Atlas extends ModelDSL with ROSSupport {
     c("reset", "true"))
 
   a("startToolForward", List(),
-    c("pre", "true", "run_tool_forward:=true"),
+    c("pre", "true", "run_tool_forward:=true", "set_tool_idle := false"),
     c("started", "got_cmd_run_tool_forward"),
-    c("post", "programmed_torque_reached"),
-    c("reset", "true", "run_tool_forward:='false'"))
+    c("post", "true"),
+    c("reset", "true"))
 
   a("stopToolForward", List(),
-    c("pre", "true", "run_tool_forward:=false"),
+    c("pre", "true", "run_tool_forward:=false", "set_tool_idle := true"),
     c("started", "!got_cmd_run_tool_forward"),
     c("post", "true"),
     c("reset", "true"))
