@@ -68,8 +68,6 @@ object VDTrackerWidget {
       val abilityStates = props.abilities.map(_.state).reduceOption(_ ++ _).getOrElse(Map())
       val resourceStates = props.virtualDevices.flatMap(_.resources.toList).map(_.state).reduceOption(_ ++ _).getOrElse(Map())
 
-      println(s"abilityStates count: ${abilityStates.size}")
-
       <.div(
         SPWidgetElements.buttonGroup(Seq(
           SPWidgetElements.dropdown("Create Model", models),

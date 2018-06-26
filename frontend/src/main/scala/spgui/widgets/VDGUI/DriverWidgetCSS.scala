@@ -7,174 +7,140 @@ import scalacss.ScalaCssReact._
 object DriverWidgetCSS extends StyleSheet.Inline {
   import dsl._
 
-  val cardGroupCollapsed = style(
-    flexGrow(1),
-    display.block
-   )
+  private val space = 15 px
+  private val bgColor = white
+  private val primaryColor = c"#F57C00"
+  private val secondaryColor = c"#000"
+  private val titleFont = "'Roboto', sans-serif"
+  private val tableFont = "'Lato', sans-serif"
 
-  val cardGroupExpanded = style(
+  val spacing = style(
+    padding(space)
+  )
+
+  val maxSize = style(
+    height(100 %%)
+  )
+
+  val container = style(
+    width(100 %%),
     display.flex,
-    flexGrow(1)
+    flexWrap.wrap,
+    justifyContent.flexStart
   )
 
-  val rootDiv = style(
-    height(100.%%),
-    width(100.%%),
-    display.flex,
-    flexDirection.column
-  )
+  val cardHover = style(
+    transition := "box-shadow 0.3s cubic-bezier(.25, .8, .25, 1)",
 
-  val cardPlaceholder = style(
-    padding(8.px),
-    display.inlineTable
-  )
-
-  val cardOuter = style(
-    boxShadow:= "0px 1px 5px 0px rgba(0, 0, 0, 0.2), 0px 2px 2px 0px rgba(0, 0, 0, 0.14), 0px 3px 1px -2px rgba(0, 0, 0, 0.12)",
-    display.flex,
-    flexGrow(1),
-    width(150.px),
-    height(100.px),
-    overflow.auto,
-    position.relative
-  )
-
-  val cardCollapsed = style(
-    width(0.px),
-    height(0.px),
-    display.none
-  )
-
-  val cardExpanded = style(
-    display.flex,
-    width(100.%%)
-  )
-
-
-  val paddingCTS = 3.px
-  val cardTitleSmall = style(
-    fontSize(12.px),
-    textOverflow:= ("ellipsis"),
-    overflow.hidden,
-    paddingTop(paddingCTS),
-    paddingLeft(paddingCTS),
-    paddingRight(paddingCTS),
-    borderBottom(1.px),
-    borderBottomStyle.solid,
-    fontFamily:=!"'Arial'",
-    cursor.pointer,
     &.hover(
-      backgroundColor :=! "#eeeeee"
+      boxShadow := "0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22)",
     )
   )
 
-  val unsetHeight = style(
-    height.unset
+  val card = style(
+    margin(space / 2),
+    padding(space),
+    display.inlineFlex,
+    flexDirection.column,
+    boxShadow := "0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)",
+    backgroundColor(bgColor),
+    cursor.pointer
   )
 
-  val cardState = style(
-    margin(0 px,0 px,0 px,25 px)
-  )
-  val cardGroupTitle = style(
-    fontSize(20 px),
+  val overviewCard = style(
+    card,
+    cardHover,
   )
 
-  val resourceCard = style(
-    width(100.%%),
-    backgroundColor :=! "#cccccc"
+  val resourceDetailCard = style(
+    card,
+    width(100 %%),
+    height(100 %%)
   )
 
-  val driverCard = style(
-    width(100.%%),
-    backgroundColor :=! "#cccccc"
+  val resetP = style(
+    margin.`0`,
+    display.inline
+  )
+
+  val cardTitleSmall = style(
+    resetP,
+    paddingBottom(space),
+    paddingRight(space),
+    fontSize(13.px),
+    color(primaryColor),
+    fontFamily :=! titleFont,
+    textOverflow:= "ellipsis",
+    fontWeight.bold,
+    overflow.hidden,
+    cursor.pointer,
   )
 
   val cardTitleExpanded = style(
-    fontSize(20 px),
-    fontWeight._500,
-    borderBottom(1.px),
-    borderBottomStyle.solid,
-    borderBottomColor :=! "#888888",
-    paddingTop(2.px),
-    paddingLeft(10.px),
-    paddingRight(10.px),
-    fontFamily:=!"'Arial'",
-    cursor.pointer,
-    &.hover(
-      backgroundColor :=! "#eeeeee"
-    )
-  )
-
-  val stateList = style(
-    fontFamily:=!"'Courier New', Courier, monospace",
-    padding(12.px)
-  )
-
-  val cardSubtitle = style(
-    fontSize(16 px),
-    fontWeight._500,
-    lineHeight(1.2),
-    margin(10 px, 0 px, 10 px, 0 px),
-    color.rgb(119, 119, 119)
-  )
-
-  val driverTypeSmall = style(
-    marginLeft(4.px),
-    fontSize(12 px),
-    color :=! "#555555"
-  )
-
-  val driverType = style(
-    marginLeft(12.px),
-    color :=! "#555555"
-  )
-
-  val driverStates = style(
-    fontFamily:=!"'Courier New', Courier, monospace",
-    margin(12.px)
+    cardTitleSmall,
+    fontSize(18.px),
   )
 
   val driverStatus = style(
-    marginLeft(12.px),
-    color :=! "#555555"
+    display.flex,
+    justifyContent.spaceBetween,
+    maxWidth(180 px),
   )
 
-  val driverStatusSmall = style(
-    marginLeft(4.px),
-    fontSize(12 px),
-    color :=! "#555555"
+  val driverName = style(
+    width(80 px),
+    paddingRight(space / 2),
+    textOverflow := "ellipsis",
+    overflow.hidden
   )
 
-  val driverOffline = style(
-    color :=! "#ff0000",
-    fontWeight :=! "bold"
-  )
+  object stateTable {
+    val table = style(
+      display.flex,
+      flexDirection.column,
+      fontFamily :=! tableFont,
+      padding(space),
+      backgroundColor(bgColor),
+      marginBottom(space)
+    )
 
-  val driverOnline = style(
-    color :=! "#00ff00",
-    fontWeight :=! "bold"
-  )
+    val row = style(
+      paddingBottom(space),
+      &.lastChild {
+        paddingBottom.`0`
+      }
+    )
 
-  val driverUnresponsive = style(
-    color :=! "#ffff00",
-    fontWeight :=! "bold"
-  )
+    private val rowData = style(
+      display.inlineBlock,
+      margin.`0`,
+      maxWidth(80 px),
+      minWidth(80 px),
+      color(black),
+      opacity(0.75)
+    )
 
-  val buttonContainer = style(
-    /*
-    position.absolute,
-    bottom(0 px),
-    margin(4 px)
-    */
-  )
+    val rowName = style(
+      rowData
+    )
 
-  
+    val rowValue = style(
+      rowData,
+      textAlign.center,
+      fontWeight.bold
+    )
+  }
 
+  object driver {
+    val value = style(
+      fontWeight.bold
+    )
 
-  val table = style(
-    tableLayout.auto,
-    width(100 %%)
-  )
+    val online = style(value, color(c"#66BB6A"))
+    val offline = style(value, color(c"#b71c1c"))
+    val unresponsive = style(value, color(c"#8D6E63"))
+    val terminated = style(value, color(c"#90A4AE"))
+  }
 
   val input = style(
     width(100 %%),
@@ -182,6 +148,8 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     outline.none,
     background := "rgba(255,255,255,0.2)"
   )
+
+  initInnerObjects(stateTable.table, driver.value)
 
   this.addToDocument()
 }

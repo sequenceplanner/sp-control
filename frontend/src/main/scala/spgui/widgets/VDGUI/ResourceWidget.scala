@@ -1,147 +1,54 @@
 package spgui.widgets.VDGUI
 
+import diode.react.ModelProxy
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import scalacss.internal.StyleA
 import sp.devicehandler.VD.{OneToOneMapper, Resource}
-import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice, VD}
 import sp.domain._
-import spgui.communication._
-import spgui.widgets.VDGUI.SPCardComponent.RenderableCard
+import spgui.SimpleSet
+import spgui.circuits.main.handlers.DriverHandler.DriverId
+import spgui.circuits.main.handlers.DriverInfo
+import spgui.circuits.main.{FrontendState, MainCircuit}
+import spgui.widgets.VDGUI.SPCardComponent.ResourceCard
 
 /** Widget to visualize the Resources and it's status*/
 object ResourceWidget {
-  case class State(
-                    resources: List[VD.ResourceWithState] = List(),
-                    theDrivers: List[(VD.Driver, VD.DriverState, String)] = List()
-                  )
+  case class Props(proxy: ModelProxy[FrontendState]) {
+    val drivers: SimpleSet[DriverId, DriverInfo] = proxy.value.drivers.drivers
+  }
 
-  private class Backend($: BackendScope[Unit, State]) {
+  private class Backend($: BackendScope[Props, Unit]) {
+    def render(props: Props) = {
+      println("Render status:")
+      println(props.drivers.map(_.status))
+      val resources = props.proxy.value.virtualDevices.virtualDevices.flatMap(_.resources.toList).toList
+      val cards = resources.map(data => renderResourceCard(props, data.resource, data.state)).sortBy(_.name)
 
-    val deviceHandler = BackendCommunication.getMessageObserver(onDeviceMessage, APIVirtualDevice.topicResponse)
-    val driverHandler = BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
-
-    /** Handle APIDeviceDriver-messages.
-      *
-      * If a [[APIDeviceDriver.TheDrivers]] response is noticed,
-      * update the local list of driver.
-      *
-      * If something else, Empty Callback.
-      *
-      * @param mess SPMessage from APIDeviceDriver
-      */
-    def onDriverMessage(mess: SPMessage): Unit = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
-        case APIDeviceDriver.TheDrivers(drivers) => {
-          $.modState { s =>
-            s.copy(theDrivers = drivers.map(d => (d._1, d._2, d._3)))
-          }
-        }
-        case x => Callback.empty
-      }
-      callback.foreach(_.runNow())
+      SPCardComponent(cards)
     }
 
-    /** Handle APIVirtualDevice-messages.
-      *
-      * If a [[APIVirtualDevice.TheVD]] response is noticed,
-      * update the local list of resources.
-      *
-      * If a [[APIVirtualDevice.StateEvent]] response is noticed,
-      * update the local state of resource with same ID.
-      *
-      * If something else, Empty Callback.
-      *
-      * @param mess SPMessage from APIDeviceDriver
-      */
-    def onDeviceMessage(mess: SPMessage): Unit = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVirtualDevice.Response].map {
-        case APIVirtualDevice.TheVD(_, _, newResources, _ , _) =>
-          $.modState { s: State => s.copy(resources = s.resources ++ newResources)}
+    def renderResourceCard(props: Props, resource: Resource, resourceState: Map[ID, SPValue]): ResourceCard = {
+      val oneToOneMappers = resource.stateMap.collect { case x: OneToOneMapper => x }
 
-        // in case of StateEvent from VD,
-        // update the resource-state to the new value
-        case APIVirtualDevice.StateEvent(_, id, newState, _) =>
-          $.modState { s: State =>
-            s.copy(resources = s.resources.map { res =>
-                if(res.resource.id == id) res.copy(state = res.state ++ newState) else res})
-          }
+      val driverStatuses = props.drivers
+        .filterKeys(oneToOneMappers.map(_.driverID).contains)
+        .map(driver => (driver.name, driver.status))
+        .toList
 
-        case x => Callback.empty
-      }
-      callback.foreach(_.runNow())
-    }
+      val nameValueTuples = oneToOneMappers.map(m => (m.driverIdentifier.toString, resourceState(m.thing)))
 
-    /** Set SPHeader and send SPMessage to APIVirtualDevice
-      *
-      * @param mess SPMessage of APIVirtualDevice
-      */
-    def sendToVirtualDevice(mess: APIVirtualDevice.Request): Unit = {
-      val header = SPHeader(from = "ResourceWidget", to = "", reply = SPValue("ResourceWidget"))
-      BackendCommunication.publish(SPMessage.make(header, mess), APIVirtualDevice.topicRequest)
-    }
-
-    /** Render-function in Backend.
-      *
-      * Make a SPCardComponent and for all the resources in state, map it against a ResourceCard.
-      *
-      * @param state Current state in Backend-class
-      * @return The Widget GUI
-      */
-    def render(state: State) = {
-      val cards = state.resources.map { resourceData =>
-        renderResourceCard(state, resourceData.resource, resourceData.state)
-      }
-
-      <.div(
-        ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        SPCardComponent(cards)
-      )
-    }
-
-    def renderResourceCard(state: State, resource: Resource, resourceState: Map[ID, SPValue]): RenderableCard = {
-      val relatedDrivers = resource.stateMap.map { case OneToOneMapper(_, driverId, _) => driverId}.distinct
-      val selectedDrivers = state.theDrivers.filter { case (driver, _, _) => relatedDrivers.contains(driver.id) }
-      val driverStatuses = selectedDrivers.map { case (driver, _, status) => (driver.name, status) }
-
-      val resultState = resource.stateMap.map { case mapper: VD.OneToOneMapper =>
-        (mapper.driverIdentifier.toString, resourceState(mapper.thing))
-      }
-
-      SPCardComponent.ResourceCard(
-        cardId = resource.id,
-        name = resource.name,
-        driverStatuses = driverStatuses,
-        state = resultState
-      )
-    }
-
-    /**********CALLBACKS**********/
-    /** When the widget is unmounting, kill message-observer.
-      *
-      * @return Callback
-      */
-    def onUnmount: Callback = Callback{
-      println("ResourceWidget Unmouting")
-      deviceHandler.kill()
-      driverHandler.kill()
-    }
-
-    /** When the widget did mount, try to get all VD that is active.
-      *
-      * @return Callback
-      */
-    def didMount: Callback = Callback{
-      println(s"Resource Widget didMount and is requesting GetVD")
-      sendToVirtualDevice(APIVirtualDevice.GetVD)
+      SPCardComponent.ResourceCard(resource.id, resource.name, driverStatuses, nameValueTuples)
     }
   }
 
-  private val resourceWidgetComponent = ScalaComponent.builder[Unit]("ResourceWidget")
-    .initialState(State())
+  private val resourceWidgetComponent = ScalaComponent.builder[Props]("ResourceWidget")
     .renderBackend[Backend]
-    .componentDidMount(_.backend.didMount)
-    .componentWillUnmount(_.backend.onUnmount)
     .build
 
-  def apply() = spgui.SPWidget(spwb => resourceWidgetComponent())
+  implicit def toHtml(a: StyleA): TagMod = ^.className := a.htmlClass
+
+  private val connectComponent = MainCircuit.connectComponent(identity)
+
+  def apply() = spgui.SPWidget(_ => connectComponent { proxy => resourceWidgetComponent(Props(proxy)) })
 }
