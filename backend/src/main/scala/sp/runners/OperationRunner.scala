@@ -279,7 +279,7 @@ trait OperationRunnerLogic {
       setup.ops.map(o => o.id -> SPValue(OperationState.init)) ++
       setup.opAbilityMap.values.toList.map(id => id -> SPValue("notEnabled"))
     val updOps = setup.ops.map(o => updOPs(o, setup.opAbilityMap))
-    val r = Runner(setup.copy(initialState = updState, ops = updOps), updState)
+    val r = Runner(setup.copy(initialState = updState, ops = updOps), updState, true, Set())
     if (! validateRunner(setup)) None
     else {
       runners += setup.runnerID -> r

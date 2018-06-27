@@ -1,6 +1,7 @@
 package sp.unification
 
 import sp.domain.SPAttributes
+import sp.drivers.ROSFlatStateDriver
 import sp.modelSupport._
 
 
@@ -37,4 +38,14 @@ class Operator(name: String) extends ModelDSL {
 
   driver(dn, sp.drivers.HumanDriver.driverType, SPAttributes("instructions" -> instructions))
   resource(rn) // blank list of things = take everything
+}
+
+class ReadLogIn extends ModelDSL with ROSSupport {
+  import sp.unification.UnificationModel._
+
+  reader("OperatorLogIN", "std_msgs/Bool", "/rfid/login_authentication")
+
+  driver("OperatorLogIN", ROSFlatStateDriver.driverType)
+  // blank list of things = take everything
+  resource("resource")
 }

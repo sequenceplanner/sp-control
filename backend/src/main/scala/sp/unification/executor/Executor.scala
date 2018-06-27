@@ -12,12 +12,21 @@ class Executor extends ModelDSL with ROSSupport {
   writer("Executor", "unification_roscontrol/SPToExecutor", "/unification_roscontrol/sp_to_executor", 250)
 
   // abilities
-  executorCmd.foreach(cmd =>
+  executorCmd.foreach { cmd =>
+    println(cmd)
+
     a(cmd, List(),
       c("pre", "!done", s"cmd := $cmd"),
       c("started", s"got_cmd == $cmd"),
       c("post", "done"),
-      c("reset", "true", s"cmd := ''"))
+      c("reset", "true"))
+  }
+
+  a("reset", List(),
+    c("pre", "true", s"cmd := ''"),
+    c("started", s"got_cmd == ''"),
+    c("post", "true"),
+    c("reset", "true")
   )
 
   driver("Executor", ROSFlatStateDriver.driverType)

@@ -61,7 +61,8 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
     cmd -> "",
     ack -> false,
     done -> false,
-    alert -> ""
+    alert -> "",
+    "blueTooth" -> blueToothConnected
   )
 
   var driverState = defaultState
@@ -87,6 +88,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
   def receive = {
     case BluetoothConnect =>
       blueToothConnected = true
+      updS("blueToothConnected", blueToothConnected)
 
     case x: GotMessage =>
       if (! (driverState.get(ack).contains(SPValue(x.ack)) && driverState.get(done).contains(SPValue(x.done)))){
@@ -194,7 +196,7 @@ class HumanDriverInstance(d: VD.Driver) extends Actor
     val ackS = sA.getAs[Boolean](ack).get
     val doneS = sA.getAs[Boolean](done).get
     val alertS = sA.getAs[String](alert).get
-    val mess = SendMessage(cmdS, ackS, doneS, alert)
+    val mess = SendMessage(cmdS, ackS, doneS, alertS)
 
     if (blueToothConnected) bluetooth ! mess
   }
@@ -282,7 +284,7 @@ class Proxy(callBack: String => Unit) extends sp.bluetooth.BluetoothMessageListe
   // a device connects to it. Might fail if multiple devices try to
   // connect at the same time.
   println("before bluetooth")
-  val proxy: Try[BluetoothProxy] = Failure(new UnsupportedOperationException()) //Try{new BluetoothProxy(this)}
+  val proxy: Try[BluetoothProxy] = Failure(new Exception())//Try{new BluetoothProxy(this)}
   println(s"after: $proxy")
 
   // Use proxy's send method to send messages to the device
