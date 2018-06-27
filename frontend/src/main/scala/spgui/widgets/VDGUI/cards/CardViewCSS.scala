@@ -1,10 +1,10 @@
-package spgui.widgets.VDGUI
+package spgui.widgets.VDGUI.cards
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
 /** Define the css-classes for the DriverWidget with ScalaCSS */
-object DriverWidgetCSS extends StyleSheet.Inline {
+object CardViewCSS extends StyleSheet.Inline {
   import dsl._
 
   private val space = 15 px
@@ -14,20 +14,17 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   private val titleFont = "'Roboto', sans-serif"
   private val tableFont = "'Lato', sans-serif"
 
+  val center = style(
+    textAlign.center,
+    display.flex,
+    justifyContent.center,
+    fontWeight.bold
+  )
+
   val spacing = style(
     padding(space)
   )
 
-  val maxSize = style(
-    height(100 %%)
-  )
-
-  val container = style(
-    width(100 %%),
-    display.flex,
-    flexWrap.wrap,
-    justifyContent.flexStart
-  )
 
   val cardHover = style(
     transition := "box-shadow 0.3s cubic-bezier(.25, .8, .25, 1)",
@@ -54,8 +51,7 @@ object DriverWidgetCSS extends StyleSheet.Inline {
 
   val resourceDetailCard = style(
     card,
-    width(100 %%),
-    height(100 %%)
+    width :=! "calc(100% - 15px)"
   )
 
   val resetP = style(
@@ -82,6 +78,7 @@ object DriverWidgetCSS extends StyleSheet.Inline {
   )
 
   val driverStatus = style(
+    fontFamily :=! tableFont,
     display.flex,
     justifyContent.spaceBetween,
     maxWidth(180 px),
@@ -92,6 +89,27 @@ object DriverWidgetCSS extends StyleSheet.Inline {
     paddingRight(space / 2),
     textOverflow := "ellipsis",
     overflow.hidden
+  )
+
+  val driverInfo = style(
+    display.flex,
+    fontFamily :=! tableFont
+  )
+
+  val driverInfoColumn = style(
+    display.flex,
+    flexDirection.column,
+    paddingRight(1 em),
+    opacity(0.9)
+  )
+
+  val driverInfoColumnRight = style(
+    driverInfoColumn,
+    opacity(1),
+    color(c"#444"),
+    fontWeight.bold,
+    alignItems.flexEnd,
+    textAlign.end
   )
 
   object stateTable {
