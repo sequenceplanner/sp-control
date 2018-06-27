@@ -3,6 +3,7 @@ package spgui.widgets.VDGUI
 import diode.react.ModelProxy
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import play.api.libs.json.JsString
 import scalacss.internal.StyleA
 import sp.devicehandler.VD.{OneToOneMapper, Resource}
 import sp.domain._
@@ -20,8 +21,6 @@ object ResourceWidget {
 
   private class Backend($: BackendScope[Props, Unit]) {
     def render(props: Props) = {
-      println("Render status:")
-      println(props.drivers.map(_.status))
       val resources = props.proxy.value.virtualDevices.virtualDevices.flatMap(_.resources.toList).toList
       val cards = resources.map(data => renderResourceCard(props, data.resource, data.state)).sortBy(_.name)
 
@@ -36,7 +35,9 @@ object ResourceWidget {
         .map(driver => (driver.name, driver.status))
         .toList
 
-      val nameValueTuples = oneToOneMappers.map(m => (m.driverIdentifier.toString, resourceState(m.thing)))
+      // val nameValueTuples = oneToOneMappers.map(m => (m.driverIdentifier.toString, resourceState(m.thing)))
+      val nameValueTuples = oneToOneMappers
+          .map(m => (m.driverIdentifier.toString, resourceState.getOrElse(m.thing, JsString("NULL"))))
 
       SPCardComponent.ResourceCard(resource.id, resource.name, driverStatuses, nameValueTuples)
     }
