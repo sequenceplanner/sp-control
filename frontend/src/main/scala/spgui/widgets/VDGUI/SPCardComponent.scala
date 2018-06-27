@@ -1,7 +1,9 @@
 package spgui.widgets.VDGUI
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.Reusability
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.Lens
+import play.api.libs.json.{JsString, JsValue}
 import scalacss.internal.StyleA
 import sp.domain._
 import spgui.communication._
@@ -95,22 +97,23 @@ object SPCardComponent {
       )
     }
 
+    private val jsValueToString: PartialFunction[JsValue, String] = {
+      case JsString(v) => v
+      case x => x.toString()
+    }
+
     def resourceDetailCard(card: ResourceCard): TagMod = {
       val drivers = card.driverStatuses.map((renderDriver _).tupled).toTagMod
-      val states = card.state.map { case (description, v) =>
-        <.div(
-          css.stateTable.row,
-          <.span(css.stateTable.rowName, description),
-          <.span(css.stateTable.rowValue, v.toString())
-        )
-      }.toTagMod
+      val header = ("Name", "Value")
+      val data = card.state.map { case (k, v) => (k, jsValueToString(v)) }
 
       <.div(
         css.resourceDetailCard,
         ^.onClick --> closeDetailView,
         <.div(css.cardTitleExpanded, card.name),
         <.div(css.spacing, drivers),
-        <.div(css.stateTable.table, states)
+        Table(header, data, closeDetailView)
+        // <.div(css.stateTable.table, states)
       )
     }
 
@@ -154,6 +157,7 @@ object SPCardComponent {
       }
     }
   }
+
 
   private val component = ScalaComponent.builder[Props]("CardGrid")
     .initialState(State())
