@@ -1,34 +1,51 @@
 package spgui.widgets.VDGUI
 
 import japgolly.scalajs.react.{Callback, ScalaComponent}
-import japgolly.scalajs.react.component.Scala
 import japgolly.scalajs.react.vdom.VdomElement
 import japgolly.scalajs.react.vdom.html_<^._
-
+import scalacss.internal.StyleA
+import spgui.widgets.VDGUI.CSSHelpers.toHtml
+import spgui.widgets.VDGUI.{TableCSS => css}
 
 object Table {
-  import spgui.widgets.VDGUI.CSSHelpers.toHtml
-  import spgui.widgets.VDGUI.{TableCSS => css}
+  sealed trait Alignment
+  object Alignment {
+    case object Start extends Alignment
+    case object Center extends Alignment
+    case object End extends Alignment
+  }
 
-  case class Props[A <: Product](header: A, rows: Iterable[A], onClick: Callback)
 
+  case class ColumnData(label: String, style: StyleA = css.none)
+
+  case class Props[A <: Product](headers: Vector[ColumnData], rows: Iterable[A], onClick: Callback)
   def makeColumns[A <: Product](props: Props[A]): TagMod = {
-    val columnData = (props.header :: props.rows.toList).foldLeft(Map[Int, Vector[Any]]()) { (acc, next) =>
-      next.productIterator.zipWithIndex.foldLeft(acc) { case (acc2, (v, i)) =>
-        val curr = acc2.getOrElse(i, Vector())
-        acc2.updated(i, curr :+ v)
+    val headerSize = props.headers.size
+
+    val data = props.rows.toList.foldLeft(Map[Int, Vector[Any]]()) { (acc, next) =>
+      next.productIterator.zipWithIndex
+        .filter { case (_, i) => i < headerSize }
+        .foldLeft(acc) { case (acc2, (v, i)) =>
+          val curr = acc2.getOrElse(i, Vector())
+          acc2.updated(i, curr :+ v)
       }
     }
 
-    columnData.values.filter(_.nonEmpty).map { data =>
-      val header = data(0)
-      val rows = data.tail.map(d => <.p(css.value, d.toString)).toTagMod
-      <.div(
-        ^.onClick --> (Callback(println("Click.")) >> props.onClick),
-        css.column,
-        <.h2(css.data, header.toString),
-        rows
-      )
+    data
+      .filter { case (_, v) => v.nonEmpty }
+      .flatMap { case (i, columnValues) => props.headers.lift(i).map(header => (header, columnValues)) }
+      .map { case (columnData, columnValues) =>
+        val rows = columnValues.tail.map {
+          case d: VdomElement => <.div(css.value, d)
+          case d => <.p(css.value, d.toString)
+        }.toTagMod
+
+        <.div(
+          columnData.style,
+          css.column,
+          <.h2(css.data, columnData.label),
+          rows
+        )
     }.toTagMod
   }
 
@@ -36,7 +53,7 @@ object Table {
     val columns = makeColumns(props)
 
     <.div(
-      ^.onClick --> (Callback(println("Click.")) >> props.onClick),
+      ^.onClick --> props.onClick,
       css.body,
       columns
     )
@@ -46,6 +63,7 @@ object Table {
     .render_P(render)
     .build
 
-  type UnmountedTable[A <: Product] = Scala.Unmounted[Props[A], Unit, Unit]
-  def apply[A <: Product](header: A, rows: Iterable[A], onClick: Callback = Callback.empty): UnmountedTable[A] = component[A](Props(header, rows, onClick))
+  def apply[A <: Product](headers: Vector[ColumnData], rows: Iterable[A], onClick: Callback = Callback.empty): VdomElement = {
+    component[A](Props(headers, rows, onClick))
+  }
 }

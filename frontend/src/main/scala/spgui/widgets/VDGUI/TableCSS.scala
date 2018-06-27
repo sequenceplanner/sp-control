@@ -17,15 +17,13 @@ object TableCSS extends StyleSheet.Inline {
     flexDirection.column,
     padding(space),
     width :=! "calc(50% - 2em)",
-
-    &.lastChild(
-      textAlign.center,
-      fontWeight.bold
-    )
   )
 
+  val none = style()
+
   val data = style(
-    padding(space / 2),
+    paddingTop(space / 2),
+    paddingBottom(space / 2),
     margin.`0`,
     color(black),
     opacity(0.75),
@@ -42,12 +40,15 @@ object TableCSS extends StyleSheet.Inline {
     color(valueColor)
   )
 
+  val centerContent = style(
+    display.flex,
+    justifyContent.center
+  )
+
   val body = style(
     display.flex,
     width(100 %%),
     fontFamily :=! font,
-    padding(space),
-    backgroundColor(white),
     marginBottom(space)
   )
 
