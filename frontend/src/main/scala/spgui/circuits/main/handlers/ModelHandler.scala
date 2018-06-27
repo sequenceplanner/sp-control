@@ -27,7 +27,7 @@ object AddMockModelIds {
                               id: domain.ID,
                               info: Option[ModelInformation] = None,
                               history: Option[List[(Int, SPAttributes)]] = None,
-                              items: List[IDAble] = List()
+                              items: SimpleSet[ID, IDAble] = SimpleSet[ID, IDAble](_.id)
                             )
 
 @Lenses case class ModelsCircuitState(models: SimpleSet[ID, ModelMock], activeModelId: Option[ID], previousActiveModelId: Option[ID]) {
@@ -60,7 +60,7 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends StateHand
     case SetItems(modelId, items) =>
       react {
         models.modify { models =>
-          val newModel = models.get(modelId).map(_.copy(items = items))
+          val newModel = models.get(modelId).map(_.copy(items = SimpleSet[ID, IDAble](_.id, items:_*)))
           newModel.fold(models)(models.replace)
         }
       } globally {
@@ -114,7 +114,7 @@ object MergeUtility {
     val infoInit: Option[ModelInformation] = None
     val newInfo = List(a.info, b.info).flatten.foldLeft(infoInit)((acc, next) => acc.map(_ merge next))
 
-    ModelMock(a.id, newInfo, b.history, List())
+    ModelMock(a.id, newInfo, b.history)
   }
 
   implicit class MergeModelInformation(info: ModelInformation) {

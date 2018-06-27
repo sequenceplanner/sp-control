@@ -41,14 +41,14 @@ object SopRunnerWidget {
       $.modState(state => {
         props.proxy.value.activeModel.map{ model =>
           val sopSpecs = model.items.collect {
-            case spec:SOPSpec => spec
+            case spec: SOPSpec => spec
           }
-          val ops = model.items.collect{
-            case o:Operation => o
+          val ops = model.items.collect {
+            case o: Operation => o
           }
           state.copy(
-            sopSpecs = sopSpecs,
-            modelOps = ops
+            sopSpecs = sopSpecs.toList,
+            modelOps = ops.toList
           )
         }.getOrElse(state)
       })

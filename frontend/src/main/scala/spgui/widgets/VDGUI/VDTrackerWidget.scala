@@ -57,13 +57,13 @@ object VDTrackerWidget {
       def launchAbilities: Callback = {
         Callback {
           props.activeModel.foreach { model =>
-            VDTrackerCommunication.postRequest(APIVDTracker.launchVDAbilities(model.items))
+            VDTrackerCommunication.postRequest(APIVDTracker.launchVDAbilities(model.items.toList))
           }
         }
       }
 
       val models = props.availableVDModels.map { model => SPWidgetElements.dropdownElement(model, onModelClick(model)) }
-      val idAbles = props.activeModel.map(_.items).getOrElse(List())
+      val idAbles = props.activeModel.map(_.items).getOrElse(SimpleSet[ID, IDAble](_.id))
       val runners = props.runners.toList
       val abilityStates = props.abilities.map(_.state).reduceOption(_ ++ _).getOrElse(Map())
       val resourceStates = props.virtualDevices.flatMap(_.resources.toList).map(_.state).reduceOption(_ ++ _).getOrElse(Map())
@@ -74,7 +74,7 @@ object VDTrackerWidget {
           ModelChoiceDropdown(onModelChoiceClick),
           TagMod(
             SPWidgetElements.button("Launch VD and Abilities", launchAbilities),
-            SPWidgetElements.button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles)) }),
+            SPWidgetElements.button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles.toList)) }),
             SPWidgetElements.button("Terminate Everything", terminateAll(props))
           ).when(props.activeModelId.isDefined)
         )),
@@ -97,13 +97,13 @@ object VDTrackerWidget {
       terminateRunners(props)
     }
 
-    def renderRunners(activeRunnerId: RunnerId, runners: List[Runner], ids : List[IDAble]): TagMod = {
+    def renderRunners(activeRunnerId: RunnerId, runners: List[Runner], ids: SimpleSet[ID, IDAble]): TagMod = {
       runners.map { runner =>
         val active = runner.id == activeRunnerId
         val state = runner.state
 
         val rows = state.map { case (id, value) =>
-            val name = ids.find(_.id == id).map(_.name).getOrElse("")
+            val name = ids.get(id).map(_.name).getOrElse("")
 
             <.tr(
               <.td(name),
@@ -132,9 +132,9 @@ object VDTrackerWidget {
       }.toTagMod
     }
 
-    def renderInfo(name: String, data: Map[ID , SPValue], ids: List[IDAble]): TagMod = {
+    def renderInfo(name: String, data: Map[ID , SPValue], ids: SimpleSet[ID, IDAble]): TagMod = {
       val state = data
-        .flatMap { case (id, value) => ids.find(_.id == id).map(_ -> value) }
+        .flatMap { case (id, value) => ids.get(id).map(_ -> value) }
         .toList
         .sortBy { case (idAble, _) => idAble.name }
 

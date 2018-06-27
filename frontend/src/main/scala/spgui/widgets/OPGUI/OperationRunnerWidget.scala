@@ -14,7 +14,7 @@ import spgui.widgets.OPGUI.OperationRunnerCard.CardData
 object OperationRunnerWidget {
   import spgui.widgets.OPGUI.{OperationRunnerWidgetCSS => css}
   case class Props(proxy: ModelProxy[FrontendState]) {
-    def modelIdAbles: List[IDAble] = proxy.value.models.activeModel.fold(List[IDAble]())(_.items)
+    def modelIdAbles: SimpleSet[ID, IDAble] = proxy.value.models.activeModel.fold(SimpleSet[ID, IDAble](_.id))(_.items)
 
     def activeRunner: Option[Runner] = {
       for {

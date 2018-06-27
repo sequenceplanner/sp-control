@@ -6,6 +6,7 @@ import monocle.macros.Lenses
 import scalacss.internal.StyleA
 import sp.domain._
 import sp.domain.logic.{PropositionConditionLogic => PCL}
+import spgui.SimpleSet
 import spgui.circuits.main.handlers.{AbilityData, OperationData}
 
 /** Card components for the OperationRunnerWidget */
@@ -13,13 +14,13 @@ object OperationRunnerCard {
   import spgui.widgets.OPGUI.{OperationRunnerWidgetCSS => css}
   @Lenses case class State(expandedId: Option[ID] = None)
 
-  case class Props(modelIdAbles: List[IDAble], cards: List[CardData])
+  case class Props(modelIdAbles: SimpleSet[ID, IDAble], cards: List[CardData])
 
   case class CardData(cardId: ID, ability: AbilityData, operation: OperationData)
 
   class Backend($: BackendScope[Props, State]) {
     def render(props: Props, state: State) = {
-      implicit def showProposition(p: Proposition): String = PCL.prettyPrint(props.modelIdAbles)(p)
+      implicit def showProposition(p: Proposition): String = PCL.prettyPrint(props.modelIdAbles.toList)(p)
 
       val detailView = state.expandedId.isDefined
       def isExpanded(card: CardData) = state.expandedId.contains(card.cardId)
@@ -135,7 +136,7 @@ object OperationRunnerCard {
     */
   implicit def toHtml(a: StyleA): TagMod = ^.className := a.htmlClass
 
-  def apply(modelIdAbles: Iterable[IDAble], cards: Iterable[CardData]) = {
-    component(Props(modelIdAbles.toList, cards.toList))
+  def apply(modelIdAbles: SimpleSet[ID, IDAble], cards: Iterable[CardData]) = {
+    component(Props(modelIdAbles, cards.toList))
   }
 }

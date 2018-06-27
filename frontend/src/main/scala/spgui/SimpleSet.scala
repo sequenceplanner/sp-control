@@ -56,11 +56,17 @@ class SimpleSet[K, V](hashBy: V => K, private val data: Map[K, V]) {
     case (k, v) if f(k) => v
   }
 
-
   def find(f: V => Boolean): Option[V] = data.collectFirst { case (_, v) if f(v) => v }
   def filter(f: (K, V) => Boolean): SimpleSet[K, V] = {
     val res = data.filter { case (k, v) => f(k, v) }.values.toSeq
     SimpleSet(hashBy, res:_*)
+  }
+  def collect[B](pf: PartialFunction[V, B]): Iterable[B] = {
+    val pf2: PartialFunction[(K, V), B] = {
+      case (_, v) => pf(v)
+    }
+
+    data.collect(pf2)
   }
 
   def filterKeys(f: K => Boolean): SimpleSet[K, V] = {

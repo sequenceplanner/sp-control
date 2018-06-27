@@ -12,4 +12,5 @@ object Aliases {
   type ResourceId = ID
 
   type VDModelName = String
+  type DriverName = String
 }

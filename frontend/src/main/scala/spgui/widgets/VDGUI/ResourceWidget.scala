@@ -2,52 +2,99 @@ package spgui.widgets.VDGUI
 
 import diode.react.ModelProxy
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.Reusability
 import japgolly.scalajs.react.vdom.html_<^._
-import play.api.libs.json.JsString
-import scalacss.internal.StyleA
+import play.api.libs.json.{JsString, JsValue}
 import sp.devicehandler.VD.{OneToOneMapper, Resource}
 import sp.domain._
 import spgui.SimpleSet
-import spgui.circuits.main.handlers.DriverHandler.DriverId
+import spgui.circuits.main.handlers.Aliases.DriverName
+import spgui.circuits.main.handlers.DriverHandler.{DriverId, DriverStatus}
 import spgui.circuits.main.handlers.DriverInfo
 import spgui.circuits.main.{FrontendState, MainCircuit}
-import spgui.widgets.VDGUI.SPCardComponent.ResourceCard
+import spgui.widgets.VDGUI.cards.ResourceView
+import spgui.widgets.VDGUI.cards.ResourceView.ResourceCard
+import spgui.widgets.VDGUI.cards.{CardViewCSS => css}
+import CSSHelpers.toHtml
 
-/** Widget to visualize the Resources and it's status*/
+
+
+/**
+  * Widget to visualize the Resources and it's status
+  */
 object ResourceWidget {
+  implicit val simpleSetReusability: Reusability[DriverInfo] = Reusability.by_==
+  implicit val propsReusability: Reusability[Props] = Reusability.by(_.drivers.toList)
+
   case class Props(proxy: ModelProxy[FrontendState]) {
     val drivers: SimpleSet[DriverId, DriverInfo] = proxy.value.drivers.drivers
+    val items: SimpleSet[ID, IDAble] = proxy.value.models.activeModel.map(_.items).getOrElse(SimpleSet[ID, IDAble](_.id))
   }
-
-  private class Backend($: BackendScope[Props, Unit]) {
-    def render(props: Props) = {
+  private class Backend($: BackendScope[Props, Option[ID]]) {
+    def render(props: Props, expandedId: Option[ID]): VdomElement = {
       val resources = props.proxy.value.virtualDevices.virtualDevices.flatMap(_.resources.toList).toList
       val cards = resources.map(data => renderResourceCard(props, data.resource, data.state)).sortBy(_.name)
 
-      SPCardComponent(cards)
+      val expandedCard = expandedId.flatMap(id => cards.find(_.cardId == id))
+      expandedCard match {
+        case Some(card) => ResourceView.Detail(card, onClick = $.setState(None))
+        case None => ResourceView.Overview(cards, onCardClick = cardId => $.setState(Some(cardId)))
+      }
     }
 
     def renderResourceCard(props: Props, resource: Resource, resourceState: Map[ID, SPValue]): ResourceCard = {
-      val oneToOneMappers = resource.stateMap.collect { case x: OneToOneMapper => x }
+      val associations = resource.stateMap.collect { case x: OneToOneMapper => x }
+      println(associations)
+
+      props.drivers.map(driver => driver.setup).foreach(x => println(s"Setup: $x"))
 
       val driverStatuses = props.drivers
-        .filterKeys(oneToOneMappers.map(_.driverID).contains)
+        .filterKeys(associations.map(_.driverID).contains)
         .map(driver => (driver.name, driver.status))
         .toList
 
-      // val nameValueTuples = oneToOneMappers.map(m => (m.driverIdentifier.toString, resourceState(m.thing)))
-      val nameValueTuples = oneToOneMappers
-          .map(m => (m.driverIdentifier.toString, resourceState.getOrElse(m.thing, JsString("NULL"))))
 
-      SPCardComponent.ResourceCard(resource.id, resource.name, driverStatuses, nameValueTuples)
+      val nameValueTuples = associations.map { m =>
+        /*
+        println(s"items.get(m.thing): ${props.items.get(m.thing)}")
+        println(s"items.get(m.driverID): ${props.items.get(m.driverID)}")
+        */
+        (m.driverIdentifier.toString, resourceState.getOrElse(m.thing, JsString("NULL")))
+      }
+
+      ResourceCard(resource.id, resource.name, driverStatuses, nameValueTuples)
     }
+
+  }
+
+  def driverStatus(status: String): TagMod = {
+    val driverCss: TagMod = status match {
+      case DriverStatus.Online => css.driver.online
+      case DriverStatus.Offline => css.driver.offline
+      case DriverStatus.Unresponsive => css.driver.unresponsive
+      case DriverStatus.Terminated => css.driver.terminated
+      case _ => EmptyVdom
+    }
+
+    <.span(driverCss, status)
+  }
+
+  def renderDriverStatus(statuses: List[(DriverName, DriverStatus)]): TagMod = {
+    statuses.map { case (name, status) =>
+      <.div(css.driverStatus, <.span(css.driverName, name), driverStatus(status))
+    }.toTagMod
+  }
+
+  val jsValueToString: PartialFunction[JsValue, String] = {
+    case JsString(v) => v
+    case x => x.toString()
   }
 
   private val resourceWidgetComponent = ScalaComponent.builder[Props]("ResourceWidget")
+    .initialState(Option.empty[ID])
     .renderBackend[Backend]
+    .configure(Reusability.shouldComponentUpdate)
     .build
-
-  implicit def toHtml(a: StyleA): TagMod = ^.className := a.htmlClass
 
   private val connectComponent = MainCircuit.connectComponent(identity)
 

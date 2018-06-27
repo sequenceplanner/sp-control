@@ -73,7 +73,7 @@ object DriverHandler {
     val Online = "Online"
     val Offline  = "Offline"
     val Unresponsive  = "Unresponsive"
-    val Terminated = "terminated"
+    val Terminated = "Terminated"
   }
   /**
     * Type for ID's of requests given to drivers
