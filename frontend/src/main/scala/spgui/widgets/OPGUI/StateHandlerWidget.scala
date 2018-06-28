@@ -258,17 +258,15 @@ object StateHandlerWidget {
       val query: String = "domain"
       val attributeValueMap = operation.attributes.value.filter { case (key, _) => key == query }
       val tryParseDropdown = Try{
-        val values: Seq[VdomNode] = attributeValueMap.flatMap { valMap: (String, JsValue) =>
+        val dropDownElements: Seq[VdomNode] = attributeValueMap.flatMap { valMap: (String, JsValue) =>
           val parsedDomain: SPValue = valMap._2.to[SPValue].getOrElse(SPValue("Did Not Parse JsValue"))
           val seqOfDomainValues: Seq[SPValue] =
             parsedDomain.to[Seq[SPValue]].getOrElse(Seq(SPValue("Could Not Parse list")))
-//          val json0 = (valMap._2 \ 0).get
-//          val json1 = (valMap._2 \ 1).get
           seqOfDomainValues.map(value =>
             SPWidgetElements.dropdownElement(value.toString, operationDomainChange(operation.id, value))
           )
         }.toSeq
-        SPWidgetElements.dropdown("domain", values)
+        SPWidgetElements.dropdown("domain", dropDownElements)
       }
       tryParseDropdown.map(<.td(_)).getOrElse(<.td("-"))
     }
