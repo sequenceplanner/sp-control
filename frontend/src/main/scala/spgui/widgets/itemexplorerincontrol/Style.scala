@@ -28,7 +28,7 @@ object Style extends StyleSheet.Inline {
     backgroundColor.white,
     height(100 %%),
     overflow.auto,
-    fontFamily := "monospace",
+    fontFamily :=! "monospace",
     paddingLeft(15 px)
   )
 
