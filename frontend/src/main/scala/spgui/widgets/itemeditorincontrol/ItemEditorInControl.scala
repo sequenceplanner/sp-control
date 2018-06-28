@@ -9,7 +9,7 @@ import js.JSON
 import spgui.SPWidget
 import spgui.components.DragAndDrop.OnDataDrop
 import spgui.components.SPWidgetElements
-import spgui.availablemodelscircuit.{AvailableModels, AvailableModelsCircuit}
+import spgui.circuits.availablemodelscircuit.{AvailableModels, AvailableModelsCircuit}
 import spgui.communication.APIComm
 import spgui.communication.APIComm._
 import sp.domain._

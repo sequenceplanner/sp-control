@@ -3,6 +3,7 @@ package sp.abilityhandler
 import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import sp.AbilityStatus
 import sp.devicehandler.{APIVirtualDevice, VD}
 import sp.domain.APISP.StatusResponse
 import sp.domain._
@@ -98,7 +99,7 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
             case response: APIVirtualDevice.Response => onVirtualDeviceRequest(state, header, response)
             case req: API.Request => onOperationMatcherRequest(state, header, req)
           }
-      }
+        }
 
       case x if {log.debug(s"ABH from an ability got: $x"); false} => Unit
 
@@ -125,10 +126,10 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
 
         if (reqID.isDefined) {
           stateString match {
-            case AbilityStatus.Executing =>
+            case AbilityStatus.ExecutingTag =>
               publish(topicResponse, SPMessage.makeJson(header, AbilityStarted(abilityID)))
 
-            case AbilityStatus.Finished =>
+            case AbilityStatus.FinishedTag =>
               publish(topicResponse, SPMessage.makeJson(header, AbilityCompleted(abilityID, Map())))
               publish(topicResponse, SPMessage.makeJson(header, APISP.SPDone()))
 
@@ -308,20 +309,20 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
           }
           transitionState(updS)
 
-          // Add filters if we need it later. Probably is better that all abilities has
-          // the complete state
-          //val f = abilities.filter(kv => kv._2.ids.intersect(s.keySet).nonEmpty)
-          //f.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
+        // Add filters if we need it later. Probably is better that all abilities has
+        // the complete state
+        //val f = abilities.filter(kv => kv._2.ids.intersect(s.keySet).nonEmpty)
+        //f.foreach{kv => kv._2.actor ! NewState(filterState(kv._2.ids, state))}
 
-          // The no filter version
+        // The no filter version
 
         case virtualDevice: APIVirtualDevice.TheVD =>
           println("We got the VD!")
           println(virtualDevice)
-          val _resources = virtualDevice.resources.map(_.r)
-          val _state = virtualDevice.resources.foldLeft(currentState.states)(_ ++ _.state)
+          val resources = virtualDevice.resources.map(_.resource)
+          val state = virtualDevice.resources.foldLeft(currentState.states)(_ ++ _.state)
 
-          transitionState(currentState.copy(resources = _resources, states = _state))
+          transitionState(currentState.copy(resources = resources, states = state))
 
           currentState.abilityStates.foreach { case (_, abilityState) =>
             abilityState.actor ! NewState(currentState.states.filterKeys(abilityState.ids.contains))
@@ -340,6 +341,7 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
       */
     def updateValue(key: ID)(f: T => T): Map[ID, T] = {
       map.get(key).map(v => map.updated(key, f(v))).getOrElse(map)
+
     }
   }
 
@@ -355,6 +357,7 @@ class AbilityHandler(name: String, handlerID: ID, virtualDeviceID: ID) extends A
       header <- message.getHeaderAs[SPHeader]
       body <- message.getBodyAs[T]
     } yield (header, body)
+
 
     def oneOf[A](implicit reads: JSReads[A]): OneOf[SPHeader, A] = OneOf[SPHeader, A](message)
 

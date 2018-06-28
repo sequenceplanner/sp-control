@@ -5,7 +5,9 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.internal.StyleA
 import sp.domain._
-import spgui.availablemodelscircuit._
+import spgui.circuits.availablemodelscircuit._
+import spgui.circuits.main.handlers.ModelsCircuitState
+import spgui.circuits.main.MainCircuit
 
 object ModelStatus {
   import spgui.widgets.model.{ModelStatusCSS => css}
@@ -31,7 +33,7 @@ object ModelStatus {
     .render_P(render)
     .build
 
-  private def connectCircuit = ModelsCircuit.connect(state => state)
+  private def connectCircuit = MainCircuit.connectComponent(_.models)
 
   def apply() = connectCircuit(component(_))
 

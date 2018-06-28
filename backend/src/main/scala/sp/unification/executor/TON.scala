@@ -23,6 +23,13 @@ class TON(name: String) extends ModelDSL {
     c("reset", "true", "in := false")
   )
 
+  a("reset", List(),
+    c("pre", "true", s"in := false"),
+    c("started", s"NOT in"),
+    c("post", "true"),
+    c("reset", "true")
+  )
+
   driver(dn, sp.drivers.TONDriver.driverType)
   resource(rn)
 }

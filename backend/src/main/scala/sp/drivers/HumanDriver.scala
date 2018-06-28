@@ -284,7 +284,7 @@ class Proxy(callBack: String => Unit) extends sp.bluetooth.BluetoothMessageListe
   // a device connects to it. Might fail if multiple devices try to
   // connect at the same time.
   println("before bluetooth")
-  val proxy: Try[BluetoothProxy] = Try{new BluetoothProxy(this)}
+  val proxy: Try[BluetoothProxy] = Failure(new Exception())//Try{new BluetoothProxy(this)}
   println(s"after: $proxy")
 
   // Use proxy's send method to send messages to the device

@@ -44,6 +44,10 @@ object SPMessageUtil {
         case Nil => None
         case h :: _ => Some(h)
       }
+      def get: Option[(H, Any)] = for {
+        h <- header
+        b <- body
+      } yield (h, b)
 
       def foreach(f: Any => Unit): Unit = body.foreach(f)
       def map[B](f: Any => B): Option[B] = body.map(f)
