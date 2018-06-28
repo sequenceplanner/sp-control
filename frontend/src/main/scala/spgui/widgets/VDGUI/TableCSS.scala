@@ -16,7 +16,7 @@ object TableCSS extends StyleSheet.Inline {
     display.flex,
     flexDirection.column,
     padding(space),
-    width :=! "calc(50% - 2em)",
+    width :=! "calc(50% - 2em)"
   )
 
   val none = style()

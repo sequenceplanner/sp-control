@@ -74,12 +74,12 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     margin(0 px,0 px,0 px,25 px)
   )
   val cardGroupTitle = style(
-    fontSize(20 px),
+    fontSize(20 px)
   )
 
   val card = style(
     width(100.%%),
-    backgroundColor :=! "#cccccc",
+    backgroundColor.rgb(204, 204, 204),
     display.flex
   )
 
@@ -112,9 +112,9 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     width(100 %%),
     borderRadius(15 px),
     borderWidth(2 px),
-    borderStyle:=!"solid",
-    color :=! "#000000",
-    backgroundColor := "#ffffff",
+    borderStyle.solid,
+    color.rgb(0, 0, 0),
+    backgroundColor.rgb(255, 255, 255),
     display.flex,
     flexDirection.column
   )
@@ -124,16 +124,16 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     width(120 px),
     borderRadius(15 px),
     borderWidth(2 px),
-    borderStyle:=!"solid",
-    color :=! "#000000",
-    backgroundColor := "#ffffff",
+    borderStyle.solid,
+    color.rgb(0, 0, 0),
+    backgroundColor.rgb(255, 255, 255),
     display.flex,
     flexDirection.column
   )
 
   val opPrecondition = style(
     textAlign.center,
-    borderBottomColor :=! "#000000",
+    borderBottomColor.rgb(0, 0, 0),
     borderBottomStyle.solid,
     borderBottomWidth(1 px),
     marginLeft(5 px),
@@ -153,7 +153,7 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     textAlign.center,
     fontSize(12 px),
     overflow.hidden,
-    textOverflow:= "ellipsis",
+    textOverflow:= "ellipsis"
   )
 
   val opName = style(
@@ -161,7 +161,7 @@ object OperationRunnerWidgetCSS extends Theming.SPStyleSheet {
     textAlign.center,
     fontSize(16 px),
     overflow.hidden,
-    textOverflow:= "ellipsis",
+    textOverflow:= "ellipsis"
   )
 
   val opPostcondition = style(
