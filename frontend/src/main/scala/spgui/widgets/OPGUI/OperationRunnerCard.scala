@@ -16,10 +16,22 @@ object OperationRunnerCard {
 
   case class Props(modelIdAbles: SimpleSet[ID, IDAble], cards: List[CardData])
 
-  case class CardData(cardId: ID, ability: AbilityData, operation: OperationData)
+  class CardData(val operation: Option[OperationData], val ability: Option[AbilityData]) {
+    val cardId: ID = (operation, ability) match {
+      case (None, None) => throw new IllegalStateException("CardData must have either an ability or an operation.")
+      case (None, Some(a)) => a.id
+      case (Some(o), _) => o.id
+    }
+  }
+
+  object CardData {
+    def apply(ability: AbilityData): CardData = new CardData(None, Some(ability))
+    def apply(operation: OperationData): CardData = new CardData(Some(operation), None)
+    def apply(operation: OperationData, ability: AbilityData) = new CardData(Some(operation), Some(ability))
+  }
 
   class Backend($: BackendScope[Props, State]) {
-    def render(props: Props, state: State) = {
+    def render(props: Props, state: State): VdomElement = {
       implicit def showProposition(p: Proposition): String = PCL.prettyPrint(props.modelIdAbles.toList)(p)
 
       val detailView = state.expandedId.isDefined
@@ -37,7 +49,7 @@ object OperationRunnerCard {
       }
 
 
-      <.div(css.rootDiv, <.div(stateClass, cards))
+      <.div(css.rootDiv, <.div(stateClass, cards)).render
     }
 
     def renderCard(card: CardData, expanded: Boolean)(implicit show: Proposition => String): TagMod = {
@@ -69,28 +81,32 @@ object OperationRunnerCard {
 
       <.div(
         css.card,
-        section(card.operation.name, content = renderOperationState(card.operation.state)),
-        section(card.ability.name, content = <.span(css.emphasizeText, card.ability.status.tag))
+        card.operation.map { operation =>
+          section(operation.name, content = renderOperationState(operation.state))
+        }.whenDefined,
+        card.ability.map { ability =>
+          section(ability.name, content = <.span(css.emphasizeText, ability.status.tag))
+        }.whenDefined
       )
     }
 
     def cardExpanded(card: CardData)(implicit showProposition: Proposition => String): TagMod = {
       <.div(
         css.card,
-        <.span(
-          css.opOuter,
-          renderConditions(
-            card.operation.name,
-            card.operation.preConditions,
-            card.operation.postConditions
-          ),
-          renderOperationState(card.operation.state)
-        ),
-        <.span(
-          css.opOuter,
-          renderConditions(card.ability.name, List(card.ability.preCondition), List(card.ability.postCondition)),
-          <.span(css.emphasizeText, card.ability.status.tag)
-        )
+        card.operation.map { operation =>
+          <.span(
+            css.opOuter,
+            renderConditions(operation.name, operation.preConditions, operation.postConditions),
+            renderOperationState(operation.state)
+          )
+        }.whenDefined,
+        card.ability.map { ability =>
+          <.span(
+            css.opOuter,
+            renderConditions(ability.name, List(ability.preCondition), List(ability.postCondition)),
+            <.span(css.emphasizeText, ability.status.tag)
+          )
+        }.whenDefined
       )
     }
 
@@ -136,7 +152,7 @@ object OperationRunnerCard {
     */
   implicit def toHtml(a: StyleA): TagMod = ^.className := a.htmlClass
 
-  def apply(modelIdAbles: SimpleSet[ID, IDAble], cards: Iterable[CardData]) = {
+  def apply(modelIdAbles: SimpleSet[ID, IDAble], cards: Iterable[CardData]): VdomElement = {
     component(Props(modelIdAbles, cards.toList))
   }
 }

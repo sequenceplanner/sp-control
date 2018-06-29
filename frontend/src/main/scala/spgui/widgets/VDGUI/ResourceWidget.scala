@@ -37,16 +37,14 @@ object ResourceWidget {
 
       val expandedCard = expandedId.flatMap(id => cards.find(_.cardId == id))
       expandedCard match {
-        case Some(card) => ResourceView.Detail(card, onClick = $.setState(None))
+        case Some(card) =>
+          ResourceView.Detail(card, onClick = $.setState(None))
         case None => ResourceView.Overview(cards, onCardClick = cardId => $.setState(Some(cardId)))
       }
     }
 
     def renderResourceCard(props: Props, resource: Resource, resourceState: Map[ID, SPValue]): ResourceCard = {
       val associations = resource.stateMap.collect { case x: OneToOneMapper => x }
-      println(associations)
-
-      props.drivers.map(driver => driver.setup).foreach(x => println(s"Setup: $x"))
 
       val driverStatuses = props.drivers
         .filterKeys(associations.map(_.driverID).contains)
@@ -54,17 +52,30 @@ object ResourceWidget {
         .toList
 
 
-      val nameValueTuples = associations.map { m =>
-        /*
-        println(s"items.get(m.thing): ${props.items.get(m.thing)}")
-        println(s"items.get(m.driverID): ${props.items.get(m.driverID)}")
-        */
-        (m.driverIdentifier.toString, resourceState.getOrElse(m.thing, JsString("NULL")))
+      val nameValueTuples = {
+        val fromResourceState = resourceState.flatMap { case (id, v) =>
+          props.items.get(id).map(idAble => (id, idAble.name, v))
+        }
+
+        val fromAssociations = associations.map { case OneToOneMapper(thingId, _, name) =>
+          val value = resourceState.getOrElse(thingId, JsString("NULL"))
+          (thingId, name, value)
+        }
+
+        (fromResourceState ++ fromAssociations)
+          .distinctBy { case (id, _, _) => id }
+          .toList
+          .sortBy { case (_, name, _) => name }
+          .map { case (_, name, value) => (name, value) }
       }
 
       ResourceCard(resource.id, resource.name, driverStatuses, nameValueTuples)
     }
 
+  }
+
+  implicit class DistinctIterable[V](xs: Iterable[V]) {
+    def distinctBy[K](f: V => K): Iterable[V] = xs.groupBy(f).map { case (_, v) => v.head }
   }
 
   def driverStatus(status: String): TagMod = {
