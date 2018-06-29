@@ -33,7 +33,7 @@ class URPose extends ModelDSL with ROSSupport {
   import UnificationModel._
 
   reader("URdriver", "unification_roscontrol/URPoseUniToSP", "/unification_roscontrol/ur_pose_unidriver_to_sp")
-  writer("URdriver", "unification_roscontrol/URPoseSPToUni", "/unification_roscontrol/ur_pose_sp_to_unidriver", 250)
+  writer("URdriver", "unification_roscontrol/URPoseSPToUni", "/unification_roscontrol/ur_pose_sp_to_unidriver", 1000)
 
   // abilities
   poses.foreach { pose =>

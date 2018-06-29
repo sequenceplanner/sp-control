@@ -12,7 +12,7 @@ import unification_roscontrol._
 
 class RECU extends ModelDSL with ROSSupport {
   reader("RECUDriver", "unification_roscontrol/RecuUniToSP", "/unification_roscontrol/recu_unidriver_to_sp")
-  writer("RECUDriver", "unification_roscontrol/RecuSPToUni", "/unification_roscontrol/recu_sp_to_unidriver", 250)
+  writer("RECUDriver", "unification_roscontrol/RecuSPToUni", "/unification_roscontrol/recu_sp_to_unidriver", 1000)
 
   driver("RECUDriver", ROSFlatStateDriver.driverType)
 
@@ -52,7 +52,7 @@ class HECU extends ModelDSL with ROSSupport {
 
 class Atlas extends ModelDSL with ROSSupport {
   reader("AtlasDriver", "unification_roscontrol/AecuUniToSP", "/unification_roscontrol/aecu_unidriver_to_sp")
-  writer("AtlasDriver", "unification_roscontrol/AecuSPToUni", "/unification_roscontrol/aecu_sp_to_unidriver", 250)
+  writer("AtlasDriver", "unification_roscontrol/AecuSPToUni", "/unification_roscontrol/aecu_sp_to_unidriver", 1000)
 
   // abilities
   a("lift", List(),

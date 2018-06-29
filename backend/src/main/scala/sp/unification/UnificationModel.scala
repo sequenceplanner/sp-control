@@ -329,12 +329,14 @@ class UnificationModel extends ModelDSL {
     c("reset", "true")
   )(
     sP(
-      sOnew("OPlfMounting", s"OP.mountLF", useOP)(),
+      sOnew("OPlfMounting", s"OP.mountLF", useOP)(
+
+      ),
       sS(
         sOnew(s"doLFMagic", s"Executor.$LFMagic")(
           c("post", "true", s"lf_pos := 'on_engine'")
         ),
-        sOnew(s"delayBeforeHome", s"TON.delay")(cond("pre", "true", "TON.pt := 3000")),
+        sOnew(s"delayBeforeHome", s"TON.delay")(cond("pre", "true", "TON.pt := 7000")),
         //sOnew(s"resetBeforeHome", s"UR.pose.reset", useUR)(cond("pre", "true")),
         sOnew("toHomeAfterLFMagic1", s"UR.pose.goto_AfterLFOperationJOINT", useUR)(),
         sOnew("toHomeAfterLFMagic2", s"UR.pose.goto_PreHomeJOINT", useUR)(),
