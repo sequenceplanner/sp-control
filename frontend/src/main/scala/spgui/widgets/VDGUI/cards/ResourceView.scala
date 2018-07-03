@@ -7,12 +7,11 @@ import play.api.libs.json.JsValue
 import sp.domain.{ID, SPValue}
 import spgui.circuits.main.handlers.Aliases.DriverName
 import spgui.circuits.main.handlers.DriverHandler.DriverStatus
-import spgui.widgets.VDGUI.Table
 import spgui.widgets.VDGUI.ResourceWidget.{jsValueToString, renderDriverStatus}
-import spgui.widgets.VDGUI.Table.ColumnData
-
 import spgui.widgets.VDGUI.cards.{CardViewCSS => css}
 import spgui.widgets.VDGUI.CSSHelpers.toHtml
+import spgui.widgets.VDGUI.{Table, TableRefactor}
+import spgui.widgets.VDGUI.Table.ColumnData
 
 object ResourceView {
   case class ResourceCard(cardId: ID, name: String, driverStatuses: List[(DriverName, DriverStatus)], state: List[(String, SPValue)])
@@ -49,15 +48,15 @@ object ResourceView {
     case class Props(card: ResourceCard, onClick: Callback)
 
     implicit val jsValueReusability: Reusability[JsValue] = Reusability.by(_.toString)
-    implicit val hmReuse: Reusability[(String, JsValue)] = Reusability.tuple2
+    implicit val tuple2Reuse: Reusability[(String, JsValue)] = Reusability.tuple2
     implicit val stateReusability: Reusability[List[(String, JsValue)]] = Reusability.byIterator
     implicit val cardReusability: Reusability[ResourceCard] = Reusability.derive
     implicit val reusability: Reusability[Props] = Reusability.by((props: Props) => props.card)
 
     private def render(props: Props): VdomElement = {
       val columnData = Vector(
-        ColumnData("Name"),
-        ColumnData("Value", css.center)
+        TableRefactor.ColumnData("Name"),
+        TableRefactor.ColumnData("Value")
       )
       val data = props.card.state.map { case (k, v) => (k, jsValueToString(v)) }
 
@@ -66,7 +65,7 @@ object ResourceView {
         ^.onClick --> props.onClick,
         <.div(css.cardTitleExpanded, props.card.name),
         <.div(css.spacing, renderDriverStatus(props.card.driverStatuses)),
-        Table(columnData, data, props.onClick)
+        TableRefactor(columnData, data, props.onClick)
       ).render
     }
 

@@ -6,13 +6,13 @@ import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.internal.StyleA
 import sp.domain._
 import spgui.circuits.availablemodelscircuit._
-import spgui.circuits.main.handlers.ModelsCircuitState
+import spgui.circuits.main.handlers.ModelHandlerState
 import spgui.circuits.main.MainCircuit
 
 object ModelStatus {
   import spgui.widgets.model.{ModelStatusCSS => css}
 
-  def render(props: ModelProxy[ModelsCircuitState]): VdomElement = {
+  def render(props: ModelProxy[ModelHandlerState]): VdomElement = {
     val text = props.value.activeModel.flatMap(_.info).map(_.name).getOrElse("None")
     <.li(
       <.div(
@@ -29,7 +29,7 @@ object ModelStatus {
 
   def use(s: StyleA): TagMod = ^.className := s.htmlClass
 
-  private val component = ScalaComponent.builder[ModelProxy[ModelsCircuitState]]("ModelStatusWidget")
+  private val component = ScalaComponent.builder[ModelProxy[ModelHandlerState]]("ModelStatusWidget")
     .render_P(render)
     .build
 

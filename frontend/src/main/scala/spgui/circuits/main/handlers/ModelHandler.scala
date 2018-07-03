@@ -30,15 +30,15 @@ object AddMockModelIds {
                               items: SimpleSet[ID, IDAble] = SimpleSet[ID, IDAble](_.id)
                             )
 
-@Lenses case class ModelsCircuitState(models: SimpleSet[ID, ModelMock], activeModelId: Option[ID], previousActiveModelId: Option[ID]) {
+@Lenses case class ModelHandlerState(models: SimpleSet[ID, ModelMock], activeModelId: Option[ID], previousActiveModelId: Option[ID]) {
   def activeModel: Option[ModelMock] = activeModelId.map(models.apply)
 }
 
 // TODO Someone with domain knowledge needs to take a look at how updates happen.
 // TODO It is probably incorrect in several places. For example, state might be
 // TODO when it should actually be merged, etc.
-class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends StateHandler[M, ModelsCircuitState, ModelAction](modelRW) {
-  import ModelsCircuitState.models
+class ModelHandler[M](modelRW: ModelRW[M, ModelHandlerState]) extends StateHandler[M, ModelHandlerState, ModelAction](modelRW) {
+  import ModelHandlerState.models
 
   def onAction: PartialFunction[ModelAction, Reaction] = {
     case SaveModel(model) => models.modify(_ + model)
@@ -99,7 +99,7 @@ class ModelHandler[M](modelRW: ModelRW[M, ModelsCircuitState]) extends StateHand
 }
 
 object ModelHandler {
-  val initialState = ModelsCircuitState(SimpleSet(_.id), None, None)
+  val initialState = ModelHandlerState(SimpleSet(_.id), None, None)
 }
 
 object MergeUtility {

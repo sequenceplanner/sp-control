@@ -42,7 +42,8 @@ object VDTrackerWidget {
   }
 
   private class Backend($: BackendScope[Props, Unit]) {
-    def render(props: Props) = {
+    def render(props: Props): VdomElement = {
+      import SPWidgetElements.{button, buttonGroup, dropdown}
       import sp.models.APIModel
 
       def onModelClick(modelName: String): Callback = Callback {
@@ -54,11 +55,9 @@ object VDTrackerWidget {
           Callback { ModelCommunication.postRequest(modelId, APIModel.GetItemList(0, 99999)) }
       }
 
-      def launchAbilities: Callback = {
-        Callback {
-          props.activeModel.foreach { model =>
-            VDTrackerCommunication.postRequest(APIVDTracker.launchVDAbilities(model.items.toList))
-          }
+      def launchAbilities: Callback = Callback {
+        props.activeModel.foreach { model =>
+          VDTrackerCommunication.postRequest(APIVDTracker.launchVDAbilities(model.items.toList))
         }
       }
 
@@ -69,13 +68,13 @@ object VDTrackerWidget {
       val resourceStates = props.virtualDevices.flatMap(_.resources.toList).map(_.state).reduceOption(_ ++ _).getOrElse(Map())
 
       <.div(
-        SPWidgetElements.buttonGroup(Seq(
-          SPWidgetElements.dropdown("Create Model", models),
+        buttonGroup(Seq(
+          dropdown("Create Model", models),
           ModelChoiceDropdown(onModelChoiceClick),
           TagMod(
-            SPWidgetElements.button("Launch VD and Abilities", launchAbilities),
-            SPWidgetElements.button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles.toList)) }),
-            SPWidgetElements.button("Terminate Everything", terminateAll(props))
+            button("Launch VD and Abilities", launchAbilities),
+            button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles.toList)) }),
+            button("Terminate Everything", terminateAll(props))
           ).when(props.activeModelId.isDefined)
         )),
         <.br(),
@@ -84,7 +83,7 @@ object VDTrackerWidget {
         renderInfo("Ability state", abilityStates, idAbles),
         <.br(),
         renderInfo("Virtual Device state", resourceStates, idAbles)
-      )
+      ).render
     }
 
     def terminateAll(props: Props): Callback = Callback {
