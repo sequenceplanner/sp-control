@@ -37,9 +37,6 @@ object VDTracker {
 
   private class Backend($: BackendScope[Unit, State]) {
 
-    val operationRunnerHandler = BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
-    val abilityHandler =   BackendCommunication.getMessageObserver(onAbilityMessage, APIAbilityHandler.topicResponse)
-    val virtualDeviceHandler =  BackendCommunication.getMessageObserver(onVirtualDeviceMessage, APIVirtualDevice.topicResponse)
     val modelMessObs =  BackendCommunication.getMessageObserver(onModelObsMes, mapi.topicResponse)
     val vdModelObs =    BackendCommunication.getMessageObserver(onVDTmsg, APIVDTracker.topicResponse)
 
@@ -54,6 +51,13 @@ object VDTracker {
       mess.body.to[APIVDAggregator.Response].map {
         case APIVDAggregator.TheDrivers(ds) =>
           $.modState ( _.copy(drivers = ds.map(_.driver) ) ).runNow()
+
+        case APIVDAggregator.TheAbilityStates(abilityStates) =>
+          $.modState(s => s.copy(latestAbilityState = abilityStates)).runNow()
+        case APIVDAggregator.TheResources(resources) =>
+          $.modState(s => s.copy(latestVDeviceState = resources.map(_.state.seq).reduce(_ ++ _)) ).runNow()
+        case APIVDAggregator.TheRunnerStates(runnerStates) =>
+          $.modState{_.copy(latestRunnerState = runnerStates )}.runNow()
         case x =>
       }
     }
@@ -70,38 +74,7 @@ object VDTracker {
       }
     }
 
-    def onOperationRunnerMessage(mess: SPMessage): Unit = {
-      mess.body.to[APIOperationRunner.Response].map{
-        case APIOperationRunner.StateEvent(runnerID, state, auto, groups) => {
-          $.modState{s =>
-            val updRs = s.latestRunnerState.get(runnerID).getOrElse(Map()) ++ state
-            s.copy(latestRunnerState = s.latestRunnerState ++ Map(runnerID -> updRs))
-          }.runNow()
-        }
-        case x =>
-      }
-    }
 
-    def onAbilityMessage(mess: SPMessage): Unit = {
-      mess.body.to[APIAbilityHandler.Response].map{
-        case APIAbilityHandler.AbilityState(id, state) => {
-          $.modState(s => s.copy(latestAbilityState = s.latestAbilityState ++ state)).runNow()
-        }
-        case APIAbilityHandler.AbilitiesTerminated =>
-          println("Abilities terminated")
-        case x =>
-      }
-    }
-    def onVirtualDeviceMessage(mess: SPMessage): Unit = {
-      mess.body.to[APIVirtualDevice.Response].map{
-        case APIVirtualDevice.StateEvent(resource, id, state, diff) => {
-          $.modState(s => s.copy(latestVDeviceState = s.latestVDeviceState ++ state)).runNow()
-        }
-        case APIVirtualDevice.TerminatedAllVDs =>
-          println("VDs terminated")
-        case x =>
-      }
-    }
     def onModelObsMes(mess: SPMessage): Unit = {
       mess.body.to[mapi.Response].map{
         case mapi.SPItems(items) => {
@@ -118,6 +91,7 @@ object VDTracker {
           "reload data",
           sendToVDTrackerService(APIVDTracker.getModelsInfo())
         ),
+         <.p(s.latestRunnerState.toString()),
         SPWidgetElements.buttonGroup(Seq(
           SPWidgetElements.dropdown(
             "Create Model",
@@ -187,7 +161,6 @@ object VDTracker {
     def updateDriverState(runner: ID, state: Map[ID , SPValue], key: ID)(e: ReactKeyboardEventFromInput) = {
       if(e.key == "Enter") {
         val newState = state + (key -> createCorrectTypeOfSPValue(state(key), e.target.value))
-        println("upd state: " + newState)
         sendToRunner(APIOperationRunner.SetState(runner, newState) )
       }
       else
@@ -251,9 +224,6 @@ object VDTracker {
     }
 
     def onUnmount() =  Callback{
-      operationRunnerHandler.kill()
-      abilityHandler.kill()
-      virtualDeviceHandler.kill()
       modelMessObs.kill()
       vdModelObs.kill()
       aggregatorHandler.kill()

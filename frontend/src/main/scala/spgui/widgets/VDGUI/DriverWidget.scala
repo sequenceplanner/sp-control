@@ -21,8 +21,7 @@ object DriverWidget {
   case class State(cards:  List[Card] = List())
 
   private class Backend($: BackendScope[Unit, State]) {
-    val driverHandler =
-      BackendCommunication.getMessageObserver(onDriverMessage, APIVDAggregator.topicResponse)
+    val driverHandler =    BackendCommunication.getMessageObserver(onDriverMessage, APIVDAggregator.topicResponse)
     val vdTrackerHandler = BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicRequest)
 
     def onVDTrackerMessage(mess: SPMessage) : Unit = {
@@ -68,7 +67,7 @@ object DriverWidget {
       <.div(
         SPWidgetElements.button(
           "reload data",
-          sendToDeviceDriver(APIDeviceDriver.GetDrivers)
+          sendToVDAggregator(APIVDAggregator.GetDrivers)
         ),
         ^.className := DriverWidgetCSS.rootDiv.htmlClass,
         SPCardGrid(state.cards.map(card => SPCardGrid.DriverCard(

@@ -4,10 +4,9 @@ import akka.actor.{Actor, ActorLogging, Props}
 import sp.SPMessageUtil.BetterSPMessage
 import sp.devicehandler.{APIVirtualDevice, VD, APIDeviceDriver => apiDriver}
 import sp.abilityhandler.APIAbilityHandler
-
 import sp.VDAggregator.APIVDAggregator._
-
 import sp.domain._
+import sp.runners.APIOperationRunner
 
 class AggregatorService extends Actor  with ActorLogging with  sp.service.ServiceSupport{
 
@@ -17,25 +16,30 @@ class AggregatorService extends Actor  with ActorLogging with  sp.service.Servic
   triggerServiceRequestComm(statusResponse)
 
   subscribe(APIVDAggregator.topicRequest)
+  subscribe(sp.vdtesting.APIVDTracker.topicRequest)
 
   subscribe(apiDriver.topicResponse)
-  subscribe(sp.vdtesting.APIVDTracker.topicRequest)
+  subscribe(APIVirtualDevice.topicResponse)
+  subscribe(APIAbilityHandler.topicResponse)
+  subscribe(APIOperationRunner.topicResponse)
 
   val Online = "Online"
   val Offline  = "Offline"
   val Unresponsive  = "Unresponsive"
 
+  var drivers = Map[ID , driverInfo]();                 var driversOld = Map[ID , driverInfo]()
+  var resources = List[VD.ResourceWithState]();         var resourcesOld = List[VD.ResourceWithState]()
+  var abilities = List[APIAbilityHandler.Ability]();    var abilitiesOld = List[APIAbilityHandler.Ability]()
+  var abilityStates = Map[ID, SPValue]();               var abilityStatesOld = Map[ID, SPValue]();
+  var runnerStates = Map[ID, Map[ID, SPValue]]();        var runnerStatesOld = Map[ID, Map[ID, SPValue]]();
 
-  var drivers = Map[ID , driverInfo]();                 var driversTmp = Map[ID , driverInfo]()
-  var resources = List[VD.ResourceWithState]();         var resourcesTmp = List[VD.ResourceWithState]()
-  var abilities = List[APIAbilityHandler.Ability]();    var abilitiesTmp = List[APIAbilityHandler.Ability]()
   var firstTick = true
 
   def receive = {
     case x: String =>
       for {
         mess <- SPMessage.fromJson(x)
-        (h,b) <- mess.oneOf[APIVDAggregator.Request].or[apiDriver.Request].or[apiDriver.Response].or[sp.vdtesting.APIVDTracker.Request].or[APIVirtualDevice.Response].or[APIAbilityHandler.Response].get
+        (h,b) <- mess.oneOf[APIVDAggregator.Request].or[apiDriver.Request].or[apiDriver.Response].or[sp.vdtesting.APIVDTracker.Request].or[APIVirtualDevice.Response].or[APIAbilityHandler.Response].or[APIOperationRunner.Response].get
       } yield {
         val spHeader = h.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
@@ -64,8 +68,15 @@ class AggregatorService extends Actor  with ActorLogging with  sp.service.Servic
 
               case APIAbilityHandler.Abilities(abs) =>
                 abilities = abs
+              case APIAbilityHandler.AbilityState(id, state) =>
+                abilityStates ++= state
+
+              case APIOperationRunner.StateEvent(runnerID, state, _, _) =>
+                runnerStates ++= Map(runnerID -> (runnerStates.get(runnerID).getOrElse(Map()) ++ state))
               case sp.vdtesting.APIVDTracker.ResetGUI =>
                 drivers = Map()
+
+
               case other =>
         }
         sendAnswer(SPMessage.makeJson(spHeader, APISP.SPACK()))
@@ -76,17 +87,25 @@ class AggregatorService extends Actor  with ActorLogging with  sp.service.Servic
     case Throttle =>
       val spHeader = SPHeader(from = AggregatorServiceInfo.attributes.service, reqID = instanceID)
       if(!firstTick) {
-        if (! theSameDrivers(drivers, driversTmp)) { // Check if the maps have the same keys and active drivers..
-          driversTmp = drivers
+        if (! theSameDrivers(drivers, driversOld)) { // Check if the maps have the same keys and active drivers..
+          driversOld = drivers
           sendAnswer(SPMessage.makeJson(spHeader, APIVDAggregator.TheDrivers(drivers.values.toList)))
         }
-        if(! theSameResources(resources, resourcesTmp)) {
-          resourcesTmp = resources
+        if(resources != resourcesOld) {
+          resourcesOld = resources
           sendAnswer(SPMessage.makeJson(spHeader, APIVDAggregator.TheResources(resources)))
         }
-        if(! theSameAbilities(abilities, abilitiesTmp)) {
-          abilitiesTmp = abilities
+        if(abilities != abilitiesOld) {
+          abilitiesOld = abilities
           sendAnswer(SPMessage.makeJson(spHeader, APIVDAggregator.TheAbilities(abilities)))
+        }
+        if(abilityStates != abilityStatesOld) {
+          abilityStatesOld = abilityStates
+          sendAnswer(SPMessage.makeJson(spHeader, APIVDAggregator.TheAbilityStates(abilityStates)))
+        }
+        if(runnerStates != runnerStatesOld) {
+          runnerStatesOld = runnerStates
+          sendAnswer(SPMessage.makeJson(spHeader, APIVDAggregator.TheRunnerStates(runnerStates)))
         }
       }
       else
@@ -95,8 +114,8 @@ class AggregatorService extends Actor  with ActorLogging with  sp.service.Servic
     case Responsiveness =>
       val spHeader = SPHeader(from = AggregatorServiceInfo.attributes.service, reqID = instanceID)
       if(!firstTick) {
-        if (! theSameDrivers(drivers, driversTmp, statusCheck = true)) { // Check if the maps have the same keys and active drivers..
-          driversTmp = drivers
+        if (! theSameDrivers(drivers, driversOld, statusCheck = true)) { // Check if the maps have the same keys and active drivers..
+          driversOld = drivers
           sendAnswer(SPMessage.makeJson(spHeader, APIVDAggregator.TheDrivers(drivers.values.toList)))
         }
         drivers = drivers.map(d => d._1 -> (d._2.copy(status = if (d._2.status == Online) Unresponsive else d._2.status))) // Set all active drivers status to Unresponsive, (the active drivers should be updated between ticks)
@@ -114,16 +133,6 @@ class AggregatorService extends Actor  with ActorLogging with  sp.service.Servic
     return true // they are the same
   }
 
-  def theSameResources(R1: List[VD.ResourceWithState], R2 : List[VD.ResourceWithState]) : Boolean ={
-    if(R1.map(_.r.id).toSet != R2.map(_.r.id).toSet) return false // Not the same resources in lists
-    if(R1.map(_.state) != R2.map(_.state)) return false // Not the same states //TODO: make sure this check works
-    true
-  }
-
-  def theSameAbilities(A1: List[APIAbilityHandler.Ability], A2: List[APIAbilityHandler.Ability]) :Boolean ={
-    if(A1 != A2) return false // Not the same abilities in lists
-    true
-  }
   // A "ticker" that sends a "tick" string to self every 4 second
   import context.dispatcher
 

@@ -1,11 +1,13 @@
 package spgui.widgets.abilityhandler
 
 import java.util.UUID
+
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import spgui.communication._
 import sp.domain._
 import Logic._
+import sp.VDAggregator.APIVDAggregator
 
 object AbilityHandlerWidget {
   import sp.devicehandler._
@@ -18,36 +20,20 @@ object AbilityHandlerWidget {
 
   private class Backend($: BackendScope[Unit, State]) {
 
-    val abObs = BackendCommunication.getWebSocketStatusObserver(  mess => {
-      if (mess) sendToAB(abapi.GetAbilities)
-    }, abapi.topicResponse)
-    val vdObs = BackendCommunication.getWebSocketStatusObserver(  mess => {
-      if (mess) sendToVD(vdapi.GetVD)
-    }, vdapi.topicResponse)
+    val aggregatorHandler = BackendCommunication.getMessageObserver(onAggregatorMessage, APIVDAggregator.topicResponse)
 
-    val vdapiHandler = BackendCommunication.getMessageObserver(handleVDMess, vdapi.topicResponse)
-    val abapiHandler = BackendCommunication.getMessageObserver(handleABMess, abapi.topicResponse)
-
-    def handleVDMess(mess: SPMessage): Unit = {
-      mess.body.to[vdapi.Response].map{
-        case vdapi.TheVD(_, _, r, _, _) =>
-          $.modState(s => s.copy(resources = r.map(_.r))).runNow()
+    def onAggregatorMessage(mess : SPMessage) ={
+      mess.body.to[APIVDAggregator.Response].map{
+        case APIVDAggregator.TheResources(resourceWithStates) =>
+          println("AbilityHandler got resources")
+          $.modState(_.copy(resources = resourceWithStates.map(_.r))).runNow()
+        case APIVDAggregator.TheAbilities(abilities) =>
+          println("AbilityHandler got abilities")
+          $.modState(_.copy(abilities = abilities)).runNow()
+        case APIVDAggregator.TheAbilityStates(abilityStates) =>
+          println("AbilityHandler got ability states")
+          $.modState{_.copy(abilityState = abilityStates)}.runNow()
         case x =>
-          //println(s"AbilityHandlerWidget - TODO: $x")
-      }
-    }
-
-    def handleABMess(mess: SPMessage): Unit = {
-      mess.body.to[abapi.Response].map{
-        case abapi.Abilities(a) =>
-          $.modState(s => s.copy(abilities = a)).runNow()
-        case x @ abapi.AbilityState(id, state) =>
-          println(x)
-          $.modState{s =>
-            val ns = s.abilityState ++ state
-            s.copy(abilityState = ns)}.runNow()
-        case x =>
-          //println(s"AbilityHandlerWidget - answers - TODO: $x")
       }
     }
 
@@ -57,11 +43,11 @@ object AbilityHandlerWidget {
         <.br(),
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick --> sendToVD(vdapi.GetVD), "Get resources"
+          ^.onClick --> sendToAggregator(APIVDAggregator.GetResources), "Get resources"
         ),
         <.button(
           ^.className := "btn btn-default",
-          ^.onClick --> sendToAB(abapi.GetAbilities), "Get abilities"
+          ^.onClick --> sendToAggregator(APIVDAggregator.GetAbilities), "Get abilities"
         ),
         renderResources(s),
         renderAbilities(s)
@@ -130,17 +116,15 @@ object AbilityHandlerWidget {
 
     def onUnmount() = {
       println("Unmounting")
-      vdapiHandler.kill()
-      abapiHandler.kill()
+      aggregatorHandler.kill()
       Callback.empty
     }
 
-    def sendToVD(mess: vdapi.Request): Callback = {
-      val h = SPHeader(from = "AbilityHandlerWidget", to = vdapi.service,
-        reply = SPValue("AbilityHandlerWidget"), reqID = java.util.UUID.randomUUID())
+
+    def sendToAggregator(mess :APIVDAggregator.Request)  = Callback{
+      val h = SPHeader(from = "AbilityHandlerWidget", to = APIVDAggregator.service)
       val json = SPMessage.make(SPValue(h), SPValue(mess))
-      BackendCommunication.publish(json, vdapi.topicRequest)
-      Callback.empty
+      BackendCommunication.publish(json, APIVDAggregator.topicRequest)
     }
 
     def sendToAB(mess: abapi.Request): Callback = {
@@ -150,6 +134,8 @@ object AbilityHandlerWidget {
       BackendCommunication.publish(json, abapi.topicRequest)
       Callback.empty
     }
+
+
   }
 
   private val component = ScalaComponent.builder[Unit]("AbilityHandlerWidget")

@@ -14,7 +14,7 @@ import spgui.communication._
 object ResourceWidget {
   case class State(
                     resources: List[VD.ResourceWithState] = List(),
-                    theDrivers: List[(VD.Driver, VD.DriverState, String)] = List()
+                    theDrivers: List[APIVDAggregator.driverInfo] = List()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -33,16 +33,16 @@ object ResourceWidget {
       val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIVDAggregator.Response].map {
         case APIVDAggregator.TheDrivers(drivers) =>
           $.modState { s =>
-            s.copy(theDrivers = drivers.map(d => (d.driver, d.driverState, d.status)))
+            s.copy(theDrivers = drivers )
           }
           case APIVDAggregator.TheResources(resources) =>
-          $.modState { s: State => s.copy(resources = s.resources ++ resources)}
+            println("got resources Resource Widget:  "   + resources)
+          $.modState { s: State => s.copy(resources = resources)}
 
         case x => Callback.empty
       }
       callback.foreach(_.runNow())
     }
-
 
     /** Set SPHeader and send SPMessage to APIVDAggregator
       *
@@ -72,12 +72,12 @@ object ResourceWidget {
                 val relatedDrivers: List[ID] = rws.r.stateMap.map{
                   case mapper:VD.OneToOneMapper => mapper.driverID
                 }.distinct
-                val selectDrivers: List[(VD.Driver, VD.DriverState, String)] =
+                val selectDrivers: List[APIVDAggregator.driverInfo] =
                   state.theDrivers.filter{
-                    driver: (VD.Driver, VD.DriverState, String) => relatedDrivers.contains(driver._1.id)
+                    driverInfo => relatedDrivers.contains(driverInfo.driver.id)
                   }
                 selectDrivers.map{
-                  driver => (driver._1.name, driver._3)
+                  driverInfo => (driverInfo.driver.name, driverInfo.status)
                 }
               },
               state = rws.r.stateMap.map {case mapper: VD.OneToOneMapper =>
