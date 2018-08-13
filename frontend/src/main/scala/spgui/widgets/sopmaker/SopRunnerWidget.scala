@@ -9,7 +9,7 @@ import diode.react.{ModelProxy, ReactConnectProxy}
 import spgui.communication._
 import sp.runners.APIOperationRunner
 import spgui.circuits.main.MainCircuit
-import spgui.circuits.main.handlers.ModelsCircuitState
+import spgui.circuits.main.handlers.ModelHandlerState
 
 object SopRunnerWidget {
 
@@ -19,7 +19,7 @@ object SopRunnerWidget {
     opStates: Map[ID, SPValue] = Map(),
     currentSop: Option[SOP] = None
   )
-  case class Props(proxy: ModelProxy[ModelsCircuitState])
+  case class Props(proxy: ModelProxy[ModelHandlerState])
  
   private class Backend($: BackendScope[Props, State]) {
     val operationRunnerHandler =
@@ -84,7 +84,7 @@ object SopRunnerWidget {
     }
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connect(_.models)
+  val connectCircuit: ReactConnectProxy[ModelHandlerState] = MainCircuit.connect(_.models)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 }

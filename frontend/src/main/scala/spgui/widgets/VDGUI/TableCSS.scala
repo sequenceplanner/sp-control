@@ -12,12 +12,6 @@ object TableCSS extends StyleSheet.Inline {
   private val valueColor = c"#000"
 
   private val font = "'Lato', sans-serif"
-  val column = style(
-    display.flex,
-    flexDirection.column,
-    padding(space),
-    width :=! "calc(50% - 2em)"
-  )
 
   val none = style()
 
@@ -25,8 +19,7 @@ object TableCSS extends StyleSheet.Inline {
     paddingTop(space / 2),
     paddingBottom(space / 2),
     margin.`0`,
-    color(black),
-    opacity(0.75),
+    opacity(0.85),
     fontSize(13.px),
     color(headerColor)
   )
@@ -40,16 +33,40 @@ object TableCSS extends StyleSheet.Inline {
     color(valueColor)
   )
 
-  val centerContent = style(
+  val flexParent = style(
     display.flex,
-    justifyContent.center
+    alignItems.center,
+    padding(space),
+    fontFamily :=! font,
   )
 
-  val body = style(
+  val flexChild = style(
     display.flex,
-    width(100 %%),
-    fontFamily :=! font,
-    marginBottom(space)
+    flexDirection.column,
+    padding(space * 2)
+  )
+
+  val shortAndFixed = style(
+    whiteSpace.nowrap
+  )
+
+  val shortFixedDiv = style(
+    width(30 px),
+    height(30 px),
+    borderRadius(10 px),
+    backgroundColor.lightgreen,
+    display.inlineBlock
+  )
+
+  val truncated = style(
+    minWidth(0 px),
+    whiteSpace.nowrap,
+    overflow.hidden,
+    textOverflow := "ellipsis"
+  )
+
+  val truncThing = style(
+
   )
 
   this.addToDocument()

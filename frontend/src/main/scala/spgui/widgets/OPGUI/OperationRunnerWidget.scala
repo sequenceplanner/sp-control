@@ -9,6 +9,8 @@ import spgui.{SPWidget, SimpleSet}
 import spgui.circuits.main.{FrontendState, MainCircuit}
 import spgui.circuits.main.handlers.Aliases.{AbilityId, OperationId, RunnerId}
 import spgui.widgets.OPGUI.OperationRunnerCard.CardData
+import sp.domain.Logic._
+
 
 /** Widget to visualize the pairs of abilities/operations */
 object OperationRunnerWidget {
@@ -28,25 +30,38 @@ object OperationRunnerWidget {
   }
 
   private class Backend($: BackendScope[Props, Unit]) {
-    def render(props: Props) = {
-      val renderCard: (OperationId, AbilityId) => Option[CardData] = (operationId, abilityId) => {
+    def render(props: Props): VdomElement = {
+      val cardData: (OperationId, AbilityId) => Option[CardData] = (operationId, abilityId) => {
         for {
           ability <- props.abilities.get(abilityId)
           operation <- props.activeRunner.map(_.operations).flatMap(_.get(operationId))
-        } yield CardData(operationId, ability, operation)
+        } yield CardData(operation, ability)
       }
 
-      val cards = props.activeRunner
+      val associationCards = props.activeRunner
         .map(_.associations.toList)
         .toList
         .flatten
-        .map(renderCard.tupled)
+        .map(cardData.tupled)
         .flatten
+
+      val operationCards = props.modelIdAbles
+          .filter { case (_, v) => v.attributes.keys.contains("domain") }
+          .flatMap { thing => thing.attributes.getAs[Set[Operation]]("ops").getOrElse(Set()) }
+          .filterNot(o => associationCards.exists(_.operation.exists(_.id == o.id)))
+          .flatMap(o => props.activeRunner.map(_.operations).flatMap(_.get(o.id)))
+          .map(operationData => CardData(operationData))
+
+      val abilityCards = props.abilities
+        .filter { case (_, ability) => !associationCards.exists(_.ability.exists(_.id == ability.id)) }
+        .map(CardData(_))
+
 
       <.div(
         ^.className := css.widgetRoot.htmlClass,
-        OperationRunnerCard(props.modelIdAbles, cards)
-      )
+        OperationRunnerCard(props.modelIdAbles, associationCards ++ operationCards ++ abilityCards)
+
+      ).render
     }
   }
 

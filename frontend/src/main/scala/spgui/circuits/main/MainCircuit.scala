@@ -6,7 +6,7 @@ import spgui.circuits.availablemodelscircuit._
 import spgui.circuits.main.handlers._
 
 case class FrontendState(
-                          models: ModelsCircuitState,
+                          models: ModelHandlerState,
                           drivers: DriverHandlerState,
                           abilities: AbilityHandlerState,
                           runners: RunnerHandlerState,

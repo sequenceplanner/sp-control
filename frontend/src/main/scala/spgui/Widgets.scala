@@ -37,6 +37,7 @@ object Widgets {
       ("SPModelImportWidget",         widgets.modelImport.SPModelImportWidget(),          5, 10),
 //      ("VolvoSchedulerWidget",        widgets.virtcom.VolvoSchedulerWidget(),             3, 4),
       ("Virtual Device Tracker",                  widgets.VDGUI.VDTrackerWidget(),        5, 5),
+      ("Redesign",          widgets.VDGUI.VDTrackerWidgetRedesign(),     5, 5),
       ("HumanInstructions",           widgets.unification.HumanInstructionsWidget(),      5, 5),
       ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 6),
       ("ResourceWidget",              widgets.VDGUI.ResourceWidget(),                     5, 5),

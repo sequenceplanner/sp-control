@@ -22,7 +22,7 @@ object ModelsWidget {
   @Lenses case class UIState(historyExpanded: Set[ID], selectedModelId: Option[ID])
   @Lenses case class State(uiState: UIState)
 
-  case class Props(proxy: ModelProxy[ModelsCircuitState]) {
+  case class Props(proxy: ModelProxy[ModelHandlerState]) {
     def models: SimpleSet[ID, ModelMock] = proxy.value.models
     def activeModel: Option[ModelMock] = proxy.value.activeModel
     def activeModelId: Option[ID] = proxy.value.activeModelId
@@ -273,7 +273,7 @@ object ModelsWidget {
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = MainCircuit.connect(_.models)
+  val connectCircuit: ReactConnectProxy[ModelHandlerState] = MainCircuit.connect(_.models)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 

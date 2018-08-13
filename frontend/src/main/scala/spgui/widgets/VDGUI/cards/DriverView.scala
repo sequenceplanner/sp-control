@@ -11,10 +11,10 @@ import spgui.circuits.main.handlers.DriverHandler.DriverId
 import spgui.communication.DriverCommunication
 import spgui.components.{SPWidgetElements, SPWidgetElementsCSS}
 import spgui.widgets.VDGUI.DriverWidget.DriverCard
-import spgui.widgets.VDGUI.{ResourceWidget, Table}
-import spgui.widgets.VDGUI.Table.ColumnData
+import spgui.widgets.VDGUI.{ResourceWidget, Table, TableRefactor}
 import spgui.widgets.VDGUI.cards.{CardViewCSS => css}
 import spgui.widgets.VDGUI.CSSHelpers.toHtml
+import spgui.widgets.VDGUI.Table.ColumnData
 
 import scala.util.Try
 
@@ -81,9 +81,9 @@ object DriverView {
       }
 
       val columnData = Vector(
-        ColumnData("Name"),
-        ColumnData("Value", css.center),
-        ColumnData("Change")
+        TableRefactor.ColumnData("Name"),
+        TableRefactor.ColumnData("Value"),
+        TableRefactor.ColumnData("Change")
       )
 
       <.div(
@@ -95,7 +95,7 @@ object DriverView {
           <.div(css.driverInfoColumn, <.p(css.resetP, "Type"), <.p(css.resetP, "Status")),
           <.div(css.driverInfoColumnRight, <.p(css.resetP, card.`type`), ResourceWidget.driverStatus(card.status))
         ),
-        Table(columnData, tableData),
+        TableRefactor(columnData, tableData),
         <.span(
           SPWidgetElements.buttonGroup(Seq(
             btn("Terminate Driver", onTerminateDriver(card.cardId)),

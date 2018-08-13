@@ -6,13 +6,7 @@ import scalacss.ScalaCssReact._
 /** Define the css-classes for the DriverWidget with ScalaCSS */
 object CardViewCSS extends StyleSheet.Inline {
   import dsl._
-
-  private val space = 15 px
-  private val bgColor = white
-  private val primaryColor = c"#F57C00"
-  private val secondaryColor = c"#000"
-  private val titleFont = "'Roboto', sans-serif"
-  private val tableFont = "'Lato', sans-serif"
+  import spgui.CSSConfig.{space, bgColor, primaryColor, titleFont, tableFont}
 
   val center = style(
     textAlign.center,

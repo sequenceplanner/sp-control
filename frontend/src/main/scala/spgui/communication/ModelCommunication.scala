@@ -8,7 +8,7 @@ import CommunicationAPI.Communicator
 import spgui.circuits.main.handlers._
 import spgui.circuits.main.FrontendState
 
-object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] {
+object ModelCommunication extends Communicator[ModelHandlerState, ModelAction] {
     override def onReceiveMessage(message: SPMessage): Unit = {
       val response = message.oneOf[APIModelMaker.Response].or[APIModel.Response]
       val state = currentState()
@@ -25,7 +25,7 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
   /**
     * Handles responses from a specific model.
     */
-  def onModelResponse(state: ModelsCircuitState, header: SPHeader, res: APIModel.Response): Unit = {
+  def onModelResponse(state: ModelHandlerState, header: SPHeader, res: APIModel.Response): Unit = {
     res match {
       case info: APIModel.ModelInformation =>
         val value = state.models.get(info.id)
@@ -52,7 +52,7 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
     }
   }
 
-  def onModelMakerResponse(state: ModelsCircuitState, res: APIModelMaker.Response): Unit = {
+  def onModelMakerResponse(state: ModelHandlerState, res: APIModelMaker.Response): Unit = {
     res match {
       case APIModelMaker.ModelList(modelIds) =>
         modelIds.foreach { m =>
@@ -88,7 +88,7 @@ object ModelCommunication extends Communicator[ModelsCircuitState, ModelAction] 
 
   def postRequest(request: APIModelMaker.Request)(implicit writes: JSWrites[APIModel.Request]): Unit = postRequest(request, from = "ModelCommunication")
 
-  override protected def stateAccessFunction: FrontendState => ModelsCircuitState = _.models
+  override protected def stateAccessFunction: FrontendState => ModelHandlerState = _.models
   val responseTopic: String = APIModel.topicResponse
 
   override def defaultReply: String = "ModelCommunication"
