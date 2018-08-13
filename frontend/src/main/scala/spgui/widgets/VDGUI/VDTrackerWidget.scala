@@ -13,6 +13,7 @@ import spgui.circuits.main.{FrontendState, MainCircuit}
 import spgui.circuits.main.handlers._
 import spgui.communication._
 import spgui.components.SPWidgetElements
+import spgui.widgets.VDGUI.cards.CardViewCSS
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import spgui.widgets.virtcom.Style
 
@@ -80,10 +81,10 @@ object VDTrackerWidget {
         )),
         <.br(),
         props.activeRunnerId.map(activeRunnerId => renderRunners(activeRunnerId, runners, idAbles)).whenDefined,
-        <.br(),
-        renderInfo("Ability state", abilityStates, idAbles),
-        <.br(),
-        renderInfo("Virtual Device state", resourceStates, idAbles)
+//        <.br(),
+//        renderInfo("Ability state", abilityStates, idAbles),
+//        <.br(),
+//        renderInfo("Virtual Device state", resourceStates, idAbles)
       )
     }
 
@@ -97,6 +98,31 @@ object VDTrackerWidget {
       terminateRunners(props)
     }
 
+    def pauseRunner(id: ID): Callback = {
+      OperationRunnerCommunication.postRequest(APIOperationRunner.RunnerControl(id, false))
+      Callback.empty
+    }
+
+    def playRunner(id: ID): Callback = {
+      OperationRunnerCommunication.postRequest(APIOperationRunner.RunnerControl(id, true))
+      Callback.empty
+    }
+
+    def createCorrectTypeOfSPValue(sPValue: SPValue, newValue : String) : SPValue =  { // Convert the incoming string to an SPvalue of the same type as the previous state value
+      if (sPValue.validate[Int].isSuccess)          {SPValue(newValue.toInt)}
+      else if(sPValue.validate[Boolean].isSuccess)  {SPValue(newValue.toBoolean)}
+      else                                          {SPValue(newValue)}
+    }
+
+    def updateDriverState(runner: ID, state: Map[ID , SPValue], key: ID)(e: ReactKeyboardEventFromInput) = {
+      if(e.key == "Enter") {
+        val newState = state + (key -> createCorrectTypeOfSPValue(state(key), e.target.value))
+        println("upd state: " + newState)
+        OperationRunnerCommunication.postRequest(APIOperationRunner.SetState(runner, newState) )
+      }
+      Callback.empty
+    }
+
     def renderRunners(activeRunnerId: RunnerId, runners: List[Runner], ids: SimpleSet[ID, IDAble]): TagMod = {
       runners.map { runner =>
         val active = runner.id == activeRunnerId
@@ -104,11 +130,11 @@ object VDTrackerWidget {
 
         val rows = state.map { case (id, value) =>
             val name = ids.get(id).map(_.name).getOrElse("")
-
             <.tr(
               <.td(name),
-              <.td(id.toString),
-              <.td(value.toString())
+              <.td(value.toString()),
+              <.td(<.input(^.placeholder := "Change value...", ^.onKeyPress ==> {
+                updateDriverState(activeRunnerId, state, id)}, ^.className := CardViewCSS.input.htmlClass))
             )
         }.toTagMod
 
@@ -119,6 +145,18 @@ object VDTrackerWidget {
           ^.className := Style.collapsible.htmlClass,
           <.summary(
             summaryText,
+            <.button(
+              ^.className := "btn",
+              ^.title := "play runner",
+              ^.onClick --> playRunner(activeRunnerId),
+              <.i(^.className := "fa fa-play")
+            ),
+            <.button(
+              ^.className := "btn",
+              ^.title := "pause runner",
+              ^.onClick --> pauseRunner(activeRunnerId),
+              <.i(^.className := "fa fa-pause")
+            ),
             <.button(
               ^.className := "btn",
               ^.title := "Kill runner",
@@ -132,7 +170,7 @@ object VDTrackerWidget {
       }.toTagMod
     }
 
-    def renderInfo(name: String, data: Map[ID , SPValue], ids: SimpleSet[ID, IDAble]): TagMod = {
+    def renderInfo(name: String, data: Map[ID , SPValue], ids: Map[ID, IDAble]): TagMod = {
       val state = data
         .flatMap { case (id, value) => ids.get(id).map(_ -> value) }
         .toList
@@ -141,7 +179,6 @@ object VDTrackerWidget {
       val rows = state.map { case (thing, value) =>
         <.tr(
           <.td(thing.name),
-          <.td(thing.id.toString),
           <.td(value.toString())
         )
       }.toTagMod
