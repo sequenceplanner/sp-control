@@ -5,8 +5,8 @@ import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler._
 
-import sp.drivers.ROSFlatStateDriver
-import sp.drivers.ROSHelpers
+//import sp.drivers.ROSFlatStateDriver
+//import sp.drivers.ROSHelpers
 
 
 class UR extends ModelDSL {
@@ -14,9 +14,9 @@ class UR extends ModelDSL {
   use("mode", new URMode)
 }
 
-class URMode extends ModelDSL with ROSSupport {
-  reader("URdriver", "unification_roscontrol/URModeUniToSP", "/unification_roscontrol/ur_mode_unidriver_to_sp")
-  writer("URdriver", "unification_roscontrol/URModeSPToUni", "/unification_roscontrol/ur_mode_sp_to_unidriver", 250)
+class URMode extends ModelDSL {// with ROSSupport {
+//  reader("URdriver", "unification_roscontrol/URModeUniToSP", "/unification_roscontrol/ur_mode_unidriver_to_sp")
+//  writer("URdriver", "unification_roscontrol/URModeSPToUni", "/unification_roscontrol/ur_mode_sp_to_unidriver", 250)
 
   // abilities
 
@@ -24,11 +24,11 @@ class URMode extends ModelDSL with ROSSupport {
   resource("resource")
 }
 
-class URPose extends ModelDSL with ROSSupport {
+class URPose extends ModelDSL {// with ROSSupport {
   import UnificationModel._
 
-  reader("URdriver", "unification_roscontrol/URPoseUniToSP", "/unification_roscontrol/ur_pose_unidriver_to_sp")
-  writer("URdriver", "unification_roscontrol/URPoseSPToUni", "/unification_roscontrol/ur_pose_sp_to_unidriver", 250)
+//  reader("URdriver", "unification_roscontrol/URPoseUniToSP", "/unification_roscontrol/ur_pose_unidriver_to_sp")
+//  writer("URdriver", "unification_roscontrol/URPoseSPToUni", "/unification_roscontrol/ur_pose_sp_to_unidriver", 250)
 
   // abilities
   poses.foreach { pose =>
@@ -41,6 +41,6 @@ class URPose extends ModelDSL with ROSSupport {
 
   // blank list of things = take everything
 
-  driver("URdriver", ROSFlatStateDriver.driverType)
+  //driver("URdriver", ROSFlatStateDriver.driverType)
   resource("resource")
 }

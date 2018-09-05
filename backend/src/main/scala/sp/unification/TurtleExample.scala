@@ -5,7 +5,7 @@ import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler._
 
-import sp.drivers.ROSFlatStateDriver
+// import sp.drivers.ROSFlatStateDriver
 
 class Turtle(name: String) extends ModelDSL {
   // turtle state
@@ -51,7 +51,7 @@ class TurtleModel extends ModelDSL {
 
   // runner
   runner("turtlerunner")
-  driver("driver", ROSFlatStateDriver.driverType)
+//  driver("driver", ROSFlatStateDriver.driverType)
 }
 
 object TurtleModel {

@@ -3,7 +3,7 @@ package sp.unification
 import sp.modelSupport._
 import sp.devicehandler._
 import sp.domain.Logic._
-import sp.drivers.{ROSFlatStateDriver, URDriver}
+// import sp.drivers.{ROSFlatStateDriver, URDriver}
 
 class Dummy extends ModelDSL {
   // state
@@ -48,7 +48,7 @@ class DummyExample extends ModelDSL {
 
   runner("turtlerunner")
 
-  driver("driver", URDriver.driverType)
+  // driver("driver", URDriver.driverType)
 
 }
 

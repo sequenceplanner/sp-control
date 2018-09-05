@@ -5,8 +5,8 @@ import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler._
 
-import sp.drivers.ROSFlatStateDriver
-import sp.drivers.ROSHelpers
+//import sp.drivers.ROSFlatStateDriver
+//import sp.drivers.ROSHelpers
 
 
 class MiR extends ModelDSL {
@@ -14,9 +14,9 @@ class MiR extends ModelDSL {
   use("mode", new MiRMode)
 }
 
-class MiRPose extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/MiRPoseUniToSP", "/unification_roscontrol/mir_pose_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/MiRPoseSPToUni", "/unification_roscontrol/mir_pose_sp_to_unidriver", 250)
+class MiRPose extends ModelDSL { // {with ROSSupport {
+//  reader("ROSdriver", "unification_roscontrol/MiRPoseUniToSP", "/unification_roscontrol/mir_pose_unidriver_to_sp")
+//  writer("ROSdriver", "unification_roscontrol/MiRPoseSPToUni", "/unification_roscontrol/mir_pose_sp_to_unidriver", 250)
 
   // abilities
   a("gotoKitting", List(),
@@ -28,9 +28,9 @@ class MiRPose extends ModelDSL with ROSSupport {
   resource("resource")
 }
 
-class MiRMode extends ModelDSL with ROSSupport {
-  reader("ROSdriver", "unification_roscontrol/MiRModeUniToSP", "/unification_roscontrol/mir_mode_unidriver_to_sp")
-  writer("ROSdriver", "unification_roscontrol/MiRModeSPToUni", "/unification_roscontrol/mir_mode_sp_to_unidriver", 250)
+class MiRMode extends ModelDSL { //with ROSSupport {
+//  reader("ROSdriver", "unification_roscontrol/MiRModeUniToSP", "/unification_roscontrol/mir_mode_unidriver_to_sp")
+//  writer("ROSdriver", "unification_roscontrol/MiRModeSPToUni", "/unification_roscontrol/mir_mode_sp_to_unidriver", 250)
 
   // abilities
   a("setReady", List(),

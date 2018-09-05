@@ -5,16 +5,16 @@ import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler._
 
-import sp.drivers.ROSFlatStateDriver
-import sp.drivers.ROSHelpers
+// import sp.drivers.ROSFlatStateDriver
+// import sp.drivers.ROSHelpers
 
-import unification_roscontrol._
+// import unification_roscontrol._
 
-class RECU extends ModelDSL with ROSSupport {
-  reader("RECUDriver", "unification_roscontrol/RecuUniToSP", "/unification_roscontrol/recu_unidriver_to_sp")
-  writer("RECUDriver", "unification_roscontrol/RecuSPToUni", "/unification_roscontrol/recu_sp_to_unidriver", 250)
+class RECU extends ModelDSL { //with ROSSupport {
+//  reader("RECUDriver", "unification_roscontrol/RecuUniToSP", "/unification_roscontrol/recu_unidriver_to_sp")
+//  writer("RECUDriver", "unification_roscontrol/RecuSPToUni", "/unification_roscontrol/recu_sp_to_unidriver", 250)
 
-  driver("RECUDriver", ROSFlatStateDriver.driverType)
+//  driver("RECUDriver", ROSFlatStateDriver.driverType)
 
   a("lock_rsp", List(),
     c("pre", "true", "lock_rsp:=true","unlock_rsp:=false","open_gripper:=false","close_gripper:=false"),
@@ -43,16 +43,16 @@ class RECU extends ModelDSL with ROSSupport {
   resource("RECU")
 }
 
-class HECU extends ModelDSL with ROSSupport {
-  reader("HECUDriver", "unification_roscontrol/HecuUniToSP", "/unification_roscontrol/hecu_unidriver_to_sp")
+class HECU extends ModelDSL { // with ROSSupport {
+//  reader("HECUDriver", "unification_roscontrol/HecuUniToSP", "/unification_roscontrol/hecu_unidriver_to_sp")
   // this doesnt have a writer
-  driver("HECUDriver", ROSFlatStateDriver.driverType)
+//  driver("HECUDriver", ROSFlatStateDriver.driverType)
   resource("HECU")
 }
 
-class Atlas extends ModelDSL with ROSSupport {
-  reader("AtlasDriver", "unification_roscontrol/AecuUniToSP", "/unification_roscontrol/aecu_unidriver_to_sp")
-  writer("AtlasDriver", "unification_roscontrol/AecuSPToUni", "/unification_roscontrol/aecu_sp_to_unidriver", 250)
+class Atlas extends ModelDSL { // with ROSSupport {
+//  reader("AtlasDriver", "unification_roscontrol/AecuUniToSP", "/unification_roscontrol/aecu_unidriver_to_sp")
+//  writer("AtlasDriver", "unification_roscontrol/AecuSPToUni", "/unification_roscontrol/aecu_sp_to_unidriver", 250)
 
   // abilities
   a("lift", List(),
@@ -79,7 +79,7 @@ class Atlas extends ModelDSL with ROSSupport {
     c("post", "true"),
     c("reset", "true"))
 
-  driver("AtlasDriver", ROSFlatStateDriver.driverType)
+  // driver("AtlasDriver", ROSFlatStateDriver.driverType)
   // blank list of things = take everything
   resource("resource")
 }
