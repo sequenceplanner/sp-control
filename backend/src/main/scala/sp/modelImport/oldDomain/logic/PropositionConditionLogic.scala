@@ -119,8 +119,8 @@ trait PropositionConditionLogics {
     val c = cond.asInstanceOf[Condition]
     def eval(s: SPState) = c.guard.eval(s)
     def next(s: SPState) = s.next(c.action.map(a => a.id -> a.nextValue(s)) toMap)
-    def inDomain(s: SPState, stateVars: Map[ID, SPValue => Boolean]) = {
-      !(c.action map (_.inDomain(s, stateVars)) exists (!_))
+    def inDomain(state: SPState, stateVars: Map[ID, SPValue => Boolean]) = {
+      cond.action.forall(_.inDomain(state, stateVars))
     }
   }
 
@@ -141,7 +141,7 @@ trait PropositionConditionLogics {
 
     def inDomain(s: SPState, stateVars: Map[ID, SPValue => Boolean]): Boolean = {
       val next = nextValue(s)
-      val sv = stateVars.get(a.id).getOrElse( (x:SPValue) =>true)
+      val sv = stateVars.getOrElse(a.id, (v: SPValue) => true)
       sv(next)
 
       //      val checkDomain = sv.attributes.getAsList("domain") map (_.contains(next))

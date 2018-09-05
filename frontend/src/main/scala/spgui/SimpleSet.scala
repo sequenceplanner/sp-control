@@ -2,7 +2,6 @@ package spgui
 
 import monocle.{Lens, Optional}
 
-import scala.collection.GenTraversableOnce
 
 object SimpleSet {
   def apply[K, V](hashBy: V => K, values: V*) = new SimpleSet[K, V](hashBy, values.map(v => hashBy(v) -> v).toMap)

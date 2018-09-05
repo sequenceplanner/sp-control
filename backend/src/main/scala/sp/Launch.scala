@@ -5,7 +5,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 
-object Launch extends App {
+object Launch {
   implicit val system = ActorSystem("SP")
   val cluster = akka.cluster.Cluster(system)
 
@@ -20,7 +20,6 @@ object Launch extends App {
   cluster.registerOnMemberUp {
     // Start all you actors here.
     println("spcontrol node has joined the cluster")
-    sp.SPCore.launch(system)
 
     system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
     system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
@@ -29,7 +28,6 @@ object Launch extends App {
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
     system.actorOf(sp.drivers.DriverService.props)
-
 
     // drivers
     system.actorOf(sp.drivers.URDriver.props, "URDriver")

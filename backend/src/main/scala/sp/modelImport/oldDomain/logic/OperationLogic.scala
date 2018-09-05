@@ -25,14 +25,13 @@ trait OperationLogics {
       else {
         val filtered = props.defs.filterConds(opState, o.conditions)
         val inDomain = filtered exists (_.inDomain(s, props.stateVars))
-        inDomain && !(filtered exists (!_.eval(s))) || filtered.isEmpty
+        inDomain && (filtered forall(_.eval(s))) || filtered.isEmpty
       }
     }
 
     def next(s: SPState)(implicit props: EvaluateProp) = {
       props.defs.nextState(o, s)
     }
-
 
 
     def inDomain = OperationState.inDomain
