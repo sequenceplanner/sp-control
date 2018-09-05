@@ -14,7 +14,7 @@ libraryDependencies ++= Seq(
   // version of apache xmlrpc than the version we already have in sp.
   // instead I put a hacked version of both rosjava_core and
   // apache xmlrpc in lib/
-  "org.ros.rosjava_messages" % "std_msgs" % "0.5.11",
+  "org.ros.rosjava_messages" % "std_msgs" % "0.5.11" exclude ("org.slf4j", "slf4j-simple"),
   "org.ros.rosjava_messages" % "geometry_msgs" % "1.12.5",
   "org.ros.rosjava_messages" % "rosgraph_msgs" % "1.11.2",
   "org.ros.rosjava_messages" % "nav_msgs" % "1.12.5",

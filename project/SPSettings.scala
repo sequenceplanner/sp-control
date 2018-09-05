@@ -115,8 +115,8 @@ object SPSettings {
   lazy val domainDependencies = Def.setting(Seq(
     "org.scalatest" %%% "scalatest" % versions.scalaTest % "test",
     "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.0.5",
-    "com.typesafe.play" %%% "play-json" % "2.6.0",
-    "org.julienrf" %%% "play-json-derived-codecs" % "4.0.0",
+    "com.typesafe.play" %%% "play-json" % "2.6.0" exclude ("org.slf4j", "slf4j-simple"),
+    "org.julienrf" %%% "play-json-derived-codecs" % "4.0.0" exclude ("org.slf4j", "slf4j-simple"),
     "io.github.cquiroz" %%% "scala-java-time" % "2.0.0-M12"
   ))
   // "org.joda" % "joda-convert" % "1.8.2" add this to jvm-side
