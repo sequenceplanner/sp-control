@@ -30,7 +30,7 @@ lazy val serviceSettings = Seq(
 */
 
 lazy val root: Project = project.in(file("."))
-  .aggregate(spcontrol_api_js, spcontrol_api_jvm, spcontrol_backend, spcontrol_frontend)
+  .aggregate(sharedJs, sharedJvm, server, client)
   .settings(defaultBuildSettings)
   .settings(buildSettings)
   .settings(
@@ -41,29 +41,31 @@ lazy val root: Project = project.in(file("."))
     )
 
 
-lazy val spcontrol_api = crossProject.crossType(CrossType.Pure).in(file("api"))
+lazy val shared = crossProject.crossType(CrossType.Pure).in(file("api"))
   .settings(
     defaultBuildSettings,
     buildSettings
   )
 
-lazy val spcontrol_api_jvm = spcontrol_api.jvm
-lazy val spcontrol_api_js = spcontrol_api.js
+lazy val sharedJvm = shared.jvm
+lazy val sharedJs = shared.js
 
-lazy val spcontrol_backend = Project(base = file("backend"), id = "backend")
+
+lazy val server: Project = project.in(file("backend"))
   .settings(
+    Keys.javaOptions += s"-Dconfig.file=${baseDirectory.value.getAbsoluteFile \ "backend" \ "src" \ "main" \ "resources" \ "application.conf"}",
     libraryDependencies ++= commDependencies.value,
     libraryDependencies ++= Seq(comm.value, coreServer.value),
     defaultBuildSettings,
     buildSettings
 //    ,serviceSettings
   )
-  .enablePlugins(PlayService, RoutesCompiler)
-  .disablePlugins(PlayLogback)
-  .dependsOn(spcontrol_api_jvm)
+  .enablePlugins(PlayScala)
+  .disablePlugins(PlayLogback, PlayLayoutPlugin)
+  .dependsOn(sharedJvm)
 
 
-lazy val spcontrol_frontend = Project(base = file("frontend"), id = "frontend")
+lazy val client = project.in(file("frontend"))
   .settings(
     libraryDependencies ++= Seq(comm.value, coreClient.value),
     libraryDependencies ++= guiDependencies.value,
@@ -71,5 +73,5 @@ lazy val spcontrol_frontend = Project(base = file("frontend"), id = "frontend")
     buildSettings,
     jsSettings
   )
-  .dependsOn(spcontrol_api_js)
+  .dependsOn(sharedJs)
   .enablePlugins(ScalaJSPlugin)

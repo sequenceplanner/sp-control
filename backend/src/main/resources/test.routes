@@ -1,0 +1,7 @@
+# Home page
+GET        /                             controllers.spcore.SPCoreLaunch.index()
+# Assets
+GET        /assets/*file                 controllers.Assets.at(file)
+GET        /versionedAssets/*file        controllers.Assets.versioned(path="/public", file: Asset)
+
+->        /test               spcore.Routes
