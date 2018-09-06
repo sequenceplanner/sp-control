@@ -57,7 +57,7 @@ object VDTrackerWidgetRedesign {
           reuseProps = true
           delayRunning = true
           delay(200) {
-            println("Ready")
+            //println("Ready")
             reuseProps = false
           }
           false

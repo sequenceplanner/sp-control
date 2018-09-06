@@ -57,16 +57,16 @@ object CommunicationAPI {
   def run(): Iterable[UnsubscribeFn] = {
     Seq(
       MainCircuit.subscribe(MainCircuit.readState(_.abilities)) { _ =>
-        println("1")
+        //println("1")
       },
       MainCircuit.subscribe(MainCircuit.readState(_.runners)) { _ =>
-        println("2")
+        //println("2")
       },
       MainCircuit.subscribe(MainCircuit.readState(_.virtualDevices)) { _ =>
-        println("3")
+        //println("3")
       },
       MainCircuit.subscribe(MainCircuit.readState(_.drivers)) { _ =>
-        println("4")
+        //println("4")
       }
     )
   }

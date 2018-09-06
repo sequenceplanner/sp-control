@@ -178,7 +178,7 @@ object ModelsWidget {
     }
 
     def render(props: Props, state: State): VdomElement = {
-      println(props.activeModel.map(_.items))
+      //println(props.activeModel.map(_.items))
       <.div(
         ^.className := css.container.htmlClass,
         renderModels(props, state),

@@ -41,7 +41,7 @@ object AbilityHandlerWidget {
         case abapi.Abilities(a) =>
           $.modState(s => s.copy(abilities = a)).runNow()
         case x @ abapi.AbilityState(id, state) =>
-          println(x)
+          //println(x)
           $.modState{s =>
             val ns = s.abilityState ++ state
             s.copy(abilityState = ns)}.runNow()
