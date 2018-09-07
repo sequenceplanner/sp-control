@@ -5,73 +5,107 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 
-
-
 import org.ros2.rcljava.RCLJava
 import org.ros2.rcljava.executors.SingleThreadedExecutor
 import org.ros2.rcljava.executors.MultiThreadedExecutor
 import org.ros2.rcljava.node.BaseComposableNode
 
-// public class Composed {
-//   public static void main(final String[] args) throws InterruptedException, Exception {
-//     // Initialize RCL
-//       try {
-//     RCLJava.rclJavaInit();
-//       } catch (Exception e) {
-//           System.out.println("AJ");
-//           System.out.println("MESSAGE: " + e.getMessage());
-//       }
-//     SingleThreadedExecutor exec = new SingleThreadedExecutor();
-//     SubscriberNode subscriberNode = new SubscriberNode();
-//     PublisherNode publisherNode = new PublisherNode();
-//     exec.addNode(subscriberNode);
-//     exec.addNode(publisherNode);
-//     exec.spin();
-//   }
-// }
-
 import org.ros2.rcljava.consumers.Consumer;
 import org.ros2.rcljava.subscription.Subscription;
 
-class SubscriberNode extends BaseComposableNode("subscriberNode") {
-  object cb extends Consumer[std_msgs.msg.String] {
-    def accept(msg: std_msgs.msg.String) {
-      println("hej! got: " + msg.getData())
+import org.ros2.rcljava.interfaces.MessageDefinition
+
+import sp.domain._
+import sp.domain.Logic._
+
+
+object ROSHelpers {
+  def msgToAttr(m: MessageDefinition) = {
+    import scala.reflect.runtime.universe._
+    val rm = scala.reflect.runtime.currentMirror
+    val fields = rm.classSymbol(m.getClass).toType.members.collect {
+      case m: TermSymbol if m.isPrivate && !m.isStatic && !m.isFinal => m
+    }.toList
+    val instanceMirror = rm.reflect(m)
+    val attr = fields.foldLeft(SPAttributes())({case (attr,field) =>
+      val n = field.name.toString
+      val v = instanceMirror.reflectField(field).get
+      val spval = v match {
+        case v:String => SPValue(v)
+        case v:Float => SPValue(v)
+        case v:Double => SPValue(v)
+        case v:Int => SPValue(v)
+        // TODO: missing types, arrays, nesting
+        case x => println("TODO: add support for " + x + " " + x.getClass.toString); SPValue("could not parse")
+      }
+      attr + (n, spval)
+    })
+    attr
+  }
+
+  def attrToMsg(attr: SPAttributes, m: MessageDefinition) = {
+    import scala.reflect.runtime.universe._
+    val rm = scala.reflect.runtime.currentMirror
+    val fields = rm.classSymbol(m.getClass).toType.members.collect {
+      case m: TermSymbol if m.isPrivate && !m.isStatic && !m.isFinal => m
+    }.toList
+    val instanceMirror = rm.reflect(m)
+    fields.foreach { field =>
+      val n = field.name.toString
+      val curval = instanceMirror.reflectField(field).get
+      val spval = curval match {
+        case v:String => attr.getAs[String](n).foreach(v=>instanceMirror.reflectField(field).set(v))
+        case v:Float => attr.getAs[Float](n).foreach(v=>instanceMirror.reflectField(field).set(v))
+        case v:Double => attr.getAs[Double](n).foreach(v=>instanceMirror.reflectField(field).set(v))
+        case v:Int => attr.getAs[Int](n).foreach(v=>instanceMirror.reflectField(field).set(v))
+        // TODO: missing types, arrays, nesting
+        case x => println("TODO: add support for " + x + " " + x.getClass.toString)
+      }
     }
   }
-  val subscription = node.createSubscription(classOf[std_msgs.msg.String], "topic", cb)
+
 }
 
-// public class SubscriberNode extends BaseComposableNode {
-//   private Subscription<std_msgs.msg.String> subscription;
-
-//   public SubscriberNode() {
-//     super("subscriber_node");
-//     subscription = node.<std_msgs.msg.String>createSubscription(std_msgs.msg.String.class, "topic",
-//         msg -> System.out.println("Subscriber [" + msg.getData() + "]"));
-//   }
-// }
-
+class SubscriberNode extends BaseComposableNode("subscriberNode") {
+  class cb[T <: MessageDefinition] extends Consumer[T] {
+    def accept(msg: T) {
+      val spattr = ROSHelpers.msgToAttr(msg)
+      println("GOT: " + spattr)
+    }
+  }
+  val msg = Class.forName("std_msgs.msg.String").newInstance().asInstanceOf[MessageDefinition]
+  val subscription = node.createSubscription(msg.getClass, "topic", new cb)
+}
 
 import java.util.concurrent.TimeUnit
 import org.ros2.rcljava.publisher.Publisher
 import org.ros2.rcljava.timer.WallTimer
 
 class PublisherNode extends BaseComposableNode("publisherNode") {
-  val publisher = node.createPublisher(classOf[std_msgs.msg.String], "topic")
+  import scala.reflect.ClassTag
+  import scala.reflect._
 
-  val timer = node.createWallTimer(500, TimeUnit.MILLISECONDS, cb);
   var count = 0
-  object cb extends org.ros2.rcljava.concurrent.Callback() {
+
+  class cb[T <: MessageDefinition](publisher: Publisher[T], msg: T) extends org.ros2.rcljava.concurrent.Callback() {
     def call() = {
       count+=1
-      val x = new std_msgs.msg.String()
       val str = "hej: " + count
-      println("sending: " + str)
-      x.setData(str)
-      publisher.publish(x)
+      val attr = SPAttributes("data" -> str)
+      ROSHelpers.attrToMsg(attr, msg)
+      println("sending: " + attr)
+      publisher.publish(msg)
     }
   }
+
+  def pub[T <: MessageDefinition: ClassTag](msg: T) {
+    val publisher: Publisher[T] = node.createPublisher[T](msg.getClass.asInstanceOf[Class[T]], "topic")
+    val cb = new cb[T](publisher, msg)
+    val timer = node.createWallTimer(500, TimeUnit.MILLISECONDS, cb);
+  }
+
+  val msga = Class.forName("std_msgs.msg.String").newInstance()
+  pub(msga.asInstanceOf[MessageDefinition])
 }
 
 
@@ -81,16 +115,31 @@ class ROS extends Actor {
   val subscriberNode = new SubscriberNode()
   val publisherNode = new PublisherNode()
   exec.addNode(subscriberNode)
-  exec.addNode(publisherNode)
 
   // TODO: be smarter...
   import context.dispatcher
   import scala.concurrent.duration._
-  val ticker = context.system.scheduler.schedule(10 millis, 10 millis, self, "spin")
+  val ticker = context.system.scheduler.schedule(100 millis, 100 millis, self, "spin")
+
+  println("STARTING TIMERS")
+  context.system.scheduler.scheduleOnce(5 seconds, self, "add")
+  context.system.scheduler.scheduleOnce(10 seconds, self, "remove")
+  context.system.scheduler.scheduleOnce(15 seconds, self, "add")
+  context.system.scheduler.scheduleOnce(20 seconds, self, "remove")
+  context.system.scheduler.scheduleOnce(25 seconds, self, "add")
+  context.system.scheduler.scheduleOnce(30 seconds, self, "remove")
+  println(" TIMERS UP")
 
   def receive = {
     case "spin" =>
-      if(RCLJava.ok()) exec.spinOnce()
+      if(RCLJava.ok()) exec.spinOnce(100)
+    case "add" =>
+      println("ADDING PUBLISHER")
+      exec.addNode(publisherNode)
+    case "remove" =>
+      println("REMOVIING PUBLISHER")
+      exec.removeNode(publisherNode)
+    case x => println(x)
   }
 
   override def postStop() = {
@@ -110,28 +159,28 @@ object Launch extends App {
     "ExtendedDummy" -> sp.unification.DummyExampleExtended()
   )
 
-  val rosActor = system.actorOf(Props[ROS], name = "ros")
+
+
 
   cluster.registerOnMemberUp {
     // Start all you actors here.
-    println("spcontrol node has joined the cluster")
-    sp.SPCore.launch(system)
+    // println("spcontrol node has joined the cluster")
+    // sp.SPCore.launch(system)
 
-    system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
-    system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
-    system.actorOf(sp.drivers.URDriver.props, "URDriver")
-    system.actorOf(sp.runners.OperationRunner.props, "oprunner")
-    system.actorOf(sp.modelSupport.ModelService.props(models))
-    system.actorOf(dashboardpresets.DashboardPresetsActor())
-    system.actorOf(sp.modelImport.SPModelImport.props)
-    system.actorOf(sp.drivers.DriverService.props)
+    // system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
+    // system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
+    // system.actorOf(sp.drivers.URDriver.props, "URDriver")
+    // system.actorOf(sp.runners.OperationRunner.props, "oprunner")
+    // system.actorOf(sp.modelSupport.ModelService.props(models))
+    // system.actorOf(dashboardpresets.DashboardPresetsActor())
+    // system.actorOf(sp.modelImport.SPModelImport.props)
+    // system.actorOf(sp.drivers.DriverService.props)
 
+    system.actorOf(Props[ROS], name = "ros")
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
   cluster.leave(cluster.selfAddress)
-
-//  rosActor ! "stop"
 
   scala.io.StdIn.readLine("Press ENTER to exit application.\n")
   system.terminate()
