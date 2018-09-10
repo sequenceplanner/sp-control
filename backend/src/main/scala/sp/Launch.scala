@@ -3,25 +3,28 @@ package sp
 import akka.actor._
 import scala.concurrent.Await
 import scala.concurrent.duration._
-
+import sp.domain._
+import sp.domain.Logic._
 
 import org.ros2.rcljava.RCLJava
 import org.ros2.rcljava.executors.SingleThreadedExecutor
 import org.ros2.rcljava.executors.MultiThreadedExecutor
 import org.ros2.rcljava.node.BaseComposableNode
-
 import org.ros2.rcljava.consumers.Consumer;
 import org.ros2.rcljava.subscription.Subscription;
-
+import org.ros2.rcljava.publisher.Publisher
+import org.ros2.rcljava.timer.WallTimer
 import org.ros2.rcljava.interfaces.MessageDefinition
 
-import sp.domain._
-import sp.domain.Logic._
+import akka.stream._
+import akka.stream.scaladsl._
+import akka.{ NotUsed, Done }
 
+import scala.reflect.runtime.universe._
+import scala.reflect.ClassTag
 
 object ROSHelpers {
   def msgToAttr(m: MessageDefinition) = {
-    import scala.reflect.runtime.universe._
     val rm = scala.reflect.runtime.currentMirror
     val fields = rm.classSymbol(m.getClass).toType.members.collect {
       case m: TermSymbol if m.isPrivate && !m.isStatic && !m.isFinal => m
@@ -44,7 +47,6 @@ object ROSHelpers {
   }
 
   def attrToMsg(attr: SPAttributes, m: MessageDefinition) = {
-    import scala.reflect.runtime.universe._
     val rm = scala.reflect.runtime.currentMirror
     val fields = rm.classSymbol(m.getClass).toType.members.collect {
       case m: TermSymbol if m.isPrivate && !m.isStatic && !m.isFinal => m
@@ -63,90 +65,62 @@ object ROSHelpers {
       }
     }
   }
-
 }
 
-class SubscriberNode extends BaseComposableNode("subscriberNode") {
-  class cb[T <: MessageDefinition] extends Consumer[T] {
-    def accept(msg: T) {
-      val spattr = ROSHelpers.msgToAttr(msg)
-      println("GOT: " + spattr)
-    }
-  }
-  val msg = Class.forName("std_msgs.msg.String").newInstance().asInstanceOf[MessageDefinition]
-  val subscription = node.createSubscription(msg.getClass, "topic", new cb)
-}
+class ROS(system: ActorSystem) {
+  implicit val executionContext = system.dispatcher
+  implicit val materializer = ActorMaterializer()(system)
 
-import java.util.concurrent.TimeUnit
-import org.ros2.rcljava.publisher.Publisher
-import org.ros2.rcljava.timer.WallTimer
-
-class PublisherNode extends BaseComposableNode("publisherNode") {
-  import scala.reflect.ClassTag
-  import scala.reflect._
-
-  var count = 0
-
-  class cb[T <: MessageDefinition](publisher: Publisher[T], msg: T) extends org.ros2.rcljava.concurrent.Callback() {
-    def call() = {
-      count+=1
-      val str = "hej: " + count
-      val attr = SPAttributes("data" -> str)
-      ROSHelpers.attrToMsg(attr, msg)
-      println("sending: " + attr)
-      publisher.publish(msg)
-    }
-  }
-
-  def pub[T <: MessageDefinition: ClassTag](msg: T) {
-    val publisher: Publisher[T] = node.createPublisher[T](msg.getClass.asInstanceOf[Class[T]], "topic")
-    val cb = new cb[T](publisher, msg)
-    val timer = node.createWallTimer(500, TimeUnit.MILLISECONDS, cb);
-  }
-
-  val msga = Class.forName("std_msgs.msg.String").newInstance()
-  pub(msga.asInstanceOf[MessageDefinition])
-}
-
-
-class ROS extends Actor {
   RCLJava.rclJavaInit()
   val exec = new SingleThreadedExecutor()
-  val subscriberNode = new SubscriberNode()
-  val publisherNode = new PublisherNode()
-  exec.addNode(subscriberNode)
 
-  // TODO: be smarter...
-  import context.dispatcher
-  import scala.concurrent.duration._
-  val ticker = context.system.scheduler.schedule(100 millis, 100 millis, self, "spin")
-
-  println("STARTING TIMERS")
-  context.system.scheduler.scheduleOnce(5 seconds, self, "add")
-  context.system.scheduler.scheduleOnce(10 seconds, self, "remove")
-  context.system.scheduler.scheduleOnce(15 seconds, self, "add")
-  context.system.scheduler.scheduleOnce(20 seconds, self, "remove")
-  context.system.scheduler.scheduleOnce(25 seconds, self, "add")
-  context.system.scheduler.scheduleOnce(30 seconds, self, "remove")
-  println(" TIMERS UP")
-
-  def receive = {
-    case "spin" =>
-      if(RCLJava.ok()) exec.spinOnce(100)
-    case "add" =>
-      println("ADDING PUBLISHER")
-      exec.addNode(publisherNode)
-    case "remove" =>
-      println("REMOVIING PUBLISHER")
-      exec.removeNode(publisherNode)
-    case x => println(x)
+  class SubscriberNode(msgClass: String, topic: String) extends BaseComposableNode("SPSubscriber") {
+    val bufferSize = 100
+    val overflowStrategy = akka.stream.OverflowStrategy.dropHead
+    val queue = Source.queue[SPAttributes](bufferSize, overflowStrategy)
+    val source = queue.mapMaterializedValue { case queue =>
+      class cb[T <: MessageDefinition] extends Consumer[T] {
+        def accept(msg: T) {
+          val spattr = ROSHelpers.msgToAttr(msg)
+          queue.offer(spattr)
+        }
+      }
+      val msg = Class.forName(msgClass).newInstance().asInstanceOf[MessageDefinition]
+      val subscription = node.createSubscription(msg.getClass, topic, new cb)
+    }
   }
 
-  override def postStop() = {
+  def subscriber(msgClass: String, topic: String) = {
+    val subscriberNode = new SubscriberNode(msgClass, topic)
+    exec.addNode(subscriberNode)
+    subscriberNode.source
+  }
+
+  class PublisherNode(msgClass: String, topic: String) extends BaseComposableNode("SPPublisher") {
+    def pub[T <: MessageDefinition: ClassTag](msg: T, topic: String): Sink[SPAttributes, _] = {
+      val publisher: Publisher[T] = node.createPublisher[T](msg.getClass.asInstanceOf[Class[T]], topic)
+      val sink = Sink.foreach[SPAttributes](attr => {
+        ROSHelpers.attrToMsg(attr, msg)
+        publisher.publish(msg)
+      })
+      sink
+    }
+
+    val msga = Class.forName(msgClass).newInstance()
+    val sink = pub(msga.asInstanceOf[MessageDefinition], topic)
+  }
+
+  def publisher(msgClass: String, topic: String) = {
+    val publisherNode = new PublisherNode(msgClass, topic)
+    exec.addNode(publisherNode)
+    publisherNode.sink
+  }
+
+  Source.tick(initialDelay = 0.nanos, interval = 100.millis, tick = ()).runWith(Sink.foreach(_ => exec.spinOnce(90))).onComplete { _ =>
     RCLJava.shutdown()
+    println("DONE")
   }
 }
-
 
 object Launch extends App {
   implicit val system = ActorSystem("SP")
@@ -158,9 +132,6 @@ object Launch extends App {
     "DummyExample" -> sp.unification.DummyExample(),
     "ExtendedDummy" -> sp.unification.DummyExampleExtended()
   )
-
-
-
 
   cluster.registerOnMemberUp {
     // Start all you actors here.
@@ -176,7 +147,18 @@ object Launch extends App {
     // system.actorOf(sp.modelImport.SPModelImport.props)
     // system.actorOf(sp.drivers.DriverService.props)
 
-    system.actorOf(Props[ROS], name = "ros")
+    implicit val materializer = ActorMaterializer()(system)
+    val ros = new ROS(system)
+
+    val publisher = ros.publisher("std_msgs.msg.String", "chatter")
+    val subscriber = ros.subscriber("std_msgs.msg.String", "topic")
+
+    // transform and send to publisher
+    subscriber.map(attr => SPAttributes("data" -> attr.getAs[String]("data").getOrElse("").toUpperCase())).to(publisher).run()
+
+    // and print
+    subscriber.to(Sink.foreach(println)).run()
+
   }
 
   scala.io.StdIn.readLine("Press ENTER to exit cluster.\n")
