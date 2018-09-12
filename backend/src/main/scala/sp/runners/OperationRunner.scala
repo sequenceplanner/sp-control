@@ -1,7 +1,7 @@
 package sp.runners
 
 import akka.actor._
-import sp.AbilityStatus
+import sp.abilityhandler.AbilityStatus
 
 import scala.util.{Failure, Random, Success, Try}
 import sp.domain._

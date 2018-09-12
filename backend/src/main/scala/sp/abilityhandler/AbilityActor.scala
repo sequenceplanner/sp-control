@@ -128,7 +128,7 @@ class AbilityActor(val ability: APIAbilityHandler.Ability) extends Actor
 // TODO: Merge the state of the abilities into the VD-state (when the VD is moved)
 trait AbilityActorLogic extends AbilityLogic {
 
-  import sp.AbilityStatus._
+  import sp.abilityhandler.AbilityStatus._
 
   val ability: APIAbilityHandler.Ability
   lazy val ids = idsFromAbility(ability)
