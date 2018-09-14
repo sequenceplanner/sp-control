@@ -24,9 +24,9 @@
 //
 //trait AbilityActorLogic extends AbilityLogic {
 //
-//  import sp.AbilityStatus._
+//  import sp.abilityhandler.AbilityStatus._
 //
-//  val ability: Ability
+//  val ability: sp.abilityhandler.Ability
 //  lazy val ids = idsFromAbility(ability)
 //
 //  var state: String = UnavailableTag
@@ -135,6 +135,9 @@
 //}
 //
 //trait AbilityLogic {
+//
+//  import sp.abilityhandler._
+//
 //  /**
 //    *
 //    * @return IDS of all relevant values of and within an ability.
