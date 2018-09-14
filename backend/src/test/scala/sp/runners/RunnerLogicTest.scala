@@ -33,10 +33,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
   "Testing the runner logic" - {
     val t = List(
-        logic.OperationTransition("init", Set("pre"), "executing"),
-        logic.OperationTransition("init", Set("fail"), "failure", false),
-        logic.OperationTransition("executing", Set("post"), "finished"),
-        logic.OperationTransition("finished", Set("reset"), "init")
+        logic.OperationTransition("init", "pre", "executing"),
+        logic.OperationTransition("init", "fail", "failure", false),
+        logic.OperationTransition("executing", "post", "finished"),
+        logic.OperationTransition("finished", "reset", "init")
     )
 
     "possible transitions" - {
@@ -44,36 +44,50 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         val res = logic.possibleTransitions(
           op = o,
           s = state,
-          transitions = t
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = t,
+          events = List()
         )
 
         res shouldEqual List(
-          logic.OperationTransition("init", Set("pre"), "executing"),
-          logic.OperationTransition("init", Set("fail"), "failure", false))
+          logic.OperationTransition("init", "pre", "executing"),
+          logic.OperationTransition("init", "fail", "failure", false))
       }
+
       "finding post" in {
+
         val res = logic.possibleTransitions(
           op = o,
           s = state.next(o.id -> SPValue("executing")),
-          transitions = t
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = t,
+          events = List()
         )
 
         res shouldEqual List(
-          logic.OperationTransition("executing", Set("post"), "finished"),
+          logic.OperationTransition("executing", "post", "finished")
         )
       }
       "testing error prints" in {
 
         println("TESTING ERROR prints")
-        logic.possibleTransitions(
+        val res = logic.possibleTransitions(
           op = o,
           s = SPState("s", Map(v1.id -> 1)),
-          transitions = t
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = t,
+          events = List()
         )
-        logic.possibleTransitions(
+        val res2 = logic.possibleTransitions(
           op = o,
           s = state.next(o.id -> SPValue("foo")),
-          transitions = t
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = t,
+          events = List()
         )
 
 
@@ -103,8 +117,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       ))
 
       val tm = List(
-        logic.OperationTransition("init", Set("pre"), "executing"),
-        logic.OperationTransition("executing", Set("post"), "finished", false, true),
+        logic.OperationTransition("init", "pre", "executing"),
+        logic.OperationTransition("executing", "post", "finished", false, true),
       )
 
 
@@ -112,14 +126,16 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         val res = logic.runOperations(
           ops = List(o, o3),
           s = state,
-          aggr = List(),
-          transitions = tm,
-          disabledGroups = Set("bar")
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = tm,
+          disabledGroups = Set("bar"),
+          events = List()
         )
 
-        res.length shouldEqual 1
-        res.head._1 shouldEqual o
-        res.head._2.get(v1.id) shouldEqual Some(SPValue(2))
+        res.sequence.length shouldEqual 1
+        res.sequence.head._1 shouldEqual o
+        res.lastState.get(v1.id) shouldEqual Some(SPValue(2))
 
       }
 
@@ -127,17 +143,19 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         val res = logic.runOperations(
           ops = List(o, o2, o3),
           s = state,
-          aggr = List(),
-          transitions = tm,
-          disabledGroups = Set("bar")
-        ).reverse
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = tm,
+          disabledGroups = Set("bar"),
+          events = List()
+        )
 
-        res.head._1 shouldEqual o
-        res.head._2.get(v1.id) shouldEqual Some(SPValue(2))
-        res.head._2.get(o.id) shouldEqual Some(SPValue("executing"))
-        res.head._2.get(o3.id) shouldEqual Some(SPValue("init"))
+        res.sequence.reverse.head._1 shouldEqual o
+        res.sequence.length shouldEqual 3
+        res.lastState.get(v1.id) shouldEqual Some(SPValue(0))
+        res.lastState.get(o.id) shouldEqual Some(SPValue("executing"))
+        res.lastState.get(o3.id) shouldEqual Some(SPValue("executing"))
 
-        res(2)._2.get(o3.id) shouldEqual Some(SPValue("executing"))
 
 //        res.foreach{kv =>
 //          println(kv._1.name)
@@ -151,38 +169,44 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         val res = logic.runOperations(
           ops = List(o, o2),
           s = state,
-          aggr = List(),
-          transitions = tm,
-          disabledGroups = Set("bar")
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = tm,
+          disabledGroups = Set("bar"),
+          events = List()
         )
 
-        val lastState = res.head._2
-        println(lastState)
+        println(res.lastState)
+
 
         val res2 = logic.runOperations(
           ops = List(o, o2),
-          s = lastState,
-          aggr = List(),
-          transitions = tm,
-          disabledGroups = Set("bar")
+          s = res.lastState,
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = tm,
+          disabledGroups = Set("bar"),
+          events = List()
         )
 
-        res2.head._1 shouldEqual o
-        res2.head._2.get(v1.id) shouldEqual Some(SPValue(3))
-        res2.head._2.get(o.id) shouldEqual Some(SPValue("finished"))
+        res2.sequence.head._1 shouldEqual o
+        res2.lastState.get(v1.id) shouldEqual Some(SPValue(3))
+        res2.lastState.get(o.id) shouldEqual Some(SPValue("finished"))
 
         // alternative post
         val res3 = logic.runOperations(
           ops = List(o, o2),
-          s = lastState.next(v1.id -> SPValue(4)),
-          aggr = List(),
-          transitions = tm,
-          disabledGroups = Set("bar")
+          s = res.lastState.next(v1.id -> SPValue(4)),
+          fire = Set(),
+          controlledTransitions = List(),
+          unControlledTransitions = tm,
+          disabledGroups = Set("bar"),
+          events = List()
         )
 
-        res3.head._1 shouldEqual o
-        res3.head._2.get(v1.id) shouldEqual Some(SPValue(5))
-        res3.head._2.get(o.id) shouldEqual Some(SPValue("finished"))
+        res3.sequence.head._1 shouldEqual o
+        res3.lastState.get(v1.id) shouldEqual Some(SPValue(5))
+        res3.lastState.get(o.id) shouldEqual Some(SPValue("finished"))
 
       }
     }

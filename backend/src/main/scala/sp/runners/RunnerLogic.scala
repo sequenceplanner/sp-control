@@ -8,69 +8,88 @@ import scala.annotation.tailrec
 trait RunnerLogic {
   type State = Map[ID, SPValue]
   case class OperationTransition(state: SPValue,
-                                 kind: Set[SPValue],
+                                 conditionKind: SPValue,
                                  nextState: SPValue,
                                  alwaysTrueIfNoConditions: Boolean = true,
                                  enableAlternatives: Boolean = false
                                 )
 
-  /**
-    *
-    * @param ops
-    * @param s
-    * @param aggr
-    * @param transitions
-    * @param disabledGroups
-    * @return
-    */
-  @tailrec
+  case class OperationEvent(event: SPValue,
+                            enabledInStates: Set[SPValue],
+                            conditionKind: SPValue
+                           )
+
+  case class OneOperationRun(lastState: SPState, sequence: List[(Operation, SPState)])
+
+
   final def runOperations(ops: List[Operation],
-                    s: SPState,
-                    aggr: List[(Operation, SPState)],
-                    transitions: List[OperationTransition],
-                    disabledGroups: Set[SPValue] = Set()
-                   ): List[(Operation, SPState)] = {
+                          s: SPState,
+                          fire: Set[SPValue],
+                          controlledTransitions: List[OperationTransition],
+                          unControlledTransitions: List[OperationTransition],
+                          events: List[OperationEvent] = List(),
+                          disabledGroups: Set[SPValue] = Set(),
+                         ): OneOperationRun =  {
 
-    val enabledOps = ops.flatMap { op =>
-      val enabledTs = possibleTransitions(op, s, transitions).find(t =>
-        evaluateOP(op, s, t.kind, disabledGroups, t.alwaysTrueIfNoConditions, t.enableAlternatives)
-      )
-      enabledTs.map(op -> _)
+
+    @tailrec
+    def runDeep(ops: List[Operation],
+                s: SPState,
+                aggr: List[(Operation, SPState)] = List()
+               ): List[(Operation, SPState)] = {
+
+      val enabledOps = ops.flatMap { op =>
+        val enabledTs = possibleTransitions(op, s, fire, controlledTransitions, unControlledTransitions, events).find(t =>
+          evaluateOP(op, s, Set(t.conditionKind), disabledGroups, t.alwaysTrueIfNoConditions, t.enableAlternatives)
+        )
+        enabledTs.map(op -> _)
+      }
+
+      enabledOps match {
+        case Nil => aggr
+        case x :: xs =>
+          val op = x._1
+          val t = x._2
+          val nextState = takeTransition(op, s, Set(t.conditionKind), t.nextState, disabledGroups, t.enableAlternatives)
+          runDeep(ops.filter(_ != op), nextState, (op, nextState) :: aggr)
+      }
+
     }
 
-    enabledOps match {
-      case Nil => aggr
-      case x :: xs =>
-        val op = x._1
-        val t = x._2
-        val nextState = takeTransition(op, s, t.kind, t.nextState, disabledGroups, t.enableAlternatives)
-        runOperations(ops.filter(_ != op), nextState, (op, nextState) :: aggr, transitions, disabledGroups)
-    }
-
-
-
-
+    val res = runDeep(ops, s, List())
+    val lastState = res.headOption.map(_._2).getOrElse(s)
+    OneOperationRun(lastState, res)
   }
+
 
 
   def possibleTransitions(op: Operation,
                           s: SPState,
-                          transitions: List[OperationTransition],
+                          fire: Set[SPValue],
+                          controlledTransitions: List[OperationTransition],
+                          unControlledTransitions: List[OperationTransition],
+                          events: List[OperationEvent]
                          ): List[OperationTransition] = {
-    val res = for {
-      current <- s.get(op.id).toList
-      t <- transitions.filter(_.state == current)
-    } yield t
+
+    val current = s.get(op.id).toList
+    val tControlled = current.flatMap(c => controlledTransitions.filter(_.state == c))
+    val tUnControlled = current.flatMap(c => unControlledTransitions.filter(_.state == c))
+
+    val es = current.flatMap(c => events.filter(e =>
+      e.enabledInStates.contains(c))
+    ).map(_.conditionKind)
+
+    val ts = tControlled.filter(t => es.contains(t.conditionKind)) ++ tUnControlled
 
     // Just in case of messing up while implementing
     if (s.get(op.id).isEmpty)
       println(s"ERROR ERROR, You forgot to add the operation state to the state for operation: ${op.name}, id: ${op.id}")
-    else if (res.isEmpty) {
-      val avS = transitions.map(_.state)
+    else if (ts.isEmpty) {
+      val avS = (controlledTransitions ++ unControlledTransitions).map(_.state)
       println(s"ERROR ERROR, You have ended up in a state that has no transitions. ")
       println(s"You are in state: ${s.state(op.id)}, but only have transitions from $avS, op: ${op.name}, id: ${op.id}")
     }
-    res
+    ts
   }
 
 
