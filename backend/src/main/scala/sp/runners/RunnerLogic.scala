@@ -6,25 +6,71 @@ import Logic._
 import scala.annotation.tailrec
 
 trait RunnerLogic {
+
+  /**
+    * 180914: We need to decide if each operation should be defined with its own transitions
+    * and events. What we want is to tell per operation which has an uncontrollable start
+    * and which one that should run in auto (uncontrollable). But it may be really hard to
+    * troubleshoot the operation and the runner when something happens.
+    *
+    * Currently the transition system is defined per runner instance and each
+    * operation will have the same.
+    *
+    * 180915: After discussion, we stick with one general transition system. To be able to
+    * let some operation start uncontrollable and some controllable, we can use the firing
+    * mechanism to constantly enable those events.
+    */
+
+
+
   type State = Map[ID, SPValue]
-  case class OperationTransition(state: SPValue,
+
+  /**
+    * This class defines a transition from a state to another in the general transition
+    * system used by the runner.
+    * @param states The source states (in what states the transition is possible)
+    * @param conditionKind The conditions associated with the transiton, e.g. pre, post, ...
+    * @param nextState The Sink state, where the operation will be in after the transition
+    * @param alwaysTrueIfNoConditions If an operation do not have any associated condition,
+    *                                 should this transition always fire (this should be true)
+    *                                 in the state or never fire (false)
+    * @param enableAlternatives If this is true, it is enough that at least one operation
+    *                           condition is true for the transition to fire. The conditions
+    *                           that are true, those actions will be executed.
+    */
+  case class OperationTransition(states: Set[SPValue],
                                  conditionKind: SPValue,
                                  nextState: SPValue,
                                  alwaysTrueIfNoConditions: Boolean = true,
                                  enableAlternatives: Boolean = false
                                 )
 
-  case class OperationEvent(event: SPValue,
-                            enabledInStates: Set[SPValue],
-                            conditionKind: SPValue
-                           )
+  /**
+    * This class define the possible events of the transition system. The name of the event
+    * is used as a command to trigger a transition with the corresponding conditionkind.
+    * If the conditions are not enabled for the operation, the event will not happen
+    *
+    * Hmm, maybe we can skip these and add events to OperationTransition
+    *
+    * @param event The name of the event used as a command
+    * @param conditionKind The condition kind that will be triggered
+    */
+  case class OperationEvent(event: SPValue, conditionKind: SPValue)
 
+  /**
+    * The result from a run. i
+    * @param lastState
+    * @param sequence
+    */
   case class OneOperationRun(lastState: SPState, sequence: List[(Operation, SPState)])
+  case class FireEvents(events: Set[SPValue], operations: Set[ID])
 
+  // Add force when we need it
+  //case class ForceTransition(conditionKind: SPValue, operation: ID)
 
   final def runOperations(ops: List[Operation],
                           s: SPState,
-                          fire: Set[SPValue],
+                          fire: FireEvents,
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
                           events: List[OperationEvent] = List(),
@@ -65,18 +111,19 @@ trait RunnerLogic {
 
   def possibleTransitions(op: Operation,
                           s: SPState,
-                          fire: Set[SPValue],
+                          fire: FireEvents,
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
                           events: List[OperationEvent]
                          ): List[OperationTransition] = {
 
     val current = s.get(op.id).toList
-    val tControlled = current.flatMap(c => controlledTransitions.filter(_.state == c))
-    val tUnControlled = current.flatMap(c => unControlledTransitions.filter(_.state == c))
+    val tControlled = current.flatMap(c => controlledTransitions.filter(_.states.contains(c)))
+    val tUnControlled = current.flatMap(c => unControlledTransitions.filter(_.states.contains(c)))
 
-    val es = current.flatMap(c => events.filter(e =>
-      e.enabledInStates.contains(c))
+    val es = events.filter(e =>
+        fire.events.contains(e.event) &&  // Someone wants to fire the event
+        (fire.operations.contains(op.id) || fire.operations.isEmpty) // someone want to fire the event on this operation (or if empty, any operation)
     ).map(_.conditionKind)
 
     val ts = tControlled.filter(t => es.contains(t.conditionKind)) ++ tUnControlled
@@ -84,11 +131,11 @@ trait RunnerLogic {
     // Just in case of messing up while implementing
     if (s.get(op.id).isEmpty)
       println(s"ERROR ERROR, You forgot to add the operation state to the state for operation: ${op.name}, id: ${op.id}")
-    else if (ts.isEmpty) {
-      val avS = (controlledTransitions ++ unControlledTransitions).map(_.state)
-      println(s"ERROR ERROR, You have ended up in a state that has no transitions. ")
-      println(s"You are in state: ${s.state(op.id)}, but only have transitions from $avS, op: ${op.name}, id: ${op.id}")
-    }
+//    else if (ts.isEmpty) {  // with events this is normal. Keeping printout if we need for troubleshooting
+//      val avS = (controlledTransitions ++ unControlledTransitions).map(_.state)
+//      println(s"ERROR ERROR, You have ended up in a state that has no transitions. ")
+//      println(s"You are in state: ${s.state(op.id)}, but only have transitions from $avS, op: ${op.name}, id: ${op.id}")
+//    }
     ts
   }
 
