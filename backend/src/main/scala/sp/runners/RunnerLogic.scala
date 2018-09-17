@@ -5,6 +5,8 @@ import Logic._
 
 import scala.annotation.tailrec
 
+
+
 trait RunnerLogic {
 
   /**
@@ -41,24 +43,14 @@ trait RunnerLogic {
   case class OperationTransition(states: Set[SPValue],
                                  conditionKind: SPValue,
                                  nextState: SPValue,
+                                 event: Option[SPValue] = None,
                                  alwaysTrueIfNoConditions: Boolean = true,
                                  enableAlternatives: Boolean = false
                                 )
 
-  /**
-    * This class define the possible events of the transition system. The name of the event
-    * is used as a command to trigger a transition with the corresponding conditionkind.
-    * If the conditions are not enabled for the operation, the event will not happen
-    *
-    * Hmm, maybe we can skip these and add events to OperationTransition
-    *
-    * @param event The name of the event used as a command
-    * @param conditionKind The condition kind that will be triggered
-    */
-  case class OperationEvent(event: SPValue, conditionKind: SPValue)
 
   /**
-    * The result from a run. i
+    * The result from a run.
     * @param lastState
     * @param sequence
     */
@@ -68,12 +60,27 @@ trait RunnerLogic {
   // Add force when we need it
   //case class ForceTransition(conditionKind: SPValue, operation: ID)
 
+  /**
+    * This method runs the operations one step. only one op transition will be executed
+    * per step.
+    *
+    * Comment: If we need to run many operations
+    * like > 5000, we need to improve the logic and not reevaluate possible transitions.
+    * But for now
+    * @param ops The operations
+    * @param s The state
+    * @param fire What event that should be fired
+    * @param controlledTransitions The transitions that must be activated with an event
+    * @param unControlledTransitions Transition that will executed if they are enabled
+    * @param events The event definition
+    * @param disabledGroups If some condition groups should be disabled
+    * @return
+    */
   final def runOperations(ops: List[Operation],
                           s: SPState,
                           fire: FireEvents,
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
-                          events: List[OperationEvent] = List(),
                           disabledGroups: Set[SPValue] = Set(),
                          ): OneOperationRun =  {
 
@@ -85,7 +92,7 @@ trait RunnerLogic {
                ): List[(Operation, SPState)] = {
 
       val enabledOps = ops.flatMap { op =>
-        val enabledTs = possibleTransitions(op, s, fire, controlledTransitions, unControlledTransitions, events).find(t =>
+        val enabledTs = possibleTransitions(op, s, fire, controlledTransitions, unControlledTransitions).find(t =>
           evaluateOP(op, s, Set(t.conditionKind), disabledGroups, t.alwaysTrueIfNoConditions, t.enableAlternatives)
         )
         enabledTs.map(op -> _)
@@ -114,19 +121,17 @@ trait RunnerLogic {
                           fire: FireEvents,
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
-                          events: List[OperationEvent]
                          ): List[OperationTransition] = {
 
     val current = s.get(op.id).toList
-    val tControlled = current.flatMap(c => controlledTransitions.filter(_.states.contains(c)))
+    val tControlled = current.flatMap(c => controlledTransitions.filter{t =>
+      val eventHasFired = t.event.forall(fire.events.contains) && fire.operations.contains(op.id)
+      t.states.contains(c) && eventHasFired
+    })
     val tUnControlled = current.flatMap(c => unControlledTransitions.filter(_.states.contains(c)))
 
-    val es = events.filter(e =>
-        fire.events.contains(e.event) &&  // Someone wants to fire the event
-        (fire.operations.contains(op.id) || fire.operations.isEmpty) // someone want to fire the event on this operation (or if empty, any operation)
-    ).map(_.conditionKind)
 
-    val ts = tControlled.filter(t => es.contains(t.conditionKind)) ++ tUnControlled
+    val ts = tControlled ++ tUnControlled
 
     // Just in case of messing up while implementing
     if (s.get(op.id).isEmpty)
