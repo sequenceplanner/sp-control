@@ -1,118 +1,56 @@
 package spgui.widgets.VDGUI
 
+import diode.react.ModelProxy
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.Reusability
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.{APIDeviceDriver, VD}
-import sp.domain._
-import spgui.communication._
-import spgui.components.SPWidgetElements
-import sendMessages._
-import sp.vdtesting.APIVDTracker
+import sp.domain.{ID, SPAttributes, SPValue}
+import spgui.SimpleSet
+import spgui.circuits.main.MainCircuit
+import spgui.circuits.main.handlers.DriverHandler.DriverId
+import spgui.circuits.main.handlers.DriverInfo
+import spgui.widgets.VDGUI.cards.DriverView
 
 /** Widget for visualising the drivers status */
 object DriverWidget {
-  // Information with the driver, the drivers state, status and cardID
-  case class Card(driver: VD.Driver, driverState: VD.DriverState, status: String, cardId: ID)
-  /** The React-State of the Widget.
-    *
-    * @param cards List of the cards
-    */
-  case class State(cards:  List[Card] = List())
+  case class DriverCard(cardId: ID, name: String, status: String, `type`: String, setup : SPAttributes, state: Map[String, SPValue])
 
-  private class Backend($: BackendScope[Unit, State]) {
-    val driverHandler =
-      BackendCommunication.getMessageObserver(onDriverMessage, APIDeviceDriver.topicResponse)
-    val vdTrackerHandler = BackendCommunication.getMessageObserver(onVDTrackerMessage, APIVDTracker.topicRequest)
+  case class Props(proxy: ModelProxy[SimpleSet[DriverId, DriverInfo]]) {
+    val drivers: SimpleSet[DriverId, DriverInfo] = proxy.value
+  }
 
-    def onVDTrackerMessage(mess: SPMessage) : Unit = {
-      mess.getBodyAs[APIVDTracker.Request].map {
-        case APIVDTracker.ResetGUI =>
-          $.modState ( _.copy(cards = List() ) ).runNow()
-        case x => Callback.empty
+  implicit val simpleSetReusability: Reusability[DriverInfo] = Reusability.by_==
+  implicit val propsReusability: Reusability[Props] = Reusability.by(_.drivers.toList)
+
+  private class Backend($: BackendScope[Props, Option[ID]]) {
+
+    def render(props: Props, expandedId: Option[ID]): VdomElement = {
+      val expandedCard = expandedId.flatMap(id => props.drivers.find(_.id == id)).map(cardFromInfo)
+
+      expandedCard match {
+        case Some(card) => DriverView.Detail(card, onClick = $.setState(None))
+        case None => DriverView.Overview(props.drivers.map(cardFromInfo), onCardClick = cardId => $.setState(Some(cardId)))
       }
-    }
-
-    /** Handle APIDeviceDriver-messages.
-      *
-      * If a [[APIDeviceDriver.TheDrivers]] response is noticed,
-      * add the driver to a card.
-      *
-      * If a [[APIDeviceDriver.DriverStateChange]] response is noticed,
-      * update the driver in the cards.
-      *
-      * If something else, Empty Callback.
-      *
-      * @param mess SPMessage
-      */
-    def onDriverMessage(mess: SPMessage): Unit = {
-      val callback: Option[CallbackTo[Unit]] = mess.getBodyAs[APIDeviceDriver.Response].map {
-        case APIDeviceDriver.TheDrivers(drivers) => {
-          $.modState { _.copy(
-            cards = drivers.map(d => Card(
-              driver = d._1,
-              driverState = d._2,
-              status = d._3,
-              cardId = d._1.id
-            ))
-          )}
-        }
-        case APIDeviceDriver.DriverStateChange(_, id, state, _) => {
-          $.modState(s => s.copy(cards = s.cards.map(c => if(c.driver.id == id) c.copy(driverState = state) else c)))
-        }
-        case x => {
-          Callback.empty
-        }
-      }
-      callback.foreach(_.runNow())
-    }
-
-    /** Render-function in Backend.
-      *
-      * Make a SPCardGrid and for all the cards, map it against a DriverCard.
-      *
-      * @param state Current State in the Backend-class
-      * @return The Widget GUI
-      */
-    def render(state: State) = {
-      <.div(
-        ^.className := DriverWidgetCSS.rootDiv.htmlClass,
-        SPCardGrid(state.cards.map(card => SPCardGrid.DriverCard(
-          cardId = card.cardId,
-          name = card.driver.name,
-          status = card.status,
-          typ = card.driver.driverType,
-          setup = card.driver.setup,
-          state = card.driverState
-        )))
-      )
-    }
-
-    /** When the widget is unmounting, kill message-observer
-      *
-      * @return Callback to kill message-Observers
-      */
-    def onUnmount: Callback = Callback{
-      println("DriverWidget Unmouting")
-      driverHandler.kill()
-      vdTrackerHandler.kill()
-    }
-
-    /** When the widget is mounting, try to get a list of drivers from backend
-      *
-      * @return Callback
-      */
-    def onMount: Callback = {
-      sendToDeviceDriver(APIDeviceDriver.GetDrivers)
     }
   }
 
-  private val driverWidgetComponent = ScalaComponent.builder[Unit]("DriverWidget")
-    .initialState(State())
+  private def cardFromInfo(driverInfo: DriverInfo): DriverCard = {
+    DriverCard(
+      cardId = driverInfo.id,
+      name = driverInfo.name,
+      status = driverInfo.status,
+      `type` = driverInfo.driverType,
+      setup = driverInfo.setup,
+      state = driverInfo.state
+    )
+  }
+
+  private val driverWidgetComponent = ScalaComponent.builder[Props]("DriverWidget")
+    .initialState(Option.empty[ID])
     .renderBackend[Backend]
-    .componentDidMount(_.backend.onMount)
-    .componentWillUnmount(_.backend.onUnmount)
+    .configure(Reusability.shouldComponentUpdate)
     .build
 
-  def apply() = spgui.SPWidget(spwb => driverWidgetComponent())
+  private val connectComponent = MainCircuit.connectComponent(_.drivers.drivers)
+  def apply() = spgui.SPWidget(_ => connectComponent { proxy => driverWidgetComponent(Props(proxy)) })
 }
-

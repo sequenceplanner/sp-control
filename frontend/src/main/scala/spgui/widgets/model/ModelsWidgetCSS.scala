@@ -11,7 +11,7 @@ object ModelsWidgetCSS extends StyleSheet.Inline {
   val hoverColor = "#81C784"
 
   val container = style(
-    padding := 2.em
+    padding(2 em)
   )
 
   val mainButton = style(

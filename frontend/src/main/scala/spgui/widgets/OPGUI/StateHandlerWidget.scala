@@ -1,14 +1,18 @@
 package spgui.widgets.OPGUI
 
+import scala.util.Try
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import sp.devicehandler.{APIVirtualDevice}
+import play.api.libs.json.JsValue
+import sp.devicehandler.APIVirtualDevice
 import sp.domain.Logic._
 import sp.domain._
 import sp.models.APIModel
 import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
 import spgui.communication._
+import spgui.components.SPWidgetElements
+
 
 /** Widget for matching the Driver with a Operation */
 object StateHandlerWidget {
@@ -26,11 +30,13 @@ object StateHandlerWidget {
     * @param activeRunner Current Runner
     * @param extractedThings The things from the model
     * @param virtualDeviceState The states of the Virtual Device
+    * @param hiddenIDs The ids of widgets filtered out according to search query
     */
   case class State(
                     activeRunner:           Option[Runner] = None,
                     extractedThings:        ExtractedThings = ExtractedThings(),
-                    virtualDeviceState:     Map[ID, SPValue] = Map()
+                    virtualDeviceState:     Map[ID, SPValue] = Map(),
+                    hiddenIDs:              Set[ID] = Set()
                   )
 
   private class Backend($: BackendScope[Unit, State]) {
@@ -109,6 +115,19 @@ object StateHandlerWidget {
       callback.foreach(_.runNow())
     }
 
+    /** Filtering out of things not matching the query string, by name
+      *
+      * @param query String to match things the user wants to see
+      * @return Callback setting to-be-hidden ids in widget State
+      */
+    def filterOutItems(query: String) = {
+      val allThings = $.state.map(_.extractedThings).map(et => et.allDrivers ::: et.allOperations)
+      val nonMatchingIDs = allThings.map(_.collect {
+        case thing if(!thing.name.toLowerCase.contains(query.toLowerCase)) => thing.id
+      })
+      nonMatchingIDs.flatMap(ids => $.modState(s => s.copy(hiddenIDs = ids.toSet)))
+    }
+
     /** Render-function in Backend
       *
       * @param state Current state in Backend-class
@@ -116,8 +135,12 @@ object StateHandlerWidget {
       */
     def render(state: State) = {
       <.div(
-        renderModel(state.extractedThings.allOperations,
-          state.extractedThings.allDrivers, state.extractedThings.operation2Driver, state.virtualDeviceState)
+        <.div(
+          ^.className := StateHandlerWidgetCSS.textBoxDiv.htmlClass,
+          SPWidgetElements.TextBox("Find", str => filterOutItems(str))
+        ),
+        renderModel(state.extractedThings.allOperations, state.extractedThings.allDrivers,
+          state.extractedThings.operation2Driver, state.virtualDeviceState, state.hiddenIDs)
       )
     }
 
@@ -127,10 +150,11 @@ object StateHandlerWidget {
       * @param driverThings List of the driverThings in model
       * @param operationDriverMap The id:s of the operations that is connected to a driverValue. Map of [[ID]] to [[ID]].
       * @param virtualDeviceState The Driver-values. Map of [[ID]] to [[SPValue]])
+      * @param hiddenIDs The id:s of things not matched by the filtering search function
       * @return The scene to the widget
       */
-    def renderModel(operationThings: List[Thing], driverThings: List[Thing],
-                    operationDriverMap: Map[ID, ID], virtualDeviceState: Map[ID, SPValue]) =
+    def renderModel(operationThings: List[Thing], driverThings: List[Thing], operationDriverMap: Map[ID, ID],
+                    virtualDeviceState: Map[ID, SPValue], hiddenIDs: Set[ID]) =
     {
       val sortedDriverlessOperationThings =
         operationThings.sortBy(t => t.name).filterNot(thing => operationDriverMap.contains(thing.id))
@@ -156,7 +180,7 @@ object StateHandlerWidget {
                     <.td(""),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
                     <.td(virtualDeviceState(driverThing.id).toString())
-                  )
+                  ).unless(hiddenIDs.contains(idPair._1) || hiddenIDs.contains(idPair._2))
                 }.toTagMod
               )
             )
@@ -166,8 +190,8 @@ object StateHandlerWidget {
           <.details(^.open := "open",  ^.className := "details-empty-operations",
             <.summary("Operation with no Driver"),
             <.table(
-            ^.className := "table table-striped",  ^.className := "table-empty-operations",
-            tableHead(),
+              ^.className := "table table-striped",  ^.className := "table-empty-operations",
+              tableHead(),
               <.tbody(
                 // for all operation things that do not have its id in operationDriverMap
                 // print the operation
@@ -178,7 +202,7 @@ object StateHandlerWidget {
                     <.td(""),// TODO: Read or Write or No master?
                     <.td(""),
                     <.td("")
-                  )
+                  ).unless(hiddenIDs.contains(operation.id))
                 }.toTagMod
               )
             )
@@ -200,7 +224,7 @@ object StateHandlerWidget {
                     <.td(""),// TODO: Read or Write or No master?
                     <.td(driverThing.name),
                     <.td(virtualDeviceState(driverThing.id).toString())
-                  )
+                  ).unless(hiddenIDs.contains(driverThing.id))
                 }.toTagMod
               )
             )
@@ -231,11 +255,26 @@ object StateHandlerWidget {
       * @return A cell of table-data with the domain value
       */
     def printOperationDomain(operation: Thing) = {
-      val s: String =
-        operation.attributes.value.map{spAttribute => "S:" + spAttribute._1 + ", JS:" + spAttribute._2}.toString()
-      <.td(s)
+      val query: String = "domain"
+      val attributeValueMap = operation.attributes.value.filter { case (key, _) => key == query }
+      val tryParseDropdown = Try{
+        val dropDownElements: Seq[VdomNode] = attributeValueMap.flatMap { valMap: (String, JsValue) =>
+          val parsedDomain: SPValue = valMap._2.to[SPValue].getOrElse(SPValue("Did Not Parse JsValue"))
+          val seqOfDomainValues: Seq[SPValue] =
+            parsedDomain.to[Seq[SPValue]].getOrElse(Seq(SPValue("Could Not Parse list")))
+          seqOfDomainValues.map(value =>
+            SPWidgetElements.dropdownElement(value.toString, operationDomainChange(operation.id, value))
+          )
+        }.toSeq
+        SPWidgetElements.dropdown("domain", dropDownElements)
+      }
+      tryParseDropdown.map(<.td(_)).getOrElse(<.td("-"))
     }
 
+    // TODO Implement state change for the operation
+    def operationDomainChange(operationID: ID, domainClicked: SPValue): Callback = {
+      Callback.log(s"ID for the operation is $operationID and domain clicked is $domainClicked")
+    }
     /** When the widget is unmounting, kill message-observer
       *
       * @return Callback to kill message-Observers

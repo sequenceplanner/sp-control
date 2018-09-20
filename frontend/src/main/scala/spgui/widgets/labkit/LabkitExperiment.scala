@@ -15,7 +15,7 @@ import monocle.macros._
 import monocle.Lens
 
 import diode.react.ModelProxy
-import spgui.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
+import spgui.circuits.availablemodelscircuit.{ AvailableModelsCircuit, AvailableModels }
 import spgui.components.{ SPWidgetElements }
 import spgui.communication.APIComm
 import spgui.communication.APIComm._

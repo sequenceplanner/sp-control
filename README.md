@@ -20,8 +20,8 @@ Watch our wiki for information about Sequence Planner and how to use.
 Download and install Simple Build Tool (SBT). Files and instructions for your platform are available at the project website, http://www.scala-sbt.org/.
 
 ### Run
-sbt spcontrol_frontend/fastOptJS
+sbt frontend/fastOptJS
 
-sbt spcontrol_backend/run
+sbt backend/run
 
 SP is a set of micro services that communicates via json messages in an akka cluster or via kafka. 

@@ -185,7 +185,7 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
         //log.debug("VD from driver: " +b)
         b match {
 
-          case e @ APIDeviceDriver.DriverStateChange(name, did, state, _) if drivers.contains(did) =>
+          case e @ APIDeviceDriver.DriverStateChange(_, did, _, _) if drivers.contains(did) =>
             //log.debug("got a statechange:" + e)
             val oldrs = resourceState
             driverEvent(e)
@@ -260,6 +260,18 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD) extends Actor
       drivers = setup.drivers.map(d => VD.DriverWithState(d, driverState.getOrElse(d.id, Map[String, SPValue]()))),
       attributes = setup.attributes
     )
+  }
+
+  // A way to keep the state alive upstreams
+  context.system.scheduler.schedule(1 seconds, 5 seconds){
+    resourceState.foreach{case (rid, s) =>
+      val name = resources.get(rid).map(_.r.name).getOrElse("orElseVirtualDeviceLine268")
+      val header = SPHeader(from = id.toString)
+      val body = APIVirtualDevice.StateEvent(name, rid, s)
+
+      publish(APIVirtualDevice.topicResponse, SPMessage.makeJson(header, body))
+    }
+
   }
 
 }

@@ -55,24 +55,10 @@ object SopMakerWidget {
   var dropZones: scala.collection.mutable.Map[UUID, (UUID, SopVisualiser.DropzoneDirection.Value)] =
     scala.collection.mutable.Map()
 
-  val parallelBarHeight = 12f
-
-  val opHorizontalBarOffset = 12f
-  val opVerticalBarOffset = 12f
-  val opHeight = 80f
-  val opWidth = 120f
-  val opSpacingX = 10f
-  val opSpacingY = 25f
-  val opSpacingYInsideGroup = 10
-  val opSpacingXInsideGroup = 35f
-
   val newOpId = UUID.randomUUID()
   val newParallelId = UUID.randomUUID()
   val newArbitraryId = UUID.randomUUID()
   val newAlternativeId = UUID.randomUUID()
-
-  var xOrigin = 0f
-  var yOrigin = 0f
 
   case class State(sop: SOP)
 
@@ -93,7 +79,7 @@ object SopMakerWidget {
             SopMakerGraphics.menuOp("OP", newOpId)
           )
         ),
-        SopVisualiser(state.sop, ExampleSops.ops, Some(onDropEvent), Some(onDragEvent))
+        SopVisualiser(state.sop, ExampleSops.ops, Map(), Some(onDropEvent), Some(onDragEvent))
       )
     }
 
@@ -105,7 +91,7 @@ object SopMakerWidget {
       <.span(
         ^.draggable := false,
         SPWidgetElements.draggable(opname, DraggedSOP(findSop(opId)), "sop", (d:DragDropData) => println("dropped an op")),
-        SopMakerGraphics.sop(opname, x.toInt, y.toInt)
+        SopMakerGraphics.op(opname, x.toInt, y.toInt)
       )
     }
 
@@ -210,10 +196,10 @@ object SopMakerWidget {
   }
 
   private val component = ScalaComponent.builder[Unit]("SopMakerWidget")
-    .initialState(State(sop = ExampleSops.tinySop))
+    .initialState(State(sop = ExampleSops.giantSop))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
-    .componentDidMount(_.backend.onMount()) 
+    .componentDidMount(_.backend.onMount())
     .build
 
   def apply() = spgui.SPWidget(spwb => component())

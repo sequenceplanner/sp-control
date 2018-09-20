@@ -6,11 +6,14 @@ import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros._
 import sp.domain.Logic._
 import sp.domain._
-import spgui.availablemodelscircuit._
+import sp.models.APIModel
+import spgui.circuits.availablemodelscircuit._
 import spgui.circuit.{OpenModal, SPGUICircuit}
 import spgui.modal.ModalResult
-import spgui.{ModelCommunication, SimpleSet}
-
+import spgui.SimpleSet
+import spgui.circuits.main.handlers._
+import spgui.circuits.main.MainCircuit
+import spgui.communication.ModelCommunication
 
 object ModelsWidget {
   import sp.models.{APIModel => Model, APIModelMaker => ModelMaker}
@@ -19,13 +22,13 @@ object ModelsWidget {
   @Lenses case class UIState(historyExpanded: Set[ID], selectedModelId: Option[ID])
   @Lenses case class State(uiState: UIState)
 
-  case class Props(proxy: ModelProxy[ModelsCircuitState]) {
+  case class Props(proxy: ModelProxy[ModelHandlerState]) {
     def models: SimpleSet[ID, ModelMock] = proxy.value.models
     def activeModel: Option[ModelMock] = proxy.value.activeModel
     def activeModelId: Option[ID] = proxy.value.activeModelId
     def dispatch(action: diode.Action): Callback = proxy.dispatchCB(action)
     def dispatchAction[A](modifier: A => A, wrapper: A => diode.Action)(maybeA: Option[A]): Callback = {
-      maybeA.map(a => dispatch(wrapper(modifier(a)))).getOrElse(Callback.empty)
+      maybeA.fold(Callback.empty)(a => dispatch(wrapper(modifier(a))))
     }
   }
 
@@ -51,7 +54,7 @@ object ModelsWidget {
 
       <.table(
         ^.className := "table table-striped",
-        <.caption("Models"),
+        //<.caption("Models"),
         <.thead(<.tr(
           <.th("id"),
           <.th("name"),
@@ -175,12 +178,13 @@ object ModelsWidget {
     }
 
     def render(props: Props, state: State): VdomElement = {
+      //println(props.activeModel.map(_.items))
       <.div(
-        btnWithTags("", onCreateModel(), "fa fa-bolt", " Create test model", small = false)(^.className := css.mainButton.htmlClass),
-        btnWithTags("", onRefreshModels(), "fa fa-refresh", " Refresh models", small = false)(^.className := css.mainButton.htmlClass),
+        ^.className := css.container.htmlClass,
         renderModels(props, state),
         renderModelPreview(props, state),
-        ^.className := css.container.htmlClass
+        btnWithTags("", onCreateModel(), "fa fa-bolt", " Create test model", small = false)(^.className := css.mainButton.htmlClass),
+        btnWithTags("", onRefreshModels(), "fa fa-refresh", " Refresh models", small = false)(^.className := css.mainButton.htmlClass)
       )
     }
 
@@ -218,7 +222,9 @@ object ModelsWidget {
     }
 
     def onSetActive(props: Props, modelId: ID): Callback = {
-      props.proxy.dispatchCB(SetActiveModel(modelId))
+      props.proxy.dispatchCB(SetActiveModel(modelId)) >> Callback {
+        ModelCommunication.postRequest(modelId, APIModel.GetItemList(0,99999))
+      }
     }
 
     def onPreviewModel(props: Props, modelId: ID): Callback =  {
@@ -245,13 +251,16 @@ object ModelsWidget {
     }
 
     def onCreateModel(): Callback = Callback {
+      println("onCreateModel")
       ModelCommunication.postRequest(ModelMaker.CreateModel("Test Model"))
     }
 
     def onUnmount(): Callback = Callback.empty
 
 
-    def onMount(): Callback = Callback.empty
+    def onMount() =  Callback{
+      ModelCommunication.postRequest(ModelMaker.GetModels)
+    }
   }
 
   val initialUIState: UIState = UIState(Set(), None)
@@ -264,7 +273,7 @@ object ModelsWidget {
     .componentWillUnmount(_.backend.onUnmount())
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelsCircuitState] = ModelsCircuit.connect(state => state)
+  val connectCircuit: ReactConnectProxy[ModelHandlerState] = MainCircuit.connect(_.models)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 

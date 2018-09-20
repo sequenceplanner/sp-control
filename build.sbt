@@ -4,7 +4,7 @@ lazy val projectName = "sp-control"
 lazy val projectVersion = "0.9.11"
 
 lazy val core = Def.setting(PublishingSettings.orgNameFull %%% "sp-core" % "0.9.11")
-lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.11")
+lazy val domain = Def.setting(PublishingSettings.orgNameFull %%% "sp-domain" % "0.9.12")
 lazy val comm = Def.setting(PublishingSettings.orgNameFull %%% "sp-comm" % "0.9.11")
 lazy val gui =  Def.setting(PublishingSettings.orgNameFull %%% "sp-gui" % "0.9.11")
 
@@ -48,7 +48,7 @@ lazy val spcontrol_api = crossProject.crossType(CrossType.Pure).in(file("api"))
 lazy val spcontrol_api_jvm = spcontrol_api.jvm
 lazy val spcontrol_api_js = spcontrol_api.js
 
-lazy val spcontrol_backend = project.in(file("backend"))
+lazy val spcontrol_backend = Project(base = file("backend"), id = "backend")
   .settings(
     libraryDependencies ++= commDependencies.value,
     libraryDependencies ++= Seq(comm.value, core.value, gui.value),
@@ -61,7 +61,7 @@ lazy val spcontrol_backend = project.in(file("backend"))
   .dependsOn(spcontrol_api_jvm)
 
 
-lazy val spcontrol_frontend = project.in(file("frontend"))
+lazy val spcontrol_frontend = Project(base = file("frontend"), id = "frontend")
   .settings(
     libraryDependencies ++= Seq(comm.value, gui.value),
     libraryDependencies ++= guiDependencies.value,

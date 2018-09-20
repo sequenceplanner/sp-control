@@ -19,7 +19,6 @@ import spgui.circuit.{ SPGUICircuit, UpdateGlobalState, GlobalState }
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.components.Icon
 
-
 sealed trait RenderNode {
   val nodeId: UUID
   val w: Float
@@ -41,7 +40,7 @@ case class RenderSometimeSequencenode(
 case class RenderOther(
   nodeId: UUID, w: Float, h:Float, children: List[RenderNode]) extends RenderGroup
 case class RenderSequence(
-  nodeId: UUID, w: Float, h:Float, children: List[RenderSequenceElement]) extends RenderGroup
+  nodeId: UUID, w: Float, h:Float, children: List[RenderSequenceElement]) extends RenderNode
 case class RenderSequenceElement(
   nodeId: UUID, w: Float, h:Float, self: RenderNode) extends RenderNode
 case class RenderOperationNode(
@@ -55,15 +54,16 @@ object SopVisualiser {
     val Left, Right, Up, Down = Value
   }
 
+
   val parallelBarHeight = 12f
   val opHorizontalBarOffset = 12f
   val opVerticalBarOffset = 12f
   val opHeight = 80f
-  val opWidth = 120f
+  val opWidth = 200f
   val opSpacingX = 10f
-  val opSpacingY = 25f
-  val opSpacingYInsideGroup = 10
-  val opSpacingXInsideGroup = 35f
+  val opSpacingY = 10f
+  val opSpacingYInsideGroup = 0f
+  val opSpacingXInsideGroup = 0f
 
   val paddingTop = 40f
   val paddingLeft = 40f
@@ -71,6 +71,7 @@ object SopVisualiser {
   case class Props(
     sop: SOP,
     ops: List[Operation],
+    opStates: Map[ID, SPValue] = Map(),
     onDropEvent: Option[(UUID, DropzoneDirection.Value) => (DragDropData) => Unit] = None,
     onDragEvent: Option[(DragDropData) => Unit] = None
   )
@@ -92,7 +93,7 @@ object SopVisualiser {
     def getRenderTree(node: RenderNode, xOffset: Float, yOffset: Float): List[TagMod] = {
       val isInteractive = !$.props.runNow().onDropEvent.isEmpty
       node match {
-        case n: RenderParallel => {
+        case n: RenderGroup => {
           var w = 0f
           var children = List[TagMod]()
           for(e <- n.children) {
@@ -115,7 +116,8 @@ object SopVisualiser {
             )
             w += e.w
           }
-          {
+
+          val maybeDropzones = {
             if(isInteractive) {
               List(
                 dropZone(   // Left dropzone
@@ -158,24 +160,50 @@ object SopVisualiser {
             } else {
               List()
             }
-          } ++
-          List(
-            SopMakerGraphics.parallelBars(xOffset - n.w/2, yOffset,n.w- opSpacingX)) ++
-          children ++
-          List(SopMakerGraphics.parallelBars(
-            xOffset - n.w/2,
-            yOffset + n.h - parallelBarHeight,
-            n.w - opSpacingX
-          ))
+          } 
+
+          val groupingGraphics = n match {
+            case par:RenderParallel => List(
+              SopMakerGraphics.parallelBars(xOffset - n.w/2, yOffset,n.w- opSpacingX),
+              SopMakerGraphics.parallelBars(
+                xOffset - n.w/2,
+                yOffset + n.h - parallelBarHeight,
+                n.w - opSpacingX
+              )
+            )
+            case alt:RenderAlternative => List(
+              SopMakerGraphics.alternative(xOffset - n.w/2, yOffset,n.w- opSpacingX),
+              SopMakerGraphics.alternative(
+                xOffset - n.w/2,
+                yOffset + n.h - parallelBarHeight,
+                n.w - opSpacingX
+              )
+            )
+            case alt:RenderArbitrary => List(
+              SopMakerGraphics.arbitrary(
+                xOffset - n.w/2,
+                yOffset,
+                n.w - opSpacingX
+              ),
+              SopMakerGraphics.arbitrary(
+                xOffset - n.w/2,
+                yOffset + n.h - parallelBarHeight,
+                n.w - opSpacingX
+              )
+            )
+          }
+          children ++ groupingGraphics ++ maybeDropzones
         }
+
         case n: RenderSequence =>  getRenderSequence(n.children, xOffset, yOffset)
           
         case n: RenderOperationNode => {
-
           val ops = $.props.runNow().ops.map(o => o.id -> o).toMap
           val opname = ops.get(n.sop.operation).map(_.name).getOrElse("[unknown op]")
+          val opState =
+            $.props.runNow().opStates.get(node.nodeId).getOrElse(SPValue("NoneState")).toString
 
-          List(op(n.sop.nodeID, opname, xOffset, yOffset)) ++
+          List(op(n.sop.nodeID, opname, xOffset, yOffset, opState)) ++
           {
             if(isInteractive) {
               List(
@@ -248,9 +276,21 @@ object SopVisualiser {
           h = getTreeHeight(s),
           children = sop.sop.collect{case e => traverseTree(e)}
         )
+        case s: Alternative => RenderAlternative(
+          nodeId = s.nodeID,
+          w = getTreeWidth(s),
+          h = getTreeHeight(s),
+          children = sop.sop.collect{case e => traverseTree(e)}
+        )
+        case s: Arbitrary => RenderArbitrary(
+          nodeId = s.nodeID,
+          w = getTreeWidth(s),
+          h = getTreeHeight(s),
+          children = sop.sop.collect{case e => traverseTree(e)}
+        )
         case s: Sequence => traverseSequence(s)
         case s: OperationNode => RenderOperationNode(
-          nodeId = s.nodeID,
+          nodeId = s.operation,
           w = getTreeWidth(s),
           h = getTreeHeight(s),
           sop = s
@@ -278,6 +318,8 @@ object SopVisualiser {
       sop match {
         // groups are as wide as the sum of all children widths + its own padding
         case s: Parallel => s.sop.map(e => getTreeWidth(e)).sum + 2*opSpacingX + opSpacingXInsideGroup *2 + opSpacingX
+        case s: Alternative => s.sop.map(e => getTreeWidth(e)).sum + 2*opSpacingX + opSpacingXInsideGroup *2 + opSpacingX
+        case s: Arbitrary => s.sop.map(e => getTreeWidth(e)).sum + 2*opSpacingX + opSpacingXInsideGroup *2 + opSpacingX
         case s: Sequence => { // sequences are as wide as their widest elements
           if(s.sop.isEmpty) 0
           else math.max(getTreeWidth(s.sop.head), getTreeWidth(Sequence(s.sop.tail)))
@@ -297,8 +339,22 @@ object SopVisualiser {
             getTreeHeight(Parallel(s.sop.tail))
           )
         }
+        case s: Alternative => {
+          if(s.sop.isEmpty) 0
+          else math.max(
+            getTreeHeight(s.sop.head) + (2*parallelBarHeight + 2*opSpacingY + 2*opSpacingYInsideGroup),
+            getTreeHeight(Parallel(s.sop.tail))
+          )
+        }
+        case s: Arbitrary => {
+          if(s.sop.isEmpty) 0
+          else math.max(
+            getTreeHeight(s.sop.head) + (2*parallelBarHeight + 2*opSpacingY + 2*opSpacingYInsideGroup),
+            getTreeHeight(Parallel(s.sop.tail))
+          )
+        }
         case s: Sequence => {
-          s.sop.map(e => getTreeHeight(e)).foldLeft(opSpacingY)(_ + _)
+          s.sop.map(e => getTreeHeight(e)).foldLeft(0f)(_ + _) + s.sop.size*opSpacingY -opSpacingY
         }
         case s: OperationNode => opHeight
       }
@@ -313,7 +369,7 @@ object SopVisualiser {
       sopList(root).filter(x => x.nodeID == sopId).head
     }
 
-    def op(opId: UUID, opname: String, x: Float, y: Float): TagMod = {
+    def op(opId: UUID, opname: String, x: Float, y: Float, state: String): TagMod = {
       val onDragEvent = $.props.runNow().onDragEvent
       <.span(
         ^.draggable := false,
@@ -321,14 +377,13 @@ object SopVisualiser {
           if(!onDragEvent.isEmpty) SPWidgetElements.draggable(opname, DraggedSOP(findSop(opId)), "sop", onDragEvent.get)
           else EmptyVdom
         },
-        SopMakerGraphics.sop(opname, x.toInt, y.toInt)
+        SopMakerGraphics.op(opname, x.toInt, y.toInt, state)
       )
     }
 
     def dropZone(
       direction: DropzoneDirection.Value, sop:Any, id: UUID, x: Float, y: Float, w: Float, h: Float): TagMod =
     {
-      println("making a dropzone " + id.toString)
       SPWidgetElements.DragoverZoneRect(
         $.props.runNow().onDropEvent.get(id, direction), DroppedOnSOP(sop), x, y, w, h)
     }
@@ -342,12 +397,12 @@ object SopVisualiser {
     .renderBackend[Backend]
     .build
 
-
   // onDropevent and onDragevent can be excuded to create a noninteractive component
   def apply(
     sop: SOP,
     ops: List[Operation],
+    opStates: Map[ID, SPValue] = Map(), 
     onDropEvent: Option[(UUID, DropzoneDirection.Value) => (DragDropData) => Unit] = None,
     onDragEvent: Option[(DragDropData) => Unit] = None
-  ) = component(Props(sop, ops, onDropEvent, onDragEvent))
+  ) = component(Props(sop, ops, opStates, onDropEvent, onDragEvent))
 }

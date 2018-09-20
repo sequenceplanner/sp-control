@@ -39,11 +39,15 @@ object APIOperationRunner {
     *
     * @param runnerID The id of the runner to change mode*
     * @param startOperation if not in auto, tries to start the operation if it is enabled
+    * @param forceStartOperation if not in auto, will start the operation even if not enabled
+    * @param forceCompleteOperation if not in auto, will force complete an operation and run its postcondition
     * @param stepBackward in not in auto, will change the complete runner state to when the last operation started.
     *                     backward is not implemented yet
     */
   case class ManualControl(runnerID: ID,
                            startOperation: Option[ID] = None,
+                           forceStartOperation: Boolean = false,
+                           forceCompleteOperation: Option[ID] = None,
                            stepBackward: Boolean = false
                           ) extends Request
 

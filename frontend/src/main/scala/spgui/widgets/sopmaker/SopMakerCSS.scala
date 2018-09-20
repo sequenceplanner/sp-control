@@ -19,7 +19,7 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     touchAction:="none",
     userSelect := "none",
     position.absolute,
-    zIndex := "1"
+    zIndex(1)
   )
 
   val opText = style(
@@ -29,12 +29,12 @@ object SopMakerCSS extends Theming.SPStyleSheet {
   val dropZone = style(
     position.absolute,
     zIndex(100),
-    opacity:= "0.5"
+    opacity(0.5)
   )
   val dropZoneOuter = style(
     position.absolute,
     zIndex(99),
-    opacity:= "0.5"
+    opacity(0.5)
   )
 
   val disableDropZone = style(
@@ -43,7 +43,7 @@ object SopMakerCSS extends Theming.SPStyleSheet {
   )
 
   val blue = style(
-    backgroundColor:= "blue"
+    backgroundColor.blue
   )
 
   val menuOp = style(
@@ -51,14 +51,82 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     touchAction:="none",
     userSelect := "none",
     position.relative,
-    zIndex := "1",
+    zIndex(1)
   )
 
   val menuOpInner = style(
-    marginBottom := -12.px
+    marginBottom(-12 px)
   )
   val menuOpText = style(
-    fontSize := 28.px
+    fontSize(28 px)
+  )
+
+  val opStateInit = style(
+    backgroundColor.rgb(255, 255, 255)
+  )
+
+  val opStateExec = style(
+    backgroundColor.rgb(80, 255, 80)
+  )
+
+  val opStateFini = style(
+    backgroundColor.rgb(0, 0, 255)
+  )
+  val opStateNone = style(
+
+  )
+  val opInner = style(
+    height(80 px),
+    width(200 px),
+    borderRadius(5 px),
+    borderWidth(2 px),
+    borderStyle.solid,
+    color.rgb(0,0,0),
+    backgroundColor.rgb(255, 255, 255),
+    display.flex,
+    flexDirection.column
+  )
+
+  // used by OperationRunnerCardComponent
+  val tinyOpInner = style(
+    height(50 px),
+    width(80 px),
+    borderRadius(5 px),
+    borderWidth(2 px),
+    borderStyle.solid,
+    color.rgb(0, 0, 0),
+    backgroundColor.rgb(255, 255, 255),
+    display.flex,
+    flexDirection.column
+  )
+
+  val opNameOuter = style(
+    height(100 %%),
+    overflow.auto,
+    overflowWrap := "break-word"
+  )
+
+  val opName = style(
+    position.relative,
+    textAlign.center,
+    fontSize(12 px),
+    overflow.hidden,
+    textOverflow:= ("ellipsis"),
+    fontFamily :=! "monospace"
+  )
+
+  val preCondition = style(
+    width(100 %%),
+    alignSelf.center,
+    height(20 px),
+    borderBottom :=! "solid 1px"
+  )
+
+  val postCondition = style(
+    width(100 %%),
+    alignSelf.center,
+    height(20 px),
+    borderTop :=! "solid 1px"
   )
 
   this.addToDocument()

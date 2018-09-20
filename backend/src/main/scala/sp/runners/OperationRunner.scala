@@ -1,6 +1,7 @@
 package sp.runners
 
 import akka.actor._
+import sp.AbilityStatus
 
 import scala.util.{Failure, Random, Success, Try}
 import sp.domain._
@@ -28,7 +29,6 @@ class OperationRunner extends Actor
 
 
 
-  val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
 
 
 
@@ -52,6 +52,8 @@ class OperationRunner extends Actor
   def matchRequests(mess: Option[SPMessage]) = {
     OperationRunnerComm.extractRequest(mess).foreach { case (h, b) =>
       val updH = h.copy(from = api.service)
+      val myH = SPHeader(from = api.service, to = abilityAPI.service, reply = api.service)
+
       publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, APISP.SPACK()))
       publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.GetAbilities))
 
@@ -108,14 +110,14 @@ class OperationRunner extends Actor
           publish(APIOperationRunner.topicResponse, OperationRunnerComm.makeMess(updH, api.Runners(xs)))
 
         case api.ForceComplete(id) =>
-          newAbilityState(id, sp.abilityhandler.AbilityStatus.Finished, startAbility, sendState)
+          newAbilityState(id, AbilityStatus.FinishedTag, startAbility, sendState)
 
         case api.RunnerControl(id, auto, groups) =>
           updRunner(id, Set(), Set(), Map(), startAbility, sendState(_, id), Some(auto), Some(groups))
 
-        case api.ManualControl(id, opToStart, bwd) =>
+        case api.ManualControl(id, opToStart, force, forceCompl, bwd) =>
           // bwd not implemented yet
-          tickRunner(id, startAbility, sendState(_, id), opToStart)
+          tickRunner(id, startAbility, sendState(_, id), opToStart, force, forceCompl)
 
       }
 
@@ -139,7 +141,7 @@ class OperationRunner extends Actor
             val ops = getOPFromAbility(id).flatMap(_._2)
             log.debug(s"The ability with id $id completed for operations: $ops")
 
-            newAbilityState(id, sp.abilityhandler.AbilityStatus.Finished, startAbility, sendState)
+            newAbilityState(id, AbilityStatus.FinishedTag, startAbility, sendState)
 
           case abilityAPI.AbilityState(id, s) =>
             //val ops = getOPFromAbility(id).flatMap(_._2)
@@ -185,6 +187,25 @@ class OperationRunner extends Actor
     publish(abilityAPI.topicRequest, OperationRunnerComm.makeMess(myH, abilityAPI.StartAbility(id, params)))
   }
 
+  // Temp fix to limit states send to the frontend
+  import scala.concurrent.duration._
+  var stateToSend: Map[ID, (api.StateEvent, api.StateEvent)] = Map()
+  def addNewState(id: ID, ev: api.StateEvent) = {
+    val current = stateToSend.getOrElse(id, (ev, ev))
+    val old = current._2
+    stateToSend += id -> (ev, old)
+  }
+
+  context.system.scheduler.schedule(0.2 seconds, 0.5 seconds){
+    val toSend = stateToSend.filter{case (_, pair) => pair._1 != pair._2}
+    toSend.foreach{case (id, pair) =>
+      stateToSend += id -> (pair._1, pair._1)
+      publish(api.topicResponse, OperationRunnerComm.makeMess(SPHeader(from = api.service), pair._1))
+
+    }
+  }
+
+
   // todo: Update this to make it simpler. Fix when simplifying the handling of multiple runners
   val sendState = (s: SPState, id: ID) => {
     log.debug("")
@@ -197,7 +218,10 @@ class OperationRunner extends Actor
     val groups = r.map(_.disableConditionGroups).getOrElse(Set())
 
     val myH = SPHeader(from = api.service)
-    publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state, auto, groups)))
+    val event = api.StateEvent(id, s.state, auto, groups)
+
+    addNewState(id, event)
+    //publish(api.topicResponse, OperationRunnerComm.makeMess(myH, api.StateEvent(id, s.state, auto, groups)))
 
   }
 
@@ -255,7 +279,7 @@ trait OperationRunnerLogic {
       setup.ops.map(o => o.id -> SPValue(OperationState.init)) ++
       setup.opAbilityMap.values.toList.map(id => id -> SPValue("notEnabled"))
     val updOps = setup.ops.map(o => updOPs(o, setup.opAbilityMap))
-    val r = Runner(setup.copy(initialState = updState, ops = updOps), updState)
+    val r = Runner(setup.copy(initialState = updState, ops = updOps), updState, true, Set())
     if (! validateRunner(setup)) None
     else {
       runners += setup.runnerID -> r
@@ -332,7 +356,10 @@ trait OperationRunnerLogic {
   def tickRunner(runnerID: ID,
                  startAbility: (ID, Map[ID, SPValue]) => Unit,
                  sendState: SPState => Unit,
-                 tryToStartOP: Option[ID] = None): Unit = {
+                 tryToStartOP: Option[ID] = None,
+                 forceTheStart: Boolean = false,
+                 forceCompleteOperation: Option[ID] = None
+                ): Unit = {
     runners.get(runnerID).foreach { x =>
       val theState = SPState(state = x.currentState)
       val updS = newState(
@@ -343,7 +370,10 @@ trait OperationRunnerLogic {
         sendState,
         x.runInAuto,
         x.disableConditionGroups,
-        tryToStartOP)
+        tryToStartOP,
+        forceTheStart,
+        forceCompleteOperation
+      )
       runners += runnerID -> x.copy(currentState = updS.state)
     }
   }
@@ -388,7 +418,9 @@ trait OperationRunnerLogic {
                      sendState: SPState => Unit,
                      runInAuto: Boolean,
                      disableConditionGroups: Set[SPValue],
-                     tryToStartOP: Option[ID]
+                     tryToStartOP: Option[ID] = None,
+                     forceTheStart: Boolean = false,
+                     forceCompleteOperation: Option[ID] = None
                     ): SPState = {
 
     val filterOps = ops.foldLeft((List[Operation](), List[Operation](), List[Operation]())){case (aggr, o) =>
@@ -401,10 +433,27 @@ trait OperationRunnerLogic {
       } else aggr
     }
 
-    val enabled: List[Operation] = if (runInAuto) filterOps._1 else {
-      List() ++ filterOps._1.find(o => tryToStartOP.contains(o.id))
+    // handling the manual force start here
+    val enabled: List[Operation] = tryToStartOP match {
+        case Some(id) if forceTheStart && runInAuto && !filterOps._1.exists(_.id == id)=>
+          filterOps._1 ++ ops.find(_.id == id)
+        case Some(id) if forceTheStart && !runInAuto =>
+          List() ++ ops.find(_.id == id)
+        case Some(id) if !forceTheStart && !runInAuto =>
+          List() ++ filterOps._1.find(_.id == id)
+        case x if runInAuto => filterOps._1
+        case _ => List()
+
     }
-    val complete = filterOps._2
+
+
+    // Handling the force complete here
+    val complete = filterOps._2 ++ {
+      if (!filterOps._2.exists(o => forceCompleteOperation.contains(o.id)))
+        ops.find(o => forceCompleteOperation.contains(o.id))
+      else None
+    }
+
     val reset = filterOps._3
 
     var opsToGo = ops
@@ -426,7 +475,7 @@ trait OperationRunnerLogic {
 
     val res = enabled.headOption.map{o =>
       // Maybe we need to check again if o is still enabled in state resCompl
-    opsToGo -= o
+      opsToGo -= o
       val updS = runOp(o, resCompl, disableConditionGroups)
       sendState(updS)
 
@@ -499,7 +548,7 @@ trait OperationRunnerLogic {
   def canComplete(o: Operation, s: SPState, opAbilityMap: Map[ID, ID], disabledGroups: Set[SPValue] = Set()): Boolean = {
     s(o.id) == OperationState.executing &&
       ((!opAbilityMap.contains(o.id) && filterConditions(o.conditions, Set("post", "postcondition"), disabledGroups).forall(_.eval(s))) || // always true if no postcond
-        s.get(opAbilityMap(o.id)).contains(SPValue(sp.abilityhandler.AbilityStatus.Finished)))
+        s.get(opAbilityMap(o.id)).contains(SPValue(AbilityStatus.FinishedTag)))
   }
 
   def canReset(o: Operation, s: SPState, disabledGroups: Set[SPValue] = Set()): Boolean = {

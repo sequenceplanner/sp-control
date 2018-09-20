@@ -57,6 +57,7 @@ object Style extends StyleSheet.Inline {
 
   val collapsible = style(
     cursor.pointer,
+    outline.none
     //userSelect := "none",
   )
 

@@ -1,6 +1,5 @@
 package spgui.widgets.abilityhandler
 
-import java.util.UUID
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import spgui.communication._
@@ -31,9 +30,9 @@ object AbilityHandlerWidget {
     def handleVDMess(mess: SPMessage): Unit = {
       mess.body.to[vdapi.Response].map{
         case vdapi.TheVD(_, _, r, _, _) =>
-          $.modState(s => s.copy(resources = r.map(_.r))).runNow()
+          $.modState(s => s.copy(resources = r.map(_.resource))).runNow()
         case x =>
-          println(s"AbilityHandlerWidget - TODO: $x")
+          //println(s"AbilityHandlerWidget - TODO: $x")
       }
     }
 
@@ -42,12 +41,12 @@ object AbilityHandlerWidget {
         case abapi.Abilities(a) =>
           $.modState(s => s.copy(abilities = a)).runNow()
         case x @ abapi.AbilityState(id, state) =>
-          println(x)
+          //println(x)
           $.modState{s =>
             val ns = s.abilityState ++ state
             s.copy(abilityState = ns)}.runNow()
         case x =>
-          println(s"AbilityHandlerWidget - answers - TODO: $x")
+          //println(s"AbilityHandlerWidget - answers - TODO: $x")
       }
     }
 
