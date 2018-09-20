@@ -156,7 +156,7 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   val header = SPHeader(from = d.name)
   val driverIdentifiers = d.setup.getAs[List[String]]("driverIdentifiers").getOrElse(List())
 
-  val spState: Map[String, SPValue] = Map()
+  var spState: Map[String, SPValue] = Map()
 
 
   val publishers = driverIdentifiers.filter(_.startsWith("pub:")).map(_.stripPrefix("pub:"))
@@ -217,13 +217,6 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   }
   def fromMessages = Flow[(String, SPAttributes)].map(x=>messageToState(x._1,x._2)).scan(Map[String, SPValue]()){case (state, map) => state ++ map}
 
-
-  def setMessageField(fieldName: String) = (v: SPValue) => SPAttributes(fieldName -> v)
-
-  val outputMap = pubVars.map(rv => (rv.did -> rv)).toMap
-  // val outputMap = Map(t1.id -> (strTopic, setMessageField("data")),
-  //  x.id -> (pointTopic, setMessageField("x")), y.id -> (pointTopic, setMessageField("y")), z.id -> (pointTopic, setMessageField("z")))
-
   def stateToMessages(state: Map[String, SPValue]) = {
     // TODO: this does not write "half messages"
     val toWrite = pubTopics.filter { case (topic, rvs) => rvs.forall(rv=>state.keys.exists(_ == rv.did)) }
@@ -238,6 +231,16 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   val inputState = allSources.via(fromMessages)
   val outputState = toMessages.alsoTo(Sink.foreach(println)).to(allSinks)
 
+  // *********
+  // above should be kept, below is temp to work with old virtual device
+  // *********
+
+  inputState.to(Sink.foreach { state =>
+    spState = spState ++ state
+    publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
+  }).run()
+
+  val outputQueue = Source.queue[Map[String, SPValue]](100, akka.stream.OverflowStrategy.dropHead).to(outputState).run()
 
   def receive = {
     case x: String =>
@@ -256,7 +259,10 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
 
             case api.DriverCommand(driverid, state) if driverid == d.id  =>
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
+
               /// writeStateChange(state)
+              outputQueue.offer(state)
+
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
               // TODO: think about only sending done when change has been registered
 
