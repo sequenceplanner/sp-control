@@ -33,6 +33,10 @@ import scala.reflect.ClassTag
   */
 
 object ROSHelpers {
+  def createROSMsg(msgClass: String): Option[MessageDefinition] = Try {
+    Class.forName(msgClass).newInstance().asInstanceOf[MessageDefinition]
+  }.toOption
+
   def msgToAttr(m: MessageDefinition) = {
     val rm = scala.reflect.runtime.currentMirror
     val fields = rm.classSymbol(m.getClass).toType.members.collect {
@@ -47,6 +51,8 @@ object ROSHelpers {
         case v:Float => SPValue(v)
         case v:Double => SPValue(v)
         case v:Int => SPValue(v)
+        case v:Long => SPValue(v)
+        case v:Boolean => SPValue(v)
         // TODO: missing types, arrays, nesting
         case x => println("TODO: add support for " + x + " " + x.getClass.toString); SPValue("could not parse " + v.toString)
       }
@@ -69,6 +75,8 @@ object ROSHelpers {
         case v:Float => attr.getAs[Float](n).foreach(v=>instanceMirror.reflectField(field).set(v))
         case v:Double => attr.getAs[Double](n).foreach(v=>instanceMirror.reflectField(field).set(v))
         case v:Int => attr.getAs[Int](n).foreach(v=>instanceMirror.reflectField(field).set(v))
+        case v:Long => attr.getAs[Long](n).foreach(v=>instanceMirror.reflectField(field).set(v))
+        case v:Boolean => attr.getAs[Boolean](n).foreach(v=>instanceMirror.reflectField(field).set(v))
         // TODO: missing types, arrays, nesting
         case x => println("TODO: add support for " + x + " " + x.getClass.toString)
       }
@@ -80,7 +88,7 @@ class RCLBase(system: ActorSystem) {
   implicit val executionContext = system.dispatcher
   implicit val materializer = ActorMaterializer()(system)
 
-  RCLJava.rclJavaInit()
+  ROS2FlatStateDriver.rclInit()
   val exec = new SingleThreadedExecutor()
 
   class SubscriberNode(msgClass: String, topic: String) extends BaseComposableNode("SPSubscriber") {
@@ -126,14 +134,29 @@ class RCLBase(system: ActorSystem) {
   }
 
   Source.tick(initialDelay = 0.nanos, interval = 100.millis, tick = ()).runWith(Sink.foreach(_ => exec.spinOnce(90))).onComplete { _ =>
-    RCLJava.shutdown()
-    println("DONE")
+    ROS2FlatStateDriver.rclShutdown()
   }
 }
 
 
 object ROS2FlatStateDriver {
   val driverType = "ROS2FlatStateDriver"
+
+  // rcl init/destroy
+  var rclIsInit = 0
+
+  def rclInit() = this.synchronized {
+    if(rclIsInit == 0) RCLJava.rclJavaInit()
+    rclIsInit += 1
+  }
+
+  def rclShutdown() = this.synchronized {
+    rclIsInit -= 1
+    if(rclIsInit == 0) {
+      RCLJava.shutdown()
+    }
+  }
+
   def props = DriverBase.props(driverType, ROS2FlatStateDriverInstance.props)
 }
 
@@ -154,21 +177,20 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
 
   val resourceName = d.name
   val header = SPHeader(from = d.name)
-  val driverIdentifiers = d.setup.getAs[List[String]]("driverIdentifiers").getOrElse(List())
+  val driverIdentifiers = d.setup.getAs[List[String]]("identifiers").getOrElse(List())
 
-  var spState: Map[String, SPValue] = Map()
+  println("ROS2 drivers: " + driverIdentifiers)
 
-
-  val publishers = driverIdentifiers.filter(_.startsWith("pub:")).map(_.stripPrefix("pub:"))
-  val subscribers = driverIdentifiers.filter(_.startsWith("sub:")).map(_.stripPrefix("sub:"))
+  val publishers = driverIdentifiers.filter(_.startsWith("pub:"))
+  val subscribers = driverIdentifiers.filter(_.startsWith("sub:"))
 
   case class RosVar(did: String, msgType: String, topic: String, field: String, rate: Int)
   def parseRosVar(s: String) = {
     s.split(":").toList match {
-      case msg :: topic :: field :: freq :: Nil  =>
+      case pubsub :: msg :: topic :: field :: freq :: Nil  =>
         val f = Try[Int]{freq.toInt}.getOrElse(0)
         Some(RosVar(s, msg, topic, field, f))
-      case msg :: topic :: field :: Nil =>
+      case pubsub :: msg :: topic :: field :: Nil =>
         Some(RosVar(s, msg, topic, field, 0))
       case _ =>
         println("****************************")
@@ -182,13 +204,24 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   val pubVars = publishers.flatMap(parseRosVar)
   val subVars = subscribers.flatMap(parseRosVar)
 
+  // create blank state for publishing topics
+  var spState: Map[String, SPValue] = pubVars.map{r =>
+    val field = ROSHelpers.createROSMsg(r.msgType).flatMap{ msg =>
+      ROSHelpers.msgToAttr(msg).get(r.field).map(spval => r.did -> spval)
+    }
+    field.getOrElse(r.did -> SPValue(0))
+  }.toMap
+
   val pubTopics = pubVars.groupBy(_.topic)
   val subTopics = subVars.groupBy(_.topic)
 
   val sinks = pubTopics.map{ case (topic, rv::rest) =>
     val p = ros.publisher(rv.msgType, topic)
     // TODO: prepend rate ticking to this flow
-    Flow[(String, SPAttributes)].filter(p => p._1 == topic).map(_._2).to(p)
+    // start with an "empty" ros message, merge changes to field within the stream
+    val empty = ROSHelpers.createROSMsg(rv.msgType).map(ROSHelpers.msgToAttr).getOrElse(SPAttributes())
+    val partialMessages = Flow[SPAttributes].scan(empty){ case (attr, partial) => attr ++ partial }
+    Flow[(String, SPAttributes)].filter(p => p._1 == topic).map(_._2).via(partialMessages).to(p)
   }
 
   // TODO: hacky, use grph dsl...
@@ -210,26 +243,26 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   }
 
   def messageToState(topic: String, message: SPAttributes): Map[String, SPValue] = {
-    val l = pubTopics.get(topic).getOrElse(List())
-    l.flatMap { case RosVar(id, msgType, topic, field, rate) =>
+    val l = subTopics.get(topic).getOrElse(List())
+    l.flatMap { case r@RosVar(id, msgType, topic, field, rate) =>
       message.value.get(field).map(spval => id -> spval)
     }.toMap
   }
-  def fromMessages = Flow[(String, SPAttributes)].map(x=>messageToState(x._1,x._2)).scan(Map[String, SPValue]()){case (state, map) => state ++ map}
+  val keepState = Flow[Map[String, SPValue]].scan(Map[String, SPValue]()){ case (state, map) => state ++ map}
+
+  def fromMessages = Flow[(String, SPAttributes)].map(x=>messageToState(x._1,x._2))
 
   def stateToMessages(state: Map[String, SPValue]) = {
-    // TODO: this does not write "half messages"
-    val toWrite = pubTopics.filter { case (topic, rvs) => rvs.forall(rv=>state.keys.exists(_ == rv.did)) }
-    toWrite.map { case (topic, rvs) =>
+    pubTopics.map { case (topic, rvs) =>
       (topic, rvs.foldLeft(SPAttributes()){case (attr, rv) =>
-        attr ++ SPAttributes(rv.field -> state(rv.did))
+        attr ++ state.get(rv.did).map(spval => SPAttributes(rv.field -> spval)).getOrElse(SPAttributes())
       }) }
   }
 
   val toMessages = Flow[Map[String, SPValue]].mapConcat(stateToMessages)
 
-  val inputState = allSources.via(fromMessages)
-  val outputState = toMessages.alsoTo(Sink.foreach(println)).to(allSinks)
+  val inputState = allSources.via(fromMessages).via(keepState)
+  val outputState = toMessages.to(allSinks)
 
   // *********
   // above should be kept, below is temp to work with old virtual device
@@ -260,7 +293,8 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
             case api.DriverCommand(driverid, state) if driverid == d.id  =>
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
 
-              /// writeStateChange(state)
+              /// write driver commands to our out stream
+              spState = spState ++ state
               outputQueue.offer(state)
 
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
