@@ -28,60 +28,58 @@ class RunnerLogicTest extends FreeSpec with Matchers{
     o3.id -> "executing"
   ))
 
-  val logic = new RunnerLogic {}
+  import RunnerLogic._
 
 
   "Testing the runner logic" - {
-    val t = List(
-        logic.OperationTransition(Set("init"), "pre", "executing", Some("start")),
-        logic.OperationTransition(Set("init"), "fail", "failure", None, false),
-        logic.OperationTransition(Set("executing"), "post", "finished"),
-        logic.OperationTransition(Set("finished"), "reset", "init")
-    )
+
+    val t1 =   OperationTransition(Set("init"), "pre", "executing", Some("start"))
+    val t2 =   OperationTransition(Set("init"), "fail", "failure", None, false)
+    val t3 =   OperationTransition(Set("executing"), "post", "finished")
+    val t4 =   OperationTransition(Set("finished"), "reset", "init")
+
+    val t = List(t1, t2, t3, t4)
+
 
     "possible transitions" - {
       "finding pre" in {
-        val res = logic.possibleTransitions(
+        val res = possibleTransitions(
           op = o,
           s = state,
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = t
         )
 
-        res shouldEqual List(
-          logic.OperationTransition(Set("init"), "pre", "executing", Some("start")),
-          logic.OperationTransition(Set("init"), "fail", "failure", None, false))
+        res shouldEqual List(t1, t2)
       }
 
       "finding post" in {
 
-        val res = logic.possibleTransitions(
+        val res = possibleTransitions(
           op = o,
           s = state.next(o.id -> SPValue("executing")),
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = t
         )
 
-        res shouldEqual List(
-          logic.OperationTransition(Set("executing"), "post", "finished")
-        )
+        res shouldEqual List(t3)
       }
       "testing error prints" in {
 
         println("TESTING ERROR prints")
-        val res = logic.possibleTransitions(
+        val res = possibleTransitions(
           op = o,
           s = SPState("s", Map(v1.id -> 1)),
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = t
         )
-        val res2 = logic.possibleTransitions(
+        val res2 = possibleTransitions(
           op = o,
           s = state.next(o.id -> SPValue("foo")),
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = t
         )
@@ -113,16 +111,16 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       ))
 
       val tm = List(
-        logic.OperationTransition(Set("init"), "pre", "executing", Some("start")),
-        logic.OperationTransition(Set("executing"), "post", "finished", None, true, true),
+        OperationTransition(Set("init"), "pre", "executing", Some("start")),
+        OperationTransition(Set("executing"), "post", "finished", None, true, true),
       )
 
 
       "running one operation" in {
-        val res = logic.runOperations(
+        val res = runOperations(
           ops = List(o, o3),
           s = state,
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = tm,
           disabledGroups = Set("bar")
@@ -135,10 +133,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "running the operations" in {
-        val res = logic.runOperations(
+        val res = runOperations(
           ops = List(o, o2, o3),
           s = state,
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = tm,
           disabledGroups = Set("bar")
@@ -160,10 +158,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
 
       "running the operations twice" in {
-        val res = logic.runOperations(
+        val res = runOperations(
           ops = List(o, o2),
           s = state,
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = tm,
           disabledGroups = Set("bar")
@@ -172,10 +170,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         println(res.lastState)
 
 
-        val res2 = logic.runOperations(
+        val res2 = runOperations(
           ops = List(o, o2),
           s = res.lastState,
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = tm,
           disabledGroups = Set("bar")
@@ -188,10 +186,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         res2.lastState.get(o.id) shouldEqual Some(SPValue("finished"))
 
         // alternative post
-        val res3 = logic.runOperations(
+        val res3 = runOperations(
           ops = List(o, o2),
           s = res.lastState.next(v1.id -> SPValue(4)),
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = tm,
           disabledGroups = Set("bar")
@@ -208,10 +206,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "not starting when controllable transition" in {
-        val res = logic.runOperations(
+        val res = runOperations(
           ops = List(o, o3),
           s = state,
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = tm,
           unControlledTransitions = List(),
           disabledGroups = Set("bar")
@@ -223,10 +221,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
 
       "starting when controllable transition is fired" in {
-        val res = logic.runOperations(
+        val res = runOperations(
           ops = List(o, o3),
           s = state,
-          fire = logic.FireEvents(Set("start"), Set(o.id)),
+          fire = List(FireEvent("start", o.id)),
           controlledTransitions = tm,
           unControlledTransitions = List(),
           disabledGroups = Set("bar")
@@ -237,14 +235,29 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         res.lastState.get(v1.id) shouldEqual Some(SPValue(2))
       }
 
+      "starting multiple ops when controllable transitions are fired" in {
+        val res = runOperations(
+          ops = List(o, o2, o3),
+          s = state,
+          fire = List(FireEvent("start", o.id), FireEvent("start", o2.id)),
+          controlledTransitions = tm,
+          unControlledTransitions = List(),
+          disabledGroups = Set("bar")
+        )
+
+        res.sequence.length shouldEqual 2
+        res.sequence.head._1 shouldEqual o2
+        res.lastState.get(v1.id) shouldEqual Some(SPValue(3))
+      }
+
 
       "starting uncontrollable but not controllable" in {
-        val res = logic.runOperations(
+        val res = runOperations(
           ops = List(o, o2, o3),
           s = state.next(o3.id -> SPValue("executing")),
-          fire = logic.FireEvents(Set(), Set()),
-          controlledTransitions = List(logic.OperationTransition(Set("init"), "pre", "executing")),
-          unControlledTransitions = List(logic.OperationTransition(Set("executing"), "post", "finished")),
+          fire = List(),
+          controlledTransitions = List(OperationTransition(Set("init"), "pre", "executing", Some("start"))),
+          unControlledTransitions = List(OperationTransition(Set("executing"), "post", "finished")),
           disabledGroups = Set("bar")
         )
 
@@ -257,8 +270,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       "Handle many operations" in {
         val pre = Condition(EQ(v1.id, 0), List(Action(v1.id, ValueHolder(0))), SPAttributes("kind"->"pre", "group" -> "foo"))
         val tm = List(
-          logic.OperationTransition(Set("init"), "pre", "executing", Some("start")),
-          logic.OperationTransition(Set("executing"), "post", "finished", None, true),
+          OperationTransition(Set("init"), "pre", "executing", Some("start")),
+          OperationTransition(Set("executing"), "post", "finished", None, true),
         )
         val xs = (1 to 1000).map { i =>
           Operation(i.toString, List(pre))
@@ -268,10 +281,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
         println("starting...")
 
-        val res = logic.runOperations(
+        val res = runOperations(
           ops = xs,
           s = allS,
-          fire = logic.FireEvents(Set(), Set()),
+          fire = List(),
           controlledTransitions = List(),
           unControlledTransitions = tm,
           disabledGroups = Set()
@@ -292,7 +305,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
   "Evalute OP evaluations" - {
     "filter conditions" - {
       "filter pre" in {
-        val res = logic.filterConditions(
+        val res = filterConditions(
           conds = o.conditions,
           kind = Set("pre"),
           disabledGroups = Set()
@@ -302,7 +315,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "filter pre conditions with group" in {
-        val res = logic.filterConditions(
+        val res = filterConditions(
           conds = o.conditions,
           kind = Set("pre"),
           disabledGroups = Set("foo")
@@ -312,7 +325,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "filter started conditions" in {
-        val res = logic.filterConditions(
+        val res = filterConditions(
           conds = o.conditions,
           kind = Set("started"),
           disabledGroups = Set()
@@ -322,7 +335,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "filter conditions that do not exists" in {
-        val res = logic.filterConditions(
+        val res = filterConditions(
           conds = o.conditions,
           kind = Set("non"),
           disabledGroups = Set()
@@ -334,7 +347,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
     "eval ops" - {
       "pre with foo and bar" in {
-        val res = logic.evaluateOP(
+        val res = evaluateOP(
           op = o,
           s = state,
           kind = Set("pre"),
@@ -347,7 +360,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "pre with foo" in {
-        val res = logic.evaluateOP(
+        val res = evaluateOP(
           op = o,
           s = state,
           kind = Set("pre"),
@@ -360,7 +373,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "always true when no condition" in {
-        val res = logic.evaluateOP(
+        val res = evaluateOP(
           op = o,
           s = state,
           kind = Set("noKind"),
@@ -371,7 +384,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
         assert(res)
 
-        val res2 = logic.evaluateOP(
+        val res2 = evaluateOP(
           op = o,
           s = state,
           kind = Set("noKind"),
@@ -385,7 +398,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "enabled when alternatives are enabled" in {
-        val res = logic.evaluateOP(
+        val res = evaluateOP(
           op = o,
           s = state,
           kind = Set("pre"),
@@ -396,7 +409,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
         assert(res)
 
-        val res2 = logic.evaluateOP(
+        val res2 = evaluateOP(
           op = o,
           s = state.next(v1.id -> SPValue(2)),
           kind = Set("pre"),
@@ -407,7 +420,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
         assert(res2)
 
-        val res3 = logic.evaluateOP(
+        val res3 = evaluateOP(
           op = o,
           s = state.next(v1.id -> SPValue(3)),
           kind = Set("pre"),
@@ -424,7 +437,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
 
       "testing various evals" in {
-        val res = logic.evaluateOP(
+        val res = evaluateOP(
           op = o,
           s = state,
           kind = Set("reset"),
@@ -435,7 +448,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
         assert(res)
 
-        val res2 = logic.evaluateOP(
+        val res2 = evaluateOP(
           op = o,
           s = state.next(v1.id -> SPValue(3)),
           kind = Set("post"),
@@ -446,7 +459,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
         assert(res2)
 
-        val res3 = logic.evaluateOP(
+        val res3 = evaluateOP(
           op = o,
           s = state.next(v1.id -> SPValue(100)),
           kind = Set("started"),
@@ -463,7 +476,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
     "take transition" - {
       "taking pre" in {
-        val res = logic.takeTransition(
+        val res = takeTransition(
           op = o,
           s = state,
           kind = Set("pre"),
@@ -477,7 +490,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           o.id -> SPValue("executing"))
         )
 
-        val res2 = logic.takeTransition(
+        val res2 = takeTransition(
           op = o,
           s = state,
           kind = Set("post"),
@@ -493,7 +506,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       }
 
       "taking pre with 2 conds" in {
-        val res = logic.takeTransition(
+        val res = takeTransition(
           op = o,
           s = state,
           kind = Set("pre"),
@@ -510,7 +523,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
 
       "taking when alternatives enabled" in {
-        val res = logic.takeTransition(
+        val res = takeTransition(
           op = o,
           s = state,
           kind = Set("pre"),
@@ -524,7 +537,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           o.id -> SPValue("executing"))
         )
 
-        val res2 = logic.takeTransition(
+        val res2 = takeTransition(
           op = o,
           s = state.next(v1.id -> SPValue(2)),
           kind = Set("pre"),
@@ -538,7 +551,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           o.id -> SPValue("executing"))
         )
 
-        val res3 = logic.takeTransition(
+        val res3 = takeTransition(
           op = o,
           s = state.next(v1.id -> SPValue(10)),
           kind = Set("pre"),
@@ -558,7 +571,7 @@ class RunnerLogicTest extends FreeSpec with Matchers{
         val pre2 = Condition(EQ(o2.id, "init"), List(Action(o2.id, ValueHolder("kalle"))), SPAttributes("kind"->"pre", "group" -> "foo"))
         val pre3 = Condition(EQ(o3.id, "no"), List(Action(o3.id, ValueHolder("nono"))), SPAttributes("kind"->"pre", "group" -> "foo"))
         val oTest = Operation("oTest", List(pre, pre2))
-        val res4 = logic.takeTransition(
+        val res4 = takeTransition(
           op = oTest,
           s = state,
           kind = Set("pre"),

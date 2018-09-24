@@ -7,7 +7,7 @@ import scala.annotation.tailrec
 
 
 
-trait RunnerLogic {
+object RunnerLogic {
 
   /**
     * 180914: We need to decide if each operation should be defined with its own transitions
@@ -25,7 +25,7 @@ trait RunnerLogic {
 
 
 
-  type State = Map[ID, SPValue]
+  //type State = Map[ID, SPValue]
 
   /**
     * This class defines a transition from a state to another in the general transition
@@ -45,7 +45,8 @@ trait RunnerLogic {
                                  nextState: SPValue,
                                  event: Option[SPValue] = None,
                                  alwaysTrueIfNoConditions: Boolean = true,
-                                 enableAlternatives: Boolean = false
+                                 enableAlternatives: Boolean = false,
+                                 id: ID = ID.newID
                                 )
 
 
@@ -55,7 +56,7 @@ trait RunnerLogic {
     * @param sequence
     */
   case class OneOperationRun(lastState: SPState, sequence: List[(Operation, SPState)])
-  case class FireEvents(events: Set[SPValue], operations: Set[ID])
+  case class FireEvent(event: SPValue, operation: ID)
 
   // Add force when we need it
   //case class ForceTransition(conditionKind: SPValue, operation: ID)
@@ -78,7 +79,7 @@ trait RunnerLogic {
     */
   final def runOperations(ops: List[Operation],
                           s: SPState,
-                          fire: FireEvents,
+                          fire: List[FireEvent],
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
                           disabledGroups: Set[SPValue] = Set(),
@@ -118,14 +119,14 @@ trait RunnerLogic {
 
   def possibleTransitions(op: Operation,
                           s: SPState,
-                          fire: FireEvents,
+                          fire: List[FireEvent],
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
                          ): List[OperationTransition] = {
 
     val current = s.get(op.id).toList
     val tControlled = current.flatMap(c => controlledTransitions.filter{t =>
-      val eventHasFired = t.event.forall(fire.events.contains) && fire.operations.contains(op.id)
+      val eventHasFired = t.event.forall(e => fire.exists(xs => xs.event == e && xs.operation == op.id))
       t.states.contains(c) && eventHasFired
     })
     val tUnControlled = current.flatMap(c => unControlledTransitions.filter(_.states.contains(c)))
