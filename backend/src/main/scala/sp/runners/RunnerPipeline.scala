@@ -7,6 +7,7 @@ import akka.util._
 import akka.stream._
 import akka.stream.scaladsl._
 import scala.concurrent.duration._
+import scala.concurrent.Future
 
 case class RunnerPipeline(operations: List[Operation],
                           transitionSystem: List[RunnerLogic.OperationTransition],
@@ -19,6 +20,7 @@ case class RunnerPipeline(operations: List[Operation],
 
 
   implicit val askTimeout = Timeout(5 seconds)
+  import akka.pattern.ask
   val runnerA = system.actorOf(Props(classOf[RunnerActor], transitionSystem, initialState, operations))
 
   def runnerFlow(includeTicker: Option[FiniteDuration] = None) = {
@@ -29,6 +31,19 @@ case class RunnerPipeline(operations: List[Operation],
       .mapConcat(x =>
         x.sequence.map(_._2).reverse
       )
+  }
+
+  def getRunnerData: Future[SPAttributes] = {
+    val res = (runnerA ? GetRunnerData).mapTo[RunnerState]
+
+    res.map(i =>
+      SPAttributes(
+        "operations" -> i.ops,
+        "controlledTransitions" -> i.controlledTransitions.map(_.id),
+        "persistentEvents" -> i.persistentEvents.map(e => SPAttributes("event" -> e.event, "operation" -> e.operation)),
+        "disabledGroups" -> i.disabledGroups
+      )
+    )(system.dispatcher)
   }
 
 
@@ -50,6 +65,9 @@ case class MakeControlled(ts: List[ID]) extends RunnerActorAPI
 case class MakeUnControlled(ts: List[ID]) extends RunnerActorAPI
 case class SetRunnerData(data: RunnerState) extends RunnerActorAPI
 case class StateUpd(s: SPState, events: List[RunnerLogic.FireEvent]) extends RunnerActorAPI
+object StateUpd {
+  def empty = StateUpd(SPState("empty", Map()), List())
+}
 
 
 case class RunnerState(state: SPState,

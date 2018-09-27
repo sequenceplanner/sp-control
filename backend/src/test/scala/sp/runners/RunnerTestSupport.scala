@@ -54,3 +54,10 @@ trait OperationRunnerTransitionsWithAutoReset extends LocationsAndConditionKinds
     RunnerLogic.OperationTransition(Set(executing), reset, init, Some("reset")),
   )
 }
+
+trait OperationRunnerWithStartEvents extends LocationsAndConditionKinds{
+  val transitions = List(
+    RunnerLogic.OperationTransition(Set(init), pre, executing, Some("start")),
+    RunnerLogic.OperationTransition(Set(executing), post, finished),
+  )
+}

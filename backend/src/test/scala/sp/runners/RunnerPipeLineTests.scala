@@ -16,6 +16,7 @@ import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Matchers}
 import sp.domain._
 import Logic._
 import akka.stream.testkit.TestSubscriber.OnNext
+import sp.runners.RunnerLogic.FireEvent
 
 
 
@@ -41,12 +42,9 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
   }
 
 
-
-
-
-
-
   implicit val materializer = ActorMaterializer()
+
+
   "testing runner pipeline" - {
     "Run simple sequence" in {
       val test = new SimpleSequence with OperationRunnerTransitionsNoReset{}
@@ -137,6 +135,73 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
       assert(res.exists(x => x) && !res.last)
     }
+
+    "Run sequence with start events and no Ticker" in {
+      val test = new SimpleSequence with OperationRunnerWithStartEvents {}
+      val pipe = RunnerPipeline(
+        operations = test.ops,
+        transitionSystem = test.transitions,
+        initialState = test.initialState,
+        name = "testRunner",
+        system = system
+      )
+
+
+      val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
+      val res = s
+        .via(pipe.runnerFlow(None))
+        .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
+        .run()
+
+
+      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o1.id)))).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o2.id)))).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o3.id)))).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+
+      res._1.complete()
+
+      val result = Await.result(res._2, 5.seconds)
+      println(result)
+      assert(result.last.get(test.o3.id).contains(SPValue(test.finished)))
+    }
+
+    "Run sequence with start events but not in correct state" in {
+      val test = new SimpleSequence with OperationRunnerWithStartEvents {}
+      val pipe = RunnerPipeline(
+        operations = test.ops,
+        transitionSystem = test.transitions,
+        initialState = test.initialState,
+        name = "testRunner",
+        system = system
+      )
+
+
+      val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
+      val res = s
+        .via(pipe.runnerFlow(None))
+        .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
+        .run()
+
+
+      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o2.id)))).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o1.id)))).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o3.id)))).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+
+      res._1.complete()
+
+      val result = Await.result(res._2, 5.seconds)
+      println(result)
+      assert(!result.last.get(test.o3.id).contains(SPValue(test.finished)))
+    }
+
+
   }
 
 
