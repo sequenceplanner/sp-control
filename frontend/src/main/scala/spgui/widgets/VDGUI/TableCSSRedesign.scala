@@ -9,7 +9,7 @@ import CSSHelpers.Child.child
 object TableCSSRedesign extends StyleSheet.Inline {
   import dsl._
 
-  private val space = 15 px
+  private val space = 10 px
   private val headerColor = c"#7B8383"
   private val valueColor = c"#606879"
   private val borderColor = c"#DEE8E8"
@@ -42,6 +42,7 @@ object TableCSSRedesign extends StyleSheet.Inline {
 
   val headerCell = style(
     cell,
+    padding(8 px),
     backgroundColor(headerBgColor),
     color(headerColor),
     borderTop :=! s"2px solid ${borderColor.value}"

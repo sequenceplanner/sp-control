@@ -53,6 +53,12 @@ object CardViewCSS extends StyleSheet.Inline {
     display.inline
   )
 
+  val resetPR = style(
+    margin.`0`,
+    marginLeft(3 px),
+    display.inline
+  )
+
   val cardTitleSmall = style(
     resetP,
     paddingBottom(space),
@@ -86,6 +92,7 @@ object CardViewCSS extends StyleSheet.Inline {
   )
 
   val driverInfo = style(
+    marginBottom(20 px),
     display.flex,
     fontFamily :=! tableFont
   )
@@ -99,10 +106,11 @@ object CardViewCSS extends StyleSheet.Inline {
 
   val driverInfoColumnRight = style(
     driverInfoColumn,
+    marginLeft(10 px),
     opacity(1),
     color(c"#444"),
     fontWeight.bold,
-    alignItems.flexEnd,
+    alignItems.flexStart,
     textAlign.end
   )
 
