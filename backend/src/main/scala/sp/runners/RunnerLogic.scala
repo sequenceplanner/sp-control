@@ -39,6 +39,10 @@ object RunnerLogic {
     * @param enableAlternatives If this is true, it is enough that at least one operation
     *                           condition is true for the transition to fire. The conditions
     *                           that are true, those actions will be executed.
+    * @param onlyGuard If this transition should not execute the actions in the condition
+    *                  This is used in some cases when for example is going from not enabled to
+    *                  enabled
+    * @param id The id of the transition
     */
   case class OperationTransition(states: Set[SPValue],
                                  conditionKind: SPValue,
@@ -46,6 +50,8 @@ object RunnerLogic {
                                  event: Option[SPValue] = None,
                                  alwaysTrueIfNoConditions: Boolean = true,
                                  enableAlternatives: Boolean = false,
+                                 onlyGuard: Boolean = false,
+                                 negateGuard: Boolean = false,
                                  id: ID = ID.newID
                                 )
 
@@ -94,7 +100,7 @@ object RunnerLogic {
 
       val enabledOps = ops.flatMap { op =>
         val enabledTs = possibleTransitions(op, s, fire, controlledTransitions, unControlledTransitions).find(t =>
-          evaluateOP(op, s, Set(t.conditionKind), disabledGroups, t.alwaysTrueIfNoConditions, t.enableAlternatives)
+          evaluateOP(op, s, Set(t.conditionKind), disabledGroups, t.alwaysTrueIfNoConditions, t.enableAlternatives, t.negateGuard)
         )
         enabledTs.map(op -> _)
       }
@@ -104,7 +110,7 @@ object RunnerLogic {
         case x :: xs =>
           val op = x._1
           val t = x._2
-          val nextState = takeTransition(op, s, Set(t.conditionKind), t.nextState, disabledGroups, t.enableAlternatives)
+          val nextState = takeTransition(op, s, Set(t.conditionKind), t.nextState, disabledGroups, t.enableAlternatives, t.onlyGuard)
           runDeep(ops.filter(_ != op), nextState, (op, nextState) :: aggr)
       }
 
@@ -165,13 +171,16 @@ object RunnerLogic {
                      kind: Set[SPValue],
                      nextOPState: SPValue,
                      disabledGroups: Set[SPValue] = Set(),
-                     enableAlternatives: Boolean = false
+                     enableAlternatives: Boolean = false,
+                     onlyGuard: Boolean = false
                     ): SPState = {
 
     val preF = filterConditions(op.conditions, kind, disabledGroups)
     val filtered = if (enableAlternatives) preF.filter(_.eval(s)) else preF
 
-    val newState = filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+    val newState = if (!onlyGuard) {
+      filtered.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+    } else s
     newState.next(op.id -> nextOPState)
   }
 
@@ -194,13 +203,14 @@ object RunnerLogic {
                  kind: Set[SPValue],
                  disabledGroups: Set[SPValue] = Set(),
                  alwaysTrueIfNoConditions: Boolean = true,
-                 enableAlternatives: Boolean = false
+                 enableAlternatives: Boolean = false,
+                 negateGuard: Boolean = false,
                 ): Boolean = {
     val filtered = filterConditions(op.conditions, kind, disabledGroups)
     val ifNoConds = filtered.nonEmpty || alwaysTrueIfNoConditions
     val enabled = if (enableAlternatives) filtered.exists(p => p.eval(s)) else filtered.forall(p => p.eval(s))
 
-    enabled && ifNoConds
+    (enabled != negateGuard) && ifNoConds // XOR
   }
 
   /**

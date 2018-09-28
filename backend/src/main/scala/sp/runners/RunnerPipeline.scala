@@ -33,6 +33,9 @@ case class RunnerPipeline(operations: List[Operation],
       )
   }
 
+
+  // Below not tested!
+
   def getRunnerData: Future[SPAttributes] = {
     val res = (runnerA ? GetRunnerData).mapTo[RunnerState]
 
@@ -45,6 +48,27 @@ case class RunnerPipeline(operations: List[Operation],
       )
     )(system.dispatcher)
   }
+
+  def makeTransitionsControlled(transitions: List[ID]) = {
+    runnerA ! MakeControlled(transitions)
+  }
+
+
+// Change this so the actor is doing the merge and not like this since we can have
+// a race condition where this method overwrites a new state
+
+//  def addOperations(ops: List[Operation], initialState: SPState) = {
+//    (runnerA ? GetRunnerData).mapTo[RunnerState].map{rs =>
+//      val newOps = rs.ops ++ ops distinct
+//      val newS = rs.state.next(initialState.state)
+//      runnerA ! SetRunnerData()
+//    }(system.dispatcher)
+//
+//
+//    runnerA ! MakeUnControlled(transitions)
+//  }
+
+
 
 
 
@@ -115,14 +139,15 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
       sender() ! res
 
     case GetRunnerData => sender() ! internal
-    case SetRunnerData(d) =>
-      internal = internal.copy(
-        ops = if (d.ops.nonEmpty) d.ops else internal.ops,
-        persistentEvents = if (d.persistentEvents.nonEmpty) d.persistentEvents else internal.persistentEvents,
-        disabledGroups = if (d.disabledGroups.nonEmpty) d.disabledGroups else internal.disabledGroups,
-        controlledTransitions = if (d.controlledTransitions.nonEmpty) d.controlledTransitions else internal.controlledTransitions,
-        unControlledTransitions = if (d.unControlledTransitions.nonEmpty) d.unControlledTransitions else internal.unControlledTransitions
-      )
+      // change so we do merge here instead
+//    case SetRunnerData(d) =>
+//      internal = internal.copy(
+//        ops = if (d.ops.nonEmpty) d.ops else internal.ops,
+//        persistentEvents = if (d.persistentEvents.nonEmpty) d.persistentEvents else internal.persistentEvents,
+//        disabledGroups = if (d.disabledGroups.nonEmpty) d.disabledGroups else internal.disabledGroups,
+//        controlledTransitions = if (d.controlledTransitions.nonEmpty) d.controlledTransitions else internal.controlledTransitions,
+//        unControlledTransitions = if (d.unControlledTransitions.nonEmpty) d.unControlledTransitions else internal.unControlledTransitions
+//      )
     case MakeControlled(ts) =>
       val xs = transitionSystem.filter(t => ts.contains(t.id))
       val unc = internal.unControlledTransitions.filter(xs.contains)

@@ -433,6 +433,32 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
       }
 
+      "evaluate with negated guard" in {
+        val res = evaluateOP(
+          op = o,
+          s = state,
+          kind = Set("pre"),
+          disabledGroups = Set("bar"),
+          alwaysTrueIfNoConditions = true,
+          enableAlternatives = false,
+          negateGuard = true
+        )
+
+        assert(!res)
+
+        val res2 = evaluateOP(
+          op = o,
+          s = state,
+          kind = Set("pre"),
+          disabledGroups = Set(),
+          alwaysTrueIfNoConditions = true,
+          enableAlternatives = false,
+          negateGuard = true
+        )
+
+        assert(res2) // should be true
+      }
+
 
 
 
@@ -482,7 +508,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           kind = Set("pre"),
           nextOPState = "executing",
           disabledGroups = Set("bar"),
-          enableAlternatives = false
+          enableAlternatives = false,
+          onlyGuard = false
         )
 
         res shouldEqual state.next(Map(
@@ -496,7 +523,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           kind = Set("post"),
           nextOPState = "finished",
           disabledGroups = Set(),
-          enableAlternatives = false
+          enableAlternatives = false,
+          onlyGuard = false
         )
 
         res2 shouldEqual state.next(Map(
@@ -512,7 +540,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           kind = Set("pre"),
           nextOPState = "executing",
           disabledGroups = Set(),
-          enableAlternatives = false
+          enableAlternatives = false,
+          onlyGuard = false
         )
 
         res shouldEqual state.next(Map(
@@ -529,7 +558,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           kind = Set("pre"),
           nextOPState = "executing",
           disabledGroups = Set(),
-          enableAlternatives = true
+          enableAlternatives = true,
+          onlyGuard = false
         )
 
         res shouldEqual state.next(Map(
@@ -543,7 +573,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           kind = Set("pre"),
           nextOPState = "executing",
           disabledGroups = Set(),
-          enableAlternatives = true
+          enableAlternatives = true,
+          onlyGuard = false
         )
 
         res2 shouldEqual state.next(Map(
@@ -557,7 +588,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           kind = Set("pre"),
           nextOPState = "executing",
           disabledGroups = Set(),
-          enableAlternatives = true
+          enableAlternatives = true,
+          onlyGuard = false
         )
 
         res3 shouldEqual state.next(Map(
@@ -577,7 +609,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           kind = Set("pre"),
           nextOPState = "executing",
           disabledGroups = Set(),
-          enableAlternatives = true
+          enableAlternatives = true,
+          onlyGuard = false
         )
 
         res4 shouldEqual state.next(Map(
@@ -586,6 +619,38 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           o2.id -> SPValue("kalle"))
         )
 
+      }
+
+      "taking transition with only guard" in {
+        val res = takeTransition(
+          op = o,
+          s = state,
+          kind = Set("pre"),
+          nextOPState = "executing",
+          disabledGroups = Set("bar"),
+          enableAlternatives = false,
+          onlyGuard = true
+        )
+
+        res shouldEqual state.next(Map(
+          v1.id -> SPValue(1),
+          o.id -> SPValue("executing"))
+        )
+
+        val res2 = takeTransition(
+          op = o,
+          s = state,
+          kind = Set("pre"),
+          nextOPState = "executing",
+          disabledGroups = Set("bar"),
+          enableAlternatives = false,
+          onlyGuard = false
+        )
+
+        res2 shouldEqual state.next(Map(
+          v1.id -> SPValue(2),
+          o.id -> SPValue("executing"))
+        )
       }
     }
 
