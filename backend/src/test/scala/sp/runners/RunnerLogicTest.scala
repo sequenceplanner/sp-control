@@ -33,10 +33,10 @@ class RunnerLogicTest extends FreeSpec with Matchers{
 
   "Testing the runner logic" - {
 
-    val t1 =   OperationTransition(Set("init"), "pre", "executing", Some("start"))
-    val t2 =   OperationTransition(Set("init"), "fail", "failure", None, false)
-    val t3 =   OperationTransition(Set("executing"), "post", "finished")
-    val t4 =   OperationTransition(Set("finished"), "reset", "init")
+    val t1 =   OperationTransition(Set("init"), Set("pre"), "executing", Some("start"))
+    val t2 =   OperationTransition(Set("init"), Set("fail"), "failure", None, false)
+    val t3 =   OperationTransition(Set("executing"), Set("post"), "finished")
+    val t4 =   OperationTransition(Set("finished"), Set("reset"), "init")
 
     val t = List(t1, t2, t3, t4)
 
@@ -111,8 +111,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       ))
 
       val tm = List(
-        OperationTransition(Set("init"), "pre", "executing", Some("start")),
-        OperationTransition(Set("executing"), "post", "finished", None, true, true),
+        OperationTransition(Set("init"), Set("pre"), "executing", Some("start")),
+        OperationTransition(Set("executing"), Set("post"), "finished", None, true, true),
       )
 
 
@@ -256,8 +256,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
           ops = List(o, o2, o3),
           s = state.next(o3.id -> SPValue("executing")),
           fire = List(),
-          controlledTransitions = List(OperationTransition(Set("init"), "pre", "executing", Some("start"))),
-          unControlledTransitions = List(OperationTransition(Set("executing"), "post", "finished")),
+          controlledTransitions = List(OperationTransition(Set("init"), Set("pre"), "executing", Some("start"))),
+          unControlledTransitions = List(OperationTransition(Set("executing"), Set("post"), "finished")),
           disabledGroups = Set("bar")
         )
 
@@ -270,8 +270,8 @@ class RunnerLogicTest extends FreeSpec with Matchers{
       "Handle many operations" in {
         val pre = Condition(EQ(v1.id, 0), List(Action(v1.id, ValueHolder(0))), SPAttributes("kind"->"pre", "group" -> "foo"))
         val tm = List(
-          OperationTransition(Set("init"), "pre", "executing", Some("start")),
-          OperationTransition(Set("executing"), "post", "finished", None, true),
+          OperationTransition(Set("init"), Set("pre"), "executing", Some("start")),
+          OperationTransition(Set("executing"), Set("post"), "finished", None, true),
         )
         val xs = (1 to 1000).map { i =>
           Operation(i.toString, List(pre))

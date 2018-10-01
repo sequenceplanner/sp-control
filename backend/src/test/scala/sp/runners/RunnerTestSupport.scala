@@ -42,22 +42,22 @@ trait LocationsAndConditionKinds {
 
 trait OperationRunnerTransitionsNoReset extends LocationsAndConditionKinds{
   val transitions = List(
-    RunnerLogic.OperationTransition(Set(init), pre, executing),
-    RunnerLogic.OperationTransition(Set(executing), post, finished),
+    RunnerLogic.OperationTransition(Set(init), Set(pre), executing),
+    RunnerLogic.OperationTransition(Set(executing), Set(post), finished),
   )
 }
 trait OperationRunnerTransitionsWithAutoReset extends LocationsAndConditionKinds {
   val transitions = List(
-    RunnerLogic.OperationTransition(Set(init), pre, executing),
-    RunnerLogic.OperationTransition(Set(executing), post, finished),
-    RunnerLogic.OperationTransition(Set(finished), reset, init),
-    RunnerLogic.OperationTransition(Set(executing), reset, init, Some("reset")),
+    RunnerLogic.OperationTransition(Set(init), Set(pre), executing),
+    RunnerLogic.OperationTransition(Set(executing), Set(post), finished),
+    RunnerLogic.OperationTransition(Set(finished), Set(reset), init),
+    RunnerLogic.OperationTransition(Set(executing), Set(reset), init, Some("reset")),
   )
 }
 
 trait OperationRunnerWithStartEvents extends LocationsAndConditionKinds{
   val transitions = List(
-    RunnerLogic.OperationTransition(Set(init), pre, executing, Some("start")),
-    RunnerLogic.OperationTransition(Set(executing), post, finished),
+    RunnerLogic.OperationTransition(Set(init), Set(pre), executing, Some("start")),
+    RunnerLogic.OperationTransition(Set(executing), Set(post), finished),
   )
 }

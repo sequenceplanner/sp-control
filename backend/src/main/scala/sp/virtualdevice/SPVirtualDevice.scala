@@ -215,7 +215,7 @@ trait AbilityRunnerTransitions {
 
   val notEnabledToEnabled = OperationTransition(
     states = Set(notEnabled),
-    conditionKind =  pre,
+    conditionKind =  Set(pre),
     nextState = executing,
     event = None,
     alwaysTrueIfNoConditions = true,
@@ -225,7 +225,7 @@ trait AbilityRunnerTransitions {
   )
   val enabledToNotEnabled = OperationTransition(
     states = Set(enabled),
-    conditionKind =  pre,
+    conditionKind =  Set(pre),
     nextState = notEnabled,
     event = None,
     alwaysTrueIfNoConditions = false,
@@ -235,7 +235,7 @@ trait AbilityRunnerTransitions {
   )
   val enabledToStarting = OperationTransition(
     states = Set(enabled),
-    conditionKind =  pre,
+    conditionKind =  Set(pre),
     nextState = starting,
     event = None, // should be Some("start") after we have tested
     alwaysTrueIfNoConditions = false,
@@ -245,7 +245,7 @@ trait AbilityRunnerTransitions {
   )
   val startingToExec = OperationTransition(
     states = Set(starting),
-    conditionKind =  started,
+    conditionKind =  Set(started),
     nextState = executing,
     event = None,
     alwaysTrueIfNoConditions = true,
@@ -256,7 +256,7 @@ trait AbilityRunnerTransitions {
 
   val execToFinished = OperationTransition(
     states = Set(executing),
-    conditionKind =  post,
+    conditionKind =  Set(post),
     nextState = finished,
     event = None,
     alwaysTrueIfNoConditions = true,
@@ -266,7 +266,7 @@ trait AbilityRunnerTransitions {
   )
   val execToFinishedAlt = OperationTransition(
     states = Set(executing),
-    conditionKind =  postAlternative,
+    conditionKind =  Set(postAlternative),
     nextState = finished,
     event = None,
     alwaysTrueIfNoConditions = false,
@@ -276,7 +276,7 @@ trait AbilityRunnerTransitions {
   )
   val finToNotEnabled = OperationTransition(
     states = Set(finished),
-    conditionKind =  reset,
+    conditionKind =  Set(reset),
     nextState = notEnabled,
     event = None, // Some("reset")
     alwaysTrueIfNoConditions = false,
@@ -286,7 +286,7 @@ trait AbilityRunnerTransitions {
   )
   val forceReset = OperationTransition(
     states = Set(starting, executing, finished),
-    conditionKind =  "ShouldNotHaveAnyConditions",
+    conditionKind =  Set("ShouldNotHaveAnyConditions"),
     nextState = notEnabled,
     event = Some("forceReset"),
     alwaysTrueIfNoConditions = true,
@@ -294,17 +294,39 @@ trait AbilityRunnerTransitions {
     onlyGuard = false,
     negateGuard = false
   )
+  val syncedExecution = OperationTransition( // For operations that should sync with reality
+    states = Set(notEnabled, enabled, starting, finished),
+    conditionKind =  Set("isExecuting"),
+    nextState = executing,
+    event = None,
+    alwaysTrueIfNoConditions = false,
+    enableAlternatives = false,
+    onlyGuard = true,
+    negateGuard = false
+  )
+  val syncedFinished = OperationTransition( // For operations that should sync with reality
+    states = Set(notEnabled, enabled, starting, executing),
+    conditionKind =  Set("isFinished"),
+    nextState = finished,
+    event = None,
+    alwaysTrueIfNoConditions = false,
+    enableAlternatives = false,
+    onlyGuard = true,
+    negateGuard = false
+  )
 
 
   val transitionSystem = List(
     notEnabledToEnabled,
-      enabledToNotEnabled,
-      enabledToStarting,
-      startingToExec,
-      execToFinished,
-      execToFinishedAlt,
-      finToNotEnabled,
-      forceReset
+    enabledToNotEnabled,
+    enabledToStarting,
+    startingToExec,
+    execToFinished,
+    execToFinishedAlt,
+    finToNotEnabled,
+    forceReset,
+    syncedExecution,
+    syncedFinished
   )
 
 

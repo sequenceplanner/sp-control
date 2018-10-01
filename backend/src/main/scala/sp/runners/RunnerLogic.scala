@@ -45,7 +45,7 @@ object RunnerLogic {
     * @param id The id of the transition
     */
   case class OperationTransition(states: Set[SPValue],
-                                 conditionKind: SPValue,
+                                 conditionKind: Set[SPValue],
                                  nextState: SPValue,
                                  event: Option[SPValue] = None,
                                  alwaysTrueIfNoConditions: Boolean = true,
@@ -100,7 +100,7 @@ object RunnerLogic {
 
       val enabledOps = ops.flatMap { op =>
         val enabledTs = possibleTransitions(op, s, fire, controlledTransitions, unControlledTransitions).find(t =>
-          evaluateOP(op, s, Set(t.conditionKind), disabledGroups, t.alwaysTrueIfNoConditions, t.enableAlternatives, t.negateGuard)
+          evaluateOP(op, s, t.conditionKind, disabledGroups, t.alwaysTrueIfNoConditions, t.enableAlternatives, t.negateGuard)
         )
         enabledTs.map(op -> _)
       }
@@ -110,7 +110,7 @@ object RunnerLogic {
         case x :: xs =>
           val op = x._1
           val t = x._2
-          val nextState = takeTransition(op, s, Set(t.conditionKind), t.nextState, disabledGroups, t.enableAlternatives, t.onlyGuard)
+          val nextState = takeTransition(op, s, t.conditionKind, t.nextState, disabledGroups, t.enableAlternatives, t.onlyGuard)
           runDeep(ops.filter(_ != op), nextState, (op, nextState) :: aggr)
       }
 

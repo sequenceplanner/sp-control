@@ -43,7 +43,7 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
 
   implicit val materializer = ActorMaterializer()
-  
+
 
   "testing runner pipeline" - {
     "Run simple sequence" in {
