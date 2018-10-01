@@ -3,7 +3,7 @@ package sp.abilityhandler
 import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import sp.AbilityStatus
+
 import sp.devicehandler.{APIVirtualDevice, VD}
 import sp.domain.APISP.StatusResponse
 import sp.domain._

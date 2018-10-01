@@ -105,7 +105,7 @@ object SPSettings {
     val scalarx = "0.3.2"
     val scalaD3 = "0.3.4"
     val scalaTest = "3.0.1"
-    val akka = "2.5.3"
+    val akka = "2.5.16"
   }
 
   /**
@@ -128,7 +128,7 @@ object SPSettings {
     "com.typesafe.akka" %% "akka-actor" % versions.akka,
     "com.typesafe.akka" %% "akka-cluster" % versions.akka,
     "com.typesafe.akka" %% "akka-cluster-tools" % versions.akka,
-    "com.typesafe.akka" %% "akka-testkit" % versions.akka,
+    "com.typesafe.akka" %% "akka-testkit" % versions.akka % "test",
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1",
     "org.slf4j" % "slf4j-simple" % "1.7.7",
     "com.github.romix.akka" %% "akka-kryo-serialization" % "0.5.1",
