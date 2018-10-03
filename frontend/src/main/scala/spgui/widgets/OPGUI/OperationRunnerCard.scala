@@ -85,7 +85,7 @@ object OperationRunnerCard {
           section(operation.name, content = renderOperationState(operation.state))
         }.whenDefined,
         card.ability.map { ability =>
-          section(ability.name, content = <.span(css.emphasizeText, ability.status.tag))
+          section(ability.name, content = <.span(css.emphasizeText, ability.status))
         }.whenDefined
       )
     }
@@ -104,7 +104,7 @@ object OperationRunnerCard {
           <.span(
             css.opOuter,
             renderConditions(ability.name, List(ability.preCondition), List(ability.postCondition)),
-            <.span(css.emphasizeText, ability.status.tag)
+            <.span(css.emphasizeText, ability.status)
           )
         }.whenDefined
       )

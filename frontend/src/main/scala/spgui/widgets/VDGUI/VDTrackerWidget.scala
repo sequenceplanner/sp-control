@@ -160,8 +160,8 @@ object VDTrackerWidget {
     }
 
     def terminateAbilities(props: Props): Unit = {
-      AbilityCommunication.postRequest(APIAbilityHandler.TerminateAllAbilities)
-      props.proxy.dispatchCB(TerminateAllAbilities).runNow()
+      //AbilityCommunication.postRequest(APIAbilityHandler.TerminateAllAbilities)
+      //props.proxy.dispatchCB(TerminateAllAbilities).runNow()
     }
 
     def terminateDrivers(driverIds : Iterable[DriverId]): Unit = {

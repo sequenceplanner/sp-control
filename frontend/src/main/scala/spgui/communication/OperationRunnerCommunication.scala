@@ -1,6 +1,5 @@
 package spgui.communication
 
-import sp.abilityhandler.APIAbilityHandler.GetAbility
 import sp.domain.SPMessage
 import sp.runners.APIOperationRunner
 import sp.runners.APIOperationRunner.Setup
@@ -24,7 +23,7 @@ object OperationRunnerCommunication extends CommunicationAPI.Communicator[String
         case API.Runner(setup) =>
           val associations = getAssociations(setup)
           // Request information about the abilities
-          associations.foreach { case(_, abilityId) => AbilityCommunication.postRequest(GetAbility(abilityId)) }
+          // associations.foreach { case(_, abilityId) => AbilityCommunication.postRequest(GetAbility(abilityId)) }
 
           localDispatch(CreateRunner(setup, associations))
 

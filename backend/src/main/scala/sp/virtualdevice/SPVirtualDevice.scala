@@ -8,7 +8,6 @@ import Logic._
 import akka.stream._
 import akka.stream.scaladsl._
 
-
 // The VD maker
 // makes a VD and then sends the ability to it when we get the make ability handler
 // this should be merged later KB:180928
@@ -177,7 +176,6 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD2) extends Actor with Ability
   val runnerPipelineSource =
     Source.queue[sp.runners.StateUpd](100, akka.stream.OverflowStrategy.backpressure)
     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
-
 
   // temp sink to work with old stuff.......
   val resourceSink = Sink.foreach[SPState]{ state =>

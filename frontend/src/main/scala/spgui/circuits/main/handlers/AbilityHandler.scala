@@ -2,16 +2,16 @@ package spgui.circuits.main.handlers
 
 import diode.{Action, ModelRW}
 import monocle.macros.Lenses
-import sp.AbilityStatus
-import sp.abilityhandler.APIAbilityHandler.Ability
-import sp.domain.{Condition, ID, SPAttributes, SPValue}
+import sp.domain._
+import sp.domain.Logic._
+
 import spgui.SimpleSet
 import spgui.circuits.main.handlers.Aliases.AbilityId
 
 
 trait AbilityAction extends Action
-case class AddAbility(ability: Ability) extends AbilityAction
-case class AddAbilities(abilities: List[Ability]) extends AbilityAction
+case class AddAbility(ability: Operation) extends AbilityAction
+case class AddAbilities(abilities: List[Operation]) extends AbilityAction
 case class UpdateAbility(id: AbilityId, f: AbilityData => AbilityData) extends AbilityAction
 case object TerminateAllAbilities extends AbilityAction
 
@@ -38,7 +38,7 @@ class AbilityHandler[M](modelRW: ModelRW[M, AbilityHandlerState]) extends StateH
     }
 
     case UpdateAbility(id, f) => react {
-      abilities.modify(as => upsert(id, AbilityData(Ability("N/A", id))).modify(f)(as))
+      abilities.modify(as => upsert(id, AbilityData(Operation("N/A", List(), SPAttributes(), id))).modify(f)(as))
     }
 
     case TerminateAllAbilities => react {
@@ -58,19 +58,21 @@ object AbilityHandler {
 
 // TODO Count in sp.abilityhandler.AbilityDevice appears to not be doing anything. Is it necessary?
 case class AbilityData(
-                        ability: Ability,
-                        status: AbilityStatus = AbilityStatus.Unavailable,
+                        ability: Operation,
+                        status: String = "Unavailable",
                         state: Map[ID, SPValue] = Map(),
                         count: Int = 0,
                         result: Option[Map[ID, SPValue]] = None) {
   val name: String = ability.name
   val id: ID = ability.id
-  val preCondition: Condition = ability.preCondition
-  val started: Condition = ability.started
-  val postCondition: Condition = ability.postCondition
-  val resetCondition: Condition = ability.resetCondition
-  val parameterIDs: List[ID] = ability.parameterIDs
-  val resultIDs: List[ID] = ability.resultIDs
+  val nocond = Condition(AlwaysFalse, List())
+  def condKind(kind: String) = ability.conditions.find(c=>c.attributes.getAs[String]("kind").contains(kind)).getOrElse(nocond)
+  val preCondition: Condition = condKind("pre")
+  val started: Condition = condKind("started")
+  val postCondition: Condition = condKind("post")
+  val resetCondition: Condition = condKind("reset")
+  val parameterIDs: List[ID] = ability.attributes.getAs[List[ID]]("parameters").getOrElse(List())
+  val resultIDs: List[ID] = ability.attributes.getAs[List[ID]]("results").getOrElse(List()) //TODO not correct/used
   val attributes: SPAttributes = ability.attributes
 
   def withResult(result: Map[ID, SPValue]): AbilityData = copy(result = Some(result))

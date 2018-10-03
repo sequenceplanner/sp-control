@@ -1,7 +1,6 @@
 package spgui.communication
 
 import rx.Obs
-import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
 import sp.domain._
 import sp.models.{APIModel, APIModelMaker => ModelMaker}
@@ -27,9 +26,6 @@ object CommunicationAPI {
   onSocketChange(APIModel.topicResponse) {
     ModelCommunication.postRequest(ModelMaker.GetModels)
   }
-  onSocketChange(APIAbilityHandler.topicResponse) {
-    AbilityCommunication.postRequest(APIAbilityHandler.GetAbilities)
-  }
   onSocketChange(APIVirtualDevice.topicResponse) {
     VDCommunication.postRequest(APIVirtualDevice.GetVD)
   }
@@ -42,7 +38,6 @@ object CommunicationAPI {
    * and will therefore be null
    */
   List(
-    AbilityCommunication,
     DriverCommunication,
     ModelCommunication,
     OperationRunnerCommunication,
