@@ -1,7 +1,5 @@
 package sp.modelSupport
 
-import sp.abilityhandler.APIAbilityHandler
-import sp.abilityhandler.APIAbilityHandler.Ability
 import sp.devicehandler._
 import sp.domain._
 import sp.domain.Logic._
@@ -53,17 +51,18 @@ trait ModelDSL extends BuildModel with SynthesizeModel {
   def buildModel(name: String = "") = {
     val idables = build(name, mes)
 
-    val afterSynth = Try[List[IDAble]] {
-      val (updOps,_,_) = synthesizeModel(idables)
-      idables.filterNot(i=>updOps.exists(_.id==i.id))++updOps
-    } match {
-      case Success(ids) =>
-        println("Synthesis successful")
-        ids
-      case Failure(t) =>
-        println("Synthesis failed: " + t.getMessage)
-        idables
-    }
+    // val afterSynth = Try[List[IDAble]] {
+    //   val (updOps,_,_) = synthesizeModel(idables)
+    //   idables.filterNot(i=>updOps.exists(_.id==i.id))++updOps
+    // } match {
+    //   case Success(ids) =>
+    //     println("Synthesis successful")
+    //     ids
+    //   case Failure(t) =>
+    //     println("Synthesis failed: " + t.getMessage)
+    //     idables
+    // }
+    val afterSynth = idables
 
     val postHooks = mes.collect{ case bh: TpostBuildHook => bh }
     postHooks.foldLeft(afterSynth){case (idables, hook) => hook.func(idables)}
@@ -188,8 +187,9 @@ trait BuildModel {
           // find parameter ids. TODO: for now only search the same level...
           val p = updVs.filter(v=>params.contains(unnn(v.name))).map(_.id)
 
-          val a = Ability(nn(name), ID.newID, precond, runningcond, postcond, resetcond, p)
-          APIAbilityHandler.abilityToOperation(a)
+          // Ability(nn(name), ID.newID, precond, runningcond, postcond, resetcond, p)
+          // TODO: isa ability temp for now
+          Operation(nn(name), List(precond, runningcond, postcond, resetcond), SPAttributes("isa" -> "Ability", "parameters" -> p))
       }
 
 
@@ -198,7 +198,8 @@ trait BuildModel {
       val opParseHelpersDeep = deeperVs ++ deeperVs.map(v=> v.copy(name = unnn(v.name)))
       val opParseHelpers = updVs ++ updVs.map(v=> v.copy(name = unnn(v.name))) ++ opParseHelpersDeep
       println("parseHelper: " + opParseHelpers.map(_.name).mkString(","))
-      val searchAbs = deeperThings.collect { case o: Operation => APIAbilityHandler.operationToAbility(o) }.flatten
+      // val searchAbs = deeperThings.collect { case o: Operation => APIAbilityHandler.operationToAbility(o) }.flatten
+      val searchAbs = deeperThings.collect { case o: Operation if o.attributes.getAs[String]("isa").contains("Ability") => o }
       val opsAndMapping = m.model.collect {
         case item: To =>
           val defaultPre = if (item.conds.exists(_.kind == "pre")) None else Some(Condition(AlwaysTrue, List(), attributes = SPAttributes("kind"->"pre")))

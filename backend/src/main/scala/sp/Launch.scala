@@ -25,8 +25,7 @@ object Launch extends App {
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
 
-    system.actorOf(sp.abilityhandler.AbilityHandler.props, "abilityHandlerMaker")
-    system.actorOf(sp.devicehandler.VirtualDeviceMaker.props)
+    system.actorOf(sp.virtualdevice.SPVirtualDeviceMaker.props)
     system.actorOf(sp.runners.OperationRunner.props, "oprunner")
     system.actorOf(sp.modelSupport.ModelService.props(models))
     system.actorOf(dashboardpresets.DashboardPresetsActor())

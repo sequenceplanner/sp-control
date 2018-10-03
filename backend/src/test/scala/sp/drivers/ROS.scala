@@ -17,22 +17,22 @@ import scala.concurrent.duration._
  * Testing AbilityActor
  */
 class ROSTest extends FreeSpecLike with Matchers {
-  import ROSHelpers._
+  // import ROSHelpers._
 
-  // test message reflection
-  for {
-    msg <- createROSMsg("std_msgs/String")
-    attr <- ROSMsgToSPAttributes(msg)
-  } yield {
-    println(attr)
-  }
+  // // test message reflection
+  // for {
+  //   msg <- createROSMsg("std_msgs/String")
+  //   attr <- ROSMsgToSPAttributes(msg)
+  // } yield {
+  //   println(attr)
+  // }
 
-  for {
-    msg <- createROSMsg("unification_roscontrol/MiRPoseSPToUni")
-    attr <- ROSMsgToSPAttributes(msg)
-  } yield {
-    println(attr)
-  }
+  // for {
+  //   msg <- createROSMsg("unification_roscontrol/MiRPoseSPToUni")
+  //   attr <- ROSMsgToSPAttributes(msg)
+  // } yield {
+  //   println(attr)
+  // }
 
 
 

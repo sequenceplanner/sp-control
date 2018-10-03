@@ -19,6 +19,41 @@ object ModelService {
 class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBussSupport{
   import context.dispatcher
 
+  def updateVariableIDs(p: Condition, remap: Map[ID, ID]): Condition = {
+    p.copy(guard = updateGuard(p.guard, remap), action = p.action.map(a=>updateAction(a,remap)))
+  }
+
+  def updateGuard(guard: Proposition, remap: Map[ID, ID]): Proposition = {
+    def updateID(pe: StateEvaluator): StateEvaluator = pe match {
+      case SVIDEval(id) => SVIDEval(remap.get(id).getOrElse(id))
+      case x => x
+    }
+
+    guard match {
+      case AND(xs) => AND(xs.map(x=>updateGuard(x, remap)))
+      case OR(xs) => OR(xs.map(x=>updateGuard(x, remap)))
+      case NOT(x) => NOT(updateGuard(x, remap))
+      case EQ(left, right) => EQ(updateID(left), updateID(right))
+      case NEQ(left, right) => EQ(updateID(left), updateID(right))
+      case GREQ(left, right) => EQ(updateID(left), updateID(right))
+      case LEEQ(left, right) => EQ(updateID(left), updateID(right))
+      case GR(left, right) => EQ(updateID(left), updateID(right))
+      case LE(left, right) => EQ(updateID(left), updateID(right))
+      case AlwaysTrue => AlwaysTrue
+      case AlwaysFalse => AlwaysFalse
+    }
+  }
+
+  def updateAction(action: Action, remap: Map[ID, ID]): Action = {
+    val nid = remap.get(action.id).getOrElse(action.id)
+    val nval = action.value match {
+      case ASSIGN(id) => ASSIGN(remap.get(id).getOrElse(id))
+      case x => x
+    }
+    action.copy(id = nid, value = nval)
+  }
+
+
   subscribe(APIModel.topicResponse)
   subscribe(APIModelMaker.topicResponse)
   subscribe(APIVDTracker.topicRequest)
@@ -36,36 +71,61 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
     val driverThings = things.filter(_.attributes.keys.contains("driverType"))
     val drivers = driverThings.map(VD.thingToDriver)
 
-
-    // TODO Why is this unused?
-    val runnerSetup = setupRunnerThings.headOption.map(thing => APIOperationRunner.CreateRunner(runnerSetupFor(thing)))
-
     //Direct launch of the VD and abilities below
     val (virtualDeviceId, abilityId) = (ID.newID, ID.newID)
+
+
+    // Merge abilities and ops
+    // TODO: do this in model building
+    val rt = setupRunnerThings.head
+    val runnerSetup = APIOperationRunner.runnerThingToSetup(rt)
+    val opAbMap = runnerSetup.opAbilityMap
+    val vToDvMap = runnerSetup.variableMap
+
+    // logical variables
+    val vs = things.filterNot(t => vToDvMap.keySet.contains(t.id))
+    val initialState = vs.flatMap(t => t.attributes.get("init").map(v=>t.id->v)).toMap
+
+    // driver variables
+    val dvs = things.filter(t => vToDvMap.values.toList.contains(t.id))
+
+    val ops = operations.filterNot(_.attributes.getAs[String]("isa") == Some("Ability"))
+    val abs = operations.filter(_.attributes.getAs[String]("isa") == Some("Ability"))
+    val mergedOps = for {
+      o <- ops
+      aid <- opAbMap.get(o.id)
+      a <- abs.find(_.id==aid)
+    } yield {
+      o.copy(conditions = o.conditions.map(c => updateVariableIDs(c, vToDvMap)) ++ a.conditions)
+    }
 
     publish(APIVirtualDevice.topicRequest,
       SPMessage.makeJson(
         SPHeader(from = "ModelService"),
-        APIVirtualDevice.SetUpVD(
+        APIVirtualDevice.SetUpVD2(
           name = "VD",
           id = virtualDeviceId,
+          mergedOps, // TEMP send on abilities here...
           resources, //= resources.map(_.resource),
           drivers, // = resources.map(_.driver),
+          initialState,
           attributes = SPAttributes()
         )
       )
     )
 
-    publish(APIAbilityHandler.topicRequest,
-      SPMessage.makeJson(
-        SPHeader(from = "ModelService"),
-        APIAbilityHandler.SetUpAbilityHandler(
-          name = "Abilites",
-          id = abilityId,
-          exAbilities,
-          vd = virtualDeviceId
-        ))
-    )
+    // TEMP: removed, abilities sent directly to VD
+
+    // publish(APIAbilityHandler.topicRequest,
+    //   SPMessage.makeJson(
+    //     SPHeader(from = "ModelService"),
+    //     APIAbilityHandler.SetUpAbilityHandler(
+    //       name = "Abilites",
+    //       id = abilityId,
+    //       exAbilities,
+    //       vd = virtualDeviceId
+    //     ))
+    // )
   }
 
   def launchOpRunner(h: SPHeader, ids : List[IDAble])= {

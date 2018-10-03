@@ -90,7 +90,11 @@ package sp.devicehandler {
     import VD._
 
     // requests setup. Include the model id if it exist in the attributes
-    case class SetUpVD(name: String, id: ID, resources: List[Resource], drivers: List[Driver], attributes: SPAttributes = SPAttributes()) extends Request
+    case class SetUpVD(name: String, id: ID, operations: List[Operation], resources: List[Resource], drivers: List[Driver], attributes: SPAttributes = SPAttributes()) extends Request
+    case class SetUpVD2(name: String, id: ID, operations: List[Operation],
+      resources: List[Resource], drivers: List[Driver], initialState: Map[ID, SPValue],
+      attributes: SPAttributes = SPAttributes()) extends Request
+
     // TODO: If needed, add a setup based on a struct and a model
     case class TerminateVD(id: ID) extends Request
     case object TerminateAllVDs extends Request
@@ -130,6 +134,8 @@ package sp.devicehandler {
     object Formats {
       import play.api.libs.json._
       implicit lazy val fSetUpVD:     JSFormat[SetUpVD]     = Json.format[SetUpVD]
+      implicit lazy val fSetUpVD2:     JSFormat[SetUpVD2]     = Json.format[SetUpVD2]
+
       implicit lazy val fTerminateVD:     JSFormat[TerminateVD]     = Json.format[TerminateVD]
       implicit lazy val fTerminatedVD:     JSFormat[TerminatedVD]     = Json.format[TerminatedVD]
       implicit lazy val fTerminateAllVDs:     JSFormat[TerminateAllVDs.type ]     = deriveCaseObject[TerminateAllVDs.type]

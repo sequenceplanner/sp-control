@@ -123,10 +123,11 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
 
   override def receive = {
     case StateUpd(s, es) =>
-      println("Tjo")
-      println(internal)
+      // println("Tjo")
+      // println(internal)
 
       val updS = internal.state.next(s.state)
+
       val res = RunnerLogic.runOperations(
         internal.ops,
         updS,
@@ -136,6 +137,7 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
         internal.disabledGroups
       )
       internal = internal.copy(state = res.lastState)
+      // println("new state: " + internal.state)
       sender() ! res
 
     case GetRunnerData => sender() ! internal

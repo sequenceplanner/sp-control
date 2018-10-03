@@ -3,7 +3,7 @@ package sp.modelSupport
 import org.scalatest._
 import sp.domain.Logic._
 import sp.domain._
-import sp.drivers.ROSFlatStateDriver
+import sp.drivers.ros2.ROS2FlatStateDriver
 
 class Turtle(name: String) extends ModelDSL {
   // turtle state
@@ -52,7 +52,7 @@ class TurtleModel(name: String) extends ModelDSL {
   runner("turtlerunner", initState = Map("forceX" -> true))
 
   // drivers and resources
-  driver("rosDriver", ROSFlatStateDriver.driverType)
+  driver("rosDriver", ROS2FlatStateDriver.driverType)
 }
 
 
