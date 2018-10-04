@@ -36,42 +36,16 @@ case class RunnerPipeline(operations: List[Operation],
 
   // Below not tested!
 
-  def getRunnerData: Future[SPAttributes] = {
-    val res = (runnerA ? GetRunnerData).mapTo[RunnerState]
-
-    // Make a better API with case classes in API. Do not leak RunnerActorAPI though
-    res.map(i =>
-      SPAttributes(
-        "operations" -> i.ops,
-        "controlledTransitions" -> i.controlledTransitions.map(_.id),
-        "persistentEvents" -> i.persistentEvents.map(e => SPAttributes("event" -> e.event, "operation" -> e.operation)),
-        "disabledGroups" -> i.disabledGroups
-      )
-    )(system.dispatcher)
-  }
-
-  def makeTransitionsControlled(transitions: List[ID]) = {
-    runnerA ! MakeControlled(transitions)
-  }
-
-
-//
-//  def addOperations(ops: List[Operation], initialState: SPState) = {
-//    (runnerA ? AddOps(ops, initialState)).mapTo[RunnerState].map{rs =>
-//      val newOps = rs.ops ++ ops distinct
-//      val newS = rs.state.next(initialState.state)
-//      runnerA ! SetRunnerData()
-//    }(system.dispatcher)
-//
-//
-//    runnerA ! MakeUnControlled(transitions)
-//  }
-
-
-
-
-
-  //def updateState(next: )
+  def getRunnerData: Future[RunnerState] = (runnerA ? GetRunnerData).mapTo[RunnerState]
+  def makeTransitionsControlled(xs: List[ID]): Future[RunnerState] = (runnerA ? MakeControlled(xs)).mapTo[RunnerState]
+  def makeTransitionsUnControlled(xs: List[ID]): Future[RunnerState] = (runnerA ? MakeUnControlled(xs)).mapTo[RunnerState]
+  def removeFromState(xs: List[ID]): Future[RunnerState] = (runnerA ? RemoveFromState(xs)).mapTo[RunnerState]
+  def addOperations(xs: List[Operation], initialOpState: SPState): Future[RunnerState] = (runnerA ? AddOps(xs, initialOpState)).mapTo[RunnerState]
+  def removeOperations(xs: List[ID]): Future[RunnerState] = (runnerA ? RemoveOps(xs)).mapTo[RunnerState]
+  def addDisabledGroups(xs: List[SPValue]): Future[RunnerState] = (runnerA ? AddDisabledGroups(xs)).mapTo[RunnerState]
+  def removeDisabledGroups(xs: List[SPValue]): Future[RunnerState] = (runnerA ? RemoveDisabledGroups(xs)).mapTo[RunnerState]
+  def addPersistentEvents(xs: List[RunnerLogic.FireEvent]): Future[RunnerState] = (runnerA ? AddPersistentEvents(xs)).mapTo[RunnerState]
+  def removePersistentEvents(xs: List[RunnerLogic.FireEvent]): Future[RunnerState] = (runnerA ? RemovePersistentEvents(xs)).mapTo[RunnerState]
 
 
 }
