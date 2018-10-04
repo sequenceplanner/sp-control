@@ -30,7 +30,6 @@ object VDTrackerWidgetRedesign {
   import spgui.widgets.VDGUI.{VDTrackerCSS => css}
 
 
-  import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
   import sp.runners.APIOperationRunner
 

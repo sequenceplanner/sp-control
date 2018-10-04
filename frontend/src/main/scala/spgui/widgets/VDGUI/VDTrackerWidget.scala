@@ -17,7 +17,6 @@ import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import spgui.widgets.virtcom.Style
 
 object VDTrackerWidget {
-  import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
   import sp.runners.APIOperationRunner
 

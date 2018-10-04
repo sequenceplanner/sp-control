@@ -8,7 +8,6 @@ import scalajs.js
 import scalajs.js.JSConverters._
 import sp.domain._
 import sp.runners.{APIOperationRunner => oprapi}
-import sp.abilityhandler.{APIAbilityHandler => ahapi}
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.communication.APIComm.StreamHelper
 import spgui.widgets.gantt.{Row, SPGantt, SPGanttOptions, Task}
@@ -45,26 +44,8 @@ object DummyLiveGantt {
       }.runNow()
     )
 
-    val ahComm = new AbilityHandlerAPIComm
-
-    def getAbilities(opAbMap: Map[ID, ID]) = {
-      val abilitiesF = ahComm.request(ahapi.GetAbilities).takeFirstResponse.map(_._2).collect { case ahapi.Abilities(xs) => xs}
-      // TODO fetch only the abilities of interest instead of all of them
-      abilitiesF.map(_.foldLeft(Map[ID, String]()) { (map, ability) =>
-        val m = opAbMap.find(t => t._2 == ability.id)
-        if(m.isDefined) map + (m.get._1 -> ability.name)
-        else map
-      })
-    }
-
     def getRunnerSetup(runnerID: ID) = {
       oprComm.request(oprapi.GetRunner(runnerID)).takeFirstResponse.map(_._2).collect { case oprapi.Runner(setup) => setup}
-    }
-
-    def getAbilityNames(runnerID: ID) = Callback.future {
-      val opAbMapF = getRunnerSetup(runnerID).map(_.opAbilityMap)
-      val abilitiesF = opAbMapF.flatMap(getAbilities)
-      abilitiesF.map(abs => $.modState(s => s.copy(abilityNames = s.abilityNames ++ abs)))
     }
 
     def render(s: State) = {
@@ -90,8 +71,9 @@ object DummyLiveGantt {
     .renderBackend[Backend]
     .componentDidUpdate { ctx =>
       val runnerID = ctx.currentState.runnerID
-      if (ctx.prevState.runnerID == null && runnerID != null) ctx.backend.getAbilityNames(runnerID)
-      else Callback.empty
+      // if (ctx.prevState.runnerID == null && runnerID != null) ctx.backend.getAbilityNames(runnerID)
+      // else
+        Callback.empty
     }
     .build
 

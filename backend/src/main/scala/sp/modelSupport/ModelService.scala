@@ -1,7 +1,6 @@
 package sp.modelSupport
 
 import akka.actor._
-import sp.abilityhandler.APIAbilityHandler
 import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
@@ -62,8 +61,8 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
     // Extract model data from IDAbles
     val operations = ids.collect { case op: Operation => op }
     val things = ids.collect { case thing: Thing => thing }
+
     val setupRunnerThings = things.filter(_.attributes.keys.contains("runnerID"))
-    val exAbilities = operations.flatMap(APIAbilityHandler.operationToAbility)
 
     val resourceThings = things.filter(_.attributes.keys.contains("stateMap"))
     val resources = resourceThings.map(VD.thingToResource)
@@ -91,13 +90,15 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
 
     val ops = operations.filterNot(_.attributes.getAs[String]("isa") == Some("Ability"))
     val abs = operations.filter(_.attributes.getAs[String]("isa") == Some("Ability"))
-    val mergedOps = for {
+    val abOps = for {
       o <- ops
       aid <- opAbMap.get(o.id)
       a <- abs.find(_.id==aid)
     } yield {
       o.copy(conditions = o.conditions.map(c => updateVariableIDs(c, vToDvMap)) ++ a.conditions)
     }
+    val mergedOps = abOps ++ ops.filterNot(o=>abOps.exists(oa=>oa.id==o.id))
+
 
     publish(APIVirtualDevice.topicRequest,
       SPMessage.makeJson(
@@ -113,19 +114,6 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
         )
       )
     )
-
-    // TEMP: removed, abilities sent directly to VD
-
-    // publish(APIAbilityHandler.topicRequest,
-    //   SPMessage.makeJson(
-    //     SPHeader(from = "ModelService"),
-    //     APIAbilityHandler.SetUpAbilityHandler(
-    //       name = "Abilites",
-    //       id = abilityId,
-    //       exAbilities,
-    //       vd = virtualDeviceId
-    //     ))
-    // )
   }
 
   def launchOpRunner(h: SPHeader, ids : List[IDAble])= {

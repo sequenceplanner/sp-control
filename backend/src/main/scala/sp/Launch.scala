@@ -26,7 +26,6 @@ object Launch extends App {
     sp.SPCore.launch(system)
 
     system.actorOf(sp.virtualdevice.SPVirtualDeviceMaker.props)
-    system.actorOf(sp.runners.OperationRunner.props, "oprunner")
     system.actorOf(sp.modelSupport.ModelService.props(models))
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
