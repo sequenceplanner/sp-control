@@ -118,7 +118,7 @@ object VirtualDevice {
 
 class VirtualDevice(setup: APIVirtualDevice.SetUpVD2) extends Actor with AbilityRunnerTransitions
   with ActorLogging
-  with VirtualDeviceLogic
+  with OldVirtualDeviceLogic
   with sp.service.ServiceCommunicationSupport
   with sp.service.MessageBussSupport {
 
@@ -166,11 +166,19 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD2) extends Actor with Ability
 
   val runner = sp.runners.RunnerPipeline(
     operations = setup.operations, // vi får tyvärr inte dessa här utan de kommer via abilities. Det kanske inte fungerar om abilitymaker komemr före VDmaker. Men vi testar såhär. Annars får vi uppdatera där vi går från modellen till dessa setup messages
-    transitionSystem = transitionSystem, // def i AbilityRunnerTransitions trait nedan
+    transitionSystem = abilityTransitionSystem, // def i AbilityRunnerTransitions trait nedan
     initialState = initState,
     name = setup.name,
     system = context.system
   )
+
+  // starting in "pause" mode with automatic reset
+  // runner.makeTransitionsControlled(List(AbilityTransitions.enabledToStarting.id)) // actually already set
+  // runner.makeTransitionsUnControlled(List(AbilityTransitions.finToNotEnabled.id))
+
+  // to auto run, call:
+  runner.makeTransitionsUnControlled(List(AbilityTransitions.enabledToStarting.id))
+  runner.makeTransitionsUnControlled(List(AbilityTransitions.finToNotEnabled.id))
 
   // add StateUpd to que and plug in flows and a sink to send SPState where you want
   val runnerPipelineSource =
@@ -255,117 +263,149 @@ trait AbilityRunnerTransitions {
   import sp.runners.RunnerLogic._
 
   // states
-  val notEnabled = "notEnabled"
-  val enabled = "enabled"
-  val starting = "starting"
-  val executing = "executing"
-  val finished = "finished"
+  object AbilityStates {
+    val notEnabled = "notEnabled"
+    val enabled = "enabled"
+    val starting = "starting"
+    val executing = "executing"
+    val finished = "finished"
+  }
 
   // kinds
-  val pre = "pre"
-  val started = "started"
-  val post = "post"
-  val postAlternative = "postAlternative"
-  val reset = "reset"
+  object AbilityKinds {
+    val pre = "pre"
+    val started = "started"
+    val post = "post"
+    val postAlternative = "postAlternative"
+    val reset = "reset"
+  }
 
-  val notEnabledToEnabled = OperationTransition(
-    states = Set(notEnabled),
-    conditionKind =  pre,
-    nextState = enabled,
-    event = None,
-    alwaysTrueIfNoConditions = true,
-    enableAlternatives = false,
-    onlyGuard = true,
-    negateGuard = false
-  )
-  val enabledToNotEnabled = OperationTransition(
-    states = Set(enabled),
-    conditionKind =  pre,
-    nextState = notEnabled,
-    event = None,
-    alwaysTrueIfNoConditions = false,
-    enableAlternatives = false,
-    onlyGuard = true,
-    negateGuard = true  // this will go back if pre guard is false when in enabled
-  )
-  val enabledToStarting = OperationTransition(
-    states = Set(enabled),
-    conditionKind =  pre,
-    nextState = starting,
-    event = None, // should be Some("start") after we have tested
-    alwaysTrueIfNoConditions = false,
-    enableAlternatives = false,
-    onlyGuard = false,
-    negateGuard = false
-  )
-  val startingToExec = OperationTransition(
-    states = Set(starting),
-    conditionKind =  started,
-    nextState = executing,
-    event = None,
-    alwaysTrueIfNoConditions = true,
-    enableAlternatives = false,
-    onlyGuard = false,
-    negateGuard = false
-  )
+  object AbilityTransitions {
+    import AbilityStates._
+    import AbilityKinds._
 
-  val execToFinished = OperationTransition(
-    states = Set(executing),
-    conditionKind =  post,
-    nextState = finished,
-    event = None,
-    alwaysTrueIfNoConditions = true,
-    enableAlternatives = false,
-    onlyGuard = false,
-    negateGuard = false
-  )
-  val execToFinishedAlt = OperationTransition(
-    states = Set(executing),
-    conditionKind =  postAlternative,
-    nextState = finished,
-    event = None,
-    alwaysTrueIfNoConditions = false,
-    enableAlternatives = true,
-    onlyGuard = false,
-    negateGuard = false
-  )
-  val finToNotEnabled = OperationTransition(
-    states = Set(finished),
-    conditionKind =  reset,
-    nextState = notEnabled,
-    event = None, // Some("reset")
-    alwaysTrueIfNoConditions = false,
-    enableAlternatives = false,
-    onlyGuard = false,
-    negateGuard = false
-  )
-  val forceReset = OperationTransition(
-    states = Set(starting, executing, finished),
-    conditionKind =  "ShouldNotHaveAnyConditions",
-    nextState = notEnabled,
-    event = Some("forceReset"),
-    alwaysTrueIfNoConditions = true,
-    enableAlternatives = false,
-    onlyGuard = false,
-    negateGuard = false
-  )
+    val notEnabledToEnabled = OperationTransition(
+      states = Set(notEnabled),
+      conditionKind = Set(pre),
+      nextState = enabled,
+      event = None,
+      alwaysTrueIfNoConditions = true,
+      enableAlternatives = false,
+      onlyGuard = true,
+      negateGuard = false
+    )
+    val enabledToNotEnabled = OperationTransition(
+      states = Set(enabled),
+      conditionKind = Set(pre),
+      nextState = notEnabled,
+      event = None,
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = true,
+      negateGuard = true // this will go back if pre guard is false when in enabled
+    )
+    val enabledToStarting = OperationTransition(
+      states = Set(enabled),
+      conditionKind = Set(pre),
+      nextState = starting,
+      event = Some("start"),
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = false,
+      negateGuard = false
+    )
+    val startingToExec = OperationTransition(
+      states = Set(starting),
+      conditionKind = Set(started),
+      nextState = executing,
+      event = None,
+      alwaysTrueIfNoConditions = true,
+      enableAlternatives = false,
+      onlyGuard = false,
+      negateGuard = false
+    )
+
+    val execToFinished = OperationTransition(
+      states = Set(executing),
+      conditionKind = Set(post),
+      nextState = finished,
+      event = None,
+      alwaysTrueIfNoConditions = true,
+      enableAlternatives = false,
+      onlyGuard = false,
+      negateGuard = false
+    )
+    val execToFinishedAlt = OperationTransition(
+      states = Set(executing),
+      conditionKind = Set(postAlternative),
+      nextState = finished,
+      event = None,
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = true,
+      onlyGuard = false,
+      negateGuard = false
+    )
+    val finToNotEnabled = OperationTransition(
+      states = Set(finished),
+      conditionKind = Set(reset),
+      nextState = notEnabled,
+      event = Some("reset"),
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = false,
+      negateGuard = false
+    )
+    val forceReset = OperationTransition(
+      states = Set(starting, executing, finished),
+      conditionKind = Set("ShouldNotHaveAnyConditions"),
+      nextState = notEnabled,
+      event = Some("forceReset"),
+      alwaysTrueIfNoConditions = true,
+      enableAlternatives = false,
+      onlyGuard = false,
+      negateGuard = false
+    )
+    val syncedExecution = OperationTransition( // For operations that should sync with reality
+      states = Set(notEnabled, enabled, starting, finished),
+      conditionKind = Set("isExecuting"),
+      nextState = executing,
+      event = None,
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = true,
+      negateGuard = false
+    )
+    val syncedFinished = OperationTransition( // For operations that should sync with reality
+      states = Set(notEnabled, enabled, starting, executing),
+      conditionKind = Set("isFinished"),
+      nextState = finished,
+      event = None,
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = true,
+      negateGuard = false
+    )
+
+  }
 
 
-  val transitionSystem = List(
-    notEnabledToEnabled,
-      enabledToNotEnabled,
-      enabledToStarting,
-      startingToExec,
-      execToFinished,
-      execToFinishedAlt,
-      finToNotEnabled,
-      forceReset
+  val abilityTransitionSystem = List(
+    AbilityTransitions.notEnabledToEnabled,
+    AbilityTransitions.enabledToNotEnabled,
+    AbilityTransitions.enabledToStarting,
+    AbilityTransitions.startingToExec,
+    AbilityTransitions.execToFinished,
+    AbilityTransitions.execToFinishedAlt,
+    AbilityTransitions.finToNotEnabled,
+    AbilityTransitions.forceReset,
+    AbilityTransitions.syncedExecution,
+    AbilityTransitions.syncedFinished
   )
 
 
 }
 
-trait VirtualDeviceLogic {
+trait OldVirtualDeviceLogic {
   val name: String
   val id: ID
 
