@@ -74,7 +74,8 @@ with BeforeAndAfterAll
   // after that, we can add a throttle
 
 
-  val (queue, fut) = runnerPipelineSource
+  val ((queue, ks), fut) = runnerPipelineSource
+    .viaMat(KillSwitches.single)(Keep.both)
     .toMat(Sink.foreach{x=>println("XXXXXXX: " +x)})(Keep.both)
     .run()
 
@@ -84,12 +85,9 @@ with BeforeAndAfterAll
   import scala.concurrent.ExecutionContext.Implicits.global
   system.scheduler.scheduleOnce(200.millis)(queue.offer(sp.runners.StateUpd(spstate1, List())))
   system.scheduler.scheduleOnce(2500.millis)(queue.offer(sp.runners.StateUpd(spstate2, List())))
+  system.scheduler.scheduleOnce(3500.millis)(ks.shutdown())
 
-
-  Await.ready(fut, 5.seconds)
-
-
-
-
+  val res = Await.result(fut, 4.seconds)
+  println("wait done, exiting: " + res)
 
 }
