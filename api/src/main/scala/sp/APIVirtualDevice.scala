@@ -92,7 +92,7 @@ package sp.devicehandler {
     // requests setup. Include the model id if it exist in the attributes
     case class SetUpVD(name: String, id: ID, operations: List[Operation], resources: List[Resource], drivers: List[Driver], attributes: SPAttributes = SPAttributes()) extends Request
     case class SetUpVD2(name: String, id: ID, operations: List[Operation],
-      resources: List[Resource], drivers: List[Driver], initialState: Map[ID, SPValue],
+      resources: List[Resource], drivers: List[Driver], initialState: Map[ID, SPValue], model: List[IDAble] = List(),
       attributes: SPAttributes = SPAttributes()) extends Request
 
     // TODO: If needed, add a setup based on a struct and a model

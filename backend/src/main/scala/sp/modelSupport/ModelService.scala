@@ -83,7 +83,23 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
 
     // logical variables
     val vs = things.filterNot(t => vToDvMap.keySet.contains(t.id))
-    val initialState = vs.flatMap(t => t.attributes.get("init").map(v=>t.id->v)).toMap
+    val usedDvs = things.filter(t => vToDvMap.keySet.contains(t.id))
+
+    // val outputs (runner owns the state of these...)
+//    val outs = things.filter(t => t.attributes.get("variableKind").contains("WriteOnly")).map(t=>t.id -> SPValue("no value yet")).toMap
+
+    val usedInit = usedDvs.flatMap(t => t.attributes.get("init").map(v=>vToDvMap(t.id)->v)).toMap
+    val initialState = usedInit ++ vs.flatMap(t => t.attributes.get("init").map(v=>t.id->v)).toMap
+    println("XXXXXXXXXXXXXXXX")
+    println("XXXXXXXXXXXXXXXX")
+    println("XXXXXXXXXXXXXXXX")
+    println("XXXXXXXXXXXXXXXX")
+    println("XXXXXXXXXXXXXXXX")
+    println("XXXXXXXXXXXXXXXX")
+
+
+
+    println("INIT STATE: " + initialState)
 
     // driver variables
     val dvs = things.filter(t => vToDvMap.values.toList.contains(t.id))
@@ -110,6 +126,7 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor with MessageBuss
           resources, //= resources.map(_.resource),
           drivers, // = resources.map(_.driver),
           initialState,
+          ids,
           attributes = SPAttributes()
         )
       )

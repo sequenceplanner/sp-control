@@ -99,13 +99,6 @@ class SPVirtualDeviceMaker extends Actor
 }
 
 
-
-
-
-
-
-
-
 import akka.stream._
 import akka.stream.scaladsl._
 import scala.concurrent.duration._
@@ -118,7 +111,6 @@ object VirtualDevice {
 
 class VirtualDevice(setup: APIVirtualDevice.SetUpVD2) extends Actor with AbilityRunnerTransitions
   with ActorLogging
-  with OldVirtualDeviceLogic
   with sp.service.ServiceCommunicationSupport
   with sp.service.MessageBussSupport {
 
@@ -131,37 +123,47 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD2) extends Actor with Ability
   subscribe(APIVirtualDevice.topicRequest)
   subscribe(APIDeviceDriver.topicResponse)
 
+  // create driver -> resource sources from the old models
+  def resourceReadStream(resource: VD.Resource) = {
+    val mappers = resource.stateMap.collect { case VD.OneToOneMapper(id, did, driverIdent) => (id,did,driverIdent) }
 
-  def makeVDMessage = {
-    APIVirtualDevice.TheVD(
-      name = setup.name,
-      id = setup.id,
-      resources = setup.resources.map(r => VD.ResourceWithState(r, resourceState.getOrElse(r.id, Map[ID, SPValue]()))),
-      drivers = setup.drivers.map(d => VD.DriverWithState(d, driverState.getOrElse(d.id, Map[String, SPValue]()))),
-      attributes = setup.attributes
-    )
+    mappers.groupBy(_._2).map { case (did, mapper) =>
+      val mapperMap = mapper.map(m => m._3 -> m._1).toMap
+      val flow = Flow[Map[String, SPValue]].map(state => {
+        val res = state.flatMap{ case (driverIdent, spval) => mapperMap.get(driverIdent).map(id => id -> spval) }.toMap
+        // println(s"got input on ${did}: ${state} \n\nRESULTING IN $res")
+        res
+      })
+      did -> flow
+    }.toMap
   }
 
+  def resourceWriteStream(resource: VD.Resource) = {
+    val mappers = resource.stateMap.collect { case VD.OneToOneMapper(id, did, driverIdent) => (id,did,driverIdent) }
 
-  // set up the VD with the data. Should include ops and the message structure in some way. Or we try with one two one mapping
-  // Setup
+    mappers.groupBy(_._2).map { case (did, mapper) =>
+      val mapperMap = mapper.map(m => m._1 -> m._3).toMap
+      val flow = Flow[Map[ID, SPValue]].map(state => {
+        state.flatMap{ case (id, spval) => mapperMap.get(id).map(did => did -> spval) }.toMap
+      })
+      did -> flow
+    }.toMap
+  }
 
+  val nameMap = setup.model.map(idable => idable.id -> idable.name).toMap
 
   val dummyInit = setup.resources.flatMap(r => r.things.map(_ -> SPValue("noValue"))).toMap // here we need to change teh def of resources so we get things from the model
 
   val opInit = setup.operations.map(o => o.id -> SPValue("notEnabled")).toMap
 
-  val initState = SPState("runnerState", setup.initialState++dummyInit++opInit) // här får vi skapa ett bättre init state där vi också inkl operations när de kommer
+  val initState = SPState("runnerState", dummyInit++setup.initialState++opInit) // här får vi skapa ett bättre init state där vi också inkl operations när de kommer
 
   val h = SPHeader(from = id.toString)
   setup.drivers.foreach{d =>
-    newDriver(d)
     publish(APIDeviceDriver.topicRequest, SPMessage.makeJson(h, APIDeviceDriver.SetUpDeviceDriver(d)))
   }
-  setup.resources.foreach(newResource)
-  publish(APIVirtualDevice.topicRequest, SPMessage.makeJson(h, makeVDMessage))
-
-
+  val rreads = setup.resources.map(resourceReadStream).foldLeft(List[(ID, Flow[Map[String,SPValue],Map[ID,SPValue],NotUsed])]()){ case (acum, m) => acum ++ m.toList}.groupBy(_._1).map { case (k,v) => k -> v.map(_._2) }
+  val rwrites = setup.resources.map(resourceWriteStream).foldLeft(List[(ID, Flow[Map[ID,SPValue],Map[String,SPValue],NotUsed])]()){ case (acum, m) => acum ++ m.toList}.groupBy(_._1).map { case (k,v) => k -> v.map(_._2) }
 
 
   val runner = sp.runners.RunnerPipeline(
@@ -180,36 +182,100 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD2) extends Actor with Ability
   runner.makeTransitionsUnControlled(List(AbilityTransitions.enabledToStarting.id))
   runner.makeTransitionsUnControlled(List(AbilityTransitions.finToNotEnabled.id))
 
-  // add StateUpd to que and plug in flows and a sink to send SPState where you want
-  val runnerPipelineSource =
-    Source.queue[sp.runners.StateUpd](100, akka.stream.OverflowStrategy.backpressure)
-    .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
+  type resourceState = Map[ID, SPValue]
+  type driverState = Map[String, SPValue]
 
   // temp sink to work with old stuff.......
-  val resourceSink = Sink.foreach[SPState]{ state =>
-    val s = state.state
-    val rids = resources.values.map(rws => rws.r.id -> rws.r.things).toMap
-    val res = rids.filter(_._2.intersect(s.keySet).nonEmpty)
+  def driverSink(driverID: ID) = Sink.foreach[driverState]{ state =>
+    println(s"driver sink for $driverID with $state")
+    val command = APIDeviceDriver.DriverCommand(driverID, state)
+    val header = SPHeader(from = id.toString)
+    publish("driverCommands", SPMessage.makeJson(header, command))
+  }
 
-    res.foreach { case (rid, rthings) =>
-      val body = APIVirtualDevice.VDCommand(rid, s.filter(kv => rthings.contains(kv._1)))
-      val diffs = getDriverDiffs(body)
+  val driverSinks = setup.drivers.map(d => d.id -> driverSink(d.id)).toMap
+  val resourceSinks = rwrites.flatMap { case (did, flows) =>
+    driverSinks.get(did).map(ds => flows.map(f => f.to(ds)))
+  }.flatten
+  val allSinks = resourceSinks.toList match {
+    case Nil => Sink.ignore
+    case first :: Nil => first
+    case first :: second :: Nil => Sink.combine(first, second)(Broadcast[resourceState](_))
+    case first :: second :: rest =>
+      Sink.combine(first, second, rest:_*)(Broadcast[resourceState](_))
+  }
 
-      if(diffs.isEmpty || diffs.forall { case (k,v) => v.isEmpty }) {
-        println("No driver variables to update.")
-      } else {
-        val commands = getDriverCommands(diffs)
-        // send commands to the drivers
-        commands.foreach { command =>
-          val header = SPHeader(from = id.toString)
-          publish("driverCommands", SPMessage.makeJson(header, command))
+  val driverSources = setup.drivers.map {d =>
+    val source = Source.queue[driverState](100, akka.stream.OverflowStrategy.dropHead)
+    val q = source.mapMaterializedValue { queue =>
+      class DriverX extends Actor with sp.service.MessageBussSupport {
+        subscribe(APIDeviceDriver.topicResponse)
+
+        override def receive = {
+          case x: String =>
+            val mess = SPMessage.fromJson(x)
+            for {
+              m <- mess
+              h <- m.getHeaderAs[SPHeader]
+              b <- m.getBodyAs[APIDeviceDriver.Response]
+            } yield {
+              b match {
+                case e @ APIDeviceDriver.DriverStateChange(_, did, state, _) if did == d.id =>
+                  println(s"OFFERING DRIVER $did STATE $state")
+                  queue.offer(state)
+                case _ =>
+              }
+            }
+          case _ =>
         }
       }
+      context.actorOf(Props(new DriverX), d.id.toString)
+    }
+    d.id -> q
+  }.toMap
+
+  val resourceSources = rreads.flatMap { case (did, flows) =>
+    driverSources.get(did).map(ds => {
+      flows.map(f => ds.via(f))})
+  }.flatten
+
+
+  val allSources = resourceSources.toList match {
+    case Nil => Source.empty[resourceState]
+    case first :: Nil => first
+    case first :: second :: Nil => Source.combine(first, second)(Merge[resourceState](_))
+    case first :: second :: rest =>
+      Source.combine(first, second, rest:_*)(Merge[resourceState](_))
+  }
+
+  val printSink = Sink.foreach[resourceState] { state =>
+    println("NEW RUNNER STATE")
+    state.map { case (id, v) =>
+      val n = nameMap.get(id).getOrElse(id.toString)
+      println(s"$n: $v")
     }
   }
 
-  val queue = runnerPipelineSource.alsoTo(Sink.foreach(x=>println("runner: " + x)))
-    .to(resourceSink)
+  val printSource = Flow[resourceState].map { state =>
+    println("NEW INPUT STATE")
+    state.map { case (id, v) =>
+      val n = nameMap.get(id).getOrElse(id.toString)
+      println(s"$n: $v")
+    }
+    state
+  }
+
+  // add StateUpd to que and plug in flows and a sink to send SPState where you want
+  allSources
+    .via(printSource)
+    .map(state => sp.runners.StateUpd(SPState("test", state), List()))
+
+  .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
+    .map(_.state)
+    .merge(Source.tick(500.millis, 500.millis, Map()))
+    .scan[resourceState](Map()){case (acum,state) => acum++state}
+    .alsoTo(printSink)
+    .to(allSinks)
     .run()
 
   override def receive = {
@@ -225,23 +291,17 @@ class VirtualDevice(setup: APIVirtualDevice.SetUpVD2) extends Actor with Ability
         //log.debug("VD from driver: " +b)
         b match {
 
-          case e @ APIDeviceDriver.DriverStateChange(_, did, _, _) if drivers.contains(did) =>
-            //println("GOT DRIVER EVENT")
-            //println("got a statechange:" + e)
-            val oldrs = resourceState
-            driverEvent(e)
-            //println("new driver state: " + driverState)
-            //println("new resource state: " + resourceState)
+          // case e @ APIDeviceDriver.DriverStateChange(_, did, state, _) =>
 
-            resourceState.filter { case (nid, ns) =>
-              oldrs.get(nid) match {
-                case Some(os) => (ns.toSet diff os.toSet).nonEmpty
-                case None => true
-              }
-            }.foreach { case (rid, state) if resources.contains(rid) =>
-                println("offering state: " + state)
-                queue.offer(sp.runners.StateUpd(SPState("test", state), List()))
-            }
+          //   dxs2.offer(state)
+
+          //   driverSources.get(did).foreach { d =>
+
+          //     d.mapMaterializedValue { q =>
+          //       println(s"offering state: $state to $did")
+          //       q.offer(state)
+          //     }
+          //   }
 
           case _ =>
         }
@@ -401,97 +461,4 @@ trait AbilityRunnerTransitions {
     AbilityTransitions.syncedExecution,
     AbilityTransitions.syncedFinished
   )
-
-
-}
-
-trait OldVirtualDeviceLogic {
-  val name: String
-  val id: ID
-
-  case class DriverCommandTimeout(requestID: ID, timeout: Int)
-
-  case class StateReader(f: (Map[ID, VD.DriverState], Map[ID, VD.State]) =>  Map[ID, VD.State])
-  case class StateWriter(f: (Map[ID, VD.State], Map[ID, VD.DriverState]) =>  Map[ID, VD.DriverState])
-
-  case class ResourceWithState(r: VD.Resource, read: List[StateReader], write: List[StateWriter])
-
-  var drivers: Map[ID, VD.Driver] = Map()
-  var driverState: Map[ID, VD.DriverState] = Map()
-  var activeDriverRequests: Map[ID, List[ID]] = Map()
-
-  var resources: Map[ID, ResourceWithState] = Map()
-  var resourceState: Map[ID, VD.State] = Map()
-
-  def newDriver(d: VD.Driver) = {
-    drivers += d.id -> d
-    driverState += d.id -> Map[String, SPValue]()
-  }
-
-  def newResource(resource: VD.Resource) = {
-    val rw = resource.stateMap.flatMap {
-      case VD.OneToOneMapper(t, id, name) =>
-        val reader = StateReader{ case (drivers, resources) =>
-          val nr = for {
-            driver <- drivers.get(id)
-            value <- driver.get(name)
-            rs <- resources.get(resource.id)
-          } yield {
-            resources + (resource.id -> (rs + (t -> value)))
-          }
-          nr.getOrElse(resources)
-        }
-        val writer = StateWriter{ case (resources, drivers) =>
-          val nd = for {
-            rs <- resources.get(resource.id)
-            value <- rs.get(t)
-            driver <- drivers.get(id)
-          } yield {
-            drivers + (id -> (driver + (name -> value)))
-          }
-          nd.getOrElse(drivers)
-        }
-        Some((reader,writer))
-      // potentially add other mapping types here
-    }
-
-    resources += resource.id -> ResourceWithState(resource, rw.map(_._1), rw.map(_._2))
-    resourceState += resource.id -> Map()
-  }
-
-  def driverEvent(e: APIDeviceDriver.DriverStateChange) = {
-    val current = driverState.get(e.id)
-    current.foreach{ state =>
-      val upd = state ++ e.state
-      driverState += e.id -> upd
-    }
-    resourceState = resources.foldLeft(resourceState){ case (rs, r) =>
-      r._2.read.foldLeft(rs){ case (rs, reader) => reader.f(driverState, rs)}}
-  }
-
-  def getDriverDiffs(c: APIVirtualDevice.VDCommand) = {
-    val diffs = for {
-      r <- resources.get(c.resource)
-    } yield {
-      val s = r.write.foldLeft(driverState) { case (ds,writer) =>
-        writer.f(Map(c.resource -> c.stateRequest), ds)
-      }
-      s.map { case (k,v) =>
-        val m = driverState.getOrElse(k, v)
-        val d = v.toSet diff m.toSet
-        (k, d.toMap)
-      }
-    }
-    diffs.getOrElse(Map())
-  }
-
-  def getDriverCommands(diffs: Map[ID, VD.DriverState]) = {
-    for {
-      (did,stateDiff) <- diffs if stateDiff.nonEmpty
-      d <- drivers.get(did)
-    } yield {
-      APIDeviceDriver.DriverCommand(d.id, stateDiff)
-    }
-  }
-
 }

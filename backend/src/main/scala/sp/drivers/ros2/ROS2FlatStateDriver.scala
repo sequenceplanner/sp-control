@@ -205,12 +205,13 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   val subVars = subscribers.flatMap(parseRosVar)
 
   // create blank state for publishing topics
-  var spState: Map[String, SPValue] = pubVars.map{r =>
-    val field = ROSHelpers.createROSMsg(r.msgType).flatMap{ msg =>
-      ROSHelpers.msgToAttr(msg).get(r.field).map(spval => r.did -> spval)
-    }
-    field.getOrElse(r.did -> SPValue(0))
-  }.toMap
+  // var spState: Map[String, SPValue] = Map()
+  // pubVars.map{r =>
+  //   val field = ROSHelpers.createROSMsg(r.msgType).flatMap{ msg =>
+  //     ROSHelpers.msgToAttr(msg).get(r.field).map(spval => r.did -> spval)
+  //   }
+  //   field.getOrElse(r.did -> SPValue(0))
+  // }.toMap
 
   val pubTopics = pubVars.groupBy(_.topic)
   val subTopics = subVars.groupBy(_.topic)
@@ -269,8 +270,9 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   // *********
 
   inputState.to(Sink.foreach { state =>
-    spState = spState ++ state
-    publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
+    // spState = spState ++ state
+    println(s"ROSDRIVER sending on $state")
+    publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, state)))
   }).run()
 
   val outputQueue = Source.queue[Map[String, SPValue]](100, akka.stream.OverflowStrategy.dropHead).to(outputState).run()
@@ -284,17 +286,18 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
         } yield {
           b match {
             case api.GetDriver =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
-              val body = api.TheDriver(d, spState)
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), body))
-              publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
+              // publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
+              // val body = api.TheDriver(d, spState)
+              // publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), body))
+              // println(s"ROSDRIVER ${d.id} sending on $spState")
+              // publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
+              // publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
 
             case api.DriverCommand(driverid, state) if driverid == d.id  =>
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
 
               /// write driver commands to our out stream
-              spState = spState ++ state
+              // spState = spState ++ state
               outputQueue.offer(state)
 
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
