@@ -20,3 +20,22 @@ trait SPStreamSupport {
 
 
 }
+
+// TODO: Move this somewhere...
+object SPStreamSupport {
+  def mergeSources[T](sources: List[Source[T, _]]) = sources match {
+    case Nil => Source.empty[T]
+    case first :: Nil => first
+    case first :: second :: Nil => Source.combine(first, second)(Merge[T](_))
+    case first :: second :: rest =>
+      Source.combine(first, second, rest:_*)(Merge[T](_))
+  }
+
+  def mergeSinks[T](sinks: List[Sink[T, _]]) = sinks match {
+    case Nil => Sink.ignore
+    case first :: Nil => first
+    case first :: second :: Nil => Sink.combine(first, second)(Broadcast[T](_))
+    case first :: second :: rest =>
+      Sink.combine(first, second, rest:_*)(Broadcast[T](_))
+  }
+}

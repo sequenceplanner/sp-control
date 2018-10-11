@@ -117,7 +117,6 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor
     val mergedOpsInitState = mergedOps.map(o => o.id -> SPValue(AbilityRunnerTransitions.AbilityStates.notEnabled))
 
     val initialState = usedDVInitState ++ vsInitState ++ mergedOpsInitState
-    println("INIT STATE: " + initialState)
 
     // create driver -> resource sources from the old models
     def resourceReadStream(resource: VD.Resource) = {
@@ -145,8 +144,6 @@ class ModelService(models: Map[String, ModelDSL]) extends Actor
         did -> flow
       }.toMap
     }
-
-    val nameMap = things.map(idable => idable.id -> idable.name).toMap
 
     // start drivers
     val h = SPHeader(from = virtualDeviceId.toString)

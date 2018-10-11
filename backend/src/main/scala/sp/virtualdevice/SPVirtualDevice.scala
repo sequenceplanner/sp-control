@@ -144,28 +144,14 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
   runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
 
-  val resourceSources = setup.resources.map(r=>r.inputs).flatten match {
-    case Nil => Source.empty[APISPVD.State]
-    case first :: Nil => first
-    case first :: second :: Nil => Source.combine(first, second)(Merge[APISPVD.State](_))
-    case first :: second :: rest =>
-      Source.combine(first, second, rest:_*)(Merge[APISPVD.State](_))
-  }
-  val resourceSinks = setup.resources.map(r=>r.outputs).flatten match {
-    case Nil => Sink.ignore
-    case first :: Nil => first
-    case first :: second :: Nil => Sink.combine(first, second)(Broadcast[APISPVD.State](_))
-    case first :: second :: rest =>
-      Sink.combine(first, second, rest:_*)(Broadcast[APISPVD.State](_))
-  }
+  val resourceSources = SPStreamSupport.mergeSources(setup.resources.map(r=>r.inputs).flatten)
+  val resourceSinks = SPStreamSupport.mergeSinks(setup.resources.map(r=>r.outputs).flatten)
 
   // add StateUpd to que and plug in flows and a sink to send SPState where you want
   resourceSources
     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
     .map(_.state)
-    .merge(Source.tick(500.millis, 500.millis, Map()))
-    .scan[APISPVD.State](Map()){case (acum,state) => acum++state}
     .to(resourceSinks)
     .run()
 
