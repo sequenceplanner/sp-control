@@ -5,6 +5,7 @@ import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
 import sp.devicehandler.{APIDeviceDriver => api}
+import sp.virtualdevice.SPStreamSupport._
 import scala.concurrent.duration._
 import sp.drivers._
 import scala.util.Try
@@ -204,44 +205,26 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   val pubVars = publishers.flatMap(parseRosVar)
   val subVars = subscribers.flatMap(parseRosVar)
 
-  // create blank state for publishing topics
-  // var spState: Map[String, SPValue] = Map()
-  // pubVars.map{r =>
-  //   val field = ROSHelpers.createROSMsg(r.msgType).flatMap{ msg =>
-  //     ROSHelpers.msgToAttr(msg).get(r.field).map(spval => r.did -> spval)
-  //   }
-  //   field.getOrElse(r.did -> SPValue(0))
-  // }.toMap
-
   val pubTopics = pubVars.groupBy(_.topic)
   val subTopics = subVars.groupBy(_.topic)
 
   val sinks = pubTopics.map{ case (topic, rv::rest) =>
     val p = ros.publisher(rv.msgType, topic)
-    // TODO: prepend rate ticking to this flow
     // start with an "empty" ros message, merge changes to field within the stream
     val empty = ROSHelpers.createROSMsg(rv.msgType).map(ROSHelpers.msgToAttr).getOrElse(SPAttributes())
     val partialMessages = Flow[SPAttributes].scan(empty){ case (attr, partial) => attr ++ partial }
-    Flow[(String, SPAttributes)].filter(p => p._1 == topic).map(_._2).via(partialMessages).to(p)
+
+    // rate ticking
+    val ticking = if(rv.rate == 0) Flow[SPAttributes].map(identity)
+    else Flow[SPAttributes].merge(Source.tick(rv.rate.millis, rv.rate.millis, SPAttributes()))
+
+    Flow[(String, SPAttributes)].filter(p => p._1 == topic).map(_._2).via(ticking).via(partialMessages).to(p)
   }
 
-  // TODO: hacky, use grph dsl...
-  val allSinks = sinks match {
-    case Nil => Sink.ignore
-    case first :: Nil => first
-    case first :: second :: Nil => Sink.combine(first, second)(Broadcast[(String,SPAttributes)](_))
-    case first :: second :: rest =>
-      Sink.combine(first, second, rest:_*)(Broadcast[(String,SPAttributes)](_))
-  }
+  val allSinks = mergeSinks(sinks.toList)
 
   val sources = subTopics.map{ case (topic, rv::rest) => ros.subscriber(rv.msgType, topic).map(q=>(topic,q)) }
-  val allSources = sources match {
-    case Nil => Source.empty
-    case first :: Nil => first
-    case first :: second :: Nil => Source.combine(first, second)(Merge[(String,SPAttributes)](_))
-    case first :: second :: rest =>
-      Source.combine(first, second, rest:_*)(Merge[(String,SPAttributes)](_))
-  }
+  val allSources = mergeSources(sources.toList)
 
   def messageToState(topic: String, message: SPAttributes): Map[String, SPValue] = {
     val l = subTopics.get(topic).getOrElse(List())
@@ -270,7 +253,6 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
   // *********
 
   inputState.to(Sink.foreach { state =>
-    // spState = spState ++ state
     println(s"ROSDRIVER sending on $state")
     publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, state)))
   }).run()
@@ -286,22 +268,15 @@ class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
         } yield {
           b match {
             case api.GetDriver =>
-              // publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
-              // val body = api.TheDriver(d, spState)
-              // publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), body))
-              // println(s"ROSDRIVER ${d.id} sending on $spState")
-              // publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, spState)))
-              // publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
+              // doesnt make sense when driver is stateless
 
             case api.DriverCommand(driverid, state) if driverid == d.id  =>
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
 
               /// write driver commands to our out stream
-              // spState = spState ++ state
               outputQueue.offer(state)
 
               publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
-              // TODO: think about only sending done when change has been registered
 
             // Terminating the driver
             case api.TerminateDriver(driverid) if driverid == d.id =>

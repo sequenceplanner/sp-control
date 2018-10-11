@@ -5,27 +5,20 @@ import sp.domain._
 import sp.drivers.ros2._
 import sp.modelSupport._
 
-class DummyRobotROS2(n: String) extends ModelDSL {
+class DummyRobotROS2(n: String) extends ModelDSL with ROS2ModelSupport {
   val dn="driver"+n
   val rn="resource"+n
 
-
   // state
-  dv("currentPos", dn, s"sub:unification_msgs.msg.State:extended_dummy$n/state:act_pos")
-  dv("hasTool", dn, s"sub:unification_msgs.msg.State:extended_dummy$n/state:has_tool")
+  subscribe(dn, "unification_msgs.msg.State", s"extended_dummy$n/state")
 
   // cmd
-  dv("active", dn, s"pub:unification_msgs.msg.Control:extended_dummy$n/control:active:100")
-  dv("refPos", dn, s"pub:unification_msgs.msg.Control:extended_dummy$n/control:ref_pos:100")
+  publish(dn, "unification_msgs.msg.Control", s"extended_dummy$n/control", 1000)
 
-  // Klurigt med integer som domän...
-  v("refPos", 0, List(0))
-  v("active", false, List(false, true))
-
-  a("moveToPos", List("refPos"),
+  a("moveToPos", List("ref_pos"),
     c("pre", "true", "active := true"),
-    c("started", "currentPos != refPos"),
-    c("post", "currentPos == refPos"),
+    c("started", "act_pos != ref_pos"),
+    c("post", "act_pos == ref_pos"),
     c("reset", "true"))
 
 
@@ -43,37 +36,37 @@ class DummyExampleExtendedROS2 extends ModelDSL {
   v("part3", false, List(false, true))
 
   o("R1_place1", "R1.moveToPos")(
-    c("pre", "!part1 && !part3 && R1.refPos = 0", "R1.refPos := 50"),
+    c("pre", "!part1 && !part3 && R1.ref_pos = 0", "R1.ref_pos := 50"),
     c("post", "true", "part1 := true"),
     c("reset", "true")
   )
 
   o("R1_remove1", "R1.moveToPos")(
-    c("pre", "part1 && part3 && R1.refPos = 50", "R1.refPos := 0"),
+    c("pre", "part1 && part3 && R1.ref_pos = 50", "R1.ref_pos := 0"),
     c("post", "true", "part1 := false"),
     c("reset", "true")
   )
 
   o("R2_place2", "R2.moveToPos")(
-    c("pre", "!part2 && !part3", "R2.refPos = 75"),
+    c("pre", "!part2 && !part3", "R2.ref_pos = 75"),
     c("post", "true", "part2 := true"),
     c("reset", "true")
   )
 
   o("R2_remove2", "R2.moveToPos")(
-    c("pre", "part2 && part3", "R2.refPos = 10"),
+    c("pre", "part2 && part3", "R2.ref_pos = 10"),
     c("post", "true", "part2 := false"),
     c("reset", "true")
   )
 
   o("R3_place3", "R3.moveToPos")(
-    c("pre", "!part3 && part1 && part2", "R3.refPos = 50"),
+    c("pre", "!part3 && part1 && part2", "R3.ref_pos = 50"),
     c("post", "true", "part3 := true"),
     c("reset", "true")
   )
 
   o("R3_remove3", "R3.moveToPos")(
-    c("pre", "part3 && !part1 && !part2", "R3.refPos = 0"),
+    c("pre", "part3 && !part1 && !part2", "R3.ref_pos = 0"),
     c("post", "true", "part3 := false"),
     c("reset", "true")
   )
