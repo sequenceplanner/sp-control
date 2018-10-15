@@ -61,17 +61,48 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     fontSize(28 px)
   )
 
-  val opStateInit = style(
+  // The following flickers too much, use less color
+  // val opStateNotEnabled = style(
+  //   backgroundColor.rgb(240, 128, 128)
+  // )
+
+  // val opStateEnabled = style(
+  //   backgroundColor.rgb(255, 255, 255)
+  // )
+
+  // val opStateStarting = style(
+  //   backgroundColor.rgb(255, 228, 181)
+  // )
+
+  // val opStateExecuting = style(
+  //   backgroundColor.rgb(144, 238, 144)
+  // )
+
+  // val opStateFinished = style(
+  //   backgroundColor.rgb(100, 149, 237)
+  // )
+
+
+  val opStateNotEnabled = style(
     backgroundColor.rgb(255, 255, 255)
   )
 
-  val opStateExec = style(
-    backgroundColor.rgb(80, 255, 80)
+  val opStateEnabled = style(
+    backgroundColor.rgb(255, 255, 255)
   )
 
-  val opStateFini = style(
-    backgroundColor.rgb(0, 0, 255)
+  val opStateStarting = style(
+    backgroundColor.rgb(144, 238, 144)
   )
+
+  val opStateExecuting = style(
+    backgroundColor.rgb(144, 238, 144)
+  )
+
+  val opStateFinished = style(
+    backgroundColor.rgb(255, 255, 255)
+  )
+
   val opStateNone = style(
 
   )

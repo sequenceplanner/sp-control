@@ -147,11 +147,21 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   val resourceSources = SPStreamSupport.mergeSources(setup.resources.map(r=>r.inputs).flatten)
   val resourceSinks = SPStreamSupport.mergeSinks(setup.resources.map(r=>r.outputs).flatten)
 
+  // val frontendThrottle = Flow[State].throttle(10, per = 10.seconds, 10, mode = ThrottleMode.Enforcing)
+  val frontendSink = Sink.foreach[APISPVD.State] { s =>
+    val header = SPHeader(from = id.toString)
+    val body = sp.devicehandler.APIVirtualDevice.StateEvent("", id, s)
+    val message = SPMessage.makeJson(header, body)
+    publish(sp.devicehandler.APIVirtualDevice.topicResponse, message)
+  }
+
+
   // add StateUpd to que and plug in flows and a sink to send SPState where you want
   resourceSources
     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
     .map(_.state)
+    .alsoTo(frontendSink)
     .to(resourceSinks)
     .run()
 

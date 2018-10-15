@@ -41,7 +41,9 @@ object Widgets {
       ("DriverWidget",                widgets.VDGUI.DriverWidget(),                       5, 6),
       ("ResourceWidget",              widgets.VDGUI.ResourceWidget(),                     5, 5),
       ("OperationRunnerWidget",       widgets.OPGUI.OperationRunnerWidget(),              6, 6),
-      ("StateHandlerWidget",          widgets.OPGUI.StateHandlerWidget(),                 6, 6)
+      ("StateHandlerWidget",          widgets.OPGUI.StateHandlerWidget(),                 6, 6),
+      ("RunnerState",          widgets.examples.RunnerStateWidgetState(),          6, 6)
+
     )
 
 

@@ -39,9 +39,11 @@ object SopMakerGraphics {
           ^.className := SopMakerCSS.opNameOuter.htmlClass,
           {
             state match {
-              case "\"i\"" => ^.className := SopMakerCSS.opStateInit.htmlClass
-              case "\"e\"" => ^.className := SopMakerCSS.opStateExec.htmlClass
-              case "\"f\"" => ^.className := SopMakerCSS.opStateFini.htmlClass
+              case "\"notEnabled\"" => ^.className := SopMakerCSS.opStateNotEnabled.htmlClass
+              case "\"enabled\"" => ^.className := SopMakerCSS.opStateEnabled.htmlClass
+              case "\"starting\"" => ^.className := SopMakerCSS.opStateStarting.htmlClass
+              case "\"executing\"" => ^.className := SopMakerCSS.opStateExecuting.htmlClass
+              case "\"finished\"" => ^.className := SopMakerCSS.opStateFinished.htmlClass
               case _ => ^.className := SopMakerCSS.opStateNone.htmlClass
             }
           },

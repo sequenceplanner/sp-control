@@ -7,7 +7,7 @@ import sp.domain._
 import spgui.components.SPWidgetElements
 import diode.react.{ModelProxy, ReactConnectProxy}
 import spgui.communication._
-import sp.runners.APIOperationRunner
+import sp.devicehandler.APIVirtualDevice
 import spgui.circuits.main.MainCircuit
 import spgui.circuits.main.handlers.ModelHandlerState
 
@@ -20,19 +20,15 @@ object SopRunnerWidget {
     currentSop: Option[SOP] = None
   )
   case class Props(proxy: ModelProxy[ModelHandlerState])
- 
+
   private class Backend($: BackendScope[Props, State]) {
     val operationRunnerHandler =
-      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIOperationRunner.topicResponse)
+      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIVirtualDevice.topicResponse)
 
-    def onOperationRunnerMessage(mess: SPMessage) = 
-      mess.getBodyAs[APIOperationRunner.Response].map {
-        case APIOperationRunner.Runners(setups) => {
-          $.modState(_.copy(opStates = setups.head.initialState)).runNow()
-        }
-        case APIOperationRunner.StateEvent(
-          runnerID, newRunnerStateMap, runInAuto, disableConditionGroups) => {
-          $.modState(s => s.copy(opStates = s.opStates ++ newRunnerStateMap)).runNow()
+    def onOperationRunnerMessage(mess: SPMessage) =
+      mess.getBodyAs[APIVirtualDevice.Response].map {
+        case APIVirtualDevice.StateEvent(_, _, state, _) => {
+          $.modState(s => s.copy(opStates = s.opStates ++ state)).runNow()
         }
         case _ => Unit
       }
@@ -40,10 +36,11 @@ object SopRunnerWidget {
     def onReceiveProps(props: Props) = {
       $.modState(state => {
         props.proxy.value.activeModel.map{ model =>
-          val sopSpecs = model.items.collect {
+          val l = model.items.toList  /// cannot collect on the simpleset.. crashes. figure out at a later date
+          val sopSpecs = l.collect {
             case spec: SOPSpec => spec
           }
-          val ops = model.items.collect {
+          val ops = l.collect {
             case o: Operation => o
           }
           state.copy(
