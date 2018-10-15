@@ -1,18 +1,18 @@
 package spgui.widgets.ganttviewer
 
-import sp.runners.{APIOperationRunner => oprapi}
+import sp.devicehandler.{APIVirtualDevice => vdapi}
 import spgui.communication.APIComm
 
-class OperationRunnerAPIComm(onStateEvent: oprapi.StateEvent => Unit) extends
-  APIComm[oprapi.Request, oprapi.Response](
-    requestTopic = oprapi.topicRequest,
-    responseTopic = oprapi.topicResponse,
+class OperationRunnerAPIComm(onStateEvent: vdapi.StateEvent => Unit) extends
+  APIComm[vdapi.Request, vdapi.Response](
+    requestTopic = vdapi.topicRequest,
+    responseTopic = vdapi.topicResponse,
     from = "DummyLiveGantt",
-    to = oprapi.service,
+    to = vdapi.service,
     onChannelUp = None,
     onMessage = Some { ( sph, m) =>
       m match {
-        case ev: oprapi.StateEvent => onStateEvent(ev)
+        case ev: vdapi.StateEvent => onStateEvent(ev)
         case x => println(s"Not recognized by OperationRunnerAPIComm: $x")
       }
     }

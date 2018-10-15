@@ -7,83 +7,74 @@ import org.scalajs.dom
 import scalajs.js
 import scalajs.js.JSConverters._
 import sp.domain._
-import sp.runners.{APIOperationRunner => oprapi}
+import sp.domain.Logic._
+
+import sp.devicehandler.{APIVirtualDevice => vdapi}
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.communication.APIComm.StreamHelper
 import spgui.widgets.gantt.{Row, SPGantt, SPGanttOptions, Task}
+
+
+import diode.react.{ModelProxy, ReactConnectProxy}
+import spgui.communication._
+import spgui.circuits.main.MainCircuit
+import spgui.circuits.main.handlers.ModelHandlerState
+
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 object DummyLiveGantt {
 
-  // TODO runnerID should possibly be props
-  case class State(
-                    runnerID: ID = null,
-                    abilityNames: Map[ID, String] = Map(), // operation ID -> ability name
-                    oprState: Map[ID, String] = Map() // operation ID -> "i", "e" or "f"
-                  )
+  case class State(state: Map[ID, SPValue] = Map(), ops: Map[ID, Operation] = Map())
+  case class Props(proxy: ModelProxy[ModelHandlerState])
 
-  private class Backend($: BackendScope[SPWidgetBase, State]) {
+  private class Backend($: BackendScope[Props, State]) {
 
     val oprComm = new OperationRunnerAPIComm(
       stateEvent => {
         $.modState {
           s => s.copy(
-            runnerID = stateEvent.runnerID,
-            oprState = s.oprState ++ stateEvent.state.flatMap { kv =>
-              kv._2.asOpt[String] match {
-                case Some("i") => Some(kv._1 -> "i")
-                case Some("e") => Some(kv._1 -> "e")
-                case Some("f") => Some(kv._1 -> "f")
-                case _ => None
-              }
-            }
+            state = s.state ++ stateEvent.state
           )
         }
       }.runNow()
     )
 
-    def getRunnerSetup(runnerID: ID) = {
-      oprComm.request(oprapi.GetRunner(runnerID)).takeFirstResponse.map(_._2).collect { case oprapi.Runner(setup) => setup}
+    def onReceiveProps(props: Props) = {
+      $.modState(state => {
+        props.proxy.value.activeModel.map{ model =>
+          val l = model.items.toList  /// cannot collect on the simpleset.. crashes. figure out at a later date
+          val o = l.collect{case o: Operation => o.id -> o}.toMap
+          state.copy(ops = o)
+        }.getOrElse(state)
+      })
     }
 
-    def render(s: State) = {
+    def render(p: Props, s: State) = {
       <.div(
-        "Open VDTracker -> Create model \"DummyExample\" -> click both Launch buttons to get data",
-        /*
-        <.button("getRunner", ^.onClick --> getAbilityNames(s.runnerID)),
-        <.div(s.abilityNames.mkString),
-        <.ul(
-          s.oprState.toTagMod { case (id, state) =>
-            <.li(s.abilityNames.get(id).getOrElse(id.toString) + " state: ", state)
-          }
-        ),
-        */
-        DummyGanttComponent(s.abilityNames, s.oprState)
+        DummyGanttComponent(s.state, s.ops)
       )
     }
 
   }
 
-  private val component = ScalaComponent.builder[SPWidgetBase]("DummyLiveGantt")
+  private val component = ScalaComponent.builder[Props]("DummyLiveGantt")
     .initialState(State())
     .renderBackend[Backend]
-    .componentDidUpdate { ctx =>
-      val runnerID = ctx.currentState.runnerID
-      // if (ctx.prevState.runnerID == null && runnerID != null) ctx.backend.getAbilityNames(runnerID)
-      // else
-        Callback.empty
+    .componentWillReceiveProps{
+      scope => scope.backend.onReceiveProps(scope.nextProps)
     }
     .build
 
-  def apply() = SPWidget(spwb => component(spwb))
+  val connectCircuit: ReactConnectProxy[ModelHandlerState] = MainCircuit.connect(_.models)
 
+  def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 }
 
 object DummyGanttComponent {
 
-  case class Props(abilityNames: Map[ID, String], oprState: Map[ID, String])
+  case class Props(state: Map[ID, SPValue], ops: Map[ID, Operation])
   case class State(
                     rows: Map[ID, (Boolean, Row)] = Map(), // operation ID -> (isActive, gantt-Row)
                     startTime: Option[js.Date] = None
@@ -115,17 +106,20 @@ object DummyGanttComponent {
     .componentWillReceiveProps { ctx =>
       val now = new js.Date()
       val startTime = ctx.state.startTime.getOrElse(now)
-      val nextRows = ctx.nextProps.oprState.map { case (id, oprStateStr) =>
-        val name = ctx.nextProps.abilityNames.getOrElse(id, id.toString)
+      val nextRows = for {
+        (id, opstate) <- ctx.nextProps.state
+        name <- ctx.nextProps.ops.get(id).map(_.name)
+      } yield {
         val currentIsActive = ctx.state.rows.get(id).map(_._1).getOrElse(false)
         val currentTasksOp = ctx.state.rows.get(id).map(_._2.tasks)
         val currentTasks = currentTasksOp.getOrElse(js.Array())
-        val (nextIsActive, nextTasks): (Boolean, js.Array[Task]) = (currentIsActive, oprStateStr) match {
-          case (_, "e") if currentTasks.isEmpty => (true, js.Array(Task(name, now, now)))
-          case (false, "e") => (true, currentTasks :+ Task(name, now, now))
-          case (true, "e") => (true, currentTasks.init :+ Task(name, currentTasks.last.from, now))
-          case (_, "f") => (false, currentTasks)
-          case (_, "i") => (false, currentTasks)
+        val (nextIsActive, nextTasks): (Boolean, js.Array[Task]) = (currentIsActive, opstate.toString) match {
+          case (_, "\"executing\"") if currentTasks.isEmpty => (true, js.Array(Task(name, now, now)))
+          case (false, "\"executing\"") => (true, currentTasks :+ Task(name, now, now))
+          case (true, "\"executing\"") => (true, currentTasks.init :+ Task(name, currentTasks.last.from, now))
+          case (_, "\"finished\"") => (false, currentTasks)
+          case (_, "\"enabled\"") => (false, currentTasks)
+          case (_, "\"notEnabled\"") => (false, currentTasks)
           case _ => (false, currentTasks)
         }
         id -> (nextIsActive, Row(name, nextTasks))
@@ -137,6 +131,6 @@ object DummyGanttComponent {
     })
     .build
 
-  def apply(abilityNames: Map[ID, String], oprState: Map[ID, String]) =
-    component(Props(abilityNames, oprState))
+  def apply(state: Map[ID, SPValue], ops: Map[ID, Operation]) =
+    component(Props(state, ops))
 }
