@@ -12,12 +12,7 @@ object Launch extends App {
   val cluster = akka.cluster.Cluster(system)
 
   val models = Map(
-    "UnificationDemo" -> sp.unification.UnificationModel(),
-    "TurtleModel" -> sp.unification.TurtleModel(),
-    "DummyExample" -> sp.unification.DummyExample(),
-    "ExtendedDummy" -> sp.unification.DummyExampleExtended(),
-    "ExtendedDummyROS" -> sp.unification.DummyExampleExtendedROS2(),
-    "SOPDummy" -> sp.unification.DummyExampleWithSOP(),
+    "NewExtendedDummy" -> sp.unification.NewExtended()
   )
 
   cluster.registerOnMemberUp {
@@ -26,7 +21,7 @@ object Launch extends App {
     sp.SPCore.launch(system)
 
     system.actorOf(sp.virtualdevice.SPVirtualDeviceMaker.props)
-    system.actorOf(sp.modelSupport.ModelService.props(models))
+    system.actorOf(sp.modelSupport.MiniModelService.props(models))
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
     system.actorOf(sp.drivers.DriverService.props)

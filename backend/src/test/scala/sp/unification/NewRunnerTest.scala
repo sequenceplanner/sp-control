@@ -12,13 +12,12 @@ import akka.NotUsed
 import akka.testkit._
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-
+import sp.virtualdevice._
 
 class NewRunnerTest(_system: ActorSystem) extends TestKit(_system)
     with FreeSpecLike
     with Matchers
-with BeforeAndAfterAll
-    with sp.virtualdevice.AbilityRunnerTransitions {
+with BeforeAndAfterAll {
 
   def this() = this(ActorSystem("SP", ConfigFactory.parseString(
     """
@@ -44,11 +43,11 @@ with BeforeAndAfterAll
   val things = idables.collect{case t: Thing if t.attributes.keys.contains("domain") => t}
   val thingMap = things.map(t=>t.name -> t.id).toMap
 
-  val initState = SPState("state", ops.map(o => o.id -> SPValue(notEnabled)).toMap ++ things.map(t => t.id -> t.attributes.getAs[List[SPValue]]("domain").get.head).toMap)
+  val initState = SPState("state", ops.map(o => o.id -> SPValue(AbilityRunnerTransitions.AbilityStates.notEnabled)).toMap ++ things.map(t => t.id -> t.attributes.getAs[List[SPValue]]("domain").get.head).toMap)
 
   val runner = sp.runners.RunnerPipeline(
     operations = ops, // vi får tyvärr inte dessa här utan de kommer via abilities. Det kanske inte fungerar om abilitymaker komemr före VDmaker. Men vi testar såhär. Annars får vi uppdatera där vi går från modellen till dessa setup messages
-    transitionSystem = transitionSystem, // def i AbilityRunnerTransitions trait nedan
+    transitionSystem = AbilityRunnerTransitions.abilityTransitionSystem, // def i AbilityRunnerTransitions trait nedan
     initialState = initState,
     name = "runner",
     system = system

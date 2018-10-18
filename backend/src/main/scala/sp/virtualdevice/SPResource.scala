@@ -8,6 +8,9 @@ import akka.NotUsed
 
 object APISPVD {
   type State = Map[ID, SPValue]
+  object State {
+    def empty = Map[ID, SPValue]()
+  }
 
   case class ResourcePipeline(message: Struct, flowDef: SPAttributes)
   case class SPResource(resource: ID,

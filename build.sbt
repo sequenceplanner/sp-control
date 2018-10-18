@@ -55,7 +55,9 @@ lazy val spcontrol_backend = Project(base = file("backend"), id = "backend")
     defaultBuildSettings,
     buildSettings,
     serviceSettings,
+    fork in Test := true,
     javaOptions in run += "-Djava.library.path=lib/",
+    javaOptions in Test += "-Djava.library.path=lib/",
     mainClass in (Compile, run) := Some("sp.Launch")
   )
   .dependsOn(spcontrol_api_jvm)
