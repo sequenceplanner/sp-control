@@ -18,7 +18,7 @@ import sp.virtualdevice.APISPVD._
 
 
 
-class NewDummyTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLike with Matchers with BeforeAndAfterAll {
+class NewDummyTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLike with Matchers with BeforeAndAfterAll  with sp.modelSupport.SynthesizeMiniModel {
 
   def this() = this(ActorSystem("SP", ConfigFactory.parseString(
     """
@@ -34,6 +34,23 @@ class NewDummyTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecL
   val idables = model.getIDAbles()
   val init = model.getInitialState()
   val resources = model.makeResources(system)
+
+
+  import scala.util.{Failure, Success, Try}
+  val operations = Try[List[Operation]] {
+    val (updOps,_,_) = synthesizeModel(idables)
+
+    idables.filterNot(i=>updOps.exists(_.id==i.id)).collect { case o: Operation => o }++updOps
+  } match {
+    case Success(ops) =>
+      println("Synthesis successful")
+      ops
+    case Failure(t) =>
+      println("Synthesis failed: " + t.getMessage)
+      idables.collect { case o: Operation => o }
+  }
+
+//  assert(false)
 
   idables.foreach { println }
 
@@ -55,7 +72,7 @@ class NewDummyTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecL
   val id = ID.newID
 
   val runner = sp.runners.RunnerPipeline(
-    operations = model.operations,
+    operations = operations,
     transitionSystem = AbilityRunnerTransitions.abilityTransitionSystem,
     initialState = SPState("initial state", initStateWithResources),
     name = "test runner",

@@ -8,13 +8,19 @@ import sp.domain._
 import sp.modelSupport._
 import sp.modelSupport.ros2._
 
-class Robot(name: String) extends ROSResource {
-  subscribe(s"extended_dummy$name/state", "unification_msgs.msg.State",
-    Map("act_pos" -> v("actPos")))
+object ModelData {
+  val placePos = Map("1" -> SPValue(50), "2" -> SPValue(75), "3" -> SPValue(50))
+  val removePos = Map("1" -> SPValue(0), "2" -> SPValue(10), "3" -> SPValue(0))
+}
 
-  publish(s"extended_dummy$name/control", "unification_msgs.msg.Control", Some(1000.millis), Map(
-      v("refPos", 0) -> "ref_pos",
-      v("active", false) -> "active"))
+class Robot(name: String) extends ROSResource {
+  val subMapping = stringToIDMapper(Map("act_pos" -> vu("actPos", ModelData.removePos(name), List(ModelData.removePos(name),ModelData.placePos(name)))))
+  subscribe(s"extended_dummy$name/state", "unification_msgs.msg.State", subMapping)
+
+  val pubMapping = IDToStringMapper(Map(v("refPos", ModelData.removePos(name), List(ModelData.removePos(name),ModelData.placePos(name))) -> "ref_pos",
+    v("active", SPValue(false), List(SPValue(false), SPValue(true))) -> "active"))
+
+  publish(s"extended_dummy$name/control", "unification_msgs.msg.Control", Some(1000.millis), pubMapping)
 
   // synchronous runner allows this now
   v("booked", false)
@@ -22,8 +28,9 @@ class Robot(name: String) extends ROSResource {
   a("moveToPos")(
     c("pre", "!booked", "booked := true", "active := true"),
     c("started", "actPos != refPos"),
-    c("post", "actPos == refPos"),
-    c("reset", "true", "booked := false"))
+    c("post", "actPos == refPos", "booked := false"),
+    c("reset", "true"))
+
 }
 
 class NewExtended extends MiniModel {
@@ -36,7 +43,7 @@ class NewExtended extends MiniModel {
   v("part3", false)
 
   val r1place1 = o("R1_place1", "R1.moveToPos")(
-    c("pre", "!part1 && !part3 && R1.refPos = 0", "R1.refPos := 50"),
+    c("pre", "!part1 && R1.refPos = 0", "R1.refPos := 50"),
     c("post", "true", "part1 := true"),
     c("reset", "true")
   )
@@ -70,6 +77,11 @@ class NewExtended extends MiniModel {
     c("post", "true", "part3 := false"),
     c("reset", "true")
   )
+
+  // test synthesis and guard extraction
+  x("nogo", List("R1_place1_exec && R2_place2_exec"))
+  x("nogo2", List("R2_remove2_exec && R1_remove1_exec"))
+
 
   sop("Main sequence", List(
     Sequence(List(

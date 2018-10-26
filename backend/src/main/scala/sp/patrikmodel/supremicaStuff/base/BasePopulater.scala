@@ -39,12 +39,16 @@ trait BasePopulater extends Workers {
     } catch {
       case _: Throwable => println("Problem when parsing marking:\n Variable: " + name + "\n Expression: " + markedPredicate); return None
     }
-    
+
     val initPredicate = mFactory.createBinaryExpressionProxy(mOptable.getEqualsOperator(), mFactory.createSimpleIdentifierProxy(name), initValue)
     val accepting = mFactory.createSimpleIdentifierProxy(EventDeclProxy.DEFAULT_MARKING_NAME)
-    val marking = mFactory.createVariableMarkingProxy(accepting, markedPred)
-    val markings = Collections.singletonList(marking)
-    val vcs = new VariableComponentSubject(mFactory.createSimpleIdentifierProxy(name), typeOfVar, initPredicate, markings)
+    val vcs = if (markedPred == null)
+      new VariableComponentSubject(mFactory.createSimpleIdentifierProxy(name), typeOfVar, initPredicate)
+    else {
+      val marking = mFactory.createVariableMarkingProxy(accepting, markedPred)
+      val markings = Collections.singletonList(marking)
+      new VariableComponentSubject(mFactory.createSimpleIdentifierProxy(name), typeOfVar, initPredicate, markings)
+    }
 
     mModule.getComponentListModifiable().add(vcs)
 
