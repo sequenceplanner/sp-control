@@ -50,7 +50,7 @@ class NewDummyTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecL
       idables.collect { case o: Operation => o }
   }
 
-//  assert(false)
+  assert(false)
 
   idables.foreach { println }
 
@@ -89,14 +89,20 @@ class NewDummyTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecL
   val ks = resourceSources
     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
-    .map(_.state).map(s => {println(s);s})
+    .map(_.state).map{s =>
+      s.foreach { case (id, value) =>
+        println(idables.find(_.id == id).get.name + " - " + value.toString)
+      }
+      s
+    }
     .viaMat(KillSwitches.single)(Keep.right)
     .to(resourceSinks)
     .run()(ActorMaterializer())
 
+  val dieAfter = 30
 
   import scala.concurrent.ExecutionContext.Implicits.global
-  system.scheduler.scheduleOnce(30.seconds)(ks.shutdown())
+  system.scheduler.scheduleOnce(dieAfter.seconds)(ks.shutdown())
 
-  Thread.sleep(31*1000)
+  Thread.sleep(dieAfter*1000)
 }

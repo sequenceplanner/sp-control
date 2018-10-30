@@ -38,7 +38,7 @@ trait ROSResource extends Resource {
       ros.subscriber(sub.messageType, sub.topic).map(_.fields.toMap)
         .via(sub.via)
       // debug
-        .scan(State.empty){case (last, now) => if (now.toSet.diff(last.toSet).nonEmpty) {println("GOT ATTR: " + now); now } else now}
+      //  .scan(State.empty){case (last, now) => if (now.toSet.diff(last.toSet).nonEmpty) {println("GOT ATTR: " + now); now } else now}
     }
 
     val sinks = pubs.map { pub =>
@@ -52,7 +52,7 @@ trait ROSResource extends Resource {
         ds.foldLeft(SPAttributes()){ case (attr, (field, spval)) => attr ++ SPAttributes(field -> spval) }
       }.filter(_.values.nonEmpty)
       // debug
-        .map(a=>{println("SENDING ATTR: " +a);a})
+      //  .map(a=>{println("SENDING ATTR: " +a);a})
 
       pub.via.via(toAttr).via(ticking).via(partialMessages).to(p)
     }

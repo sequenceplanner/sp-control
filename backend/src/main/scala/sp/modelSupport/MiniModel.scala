@@ -56,6 +56,10 @@ trait ThingStuff {
   }
 
 
+  def vu(name: String, initialState: Boolean): ID = {
+    vu(name, SPValue(initialState), List(SPValue(false), SPValue(true)))
+  }
+
   def vu(name: String, initialState: SPValue, domain: List[SPValue], marked: Set[SPValue] = Set()): ID = {
     val t = Thing(name, SPAttributes("initialState" -> initialState, "domain" -> domain, "marked" -> marked, "uncontrollable" -> true))
     things = t :: things
@@ -86,12 +90,17 @@ trait Resource extends CondStuff with ThingStuff {
 
   def stringToIDMapper(mapping: Map[String, ID]) =
     Flow[Map[String, SPValue]].map{ state =>
-      mapping.flatMap { case (fieldname, id) => state.get(fieldname).map(spval => id -> spval) }.toMap
+      mapping.flatMap { case (fieldname, id) => state.get(fieldname).map(spval => id -> spval) }
     }
 
   def IDToStringMapper(mapping: Map[ID, String]) =
     Flow[Map[ID, SPValue]].map{ state =>
-      mapping.flatMap { case (id, fieldname) => state.get(id).map(spval => fieldname -> spval) }.toMap
+      mapping.flatMap { case (id, fieldname) => state.get(id).map(spval => fieldname -> spval) }
+    }
+
+  def mapDomain(mapping: Map[ID, (SPValue => SPValue)]) =
+    Flow[State].map{ state =>
+      state ++ mapping.flatMap { case (id, f) => state.get(id).map(spval => id -> f(spval)) }
     }
 
 }
