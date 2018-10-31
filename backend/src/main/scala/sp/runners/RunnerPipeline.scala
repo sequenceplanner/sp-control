@@ -152,7 +152,7 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
         sender() ! theState()
     case MakeControlled(ts) =>
       val xs = transitionSystem.filter(t => ts.contains(t.id))
-      val unc = internal.unControlledTransitions.filter(xs.contains)
+      val unc = internal.unControlledTransitions.filterNot(xs.contains)
       val c = (internal.controlledTransitions ++ xs).distinct
       internal = internal.copy(
         controlledTransitions = c,
@@ -161,7 +161,7 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
       sender() ! theState()
     case MakeUnControlled(ts) =>
       val xs = transitionSystem.filter(t => ts.contains(t.id))
-      val c = internal.controlledTransitions.filter(xs.contains)
+      val c = internal.controlledTransitions.filterNot(xs.contains)
       val unc = (internal.unControlledTransitions ++ xs).distinct
       internal = internal.copy(
         controlledTransitions = c,
