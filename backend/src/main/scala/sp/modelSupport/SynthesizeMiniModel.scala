@@ -94,19 +94,65 @@ case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: 
 
   def addOperations() = {
     ops.foreach { o =>
-      //pre
-      val startEvent = o.name
-      addEventIfNeededElseReturnExistingEvent(startEvent, unControllable = false)
-      addTransition(o, startEvent, precondKind)
 
-      //post
-      val compEvent = s"$UNCONTROLLABLE_PREFIX$startEvent"
+      // TODO: this is only for the transitions in the "abilities"
+      import sp.virtualdevice.AbilityRunnerTransitions._
 
-      addEventIfNeededElseReturnExistingEvent(compEvent, unControllable = true)
-      addTransition(o, compEvent, postcondKind)
+      val state = vars.find(_.name == o.name).get.id
 
-      //Add operation events  to module comment
-      mModule.setComment(s"$getComment$OPERATION_PREFIX${o.name} $TRANSITION_PREFIX$startEvent,$compEvent")
+      //////////////////
+      val eventNotEnabledToEnabled = o.name+"notEnabledToEnabled"
+
+      val isNotEnabled = EQ(state, ValueHolder(SPValue(AbilityStates.notEnabled)))
+      val isNotEnabledWithPre = AND(isNotEnabled :: getConds(o.conditions, AbilityKinds.pre).map(_.guard))
+      val setEnabled = Action(state, ValueHolder(SPValue(AbilityStates.enabled)))
+      addEventIfNeededElseReturnExistingEvent(eventNotEnabledToEnabled, unControllable = true)
+      addLeaf(eventNotEnabledToEnabled, propToSupremicaSyntax(isNotEnabledWithPre), actionToSupremicaSyntax(setEnabled).get)
+
+      //////////////////
+      val eventEnabledToNotEnabled = o.name+"enabledToNotEnabled"
+
+      val isEnabled = EQ(state, ValueHolder(SPValue(AbilityStates.enabled)))
+      val isEnabledWithNotPre = AND(List(isEnabled, NOT(AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard)))))
+      val setNotEnabled = Action(state, ValueHolder(SPValue(AbilityStates.notEnabled)))
+      addEventIfNeededElseReturnExistingEvent(eventEnabledToNotEnabled, unControllable = true)
+      addLeaf(eventEnabledToNotEnabled, propToSupremicaSyntax(isEnabledWithNotPre), actionToSupremicaSyntax(setNotEnabled).get)
+
+      //////////////////
+      val eventEnabledToStarting = o.name+"enabledToStarting"
+      val isEnabledWithPre = AND(List(isEnabled, AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard))))
+      val setStarting = Action(state, ValueHolder(SPValue(AbilityStates.starting)))
+      val setStartingWithPre = setStarting :: getConds(o.conditions, AbilityKinds.pre).map(_.action).flatten
+      addEventIfNeededElseReturnExistingEvent(eventEnabledToStarting, unControllable = false)
+      addLeaf(eventEnabledToStarting, propToSupremicaSyntax(isEnabledWithPre), setStartingWithPre.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+
+      /////////////////
+      val eventStartingToExec = o.name+"startingToExecuting"
+      val isStarting = EQ(state, ValueHolder(SPValue(AbilityStates.starting)))
+      val setExec = Action(state, ValueHolder(SPValue(AbilityStates.executing)))
+      val isStartingWithStarting = AND(List(isStarting, AND(getConds(o.conditions, AbilityKinds.started).map(_.guard))))
+      val setExecWithStarting = setExec :: getConds(o.conditions, AbilityKinds.started).map(_.action).flatten
+      addEventIfNeededElseReturnExistingEvent(eventStartingToExec, unControllable = true)
+      addLeaf(eventStartingToExec, propToSupremicaSyntax(isStartingWithStarting), setExecWithStarting.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+
+
+      /////////////////
+      val eventExecToFinished = o.name+"executingToFinished"
+      val isExecuting = EQ(state, ValueHolder(SPValue(AbilityStates.executing)))
+      val setFinished = Action(state, ValueHolder(SPValue(AbilityStates.finished)))
+      val isExecWithPost = AND(List(isExecuting, AND(getConds(o.conditions, AbilityKinds.post).map(_.guard))))
+      val setFinishedWithPost = setFinished :: getConds(o.conditions, AbilityKinds.post).map(_.action).flatten
+      addEventIfNeededElseReturnExistingEvent(eventExecToFinished, unControllable = true)
+      addLeaf(eventExecToFinished, propToSupremicaSyntax(isExecWithPost), setFinishedWithPost.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+
+
+      ////////////////
+      val eventFinToNotEnabled = o.name+"finishedToNotEnabled"
+      val isFinished = EQ(state, ValueHolder(SPValue(AbilityStates.finished)))
+      val isFinishedWithReset = AND(List(isFinished, AND(getConds(o.conditions, AbilityKinds.reset).map(_.guard))))
+      val setNotEnabledWithReset = setNotEnabled :: getConds(o.conditions, AbilityKinds.reset).map(_.action).flatten
+      addEventIfNeededElseReturnExistingEvent(eventFinToNotEnabled, unControllable = true)
+      addLeaf(eventFinToNotEnabled, propToSupremicaSyntax(isFinishedWithReset), setNotEnabledWithReset.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
     }
   }
 

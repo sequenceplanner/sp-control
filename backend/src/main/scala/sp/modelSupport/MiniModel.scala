@@ -134,19 +134,18 @@ trait MiniModel extends CondStuff with ThingStuff {
     val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
     val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things))
 
-    // create operation state variable and conditions for it
-    val exec = vm(name + "_exec", false, Set(false)) // mark initial state to find blocking situations
-    val isExec = EQ(exec, ValueHolder(SPValue(true)))
-    val setExec = List(Action(exec, ValueHolder(SPValue(true))))
-    val isNotExec = EQ(exec, ValueHolder(SPValue(false)))
-    val resetExec = List(Action(exec, ValueHolder(SPValue(false))))
-
-    val extra1 = List(Condition(isNotExec, setExec, SPAttributes("kind" -> "pre")))
-    val extra2 = List(Condition(isExec, resetExec, SPAttributes("kind" -> "post")))
-
+    // create operation state variable
+    // TODO: only for abilityrunner...
+    import sp.virtualdevice.AbilityRunnerTransitions._
+    val state = vm(name, AbilityStates.notEnabled, List(
+      AbilityStates.notEnabled,
+      AbilityStates.enabled,
+      AbilityStates.starting,
+      AbilityStates.executing,
+      AbilityStates.finished), Set(AbilityStates.notEnabled, AbilityStates.enabled))
 
     // merge op with its ability => merging the conditions
-    val op = Operation(name, conditions ++ ability.conditions ++ extra1 ++ extra2, SPAttributes("ability" -> ab))
+    val op = Operation(name, conditions ++ ability.conditions, SPAttributes("ability" -> ab))
     operations = op :: operations
     op.id
   }
