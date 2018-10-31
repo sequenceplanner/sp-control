@@ -160,13 +160,41 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   resourceSources
     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
-    .map(_.state)
+    .map(_.state).map { s => println(s); s }
     .alsoTo(frontendSink)
     .to(resourceSinks)
     .run()
 
   override def receive = {
     // todo: handle some commands like pausing the runner
+    case x: String =>
+      val mess = SPMessage.fromJson(x)
+      for {
+        m <- mess
+        h <- m.getHeaderAs[SPHeader] // add filter here if we want multiple makers
+        b <- m.getBodyAs[APIVirtualDevice.Request]
+      } yield {
+        val updH = h.swapToAndFrom()
+        b match {
+
+          case APIVirtualDevice.StopAuto =>
+            println("Stopping auto")
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            runner.makeTransitionsControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+
+          case APIVirtualDevice.StartAuto =>
+            println("Starting auto")
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+          case _ =>
+
+        }
+      }
+
     case _ =>
   }
 }

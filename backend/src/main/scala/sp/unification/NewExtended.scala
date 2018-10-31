@@ -109,8 +109,8 @@ class NewExtended extends MiniModel {
   )
 
   // test synthesis and guard extraction
-  x("nogo", List("R1_place1 == 'executing' && R2_place2 == 'executing'"))
-  x("nogo", List("R2_place2 == 'executing' && R3_place3 == 'executing'"))
+  // x("nogo", List("R1_place1 == 'executing' && R2_place2 == 'executing'"))
+  // x("nogo", List("R2_place2 == 'executing' && R3_place3 == 'executing'"))
 
   sop("Main sequence", List(
     Sequence(List(

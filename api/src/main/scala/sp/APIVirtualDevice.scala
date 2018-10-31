@@ -124,6 +124,11 @@ package sp.devicehandler {
     // TODO: Probably only use the resource id, not the name...
     case class StateEvent(resource: String, id: ID, state: Map[ID, SPValue], diff: Boolean = false) extends Response
 
+    // TODO: move, clean up, etc....
+    case object StopAuto extends Request
+    case object StartAuto extends Request
+
+
     // TODO: Add when needed
     //case class NewResource(x: Resource) extends Response
     //case class RemovedResource(id: ID) extends Response
@@ -144,6 +149,10 @@ package sp.devicehandler {
       implicit lazy val fTheVD:     JSFormat[TheVD]     = Json.format[TheVD]
       implicit lazy val fVDCommand:     JSFormat[VDCommand]     = Json.format[VDCommand]
       implicit lazy val fStateEvent:     JSFormat[StateEvent]     = Json.format[StateEvent]
+      implicit lazy val fStopAuto:     JSFormat[StopAuto.type]     = deriveCaseObject[StopAuto.type]
+      implicit lazy val fStartAuto:     JSFormat[StartAuto.type]     = deriveCaseObject[StartAuto.type]
+
+
       def fVirtualDeviceRequest: JSFormat[Request] = Json.format[Request]
       def fVirtualDeviceResponse: JSFormat[Response] = Json.format[Response]
     }

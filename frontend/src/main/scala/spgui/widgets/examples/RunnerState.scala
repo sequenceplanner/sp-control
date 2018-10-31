@@ -30,6 +30,7 @@ import spgui.circuits.main.handlers._
               $.modState{s =>
                 State(s.state ++ state)
               }
+            case _ => Callback.empty
           }
          callback.runNow()
         }
@@ -37,13 +38,54 @@ import spgui.circuits.main.handlers._
         api.topicResponse
       )
 
+      def renderState(p: Props, s: State) = {
+        <.table(
+          ^.width:="900px",
+          <.caption("Runner state"),
+          <.thead(
+            <.tr(
+              <.th(^.width:="400px","Name"),
+              <.th(^.width:="200px","Value"),
+            )
+          ),
+          <.tbody(
+            p.activeModel.map { m =>
+              s.state.map { case (id, v) =>
+                m.items.get(id).map(_.name).getOrElse(id.toString) -> v
+              }.toList.sortBy(_._1).map { case (name, v) =>
+                  val internalValue = 0
+                  <.tr(
+                    <.td(name),
+                    <.td(v.toString),
+                    <.td(
+                      <.input(
+                        ^.width := "80px",
+                        ^.value     := internalValue,
+                        // ^.onChange ==> updateInternalValue(s, n.name)
+                      ),
+                      <.button(
+                        ^.width := "70px",
+                        ^.className := "btn btn-small",
+                        ^.onClick --> Callback.empty, "write"
+                      )
+                    ))
+                }
+            }.getOrElse(List()).toTagMod
+          )
+        )
+      }
+
       def render(p: Props, s: State) = {
         <.div(
-          <.h1(s"Runner state:"),
-          s.state.map { case (id, v) =>
-            val name = p.activeModel.flatMap(m => m.items.get(id).map(_.name)).getOrElse(id.toString)
-            <.div(name + "--" + v.toString)
-          }.toTagMod,
+          <.button(
+            ^.className := "btn btn-small",
+            ^.onClick --> send(api.StartAuto), "start auto"
+          ),
+          <.button(
+            ^.className := "btn btn-small",
+            ^.onClick --> send(api.StopAuto), "stop auto"
+          ),
+          renderState(p, s)
         )
       }
 
@@ -52,6 +94,11 @@ import spgui.circuits.main.handlers._
         //messObs.kill()
         Callback.empty
       }
+    }
+
+    def send(mess: api.Request): Callback = {
+      VDCommunication.postRequest(mess)
+      Callback.empty
     }
 
     val connectCircuit: ReactConnectProxy[FrontendState] = MainCircuit.connectComponent(identity)
