@@ -119,6 +119,8 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
     with sp.service.ServiceCommunicationSupport
     with sp.service.MessageBussSupport {
 
+  var forceTable: Map[ID, SPValue] = Map()
+
   import context.dispatcher
   implicit val materializer = ActorMaterializer() // maybe send this in another way...
 
@@ -136,12 +138,8 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   )
 
   // starting in "pause" mode with automatic reset
-  // runner.makeTransitionsControlled(List(AbilityTransitions.enabledToStarting.id)) // actually already set
-  // runner.makeTransitionsUnControlled(List(AbilityTransitions.finToNotEnabled.id))
-
-  // to auto run, call:
   // TODO: these id:s should come from outside...
-  runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
+  runner.makeTransitionsControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
   runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
 
   val resourceSources = SPStreamSupport.mergeSources(setup.resources.map(r=>r.inputs).flatten)
@@ -158,9 +156,11 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
 
   // add StateUpd to que and plug in flows and a sink to send SPState where you want
   resourceSources
+    .map(state => state ++ forceTable)  // force inputs and internal
     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
-    .map(_.state).map { s => println(s); s }
+    .map(_.state)
+    .map(state => state ++ forceTable) // force outputs
     .alsoTo(frontendSink)
     .to(resourceSinks)
     .run()
@@ -188,6 +188,12 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
             println("Starting auto")
             publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
             runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+          case APIVirtualDevice.SetForceTable(force) =>
+            println("Setting force table")
+            publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            forceTable = force
             publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case _ =>

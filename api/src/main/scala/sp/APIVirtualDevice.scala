@@ -128,6 +128,8 @@ package sp.devicehandler {
     case object StopAuto extends Request
     case object StartAuto extends Request
 
+    case class SetForceTable(force: Map[ID, SPValue]) extends Request
+
 
     // TODO: Add when needed
     //case class NewResource(x: Resource) extends Response
@@ -151,6 +153,8 @@ package sp.devicehandler {
       implicit lazy val fStateEvent:     JSFormat[StateEvent]     = Json.format[StateEvent]
       implicit lazy val fStopAuto:     JSFormat[StopAuto.type]     = deriveCaseObject[StopAuto.type]
       implicit lazy val fStartAuto:     JSFormat[StartAuto.type]     = deriveCaseObject[StartAuto.type]
+      implicit lazy val fSetForceTable:     JSFormat[SetForceTable]     = Json.format[SetForceTable]
+
 
 
       def fVirtualDeviceRequest: JSFormat[Request] = Json.format[Request]

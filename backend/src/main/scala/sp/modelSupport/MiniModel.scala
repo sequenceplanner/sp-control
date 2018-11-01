@@ -49,28 +49,27 @@ trait ThingStuff {
     vm(name, initialState, domain, Set())
   }
 
-  def vm(name: String, initialState: SPValue, domain: List[SPValue], marked: Set[SPValue]): ID = {
-    val t = Thing(name, SPAttributes("initialState" -> initialState, "domain" -> domain, "marked" -> marked))
+  def vm(name: String, initialState: SPValue, domain: List[SPValue], marked: Set[SPValue], attr: SPAttributes = SPAttributes()): ID = {
+    val t = Thing(name, SPAttributes("initialState" -> initialState, "domain" -> domain, "marked" -> marked).merge(attr))
     things = t :: things
     t.id
   }
 
-
-  def vu(name: String, initialState: Boolean): ID = {
-    vu(name, SPValue(initialState), List(SPValue(false), SPValue(true)))
+  def i(name: String, initialState: Boolean): ID = {
+    vm(name, SPValue(initialState), List(SPValue(false), SPValue(true)), Set(), SPAttributes("input" -> true))
   }
 
-  def vu(name: String, initialState: SPValue, domain: List[SPValue], marked: Set[SPValue] = Set()): ID = {
-    val t = Thing(name, SPAttributes("initialState" -> initialState, "domain" -> domain, "marked" -> marked, "uncontrollable" -> true))
-    things = t :: things
-    t.id
+  def i(name: String, initialState: SPValue, domain: List[SPValue]): ID = {
+    vm(name, initialState, domain, Set(), SPAttributes("input" -> true))
   }
 
-  // def v(name: String): ID = {
-  //   val t = Thing(name)
-  //   things = t :: things
-  //   t.id
-  // }
+  def o(name: String, initialState: Boolean): ID = {
+    vm(name, SPValue(initialState), List(SPValue(false), SPValue(true)), Set(), SPAttributes("output" -> true))
+  }
+
+  def o(name: String, initialState: SPValue, domain: List[SPValue]): ID = {
+    vm(name, initialState, domain, Set(), SPAttributes("output" -> true))
+  }
 }
 
 trait Resource extends CondStuff with ThingStuff {
@@ -113,7 +112,7 @@ trait MiniModel extends CondStuff with ThingStuff {
 
 
   def x(name: String, exprs: List[String]) = {
-    val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
+    val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList ++ operations
     val props = exprs.flatMap{x=>
       PropositionParser(parseHelpers ++ things).parseStr(x) match {
         case Right(p) => Some(p)
@@ -134,18 +133,11 @@ trait MiniModel extends CondStuff with ThingStuff {
     val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
     val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things))
 
-    // create operation state variable
-    // TODO: only for abilityrunner...
     import sp.virtualdevice.AbilityRunnerTransitions._
-    val state = vm(name, AbilityStates.notEnabled, List(
-      AbilityStates.notEnabled,
-      AbilityStates.enabled,
-      AbilityStates.starting,
-      AbilityStates.executing,
-      AbilityStates.finished), Set(AbilityStates.notEnabled, AbilityStates.enabled))
+    val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished)
 
     // merge op with its ability => merging the conditions
-    val op = Operation(name, conditions ++ ability.conditions, SPAttributes("ability" -> ab))
+    val op = Operation(name, conditions ++ ability.conditions, SPAttributes("domain" -> domain, "ability" -> ab))
     operations = op :: operations
     op.id
   }

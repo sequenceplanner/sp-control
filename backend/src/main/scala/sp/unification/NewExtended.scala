@@ -27,8 +27,8 @@ object ModelData {
 }
 
 class Robot(name: String) extends ROSResource {
-  val actPos = vu("actPos", "remove", List("remove", "place", "moving"))
-  val hasTool = vu("hasTool", false)
+  val actPos = i("actPos", "remove", List("remove", "place", "moving"))
+  val hasTool = i("hasTool", false)
 
   val subMapping = stringToIDMapper(Map(
     "act_pos" -> actPos,
@@ -41,8 +41,8 @@ class Robot(name: String) extends ROSResource {
   val subFlow = subMapping.via(toDomainMapping)
   subscribe(s"extended_dummy$name/state", "unification_msgs.msg.State", subFlow)
 
-  val refPos = v("refPos", s"remove", List("remove", "place"))
-  val active = v("active", false)
+  val refPos = o("refPos", s"remove", List("remove", "place"))
+  val active = o("active", false)
   val pubMapping = IDToStringMapper(Map(refPos -> "ref_pos", active -> "active"))
 
   val fromDomainMapping = mapDomain(Map(
@@ -109,8 +109,8 @@ class NewExtended extends MiniModel {
   )
 
   // test synthesis and guard extraction
-  // x("nogo", List("R1_place1 == 'executing' && R2_place2 == 'executing'"))
-  // x("nogo", List("R2_place2 == 'executing' && R3_place3 == 'executing'"))
+  x("nogo", List("R1_place1 == 'executing' && R2_place2 == 'executing'"))
+  x("nogo", List("R2_place2 == 'executing' && R3_place3 == 'executing'"))
 
   sop("Main sequence", List(
     Sequence(List(

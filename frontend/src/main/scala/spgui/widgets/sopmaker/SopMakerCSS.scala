@@ -88,7 +88,7 @@ object SopMakerCSS extends Theming.SPStyleSheet {
   )
 
   val opStateEnabled = style(
-    backgroundColor.rgb(255, 255, 255)
+    backgroundColor.rgb(200, 200, 255)
   )
 
   val opStateStarting = style(

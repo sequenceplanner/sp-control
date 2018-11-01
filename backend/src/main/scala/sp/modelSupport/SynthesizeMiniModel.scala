@@ -65,11 +65,23 @@ trait SynthesizeMiniModel {
   }
 }
 
+// TODO: for now this is only for the transitions with the "ability runner" transition systems
+import sp.virtualdevice.AbilityRunnerTransitions._
 
-case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: List[Operation], sopSpec: List[SOPSpec], spSpec: List[SPSpec]) extends FlowerPopulater with Exporters with Algorithms with TextFilePrefix {
+case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], ops: List[Operation], sopSpec: List[SOPSpec], spSpec: List[SPSpec]) extends FlowerPopulater with Exporters with Algorithms with TextFilePrefix {
 
   val precondKind = "pre"
   val postcondKind = "post"
+
+  val opVars = ops.map{o =>
+    // create operation state variable
+    // TODO: only for abilityrunner...
+    val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished).map(SPValue(_))
+    val marked = Set(AbilityStates.notEnabled, AbilityStates.enabled).map(SPValue(_)) // TODO: think about if this is good
+    Thing(o.name, SPAttributes("initialState" -> AbilityStates.notEnabled, "domain" -> domain, "marked" -> marked), id = o.id)
+  }
+
+  val vars = opVars ++ varsIn
 
   lazy val variableNameDomainMap = vars.flatMap(v => {
     v.attributes.getAs[List[SPValue]]("domain").map(d => v.name -> d)
@@ -95,41 +107,36 @@ case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: 
   def addOperations() = {
     ops.foreach { o =>
 
-      // TODO: this is only for the transitions in the "abilities"
-      import sp.virtualdevice.AbilityRunnerTransitions._
-
-      val state = vars.find(_.name == o.name).get.id
-
       //////////////////
       val eventNotEnabledToEnabled = o.name+"notEnabledToEnabled"
 
-      val isNotEnabled = EQ(state, ValueHolder(SPValue(AbilityStates.notEnabled)))
+      val isNotEnabled = EQ(o.id, ValueHolder(SPValue(AbilityStates.notEnabled)))
       val isNotEnabledWithPre = AND(isNotEnabled :: getConds(o.conditions, AbilityKinds.pre).map(_.guard))
-      val setEnabled = Action(state, ValueHolder(SPValue(AbilityStates.enabled)))
+      val setEnabled = Action(o.id, ValueHolder(SPValue(AbilityStates.enabled)))
       addEventIfNeededElseReturnExistingEvent(eventNotEnabledToEnabled, unControllable = true)
       addLeaf(eventNotEnabledToEnabled, propToSupremicaSyntax(isNotEnabledWithPre), actionToSupremicaSyntax(setEnabled).get)
 
       //////////////////
       val eventEnabledToNotEnabled = o.name+"enabledToNotEnabled"
 
-      val isEnabled = EQ(state, ValueHolder(SPValue(AbilityStates.enabled)))
+      val isEnabled = EQ(o.id, ValueHolder(SPValue(AbilityStates.enabled)))
       val isEnabledWithNotPre = AND(List(isEnabled, NOT(AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard)))))
-      val setNotEnabled = Action(state, ValueHolder(SPValue(AbilityStates.notEnabled)))
+      val setNotEnabled = Action(o.id, ValueHolder(SPValue(AbilityStates.notEnabled)))
       addEventIfNeededElseReturnExistingEvent(eventEnabledToNotEnabled, unControllable = true)
       addLeaf(eventEnabledToNotEnabled, propToSupremicaSyntax(isEnabledWithNotPre), actionToSupremicaSyntax(setNotEnabled).get)
 
-      //////////////////
-      val eventEnabledToStarting = o.name+"enabledToStarting"
+      //////////////////  THE ONLY ONE WE DISABLE! JUST USE THE OPERATION NAME TO MAP BACK TO GUARDS
+      val eventEnabledToStarting = o.name // +"enabledToStarting"
       val isEnabledWithPre = AND(List(isEnabled, AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard))))
-      val setStarting = Action(state, ValueHolder(SPValue(AbilityStates.starting)))
+      val setStarting = Action(o.id, ValueHolder(SPValue(AbilityStates.starting)))
       val setStartingWithPre = setStarting :: getConds(o.conditions, AbilityKinds.pre).map(_.action).flatten
       addEventIfNeededElseReturnExistingEvent(eventEnabledToStarting, unControllable = false)
       addLeaf(eventEnabledToStarting, propToSupremicaSyntax(isEnabledWithPre), setStartingWithPre.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
 
       /////////////////
       val eventStartingToExec = o.name+"startingToExecuting"
-      val isStarting = EQ(state, ValueHolder(SPValue(AbilityStates.starting)))
-      val setExec = Action(state, ValueHolder(SPValue(AbilityStates.executing)))
+      val isStarting = EQ(o.id, ValueHolder(SPValue(AbilityStates.starting)))
+      val setExec = Action(o.id, ValueHolder(SPValue(AbilityStates.executing)))
       val isStartingWithStarting = AND(List(isStarting, AND(getConds(o.conditions, AbilityKinds.started).map(_.guard))))
       val setExecWithStarting = setExec :: getConds(o.conditions, AbilityKinds.started).map(_.action).flatten
       addEventIfNeededElseReturnExistingEvent(eventStartingToExec, unControllable = true)
@@ -138,8 +145,8 @@ case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: 
 
       /////////////////
       val eventExecToFinished = o.name+"executingToFinished"
-      val isExecuting = EQ(state, ValueHolder(SPValue(AbilityStates.executing)))
-      val setFinished = Action(state, ValueHolder(SPValue(AbilityStates.finished)))
+      val isExecuting = EQ(o.id, ValueHolder(SPValue(AbilityStates.executing)))
+      val setFinished = Action(o.id, ValueHolder(SPValue(AbilityStates.finished)))
       val isExecWithPost = AND(List(isExecuting, AND(getConds(o.conditions, AbilityKinds.post).map(_.guard))))
       val setFinishedWithPost = setFinished :: getConds(o.conditions, AbilityKinds.post).map(_.action).flatten
       addEventIfNeededElseReturnExistingEvent(eventExecToFinished, unControllable = true)
@@ -148,7 +155,7 @@ case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: 
 
       ////////////////
       val eventFinToNotEnabled = o.name+"finishedToNotEnabled"
-      val isFinished = EQ(state, ValueHolder(SPValue(AbilityStates.finished)))
+      val isFinished = EQ(o.id, ValueHolder(SPValue(AbilityStates.finished)))
       val isFinishedWithReset = AND(List(isFinished, AND(getConds(o.conditions, AbilityKinds.reset).map(_.guard))))
       val setNotEnabledWithReset = setNotEnabled :: getConds(o.conditions, AbilityKinds.reset).map(_.action).flatten
       addEventIfNeededElseReturnExistingEvent(eventFinToNotEnabled, unControllable = true)
@@ -171,10 +178,10 @@ case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: 
       //Add variable values to module comment
       mModule.setComment(s"$getComment${TextFilePrefix.VARIABLE_PREFIX}${v.name} d${TextFilePrefix.COLON}${domain.mkString(",")}")
 
-      // if variable is "uncontrollable", add uncontrollable transations between all values in domain
+      // if variable is "input", add uncontrollable transations between all values in domain
       // ... maybe too expensive?
-      val u = v.attributes.getAs[Boolean]("uncontrollable").getOrElse(false)
-      if(u) {
+      val i = v.attributes.getAs[Boolean]("input").getOrElse(false)
+      if(i) {
         domain.foreach { s =>
           val index1 = domain.indexOf(s)
           val event = s"$UNCONTROLLABLE_PREFIX${v.name}to${index1}"
@@ -268,6 +275,35 @@ case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: 
     }
   }
 
+  // less than and more than are not defined for our spvalues... exhaust the domain instead
+  def moreThan(id: ID, i: Int) = {
+    for {
+      v <- vars.find(_.id == id)
+      domain <- v.attributes.getAs[List[SPValue]]("domain")
+    } yield {
+      val indexes = Range(i+1, domain.size).toList
+      val eqs = indexes.map{ i =>
+        val value = domain.lift(i).get
+        EQ(SVIDEval(id), ValueHolder(value))
+      }
+      OR(eqs)
+    }
+  }
+
+  def lessThan(id: ID, i: Int) = {
+    for {
+      v <- vars.find(_.id == id)
+      domain <- v.attributes.getAs[List[SPValue]]("domain")
+    } yield {
+      val indexes = Range(0, i).toList
+      val eqs = indexes.map{ i =>
+        val value = domain.lift(i).get
+        EQ(SVIDEval(id), ValueHolder(value))
+      }
+      OR(eqs)
+    }
+  }
+
   // Convert back into value of the domain array
   // Ugly!
   def sg(p: Proposition): Proposition = p match {
@@ -282,16 +318,20 @@ case class MiniParseToModuleWrapper(moduleName: String, vars: List[Thing], ops: 
       NEQ(q, v)
     case GREQ(q@SVIDEval(id), ValueHolder(i:play.api.libs.json.JsNumber)) =>
       val v = varInDomain(id, i.value.toInt).get // want to know if we fail
-      GREQ(q, v)
+      moreThan(id, i.value.toInt - 1).get
+      // GREQ(q, v)
     case GR(q@SVIDEval(id), ValueHolder(i:play.api.libs.json.JsNumber)) =>
       val v = varInDomain(id, i.value.toInt).get // want to know if we fail
-      GR(q, v)
+      moreThan(id, i.value.toInt).get
+      // GR(q, v)
     case LEEQ(q@SVIDEval(id), ValueHolder(i:play.api.libs.json.JsNumber)) =>
       val v = varInDomain(id, i.value.toInt).get // want to know if we fail
-      LEEQ(q, v)
+      lessThan(id, i.value.toInt + 1).get
+      // LEEQ(q, v)
     case LE(q@SVIDEval(id), ValueHolder(i:play.api.libs.json.JsNumber)) =>
       val v = varInDomain(id, i.value.toInt).get // want to know if we fail
-      LE(q, v)
+      lessThan(id, i.value.toInt).get
+      // LE(q, v)
     case x => x
   }
 
