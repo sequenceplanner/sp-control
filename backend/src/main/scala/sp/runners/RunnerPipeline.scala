@@ -31,7 +31,7 @@ case class RunnerPipeline(operations: List[Operation],
       .statefulMapConcat{ () => // hack! we want to be able to reflect state changes, but not all the time...
         var lastState = SPState("", Map())
         x: RunnerLogic.OneOperationRun => {
-          if(lastState.state != x.lastState.state) { lastState = x.lastState; List(x.lastState) ++ x.sequence.map(_._2).reverse }
+          if(x.sequence.isEmpty && lastState.state != x.lastState.state) { lastState = x.lastState; List(x.lastState) }
           else x.sequence.map(_._2).reverse
         }
       }
