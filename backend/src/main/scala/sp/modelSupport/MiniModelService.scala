@@ -17,11 +17,19 @@ import akka.NotUsed
 import sp.virtualdevice.APISPVD._
 
 object MiniModelService {
-  def props(models: Map[String, MiniModel]) = Props(classOf[MiniModelService], models)
+  def props = Props(classOf[MiniModelService])
 }
 
-class MiniModelService(models: Map[String, MiniModel]) extends Actor with MessageBussSupport with sp.modelSupport.SynthesizeMiniModel {
+class MiniModelService extends Actor with MessageBussSupport {
   import context.dispatcher
+
+  val models = Map(
+    "URTest" -> new sp.unification.urdemo.Demo(context.system),
+//    "NewExtendedDummy" -> sp.unification.NewExtended()
+  )
+
+
+
 
   subscribe(APIModel.topicResponse)
   subscribe(APIModelMaker.topicResponse)
@@ -59,27 +67,10 @@ class MiniModelService(models: Map[String, MiniModel]) extends Actor with Messag
     val resources = model.makeResources(context.system)
     val initState = model.getInitialState ++ resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
 
-
-    // TODO: synthesized guards will not be visible in the item explorer, they are only sent to the runner....
-    import scala.util.{Failure, Success, Try}
-    val operations = Try[List[Operation]] {
-      val (updOps,_,_) = synthesizeModel(idables)
-
-      idables.filterNot(i=>updOps.exists(_.id==i.id)).collect { case o: Operation => o }++updOps
-    } match {
-      case Success(ops) =>
-        println("Synthesis successful")
-        ops
-      case Failure(t) =>
-        println("Synthesis failed: " + t.getMessage)
-        idables.collect { case o: Operation => o }
-    }
-
-
     // start model
     context.system.scheduler.scheduleOnce(5 seconds) {
       val vdrunner = APISPVD.SPVDRunner(
-        operations,
+        model.operations,
         initState,
         Struct("statevars"), // TODO
         AbilityRunnerTransitions.abilityTransitionSystem)

@@ -42,7 +42,11 @@ object Widgets {
       ("ResourceWidget",              widgets.VDGUI.ResourceWidget(),                     5, 5),
       ("OperationRunnerWidget",       widgets.OPGUI.OperationRunnerWidget(),              6, 6),
       ("StateHandlerWidget",          widgets.OPGUI.StateHandlerWidget(),                 6, 6),
-      ("RunnerState",          widgets.examples.RunnerStateWidgetState(),          6, 6)
+      ("RunnerState",          widgets.examples.RunnerStateWidgetState(),          6, 6),
+      ("ROS2Widget",          widgets.examples.ROS2Widget(),          4, 5),
+      ("URDemo",          widgets.examples.URDemoWidget(),          4, 5),
+
+
 
     )
 

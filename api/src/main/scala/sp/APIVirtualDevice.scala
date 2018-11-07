@@ -128,7 +128,7 @@ package sp.devicehandler {
     case object StopAuto extends Request
     case object StartAuto extends Request
 
-    case class SetForceTable(force: Map[ID, SPValue]) extends Request
+    case class SetForceTable(force: Map[ID, SPValue], events: Map[ID, SPValue]) extends Request
 
 
     // TODO: Add when needed

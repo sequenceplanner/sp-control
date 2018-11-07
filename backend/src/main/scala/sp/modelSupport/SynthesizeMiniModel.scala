@@ -68,17 +68,82 @@ trait SynthesizeMiniModel {
 // TODO: for now this is only for the transitions with the "ability runner" transition systems
 import sp.virtualdevice.AbilityRunnerTransitions._
 
-case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], ops: List[Operation], sopSpec: List[SOPSpec], spSpec: List[SPSpec]) extends FlowerPopulater with Exporters with Algorithms with TextFilePrefix {
+case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], opsIn: List[Operation], sopSpec: List[SOPSpec], spSpec: List[SPSpec]) extends FlowerPopulater with Exporters with Algorithms with TextFilePrefix {
 
   val precondKind = "pre"
   val postcondKind = "post"
 
+  // use inputs to rewrite our conditions
+  val inputs = varsIn.filter(_.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
+
+  var tempActions: List[Action] = List()
+
+
+  def findAssignToSPVal(o: Operation, assignee: ID):Option[SPValue] = {
+    val allActions = getConds(o.conditions, "pre").map(_.action).flatten
+    val x = allActions.collect { case Action(`assignee`, ValueHolder(spval)) => spval }
+    x.headOption
+  }
+
+  def updateGuard(o: Operation, guard: Proposition, inputs: List[ID]): Proposition = {
+    guard match {
+      case AND(xs) => AND(xs.map(x=>updateGuard(o, x, inputs)))
+      case OR(xs) => OR(xs.map(x=>updateGuard(o, x, inputs)))
+      case NOT(x) => NOT(updateGuard(o, x, inputs))
+      case EQ(SVIDEval(id), SVIDEval(id2)) if inputs.contains(id) && inputs.contains(id2) => throw new Exception("assignment does not make sense: " + guard); AlwaysTrue
+
+      //   // check if we know which value we expect
+      // case EQ(SVIDEval(id), SVIDEval(id2)) if inputs.contains(id) && !inputs.contains(id2) =>
+      //   val expects = findAssignToSPVal(o, id2)
+      //   expects.map { spval =>
+      //     println("ASSIGNING TO " + spval + " instead")
+      //     tempActions = Action(id, ValueHolder(spval)) :: tempActions; AlwaysTrue
+      //   }.getOrElse {
+      //     tempActions = Action(id, ASSIGN(id2)) :: tempActions; AlwaysTrue
+      //   }
+
+      case EQ(SVIDEval(id), SVIDEval(id2)) if inputs.contains(id) && !inputs.contains(id2) => tempActions = Action(id, ASSIGN(id2)) :: tempActions; AlwaysTrue
+      case EQ(SVIDEval(id), SVIDEval(id2)) if !inputs.contains(id) && inputs.contains(id2) => tempActions = Action(id2, ASSIGN(id)) :: tempActions; AlwaysTrue
+
+      case EQ(SVIDEval(id), ValueHolder(x)) if inputs.contains(id) => tempActions = Action(id, ValueHolder(x)) :: tempActions; AlwaysTrue
+      case EQ(ValueHolder(x), SVIDEval(id)) if inputs.contains(id) => tempActions = Action(id, ValueHolder(x)) :: tempActions; AlwaysTrue
+
+        // todo, check for inequalities.... these cannot be handled
+      case x => x
+    }
+  }
+
+  //val ops = opsIn
+  val ops = opsIn.map { o =>
+    // only change "post"s
+    val posts = o.conditions.filter(_.attributes.getAs[String]("kind").contains("post"))
+    val notPosts = o.conditions.filterNot(_.attributes.getAs[String]("kind").contains("post"))
+    val newPosts = posts.map {c =>
+      tempActions = List()
+      val ng = updateGuard(o, c.guard, inputs)
+      val na = c.action ++ tempActions
+      c.copy(guard = ng, action = na)
+    }
+    o.copy(conditions = notPosts ++ newPosts)
+  }
+
+  // ops.foreach(println)
+  // println("============================================")
+  // newOps.foreach(println)
+
+  // throw new Exception("blah")
+
+  // dont include both not enabled and enabled in synthesis. replace them with one "init"
+  val init = "init"
+
   val opVars = ops.map{o =>
     // create operation state variable
     // TODO: only for abilityrunner...
-    val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished).map(SPValue(_))
-    val marked = Set(AbilityStates.notEnabled, AbilityStates.enabled).map(SPValue(_)) // TODO: think about if this is good
-    Thing(o.name, SPAttributes("initialState" -> AbilityStates.notEnabled, "domain" -> domain, "marked" -> marked), id = o.id)
+
+    val domain = List(init, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished).map(SPValue(_))
+    val marked = Set(init).map(SPValue(_)) // TODO: think about if this is good
+
+    Thing(o.name, SPAttributes("initialState" -> SPValue(init), "domain" -> domain, "marked" -> marked), id = o.id)
   }
 
   val vars = opVars ++ varsIn
@@ -108,58 +173,85 @@ case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], ops
     ops.foreach { o =>
 
       //////////////////
-      val eventNotEnabledToEnabled = o.name+"notEnabledToEnabled"
+      // val eventNotEnabledToEnabled = o.name+"notEnabledToEnabled"
 
-      val isNotEnabled = EQ(o.id, ValueHolder(SPValue(AbilityStates.notEnabled)))
-      val isNotEnabledWithPre = AND(isNotEnabled :: getConds(o.conditions, AbilityKinds.pre).map(_.guard))
-      val setEnabled = Action(o.id, ValueHolder(SPValue(AbilityStates.enabled)))
-      addEventIfNeededElseReturnExistingEvent(eventNotEnabledToEnabled, unControllable = true)
-      addLeaf(eventNotEnabledToEnabled, propToSupremicaSyntax(isNotEnabledWithPre), actionToSupremicaSyntax(setEnabled).get)
+      // val isNotEnabled = EQ(o.id, ValueHolder(SPValue(AbilityStates.notEnabled)))
+      // val isNotEnabledWithPre = AND(isNotEnabled :: getConds(o.conditions, AbilityKinds.pre).map(_.guard))
+      // val setEnabled = Action(o.id, ValueHolder(SPValue(AbilityStates.enabled)))
+      // addEventIfNeededElseReturnExistingEvent(eventNotEnabledToEnabled, unControllable = true)
+      // addLeaf(eventNotEnabledToEnabled, propToSupremicaSyntax(isNotEnabledWithPre), actionToSupremicaSyntax(setEnabled).get)
 
       //////////////////
-      val eventEnabledToNotEnabled = o.name+"enabledToNotEnabled"
+      // val eventEnabledToNotEnabled = o.name+"enabledToNotEnabled"
 
-      val isEnabled = EQ(o.id, ValueHolder(SPValue(AbilityStates.enabled)))
-      val isEnabledWithNotPre = AND(List(isEnabled, NOT(AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard)))))
-      val setNotEnabled = Action(o.id, ValueHolder(SPValue(AbilityStates.notEnabled)))
-      addEventIfNeededElseReturnExistingEvent(eventEnabledToNotEnabled, unControllable = true)
-      addLeaf(eventEnabledToNotEnabled, propToSupremicaSyntax(isEnabledWithNotPre), actionToSupremicaSyntax(setNotEnabled).get)
+      // val isEnabled = EQ(o.id, ValueHolder(SPValue(AbilityStates.enabled)))
+      // val isEnabledWithNotPre = AND(List(isEnabled, NOT(AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard)))))
+      // val setNotEnabled = Action(o.id, ValueHolder(SPValue(AbilityStates.notEnabled)))
+      // addEventIfNeededElseReturnExistingEvent(eventEnabledToNotEnabled, unControllable = true)
+      // addLeaf(eventEnabledToNotEnabled, propToSupremicaSyntax(isEnabledWithNotPre), actionToSupremicaSyntax(setNotEnabled).get)
 
       //////////////////  THE ONLY ONE WE DISABLE! JUST USE THE OPERATION NAME TO MAP BACK TO GUARDS
-      val eventEnabledToStarting = o.name // +"enabledToStarting"
-      val isEnabledWithPre = AND(List(isEnabled, AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard))))
-      val setStarting = Action(o.id, ValueHolder(SPValue(AbilityStates.starting)))
-      val setStartingWithPre = setStarting :: getConds(o.conditions, AbilityKinds.pre).map(_.action).flatten
-      addEventIfNeededElseReturnExistingEvent(eventEnabledToStarting, unControllable = false)
-      addLeaf(eventEnabledToStarting, propToSupremicaSyntax(isEnabledWithPre), setStartingWithPre.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+
+      val isInit = EQ(o.id, ValueHolder(SPValue(init)))
+
+      val started = getConds(o.conditions, AbilityKinds.started).map(_.guard)
+      if(started.isEmpty || started.forall(_ == AlwaysTrue)) { // dont add the extra transition
+        val eventEnabledToExec = o.name // +"enabledToStarting"
+        val isEnabledWithPre = AND(List(isInit, AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard))))
+        val setExec = Action(o.id, ValueHolder(SPValue(AbilityStates.executing)))
+        val setExecWithPre = setExec :: getConds(o.conditions, AbilityKinds.pre).map(_.action).flatten
+        addEventIfNeededElseReturnExistingEvent(eventEnabledToExec, unControllable = false)
+        addLeaf(eventEnabledToExec, propToSupremicaSyntax(isEnabledWithPre), setExecWithPre.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+      } else {
+        val eventEnabledToStarting = o.name // +"enabledToStarting"
+        val isEnabledWithPre = AND(List(isInit, AND(getConds(o.conditions, AbilityKinds.pre).map(_.guard))))
+        val setStarting = Action(o.id, ValueHolder(SPValue(AbilityStates.starting)))
+        val setStartingWithPre = setStarting :: getConds(o.conditions, AbilityKinds.pre).map(_.action).flatten
+        addEventIfNeededElseReturnExistingEvent(eventEnabledToStarting, unControllable = false)
+        addLeaf(eventEnabledToStarting, propToSupremicaSyntax(isEnabledWithPre), setStartingWithPre.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+
+        /////////////////
+        val eventStartingToExec = o.name+"startingToExecuting"
+        val isStarting = EQ(o.id, ValueHolder(SPValue(AbilityStates.starting)))
+        val setExec = Action(o.id, ValueHolder(SPValue(AbilityStates.executing)))
+        val isStartingWithStarting = AND(List(isStarting, AND(getConds(o.conditions, AbilityKinds.started).map(_.guard))))
+        val setExecWithStarting = setExec :: getConds(o.conditions, AbilityKinds.started).map(_.action).flatten
+        addEventIfNeededElseReturnExistingEvent(eventStartingToExec, unControllable = true)
+        addLeaf(eventStartingToExec, propToSupremicaSyntax(isStartingWithStarting), setExecWithStarting.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+
+      }
+
 
       /////////////////
-      val eventStartingToExec = o.name+"startingToExecuting"
-      val isStarting = EQ(o.id, ValueHolder(SPValue(AbilityStates.starting)))
-      val setExec = Action(o.id, ValueHolder(SPValue(AbilityStates.executing)))
-      val isStartingWithStarting = AND(List(isStarting, AND(getConds(o.conditions, AbilityKinds.started).map(_.guard))))
-      val setExecWithStarting = setExec :: getConds(o.conditions, AbilityKinds.started).map(_.action).flatten
-      addEventIfNeededElseReturnExistingEvent(eventStartingToExec, unControllable = true)
-      addLeaf(eventStartingToExec, propToSupremicaSyntax(isStartingWithStarting), setExecWithStarting.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+      val setInit = Action(o.id, ValueHolder(SPValue(init)))
+      val reset = getConds(o.conditions, AbilityKinds.reset).map(_.guard)
+      if(reset.forall(_ == AlwaysTrue)) { // dont add the extra transition
+        val eventExecToNotEnabled = o.name+"executingToNotEnabled"
+        val isExecuting = EQ(o.id, ValueHolder(SPValue(AbilityStates.executing)))
+        // val setNotEnabled = Action(o.id, ValueHolder(SPValue(AbilityStates.notEnabled)))
+        val isExecWithPost = AND(List(isExecuting, AND(getConds(o.conditions, AbilityKinds.post).map(_.guard))))
+        val setNotEnabledWithPost = setInit :: getConds(o.conditions, AbilityKinds.post).map(_.action).flatten
+        addEventIfNeededElseReturnExistingEvent(eventExecToNotEnabled, unControllable = true)
+        addLeaf(eventExecToNotEnabled, propToSupremicaSyntax(isExecWithPost), setNotEnabledWithPost.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+      } else {
+        ///////////////// original
+        val eventExecToFinished = o.name+"executingToFinished"
+        val isExecuting = EQ(o.id, ValueHolder(SPValue(AbilityStates.executing)))
+        val setFinished = Action(o.id, ValueHolder(SPValue(AbilityStates.finished)))
+        val isExecWithPost = AND(List(isExecuting, AND(getConds(o.conditions, AbilityKinds.post).map(_.guard))))
+        val setFinishedWithPost = setFinished :: getConds(o.conditions, AbilityKinds.post).map(_.action).flatten
+        addEventIfNeededElseReturnExistingEvent(eventExecToFinished, unControllable = true)
+        addLeaf(eventExecToFinished, propToSupremicaSyntax(isExecWithPost), setFinishedWithPost.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
 
 
-      /////////////////
-      val eventExecToFinished = o.name+"executingToFinished"
-      val isExecuting = EQ(o.id, ValueHolder(SPValue(AbilityStates.executing)))
-      val setFinished = Action(o.id, ValueHolder(SPValue(AbilityStates.finished)))
-      val isExecWithPost = AND(List(isExecuting, AND(getConds(o.conditions, AbilityKinds.post).map(_.guard))))
-      val setFinishedWithPost = setFinished :: getConds(o.conditions, AbilityKinds.post).map(_.action).flatten
-      addEventIfNeededElseReturnExistingEvent(eventExecToFinished, unControllable = true)
-      addLeaf(eventExecToFinished, propToSupremicaSyntax(isExecWithPost), setFinishedWithPost.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
-
-
-      ////////////////
-      val eventFinToNotEnabled = o.name+"finishedToNotEnabled"
-      val isFinished = EQ(o.id, ValueHolder(SPValue(AbilityStates.finished)))
-      val isFinishedWithReset = AND(List(isFinished, AND(getConds(o.conditions, AbilityKinds.reset).map(_.guard))))
-      val setNotEnabledWithReset = setNotEnabled :: getConds(o.conditions, AbilityKinds.reset).map(_.action).flatten
-      addEventIfNeededElseReturnExistingEvent(eventFinToNotEnabled, unControllable = true)
-      addLeaf(eventFinToNotEnabled, propToSupremicaSyntax(isFinishedWithReset), setNotEnabledWithReset.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+        ////////////////
+        val eventFinToNotEnabled = o.name+"finishedToNotEnabled"
+        val isFinished = EQ(o.id, ValueHolder(SPValue(AbilityStates.finished)))
+        val isFinishedWithReset = AND(List(isFinished, AND(getConds(o.conditions, AbilityKinds.reset).map(_.guard))))
+        val setNotEnabledWithReset = setInit :: getConds(o.conditions, AbilityKinds.reset).map(_.action).flatten
+        addEventIfNeededElseReturnExistingEvent(eventFinToNotEnabled, unControllable = true)
+        addLeaf(eventFinToNotEnabled, propToSupremicaSyntax(isFinishedWithReset), setNotEnabledWithReset.flatMap(a => actionToSupremicaSyntax(a)).mkString("; "))
+      }
     }
   }
 
@@ -178,17 +270,19 @@ case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], ops
       //Add variable values to module comment
       mModule.setComment(s"$getComment${TextFilePrefix.VARIABLE_PREFIX}${v.name} d${TextFilePrefix.COLON}${domain.mkString(",")}")
 
-      // if variable is "input", add uncontrollable transations between all values in domain
+      // if variable is "input", add uncontrollable transitions between all values in domain
       // ... maybe too expensive?
-      val i = v.attributes.getAs[Boolean]("input").getOrElse(false)
-      if(i) {
-        domain.foreach { s =>
-          val index1 = domain.indexOf(s)
-          val event = s"$UNCONTROLLABLE_PREFIX${v.name}to${index1}"
-          addEventIfNeededElseReturnExistingEvent(event, unControllable = true)
-          addLeaf(event, "1", s"${v.name}=${index1.toString}")
-        }
-      }
+      // val i = v.attributes.getAs[Boolean]("input").getOrElse(false)
+      // if(i) {
+      //   domain.foreach { s =>
+      //     val index1 = domain.indexOf(s)
+      //     val event = s"$UNCONTROLLABLE_PREFIX${v.name}to${index1}"
+      //     val guard = v.attributes.getAs[Proposition]("activeWhen").map(c => propToSupremicaSyntax(c)).getOrElse("1")
+      //     addEventIfNeededElseReturnExistingEvent(event, unControllable = true)
+      //     // addLeaf(event, "1", s"${v.name}=${index1.toString}")
+      //     addLeaf(event, guard, s"${v.name}=${index1.toString}")
+      //   }
+      // }
     }
     }
   }
@@ -417,19 +511,23 @@ case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], ops
   }
 
   private def actionToSupremicaSyntax(a: Action) = {
-    val varsIdMap = vars.map(v => v.id -> v.name).toMap
-    val value = a.value match {
-      case ValueHolder(spval) => spval
-      case other =>
-        println(s"actionToSupremicaSyntax cannot handle: $other right now. sorry")
-        SPValue(other.toString)
-    }
     for {
-      variable <- varsIdMap.get(a.id)
+      v <- vars.find(_.id==a.id).map(_.name)
     } yield {
-      val index = getFromVariableDomain(variable, value, "Problem with action")
-      val str = index.getOrElse("NONE")
-      s"$variable=$str"
+      val valueStr = a.value match {
+        case ValueHolder(spval) =>
+          val index = getFromVariableDomain(v, spval, "Problem with action")
+          val str = index.getOrElse("NONE")
+          str
+        case ASSIGN(id) =>
+          val name = vars.find(_.id==id).get.name // die if we are not careful
+                                                  // dont look up in domain for names
+          name
+        case other =>
+          println(s"actionToSupremicaSyntax cannot handle: $other right now. sorry")
+          SPValue(other.toString)
+      }
+      s"$v=$valueStr"
     }
   }
 

@@ -11,20 +11,18 @@ object Launch extends App {
   implicit val system = ActorSystem("SP")
   val cluster = akka.cluster.Cluster(system)
 
-  val models = Map(
-    "NewExtendedDummy" -> sp.unification.NewExtended()
-  )
-
   cluster.registerOnMemberUp {
     // Start all you actors here.
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
 
     system.actorOf(sp.virtualdevice.SPVirtualDeviceMaker.props)
-    system.actorOf(sp.modelSupport.MiniModelService.props(models))
+    system.actorOf(sp.modelSupport.MiniModelService.props)
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
     system.actorOf(sp.drivers.DriverService.props)
+    system.actorOf(sp.rosFrontendHelper.RosFrontendHelper.props)
+
 
     // drivers
     system.actorOf(sp.drivers.URDriver.props, "URDriver")

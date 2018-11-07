@@ -120,6 +120,7 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
     with sp.service.MessageBussSupport {
 
   var forceTable: Map[ID, SPValue] = Map()
+  var forceEvents: List[sp.runners.RunnerLogic.FireEvent] = List()
 
   import context.dispatcher
   implicit val materializer = ActorMaterializer() // maybe send this in another way...
@@ -145,23 +146,25 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   val resourceSources = SPStreamSupport.mergeSources(setup.resources.map(r=>r.inputs).flatten)
   val resourceSinks = SPStreamSupport.mergeSinks(setup.resources.map(r=>r.outputs).flatten)
 
-  // val frontendThrottle = Flow[State].throttle(10, per = 10.seconds, 10, mode = ThrottleMode.Enforcing)
+  // twice per second, let frontend know the state
+  val limitFrontend = Flow[APISPVD.State].conflate((lastMessage, newMessage) => newMessage).zip(Source.tick(500 millis, 500 millis, "tick")).map(_._1)
   val frontendSink = Sink.foreach[APISPVD.State] { s =>
     val header = SPHeader(from = id.toString)
     val body = sp.devicehandler.APIVirtualDevice.StateEvent("", id, s)
     val message = SPMessage.makeJson(header, body)
     publish(sp.devicehandler.APIVirtualDevice.topicResponse, message)
   }
+  val frontendFlow = limitFrontend.to(frontendSink)
 
 
   // add StateUpd to que and plug in flows and a sink to send SPState where you want
-  resourceSources
+  resourceSources.merge(Source.tick(1000 millis, 1000 millis, Map()))
     .map(state => state ++ forceTable)  // force inputs and internal
-    .map(state => sp.runners.StateUpd(SPState("test", state), List()))
+    .map(state => sp.runners.StateUpd(SPState("test", state), forceEvents)) // force events
     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
     .map(_.state)
     .map(state => state ++ forceTable) // force outputs
-    .alsoTo(frontendSink)
+    .alsoTo(frontendFlow)
     .to(resourceSinks)
     .run()
 
@@ -190,10 +193,11 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
             runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
             publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
-          case APIVirtualDevice.SetForceTable(force) =>
+          case APIVirtualDevice.SetForceTable(force, events) =>
             println("Setting force table")
             publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
             forceTable = force
+            forceEvents = events.map{ case (id, spval) => sp.runners.RunnerLogic.FireEvent(spval, id) }.toList
             publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case _ =>

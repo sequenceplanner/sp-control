@@ -34,9 +34,24 @@ import scala.reflect.ClassTag
   */
 
 object ROSHelpers {
-  def createROSMsg(msgClass: String): Option[MessageDefinition] = Try {
-    Class.forName(msgClass).newInstance().asInstanceOf[MessageDefinition]
-  }.toOption
+  def rosMsgFormatToJavaClass(msgType: String) = {
+    // val source = "unification_ros2_messages/MoveItSPToUni"
+    // val target = "unification_ros2_messages.msg.MoveItUniToSP"
+    val s = msgType.split("/")
+    for {
+      p <- s.lift(0)
+      m <- s.lift(1)
+    } yield {
+      p + ".msg." + m
+    }
+  }
+
+  def createROSMsg(msgType: String): Option[MessageDefinition] = {
+    rosMsgFormatToJavaClass(msgType).flatMap { msgClass => Try {
+      Class.forName(msgClass).newInstance().asInstanceOf[MessageDefinition]
+    }.toOption
+    }
+  }
 
   def msgToAttr(m: MessageDefinition) = {
     val rm = scala.reflect.runtime.currentMirror
@@ -94,7 +109,7 @@ class RCLBase(system: ActorSystem) {
   ROS2FlatStateDriver.rclInit()
   val exec = new SingleThreadedExecutor()
 
-  class SubscriberNode(msgClass: String, topic: String) extends BaseComposableNode("SPSubscriber") {
+  class SubscriberNode(msgType: String, topic: String) extends BaseComposableNode("SPSubscriber") {
     val bufferSize = 100
     val overflowStrategy = akka.stream.OverflowStrategy.dropHead
     val queue = Source.queue[SPAttributes](bufferSize, overflowStrategy)
@@ -105,7 +120,7 @@ class RCLBase(system: ActorSystem) {
           queue.offer(spattr)
         }
       }
-      val msg = Class.forName(msgClass).newInstance().asInstanceOf[MessageDefinition]
+      val msg = ROSHelpers.createROSMsg(msgType).get
       val subscription = node.createSubscription(msg.getClass, topic, new cb)
     }
   }
@@ -116,7 +131,7 @@ class RCLBase(system: ActorSystem) {
     subscriberNode.source
   }
 
-  class PublisherNode(msgClass: String, topic: String) extends BaseComposableNode("SPPublisher") {
+  class PublisherNode(msgType: String, topic: String) extends BaseComposableNode("SPPublisher") {
     def pub[T <: MessageDefinition: ClassTag](msg: T, topic: String): Sink[SPAttributes, _] = {
       val publisher: Publisher[T] = node.createPublisher[T](msg.getClass.asInstanceOf[Class[T]], topic)
       val sink = Sink.foreach[SPAttributes](attr => {
@@ -126,8 +141,8 @@ class RCLBase(system: ActorSystem) {
       sink
     }
 
-    val msga = Class.forName(msgClass).newInstance()
-    val sink = pub(msga.asInstanceOf[MessageDefinition], topic)
+    val msg = ROSHelpers.createROSMsg(msgType).get
+    val sink = pub(msg, topic)
   }
 
   def publisher(msgClass: String, topic: String) = {

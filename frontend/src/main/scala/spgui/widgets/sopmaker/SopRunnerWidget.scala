@@ -43,16 +43,18 @@ object SopRunnerWidget {
           val ops = l.collect {
             case o: Operation => o
           }
-          state.copy(
-            sopSpecs = sopSpecs.toList,
-            modelOps = ops.toList
-          )
+          if(state.currentSop.isEmpty)
+            state.copy(sopSpecs = sopSpecs.toList, modelOps = ops.toList,
+              currentSop = sopSpecs.headOption.flatMap(spec => spec.sop.headOption))
+          else
+            state.copy(sopSpecs = sopSpecs.toList, modelOps = ops.toList)
+
         }.getOrElse(state)
       })
     }
 
     def setSopSpec(spec: SOPSpec) = $.modState(_.copy(
-      currentSop = Some(spec.sop.head)
+      currentSop = spec.sop.headOption
     ))
 
     def render(props: Props, state: State) = {
