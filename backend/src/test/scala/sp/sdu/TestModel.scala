@@ -18,7 +18,7 @@ import sp.virtualdevice.APISPVD._
 
 
 
-class URDemoTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLike with Matchers with BeforeAndAfterAll {
+class ModelTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLike with Matchers with BeforeAndAfterAll {
 
   def this() = this(ActorSystem("SP", ConfigFactory.parseString(
     """
@@ -54,7 +54,7 @@ class URDemoTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLik
   // start runner pipeline....
 
   val initStateWithResources = init ++
-    resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
+  resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
 
   val id = ID.newID
 

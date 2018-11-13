@@ -54,7 +54,7 @@ class UR(override val system: ActorSystem) extends ROSResource {
   )
 
   val staticProps = Source.repeat(initialProps)
-  val liveProps = fromSPMessageViaMediator("urProps").extrapolate(Iterator.continually(_), Some(initialProps))
+  val liveProps = fromSPMessageViaMediator("urProps").conflate((o,n)=>n).extrapolate(Iterator.continually(_), Some(Map()))
   val props = staticProps.zipWith(liveProps)(_++_)
 
   // flow to set the correct "move_type" -> SPValue("joint_pose_linear_joint"),
@@ -445,6 +445,6 @@ class Demo(override val system: ActorSystem) extends MiniModel {
     Sequence(List(SOP(humanTakeYellow), SOP(humanReturnYellow))),Sequence(List(SOP(humanTakeGreen), SOP(humanReturnGreen)))))))
 
   // synthesis
-//  synthesize()
+  synthesize()
 
 }

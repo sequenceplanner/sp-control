@@ -28,7 +28,7 @@ object URDemoWidget {
     val ros2comm = new APIComm[api.Request, api.Response](api.topicRequest, api.topicResponse, "URDemoWidget", api.service, None, None)
 
     def publish(s: State) = {
-      val str = "hasBlue="+s.hasBlue.toString+":hasRed="+s.hasRed.toString+":hasYellow="+s.hasYellow.toString
+      val str = "hasBlue="+s.hasBlue.toString+":hasRed="+s.hasRed.toString+":hasYellow="+s.hasYellow.toString+":hasGreen="+s.hasGreen.toString
       val msg = SPAttributes("data" -> str)
       ros2comm.request(api.Publish("std_msgs/String", "/unification_roscontrol/demo_human", msg)).doit.foreach {
         case x => println(x)
