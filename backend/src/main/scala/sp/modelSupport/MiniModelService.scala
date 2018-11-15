@@ -27,7 +27,7 @@ class MiniModelService extends Actor with MessageBussSupport {
     "URTest" -> new sp.unification.urdemo.Demo(context.system),
     "SDU" -> new sp.sdu.Model(context.system),
     "Unification ROS2" -> new sp.unification.ros2.UnificationModel(context.system),
-//    "NewExtendedDummy" -> sp.unification.NewExtended()
+    "NewExtendedDummy" -> new sp.unification.NewExtended(context.system)
   )
 
 
@@ -66,7 +66,7 @@ class MiniModelService extends Actor with MessageBussSupport {
       )
     }
 
-    val resources = model.makeResources(context.system)
+    val resources = model.makeResources()
     val initState = model.getInitialState ++ resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
 
     // start model

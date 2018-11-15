@@ -473,7 +473,7 @@ trait Resource extends CondStuff with ThingStuff with ActorStuff {
   val id = ID.newID
   var abilities: List[Operation] = List.empty
 
-  def makeResource(system: ActorSystem): SPResource
+  def makeResource(): SPResource
 
   def a(name: String, params: List[ID] = List())(conds: cond*): ID = {
     val conditions = conds.toList.map(c=>parse(c)(things))
@@ -628,8 +628,8 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     operations ++ things ++ sops ++ specs ++ resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
   }
 
-  def makeResources(system: ActorSystem): List[SPResource] = {
-    resources.map { case (name, r) => r.makeResource(system) }.toList
+  def makeResources(): List[SPResource] = {
+    resources.map { case (name, r) => r.makeResource() }.toList
   }
 
   def getInitialState(): State = {

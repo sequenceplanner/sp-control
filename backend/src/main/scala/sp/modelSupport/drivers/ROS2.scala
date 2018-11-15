@@ -27,7 +27,7 @@ trait ROSResource extends Resource {
   def publish(topic: String, messageType: String, tickInterval: Option[FiniteDuration] = None, via: Flow[State, DriverState, _]) =
     pubs = Pub(topic, messageType, tickInterval, via) :: pubs
 
-  def makeResource(system: ActorSystem): SPResource = {
+  def makeResource(): SPResource = {
     implicit val materializer = ActorMaterializer()(system)
     val ros = new RCLBase(system)
 

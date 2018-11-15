@@ -59,7 +59,7 @@ class URDemoTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLik
   val operations = model.operations
   val idables = model.getIDAbles()
   val init = model.getInitialState()
-  val resources = model.makeResources(system)
+  val resources = model.makeResources()
 
   operations.foreach { o=>println(o.id + " - " + o.name) }
   idables.find(_.name == "human.takeBlue").foreach(x=>println(x.asInstanceOf[Operation].conditions))

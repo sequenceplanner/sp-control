@@ -29,7 +29,7 @@ trait OPCUAResource extends Resource {
   def publish(identifiers: List[String], tickInterval: Option[FiniteDuration] = None, via: Flow[State, DriverState, _]) =
     pubs = Pub(identifiers, tickInterval, via) :: pubs
 
-  def makeResource(system: ActorSystem): SPResource = {
+  def makeResource(): SPResource = {
     implicit val materializer = ActorMaterializer()(system)
 
     val client = new MiloOPCUAClient()
