@@ -475,9 +475,10 @@ trait Resource extends CondStuff with ThingStuff with ActorStuff {
 
   def makeResource(system: ActorSystem): SPResource
 
-  def a(name: String)(conds: cond*): ID = {
+  def a(name: String, params: List[ID] = List())(conds: cond*): ID = {
     val conditions = conds.toList.map(c=>parse(c)(things))
-    val ab = Operation(name, conditions)
+    val attributes = SPAttributes("isa" -> "ability", "parameters" -> params)
+    val ab = Operation(name, conditions, attributes = attributes)
     abilities = ab :: abilities
     ab.id
   }

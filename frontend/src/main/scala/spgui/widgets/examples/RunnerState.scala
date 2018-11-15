@@ -19,7 +19,9 @@ case class Props(proxy: ModelProxy[FrontendState]) {
 object RunnerStateWidgetState {
   import spgui.widgets.examples.{RunnerStateCSS => css}
 
-  case class State(state: Map[ID, SPValue], force: Map[ID, SPValue], activeForce: Set[ID], forceEvents: Map[ID, SPValue], idableFilter: String = "")
+  val typeFilters = List("type", "operation", "internal", "input", "output")
+
+  case class State(state: Map[ID, SPValue], force: Map[ID, SPValue], activeForce: Set[ID], forceEvents: Map[ID, SPValue], idableFilter: String = "", typeFilter: String = typeFilters.head)
 
   private class Backend($: BackendScope[Props, State]) {
 
@@ -106,7 +108,9 @@ object RunnerStateWidgetState {
           p.activeModel.map { m =>
             s.state.flatMap { case (id, v) =>
               m.items.get(id).map(item => item -> v)
-            }.toList.filter(_._1.name.contains(s.idableFilter)).sortBy(_._1.name).map { case (item, v) =>
+            }.toList.filter(_._1.name.contains(s.idableFilter)).sortBy(_._1.name)
+              .filter(p => s.typeFilter == typeFilters.head || s.typeFilter == itemType(p._1))
+              .map { case (item, v) =>
                 val internalValue = 0
                 val domain = item.attributes.getAs[List[SPValue]]("domain").getOrElse(List())
                 val dd = domain.map(d => <.div(d.toString, ^.onClick --> setForce(item.id, d)))
@@ -156,7 +160,13 @@ object RunnerStateWidgetState {
       $.modState(_.copy(idableFilter = newValue))
     }
 
+    def setTypeFilter(t: String) = {
+      $.modState(_.copy(typeFilter = t))
+    }
+
     def render(p: Props, s: State) = {
+      val typeLinks = typeFilters.map(t => <.div(t, ^.onClick --> setTypeFilter(t)))
+
       <.div(
         <.button(
           ^.className := "btn btn-small",
@@ -172,6 +182,7 @@ object RunnerStateWidgetState {
           ^.value := s.idableFilter,
           ^.onChange ==> onFilterChange
         ),
+        SPWidgetElements.dropdown(s.typeFilter, typeLinks),
         renderState(p, s)
       )
     }

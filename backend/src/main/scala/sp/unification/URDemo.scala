@@ -454,7 +454,7 @@ class Demo(override val system: ActorSystem) extends MiniModel {
   // synthesis
   // reachable states: 6957024
   // time to compute: 111.195122077 seconds
-  synthesize()
+  // synthesize()
 
   // with addBookings instead of booking variables:
   // reachable states: 3895264
