@@ -13,6 +13,8 @@ import sp.domain._
 
 import sp.modelSupport._
 import sp.modelSupport.opcua._
+import sp.modelSupport.ros2._
+
 
 object UR {
   val initialState = "Unknown"
@@ -29,39 +31,138 @@ object UR {
 class UR(override val system: ActorSystem) extends OPCUAResource {
   val url = "opc.tcp://localhost:12686"
 
-  val booked = v("booked", false) // resource booking
+  // inputs
+  val spindle_end = i("UR10_PNP_SpindleGear_end", false)
+  val gearwheel_end = i("UR10_PNP_GearWheel_end", false)
+  val metalbush_end = i("UR10_PNP_MetalBush_end", false)
+  val pnp_end = i("UR10_PNP_Op_end", false)
 
-  val subIdents = List("B941WeldSeg1_end")
-  val B941WeldSeg1_end = i("B941WeldSeg1_end", false)
-  val subMapping = stringToIDMapper(Map("B941WeldSeg1_end" -> B941WeldSeg1_end))
+  // outputs
+  val spindle_start = o("UR10_PNP_SpindleGear_start", false)
+  val gearwheel_start = o("UR10_PNP_GearWheel_start", false)
+  val metalbush_start = o("UR10_PNP_MetalBush_start", false)
+  val pnp_start = o("UR10_PNP_Op_start", false)
+
+  val inputs = List(spindle_end, gearwheel_end, metalbush_end, pnp_end)
+  val outputs = List(spindle_start, gearwheel_start, metalbush_start, pnp_start)
+
+  val subIdents = inputs.flatMap(i => things.find(_.id == i).map(_.name))
+  val subMap = inputs.flatMap(i => things.find(_.id == i).map(_.name -> i)).toMap
+  val subMapping = stringToIDMapper(subMap)
 
   subscribe(subIdents, 100, subMapping)
 
-
-  val pubIdents = List("B941WeldSeg1_start")
-  val B941WeldSeg1_start = o("B941WeldSeg1_start", false)
-  val pubMapping = IDToStringMapper(Map(B941WeldSeg1_start -> "B941WeldSeg1_start"))
+  val pubIdents = outputs.flatMap(i => things.find(_.id == i).map(_.name))
+  val pubMap = outputs.flatMap(i => things.find(_.id == i).map(i -> _.name)).toMap
+  val pubMapping = IDToStringMapper(pubMap)
 
   publish(pubIdents, Some(1000.millis), pubMapping)
 
-  a("weldSeg1")(
-    c("pre", "!booked && !B941WeldSeg1_start && !B941WeldSeg1_end", "booked := true", "B941WeldSeg1_start := true"),
-    c("started", "B941WeldSeg1_start && B941WeldSeg1_end == false"),
-    c("post", "B941WeldSeg1_end", "booked := false", "B941WeldSeg1_start := false"),
+  a("spindle")(
+    c("pre", "!UR10_PNP_SpindleGear_start && !UR10_PNP_SpindleGear_end", "UR10_PNP_SpindleGear_start := true"),
+    c("started", "UR10_PNP_SpindleGear_start && !UR10_PNP_SpindleGear_end"),
+    c("post", "UR10_PNP_SpindleGear_end == true", "UR10_PNP_SpindleGear_start := false"),
     c("reset", "true"))
+
+  a("gearwheel")(
+    c("pre", "!UR10_PNP_GearWheel_start && !UR10_PNP_GearWheel_end", "UR10_PNP_GearWheel_start := true"),
+    c("started", "UR10_PNP_GearWheel_start && !UR10_PNP_GearWheel_end"),
+    c("post", "UR10_PNP_GearWheel_end == true", "UR10_PNP_GearWheel_start := false"),
+    c("reset", "true"))
+
+  a("metalbush")(
+    c("pre", "!UR10_PNP_MetalBush_start && !UR10_PNP_MetalBush_end", "UR10_PNP_MetalBush_start := true"),
+    c("started", "UR10_PNP_MetalBush_start && !UR10_PNP_MetalBush_end"),
+    c("post", "UR10_PNP_MetalBush_end == true", "UR10_PNP_MetalBush_start := false"),
+    c("reset", "true"))
+
+  a("pnp")(
+    c("pre", "!UR10_PNP_Op_start && !UR10_PNP_Op_end", "UR10_PNP_Op_start := true"),
+    c("started", "UR10_PNP_Op_start && !UR10_PNP_Op_end"),
+    c("post", "UR10_PNP_Op_end == true", "UR10_PNP_Op_start := false"),
+    c("reset", "true"))
+}
+
+class Human(override val system: ActorSystem) extends ROSResource {
+  val hasBlue = i("hasBlue", false)
+  val hasRed = i("hasRed", false)
+  val hasYellow = i("hasYellow", false)
+  val hasGreen = i("hasGreen", false)
+
+  val nameMap = Map("hasBlue" -> hasBlue, "hasRed" -> hasRed, "hasYellow" -> hasYellow, "hasGreen" -> hasGreen)
+
+  val subMapping = Flow[Map[String, SPValue]].mapConcat{ msg =>
+    msg.flatMap {
+      case ("data", spv) =>
+        spv.to[String].toOption.map { str =>
+          val a = str.split(":").flatMap{ color =>
+            val x = color.split("=")
+            for {
+              name <- x.lift(0)
+              v <- x.lift(1)
+              id <- nameMap.get(name)
+            } yield {
+              id -> SPValue(v.equals("true"))
+            }
+          }
+          a.toMap
+        }
+
+      case _ => None
+    }
+  }
+  subscribe("/unification_roscontrol/demo_human", "std_msgs/String", subMapping)
 }
 
 class Model(override val system: ActorSystem) extends MiniModel {
   use("ur", new UR(system))
-  v("done", true)
+  use("human", new Human(system))
 
-  val weldSeg1 = o("ur.weldSeg1", "ur.weldSeg1")(
-    c("pre", "true"),
+  v("activeProduct1", "none", List("none", "plain", "spindled", "gearwheeled", "metalbushed"))
+  v("activeProduct2", "none", List("none", "metalbushed"))
+
+  val addproduct = o("addProduct")(
+    c("pre", "activeProduct1 == 'none'", "activeProduct1 := 'plain'"),
     c("post", "true"),
     c("reset", "true")
   )
 
+  val spindle = o("spindle", "ur.spindle")(
+    c("pre", "activeProduct1 == 'plain'"),
+    c("post", "true", "activeProduct1 := 'spindled'"),
+    c("reset", "true")
+  )
+
+  val gearwheel = o("gearwheel", "ur.gearwheel")(
+    c("pre", "activeProduct1 == 'spindled'"),
+    c("post", "true", "activeProduct1 := 'gearwheeled'"),
+    c("reset", "true")
+  )
+
+  val metalbush = o("metalbush", "ur.metalbush")(
+    c("pre", "activeProduct1 == 'gearwheeled'"),
+    c("post", "true", "activeProduct1 := 'metalbushed'"),
+    c("reset", "true")
+  )
+
+  val partToHuman = o("partToHuman")(
+    c("pre", "activeProduct1 == 'metalbushed'"),
+    c("post", "human.hasBlue == true", "activeProduct1 := 'none'", "activeProduct2 := 'metalbushed'"),
+    c("reset", "true")
+  )
+
+  val humanCompletePart = o("humanCompletePart")(
+    c("pre", "activeProduct2 == 'metalbushed'"),
+    c("post", "human.hasRed == true", "activeProduct2 := 'none'"),
+    c("reset", "true")
+  )
+
+  val urSequence = Sequence(List(SOP(addproduct), SOP(spindle), SOP(gearwheel), SOP(metalbush)))
+  val humanSequence = Sequence(List(SOP(partToHuman), SOP(humanCompletePart)))
+
+  sop("Sequence", List(Parallel(List(urSequence, humanSequence))))
+
   // synthesis
-  synthesize()
+//  synthesize()
 
 }

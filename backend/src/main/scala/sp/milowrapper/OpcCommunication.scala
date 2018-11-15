@@ -177,7 +177,7 @@ class MiloOPCUAClient {
       def accept(item:UaMonitoredItem, dataValue: DataValue): Unit = {
         val nodeid = item.getReadValueId.getNodeId.getIdentifier().toString
         val spval = fromDataValue(dataValue)
-        // println("OPCUA - " + nodeid + " got " + spval)
+        println("OPCUA - " + nodeid + " got " + spval)
         activeState += (nodeid -> spval)
         reciever ! StateUpdate(activeState)
       }
@@ -207,7 +207,7 @@ class MiloOPCUAClient {
   def toDataValue(spVal: SPValue, targetType: NodeId): Try[DataValue] = {
     Try {
       val c = BuiltinDataType.getBackingClass(targetType)
-      println("milo backing type: " + c.toString)
+      // println("milo backing type: " + c.toString)
       c match {
         case q if q == classOf[java.lang.Integer] => new DataValue(new Variant(spVal.to[Int]))
         case q if q == classOf[UByte] => new DataValue(new Variant(ubyte(spVal.as[Byte])))
@@ -229,19 +229,19 @@ class MiloOPCUAClient {
   }
 
   def write(nodeIdentifier: String, spVal: SPValue): Boolean = {
-    println("OPCUA trying to write: " + spVal + " to " + nodeIdentifier)
+    // println("OPCUA trying to write: " + spVal + " to " + nodeIdentifier)
     availableNodes.get(nodeIdentifier) match {
       case Some(n) =>
         val typeid = n.getDataType().get()
         val dv = toDataValue(spVal, typeid)
-        println("trying to write: " + dv)
+        // println("trying to write: " + dv)
         dv.map { d =>
           if (client.writeValue(n.getNodeId().get(), d).get().isGood()) {
-            println("OPCUA - value written")
+            // println("OPCUA - value written")
             true
           }
           else {
-            println(s"OPCUA - Failed to write to node ${nodeIdentifier} - probably wrong datatype, should be: " + typeid)
+            // println(s"OPCUA - Failed to write to node ${nodeIdentifier} - probably wrong datatype, should be: " + typeid)
             false
           }
         }.getOrElse(false)

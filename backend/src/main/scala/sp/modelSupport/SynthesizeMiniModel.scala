@@ -291,7 +291,7 @@ case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], ops
     spSpec.foreach { s =>
       s.attributes.getAs[List[Proposition]]("forbiddenExpressions").foreach{ fes =>
         val xpr = fes.map(propToSupremicaSyntax).mkString("(", ")|(", ")").replaceAll("\\.", "_")
-        println("adding forbidden expression: " + xpr)
+        println("adding forbidden expression: " + xpr + " (" + fes.toString + ")")
         addForbiddenExpression(forbiddenExpression = xpr, addSelfLoop = false, addInComment = true)
       }
     }

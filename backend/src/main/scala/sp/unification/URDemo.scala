@@ -27,12 +27,9 @@ object UR {
 
 
 class UR(override val system: ActorSystem) extends ROSResource {
-  val booked = v("booked", false) // resource booking
-
   val moveTypes = Map("home" -> "joint_pose_linear_joint", "HomeUp" -> "tcp_pose_linear_joint").map { case (k,v) => SPValue(k) -> SPValue(v) }
 
-  val actPosCanChange = EQ(booked, ValueHolder(SPValue(true)))
-  val actPos = i("actPos", UR.initialState, UR.poses.map(SPValue(_)), actPosCanChange)
+  val actPos = i("actPos", UR.initialState, UR.poses.map(SPValue(_)))
 
   val subMapping = stringToIDMapper(Map("act_pos" -> actPos))
 
@@ -68,21 +65,18 @@ class UR(override val system: ActorSystem) extends ROSResource {
   publish("/unification_roscontrol/ur_moveit_sp_to_unidriver", "unification_ros2_messages/MoveItSPToUni", Some(1000.millis), pubFlow)
 
   a("moveToPos")(
-    c("pre", "!booked", "booked := true"),
+    c("pre", "true"),
     c("started", "actPos != refPos"),
-    c("post", "actPos == refPos", "booked := false"),
+    c("post", "actPos == refPos"),
     c("reset", "true"))
 }
 
 
 class Gripper(override val system: ActorSystem) extends ROSResource {
-  val booked = v("booked", false)
-
   val initialState = "unknown"
   val domain = List("unknown", "open", "closed").map(SPValue(_))
 
-  val actPosCanChange = EQ(booked, ValueHolder(SPValue(true)))
-  val actPos = i("actPos", initialState, domain, actPosCanChange)
+  val actPos = i("actPos", initialState, domain)
 
   val subMapping = stringToIDMapper(Map("act_pos" -> actPos))
 
@@ -112,15 +106,15 @@ class Gripper(override val system: ActorSystem) extends ROSResource {
   publish("/unification_roscontrol/robotiq_sp_to_uni", "unification_ros2_messages/RobotiqSPToUni", Some(1000.millis), pubFlow)
 
   a("open")(
-    c("pre", "!booked", "refPos := 'open'", "booked := true"),
+    c("pre", "true", "refPos := 'open'"),
     c("started", "true"),
-    c("post", "actPos == 'open'", "booked := false"),
+    c("post", "actPos == 'open'"),
     c("reset", "true"))
 
   a("close")(
-    c("pre", "!booked", "refPos := 'closed'", "booked := true"),
+    c("pre", "true", "refPos := 'closed'"),
     c("started", "true"),
-    c("post", "actPos == 'closed'", "booked := false"),
+    c("post", "actPos == 'closed'"),
     c("reset", "true"))
 }
 
@@ -168,8 +162,8 @@ class Demo(override val system: ActorSystem) extends MiniModel {
   v("yellow", "atTable1", List("atTable1", "byHuman", "byRobot", "atTable2"))
   v("green", "atTable1", List("atTable1", "byHuman", "byRobot", "atTable2"))
 
-  val urGotoAboveStation = o("ur.gotoAboveStation", "ur.moveToPos")(
-    c("pre", "done || !gripper.booked && (" +
+  val urGotoAboveStation = o("ur.gotoAboveStation", "ur.moveToPos", "ur")(
+    c("pre", "done || (" +
       "(blue == 'byHuman' && (ur.actPos  == 'above_blue' || ur.actPos == 'at_blue' || ur.actPos == 'above_place_blue' || ur.actPos == 'place_blue')) || "+
       "(red == 'byHuman' && (ur.actPos  == 'above_red' || ur.actPos == 'at_red' || ur.actPos == 'above_place_red' || ur.actPos == 'place_red')) || "+
       "(yellow == 'byHuman' && (ur.actPos  == 'above_yellow' || ur.actPos == 'at_yellow' || ur.actPos == 'above_place_yellow' || ur.actPos == 'place_yellow')) || " +
@@ -178,6 +172,11 @@ class Demo(override val system: ActorSystem) extends MiniModel {
     c("post", "true", "done := false"),
     c("reset", "true")
   )
+
+  val robotDoesNotHaveTheOthersBlue = "red != 'byRobot' && yellow != 'byRobot' && green != 'byRobot'"
+  val robotDoesNotHaveTheOthersRed = "blue != 'byRobot' && yellow != 'byRobot' && green != 'byRobot'"
+  val robotDoesNotHaveTheOthersYellow = "red != 'byRobot' && blue != 'byRobot' && green != 'byRobot'"
+  val robotDoesNotHaveTheOthersGreen= "red != 'byRobot' && yellow != 'byRobot' && blue != 'byRobot'"
 
   val humanTakeBlue = o("human.takeBlue")(
     c("pre", "blue != 'byHuman'"),
@@ -191,43 +190,43 @@ class Demo(override val system: ActorSystem) extends MiniModel {
     c("reset", "true")
   )
 
-  val urGotoAboveBlue = o("ur.gotoAboveBlue", "ur.moveToPos")(
-    c("pre", "!done && ur.actPos == 'above_station' && blue == 'atTable1'", "ur.refPos := 'above_blue'"),
+  val urGotoAboveBlue = o("ur.gotoAboveBlue", "ur.moveToPos", "ur")(
+    c("pre", s"!done && ur.actPos == 'above_station' && blue == 'atTable1' && $robotDoesNotHaveTheOthersBlue", "ur.refPos := 'above_blue'"),
     c("post", "true", "ur.actPos := ur.refPos"),
     c("reset", "true")
   )
 
-  val urOpenGripperAboveBlue = o("ur.openGripperAboveBlue", "gripper.open")(
-    c("pre", "blue == 'atTable1' && ur.actPos == 'above_blue' && gripper.actPos != 'open'"),
+  val urOpenGripperAboveBlue = o("ur.openGripperAboveBlue", "gripper.open", "ur")(
+    c("pre", s"blue == 'atTable1' && ur.actPos == 'above_blue' && gripper.actPos != 'open' && $robotDoesNotHaveTheOthersBlue"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoAtBlue = o("ur.gotoAtBlue", "ur.moveToPos")(
-    c("pre", "blue == 'atTable1' && ur.actPos == 'above_blue' && gripper.actPos == 'open'", "ur.refPos := 'at_blue'"),
+  val urGotoAtBlue = o("ur.gotoAtBlue", "ur.moveToPos", "ur")(
+    c("pre", s"blue == 'atTable1' && ur.actPos == 'above_blue' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersBlue", "ur.refPos := 'at_blue'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urTakeBlue = o("ur.takeBlue", "gripper.close")(
-    c("pre", "blue == 'atTable1' && ur.actPos == 'at_blue' && gripper.actPos == 'open'"),
+  val urTakeBlue = o("ur.takeBlue", "gripper.close", "ur")(
+    c("pre", s"blue == 'atTable1' && ur.actPos == 'at_blue' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersBlue"),
     c("post", "true", "blue := 'byRobot'"),
     c("reset", "true")
   )
 
-  val urGotoAboveWithBlue = o("ur.gotoAboveWithBlue", "ur.moveToPos")(
-    c("pre", "blue == 'byRobot' && ur.actPos == 'at_blue'", "ur.refPos := 'above_station'"),
+  val urGotoAboveWithBlue = o("ur.gotoAboveWithBlue", "ur.moveToPos", "ur")(
+    c("pre", s"blue == 'byRobot' && ur.actPos == 'at_blue'", "ur.refPos := 'above_station'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoPlaceBlue = o("ur.gotoPlaceBlue", "ur.moveToPos")(
+  val urGotoPlaceBlue = o("ur.gotoPlaceBlue", "ur.moveToPos", "ur")(
     c("pre", "blue == 'byRobot' && ur.actPos == 'above_station'", "ur.refPos := 'place_blue'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val releaseBlue = o("ur.releaseBlue", "gripper.open")(
+  val releaseBlue = o("ur.releaseBlue", "gripper.open", "ur")(
     c("pre", "blue == 'byRobot' && ur.actPos == 'place_blue'"),
     c("post", "true", "blue := 'atTable2'", "done := true"),
     c("reset", "true")
@@ -255,43 +254,43 @@ class Demo(override val system: ActorSystem) extends MiniModel {
     c("reset", "true")
   )
 
-  val urGotoAboveRed = o("ur.gotoAboveRed", "ur.moveToPos")(
-    c("pre", "!done && ur.actPos == 'above_station' && red == 'atTable1'", "ur.refPos := 'above_red'"),
+  val urGotoAboveRed = o("ur.gotoAboveRed", "ur.moveToPos", "ur")(
+    c("pre", s"!done && ur.actPos == 'above_station' && red == 'atTable1' && $robotDoesNotHaveTheOthersRed", "ur.refPos := 'above_red'"),
     c("post", "true", "ur.actPos := ur.refPos"),
     c("reset", "true")
   )
 
-  val urOpenGripperAboveRed = o("ur.openGripperAboveRed", "gripper.open")(
-    c("pre", "red == 'atTable1' && ur.actPos == 'above_red' && gripper.actPos != 'open'"),
+  val urOpenGripperAboveRed = o("ur.openGripperAboveRed", "gripper.open", "ur")(
+    c("pre", s"red == 'atTable1' && ur.actPos == 'above_red' && gripper.actPos != 'open' && $robotDoesNotHaveTheOthersRed"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoAtRed = o("ur.gotoAtRed", "ur.moveToPos")(
-    c("pre", "red == 'atTable1' && ur.actPos == 'above_red' && gripper.actPos == 'open'", "ur.refPos := 'at_red'"),
+  val urGotoAtRed = o("ur.gotoAtRed", "ur.moveToPos", "ur")(
+    c("pre", s"red == 'atTable1' && ur.actPos == 'above_red' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersRed", "ur.refPos := 'at_red'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urTakeRed = o("ur.takeRed", "gripper.close")(
-    c("pre", "red == 'atTable1' && ur.actPos == 'at_red' && gripper.actPos == 'open'"),
+  val urTakeRed = o("ur.takeRed", "gripper.close", "ur")(
+    c("pre", s"red == 'atTable1' && ur.actPos == 'at_red' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersRed"),
     c("post", "true", "red := 'byRobot'"),
     c("reset", "true")
   )
 
-  val urGotoAboveWithRed = o("ur.gotoAboveWithRed", "ur.moveToPos")(
+  val urGotoAboveWithRed = o("ur.gotoAboveWithRed", "ur.moveToPos", "ur")(
     c("pre", "red == 'byRobot' && ur.actPos == 'at_red'", "ur.refPos := 'above_station'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoPlaceRed = o("ur.gotoPlaceRed", "ur.moveToPos")(
+  val urGotoPlaceRed = o("ur.gotoPlaceRed", "ur.moveToPos", "ur")(
     c("pre", "red == 'byRobot' && ur.actPos == 'above_station'", "ur.refPos := 'place_red'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val releaseRed = o("ur.releaseRed", "gripper.open")(
+  val releaseRed = o("ur.releaseRed", "gripper.open", "ur")(
     c("pre", "red == 'byRobot' && ur.actPos == 'place_red'"),
     c("post", "true", "red := 'atTable2'", "done := true"),
     c("reset", "true")
@@ -320,43 +319,43 @@ class Demo(override val system: ActorSystem) extends MiniModel {
     c("reset", "true")
   )
 
-  val urGotoAboveYellow = o("ur.gotoAboveYellow", "ur.moveToPos")(
+  val urGotoAboveYellow = o("ur.gotoAboveYellow", "ur.moveToPos", "ur")(
     c("pre", "!done && ur.actPos == 'above_station' && yellow == 'atTable1'", "ur.refPos := 'above_yellow'"),
     c("post", "true", "ur.actPos := ur.refPos"),
     c("reset", "true")
   )
 
-  val urOpenGripperAboveYellow = o("ur.openGripperAboveYellow", "gripper.open")(
+  val urOpenGripperAboveYellow = o("ur.openGripperAboveYellow", "gripper.open", "ur")(
     c("pre", "yellow == 'atTable1' && ur.actPos == 'above_yellow' && gripper.actPos != 'open'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoAtYellow = o("ur.gotoAtYellow", "ur.moveToPos")(
+  val urGotoAtYellow = o("ur.gotoAtYellow", "ur.moveToPos", "ur")(
     c("pre", "yellow == 'atTable1' && ur.actPos == 'above_yellow' && gripper.actPos == 'open'", "ur.refPos := 'at_yellow'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urTakeYellow = o("ur.takeYellow", "gripper.close")(
+  val urTakeYellow = o("ur.takeYellow", "gripper.close", "ur")(
     c("pre", "yellow == 'atTable1' && ur.actPos == 'at_yellow' && gripper.actPos == 'open'"),
     c("post", "true", "yellow := 'byRobot'"),
     c("reset", "true")
   )
 
-  val urGotoAboveWithYellow = o("ur.gotoAboveWithYellow", "ur.moveToPos")(
+  val urGotoAboveWithYellow = o("ur.gotoAboveWithYellow", "ur.moveToPos", "ur")(
     c("pre", "yellow == 'byRobot' && ur.actPos == 'at_yellow'", "ur.refPos := 'above_station'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoPlaceYellow = o("ur.gotoPlaceYellow", "ur.moveToPos")(
+  val urGotoPlaceYellow = o("ur.gotoPlaceYellow", "ur.moveToPos", "ur")(
     c("pre", "yellow == 'byRobot' && ur.actPos == 'above_station'", "ur.refPos := 'place_yellow'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val releaseYellow = o("ur.releaseYellow", "gripper.open")(
+  val releaseYellow = o("ur.releaseYellow", "gripper.open", "ur")(
     c("pre", "yellow == 'byRobot' && ur.actPos == 'place_yellow'"),
     c("post", "true", "yellow := 'atTable2'", "done := true"),
     c("reset", "true")
@@ -385,43 +384,43 @@ class Demo(override val system: ActorSystem) extends MiniModel {
     c("reset", "true")
   )
 
-  val urGotoAboveGreen = o("ur.gotoAboveGreen", "ur.moveToPos")(
+  val urGotoAboveGreen = o("ur.gotoAboveGreen", "ur.moveToPos", "ur")(
     c("pre", "!done && ur.actPos == 'above_station' && green == 'atTable1'", "ur.refPos := 'above_green'"),
     c("post", "true", "ur.actPos := ur.refPos"),
     c("reset", "true")
   )
 
-  val urOpenGripperAboveGreen = o("ur.openGripperAboveGreen", "gripper.open")(
+  val urOpenGripperAboveGreen = o("ur.openGripperAboveGreen", "gripper.open", "ur")(
     c("pre", "green == 'atTable1' && ur.actPos == 'above_green' && gripper.actPos != 'open'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoAtGreen = o("ur.gotoAtGreen", "ur.moveToPos")(
+  val urGotoAtGreen = o("ur.gotoAtGreen", "ur.moveToPos", "ur")(
     c("pre", "green == 'atTable1' && ur.actPos == 'above_green' && gripper.actPos == 'open'", "ur.refPos := 'at_green'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urTakeGreen = o("ur.takeGreen", "gripper.close")(
+  val urTakeGreen = o("ur.takeGreen", "gripper.close", "ur")(
     c("pre", "green == 'atTable1' && ur.actPos == 'at_green' && gripper.actPos == 'open'"),
     c("post", "true", "green := 'byRobot'"),
     c("reset", "true")
   )
 
-  val urGotoAboveWithGreen = o("ur.gotoAboveWithGreen", "ur.moveToPos")(
+  val urGotoAboveWithGreen = o("ur.gotoAboveWithGreen", "ur.moveToPos", "ur")(
     c("pre", "green == 'byRobot' && ur.actPos == 'at_green'", "ur.refPos := 'above_station'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val urGotoPlaceGreen = o("ur.gotoPlaceGreen", "ur.moveToPos")(
+  val urGotoPlaceGreen = o("ur.gotoPlaceGreen", "ur.moveToPos", "ur")(
     c("pre", "green == 'byRobot' && ur.actPos == 'above_station'", "ur.refPos := 'place_green'"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val releaseGreen = o("ur.releaseGreen", "gripper.open")(
+  val releaseGreen = o("ur.releaseGreen", "gripper.open", "ur")(
     c("pre", "green == 'byRobot' && ur.actPos == 'place_green'"),
     c("post", "true", "green := 'atTable2'", "done := true"),
     c("reset", "true")
@@ -437,14 +436,28 @@ class Demo(override val system: ActorSystem) extends MiniModel {
     SOP(releaseGreen),
   ))))
 
-//  x("gripper and ur are the same resource", List("gripper.booked && ur.booked"))
-
-
   sop("UR", List(Sequence(List(SOP(urGotoAboveStation), Parallel(List(blue,red,yellow,green))))))
   sop("Human", List(Parallel(List(Sequence(List(SOP(humanTakeBlue), SOP(humanReturnBlue))), Sequence(List(SOP(humanTakeRed), SOP(humanReturnRed))),
     Sequence(List(SOP(humanTakeYellow), SOP(humanReturnYellow))),Sequence(List(SOP(humanTakeGreen), SOP(humanReturnGreen)))))))
 
+  // resource bookings
+  addBookings()
+
+  x("robot cannot pick more than one brick", List("green == 'byRobot' && yellow == 'byRobot'",
+    "blue == 'byRobot' && red == 'byRobot'",
+    "green == 'byRobot' && red == 'byRobot'")
+  )
+
+
+
+
   // synthesis
+  // reachable states: 6957024
+  // time to compute: 111.195122077 seconds
   synthesize()
+
+  // with addBookings instead of booking variables:
+  // reachable states: 3895264
+  // time to compute: 27.892120614 seconds
 
 }

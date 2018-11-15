@@ -43,7 +43,7 @@ trait OPCUAResource extends Resource {
           client.subscribeToNodes(s.identifiers, ref, s.samplingInterval)
           ref
         }
-        .map(su => su.activeState)
+        .map(su => {println("GOT OPC STATE!: " + su.activeState); su.activeState})
     }.via(s.via))
 
     val sinks = pubs.map { pub =>

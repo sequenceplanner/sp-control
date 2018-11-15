@@ -25,6 +25,8 @@ class MiniModelService extends Actor with MessageBussSupport {
 
   val models = Map(
     "URTest" -> new sp.unification.urdemo.Demo(context.system),
+    "SDU" -> new sp.sdu.Model(context.system),
+
 //    "NewExtendedDummy" -> sp.unification.NewExtended()
   )
 

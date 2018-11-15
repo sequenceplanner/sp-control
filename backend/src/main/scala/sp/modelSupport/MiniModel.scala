@@ -522,8 +522,10 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   }
 
 
+  def o(name: String, ab: String, bookResource: String)(conds: cond*): ID =
+    o(name, ab, List(bookResource))(conds:_*)
 
-  def o(name: String, ab: String)(conds: cond*) = {
+  def o(name: String, ab: String, bookResources: List[String] = List())(conds: cond*) = {
     val allAbs = resources.map { case (rn, r) => r.abilities.map(a=>a.copy(name = rn + "." + a.name)) }.flatten.toList
     val ability = allAbs.find(_.name == ab).get
 
@@ -534,7 +536,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished)
 
     // merge op with its ability => merging the conditions
-    val op = Operation(name, conditions ++ ability.conditions, SPAttributes("domain" -> domain, "ability" -> ab))
+    val op = Operation(name, conditions ++ ability.conditions, SPAttributes("domain" -> domain, "ability" -> ab, "bookings" -> bookResources))
     operations = op :: operations
     op.id
   }
@@ -584,6 +586,41 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
         println("Synthesis failed: " + t.getMessage)
         t.printStackTrace
     }
+  }
+
+  def addBookings() = {
+    val bookingMap = operations.foldLeft(Map[String, Set[ID]]()){ case (aggr, o) =>
+      val bookingsForOp = o.attributes.getAs[List[String]]("bookings").getOrElse(List())
+      bookingsForOp.foldLeft(aggr){ case (aggr, resource) =>
+        aggr + aggr.get(resource).map(s => resource -> (s + o.id)).getOrElse(resource -> Set(o.id))
+      }
+    }
+
+    val starting = sp.virtualdevice.AbilityRunnerTransitions.AbilityStates.starting
+    val executing = sp.virtualdevice.AbilityRunnerTransitions.AbilityStates.executing
+
+    val newGuards = (for {
+      (resource, ops) <- bookingMap
+      o <- ops
+    } yield {
+      val others = ops - o
+      val mutexes = others.toList.map{id =>
+        val notStarting = NEQ(SVIDEval(id), ValueHolder(starting))
+        val notExecuting = NEQ(SVIDEval(id), ValueHolder(executing))
+        AND(List(notStarting, notExecuting))
+      }
+      if(mutexes.isEmpty) None
+      else {
+        val cond = Condition(AND(mutexes), List(), SPAttributes("kind" -> "pre", "group" -> "resource"))
+        Some(o -> cond)
+      }
+    }).flatten.toMap
+
+    val updO = newGuards.flatMap{ case (id,cond) =>
+      operations.find(_.id == id).map(o => o.copy(conditions = cond :: o.conditions))
+    }
+
+    operations = operations.map(o => newGuards.get(o.id).map(c => o.copy(conditions = c :: o.conditions)).getOrElse(o))
   }
 
   def getIDAbles(): List[IDAble] = {
