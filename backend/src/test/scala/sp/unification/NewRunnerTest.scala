@@ -56,7 +56,7 @@ with BeforeAndAfterAll {
   // add StateUpd to que and plug in flows and a sink to send SPState where you want
   val runnerPipelineSource =
     Source.queue[sp.runners.StateUpd](100, akka.stream.OverflowStrategy.backpressure)
-    .via(runner.runnerFlow(Some(500.millis))) // den tickar...
+    .via(runner.runnerFlow)
 
 
   // val t1 = SPState("state",Map(ID.makeID("d0cde7fc-70b6-443e-b712-27ec78fcce5a").get -> "notEnabled", ID.makeID("3521e042-acd4-4238-8192-cf1754040c79").get -> "notEnabled", ID.makeID("b7c3b0f1-0792-4ed4-9820-f59191ae5c7b").get -> "a", ID.makeID("67ea530e-5325-4ecc-9662-0b714854fa04").get -> true))

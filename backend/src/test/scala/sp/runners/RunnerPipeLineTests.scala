@@ -58,7 +58,7 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
 
       val s = Source(1 to 6).map(x =>  StateUpd(SPState("tick", Map()), List()))
-      val future = s.via(pipe.runnerFlow()).runWith(Sink.fold(List[SPState]())(_ :+ _))
+      val future = s.via(pipe.runnerFlow).runWith(Sink.fold(List[SPState]())(_ :+ _))
       val result = Await.result(future, 1.seconds)
       //result.foreach(println)
 
@@ -77,7 +77,7 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
 
       val s = Source.empty[StateUpd]
-      val future = s.via(pipe.runnerFlow()).runWith(Sink.fold(List[SPState]())(_ :+ _))
+      val future = s.via(pipe.runnerFlow).runWith(Sink.fold(List[SPState]())(_ :+ _))
       val result = Await.result(future, 1.seconds)
 
       assert(result.isEmpty)
@@ -96,7 +96,7 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
       val s = Source.empty[StateUpd]
       val res = s
-        .via(pipe.runnerFlow(Some(100 milliseconds)))
+        .via(pipe.runnerFlow)
         .runWith(TestSink.probe[SPState])
         .request(10)
         .receiveWhile(1 seconds){
@@ -122,7 +122,7 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
       val s = Source.empty[StateUpd]
       val res = s
-        .via(pipe.runnerFlow(Some(100 milliseconds)))
+        .via(pipe.runnerFlow)
         .runWith(TestSink.probe[SPState])
         .request(100)
         .receiveWhile(1 seconds){
@@ -149,7 +149,7 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
       val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
       val res = s
-        .via(pipe.runnerFlow(None))
+        .via(pipe.runnerFlow)
         .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
         .run()
 
@@ -182,7 +182,7 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
 
       val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
       val res = s
-        .via(pipe.runnerFlow(None))
+        .via(pipe.runnerFlow)
         .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
         .run()
 
@@ -351,4 +351,3 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
   }
 
 }
-

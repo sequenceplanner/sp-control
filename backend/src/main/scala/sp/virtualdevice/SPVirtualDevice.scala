@@ -8,6 +8,8 @@ import Logic._
 import akka.stream._
 import akka.stream.scaladsl._
 
+import SPStreamSupport._
+
 // The VD maker
 // makes a VD and then sends the ability to it when we get the make ability handler
 // this should be merged later KB:180928
@@ -147,7 +149,7 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   val resourceSinks = SPStreamSupport.mergeSinks(setup.resources.map(r=>r.outputs).flatten)
 
   // twice per second, let frontend know the state
-  val limitFrontend = Flow[APISPVD.State].conflate((lastMessage, newMessage) => newMessage).zip(Source.tick(500 millis, 500 millis, "tick")).map(_._1)
+  val limitFrontend = normalizeRate[APISPVD.State](500 millis)
   val frontendSink = Sink.foreach[APISPVD.State] { s =>
     val header = SPHeader(from = id.toString)
     val body = sp.devicehandler.APIVirtualDevice.StateEvent("", id, s)
@@ -156,12 +158,13 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   }
   val frontendFlow = limitFrontend.to(frontendSink)
 
+  // keep-alive source
+  val ticker = Source.tick(2500 millis, 2500 millis, Map())
 
-  // add StateUpd to que and plug in flows and a sink to send SPState where you want
-  resourceSources.merge(Source.tick(1000 millis, 1000 millis, Map()))
-    .map(state => state ++ forceTable)  // force inputs and internal
+  resourceSources.merge(ticker)
+    .map(state => state ++ forceTable) // force inputs and internal
     .map(state => sp.runners.StateUpd(SPState("test", state), forceEvents)) // force events
-    .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
+    .via(runner.runnerFlow)
     .map(_.state)
     .map(state => state ++ forceTable) // force outputs
     .alsoTo(frontendFlow)

@@ -6,6 +6,8 @@ import akka.cluster.pubsub.DistributedPubSubMediator._
 import akka.stream._
 import akka.stream.scaladsl._
 
+import scala.concurrent.duration._
+
 trait SPStreamSupport {
   implicit val system: ActorSystem
 
@@ -37,5 +39,11 @@ object SPStreamSupport {
     case first :: second :: Nil => Sink.combine(first, second)(Broadcast[T](_))
     case first :: second :: rest =>
       Sink.combine(first, second, rest:_*)(Broadcast[T](_))
+  }
+
+  def normalizeRate[T](interval: FiniteDuration): Flow[T, T, _] = {
+    Flow[T].conflate((lastMessage, newMessage) => newMessage). // conflate to throw away excess elements
+      extrapolate(Iterator.continually(_), None)               // extrapolate if there are too few elements
+      .zip(Source.tick(interval, interval, ())).map(_._1)      // zip with a known rate
   }
 }

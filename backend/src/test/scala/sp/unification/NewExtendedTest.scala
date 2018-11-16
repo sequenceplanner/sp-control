@@ -88,7 +88,7 @@
 //   // add StateUpd to que and plug in flows and a sink to send SPState where you want
 //   val ks = resourceSources
 //     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
-//     .via(runner.runnerFlow(Some(2500 milliseconds))) // den tickar...
+//     .via(runner.runnerFlow)
 //     .map(_.state).map{s =>
 //       s.foreach { case (id, value) =>
 //         println(idables.find(_.id == id).get.name + " - " + value.toString)

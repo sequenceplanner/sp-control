@@ -23,19 +23,13 @@ case class RunnerPipeline(operations: List[Operation],
   import akka.pattern.ask
   val runnerA = system.actorOf(Props(classOf[RunnerActor], transitionSystem, initialState, operations))
 
-  def runnerFlow(includeTicker: Option[FiniteDuration] = None) = {
-    val ticker = includeTicker.map(t => Source.tick(t, t, StateUpd(SPState("tick", Map()), List()))).getOrElse(Source.empty[StateUpd])
+  def runnerFlow =
     Flow[StateUpd]
-      .merge(ticker)
       .ask[RunnerLogic.OneOperationRun](runnerA)
-      .statefulMapConcat{ () => // hack! we want to be able to reflect state changes, but not all the time...
-        var lastState = SPState("", Map())
-        x: RunnerLogic.OneOperationRun => {
-          if(x.sequence.isEmpty /* && lastState.state != x.lastState.state */) { lastState = x.lastState; List(x.lastState) }
-          else x.sequence.map(_._2).reverse
-        }
+      .mapConcat{ x: RunnerLogic.OneOperationRun =>
+        if(x.sequence.isEmpty) List(x.lastState)  // if nothing happened, tick last state
+        else x.sequence.map(_._2).reverse         // else push out all changes
       }
-  }
 
 
   // Below not tested!
