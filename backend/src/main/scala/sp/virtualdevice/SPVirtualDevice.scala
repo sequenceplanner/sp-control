@@ -161,12 +161,13 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
   // keep-alive source
   val ticker = Source.tick(2500 millis, 2500 millis, Map())
 
-  resourceSources.merge(ticker)
+  val killSwitch = resourceSources.merge(ticker)
     .map(state => state ++ forceTable) // force inputs and internal
     .map(state => sp.runners.StateUpd(SPState("test", state), forceEvents)) // force events
     .via(runner.runnerFlow)
     .map(_.state)
     .map(state => state ++ forceTable) // force outputs
+    .viaMat(KillSwitches.single)(Keep.right)
     .alsoTo(frontendFlow)
     .to(resourceSinks)
     .run()
@@ -202,6 +203,13 @@ class VirtualDevice(setup: APISPVD.SPVD) extends Actor
             forceTable = force
             forceEvents = events.map{ case (id, spval) => sp.runners.RunnerLogic.FireEvent(spval, id) }.toList
             publish (APIVirtualDevice.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+          case APIVirtualDevice.TerminateVD(killid) if killid == id =>
+            killSwitch.shutdown()
+
+          case APIVirtualDevice.TerminateAllVDs =>
+            killSwitch.shutdown()
+
 
           case _ =>
 
