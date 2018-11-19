@@ -30,7 +30,7 @@ class MiRPose extends ModelDSL with ROS2ModelSupport {
     c("post", "got_cmd_ref_pos == 'reset'"),
     c("reset", "true"))
 
-  driver("MIRdriver", ROS2FlatStateDriver.driverType)
+  // TODO: driver("MIRdriver", ROS2FlatStateDriver.driverType)
   resource("resource")
 }
 

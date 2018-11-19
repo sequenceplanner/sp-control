@@ -12,7 +12,7 @@ class RECU extends ModelDSL with ROS2ModelSupport {
   reader("RECUDriver", "unification_roscontrol/RecuUniToSP", "/unification_roscontrol/recu_unidriver_to_sp")
   writer("RECUDriver", "unification_roscontrol/RecuSPToUni", "/unification_roscontrol/recu_sp_to_unidriver", 250)
 
-  driver("RECUDriver", ROS2FlatStateDriver.driverType)
+  // TODO: driver("RECUDriver", ROS2FlatStateDriver.driverType)
 
   a("lock_rsp", List(),
     c("pre", "true", "lock_rsp:=true","unlock_rsp:=false","open_gripper:=false","close_gripper:=false"),
@@ -44,7 +44,7 @@ class RECU extends ModelDSL with ROS2ModelSupport {
 class HECU extends ModelDSL with ROS2ModelSupport {
   reader("HECUDriver", "unification_roscontrol/HecuUniToSP", "/unification_roscontrol/hecu_unidriver_to_sp")
   // this doesnt have a writer
-  driver("HECUDriver", ROS2FlatStateDriver.driverType)
+  // TODO: driver("HECUDriver", ROS2FlatStateDriver.driverType)
   resource("HECU")
 }
 
@@ -77,7 +77,7 @@ class Atlas extends ModelDSL with ROS2ModelSupport {
     c("post", "true"),
     c("reset", "true"))
 
-  driver("AtlasDriver", ROS2FlatStateDriver.driverType)
+  // TODO: driver("AtlasDriver", ROS2FlatStateDriver.driverType)
   // blank list of things = take everything
   resource("resource")
 }

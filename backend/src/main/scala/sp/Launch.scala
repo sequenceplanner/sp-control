@@ -21,13 +21,12 @@ object Launch extends App {
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)
     system.actorOf(sp.drivers.DriverService.props)
-    system.actorOf(sp.rosFrontendHelper.RosFrontendHelper.props)
+    system.actorOf(sp.drivers.ros2.RosFrontendHelper.props)
 
 
     // drivers
     system.actorOf(sp.drivers.URDriver.props, "URDriver")
     system.actorOf(sp.drivers.HumanDriver.props, "HumanDriver")
-    system.actorOf(sp.drivers.ros2.ROS2FlatStateDriver.props, sp.drivers.ros2.ROS2FlatStateDriver.driverType)
     system.actorOf(sp.drivers.TONDriver.props, "TONDriver")
   }
 

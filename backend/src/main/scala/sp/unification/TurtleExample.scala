@@ -51,7 +51,7 @@ class TurtleModel extends ModelDSL {
 
   // runner
   runner("turtlerunner")
-  driver("driver", ROS2FlatStateDriver.driverType)
+  // TODO: driver("driver", ROS2FlatStateDriver.driverType)
 }
 
 object TurtleModel {

@@ -7,7 +7,7 @@ import sp.domain.logic.{ActionParser, PropositionParser, SOPLogic}
 import sp.runners.APIOperationRunner
 
 import scala.util.{Failure, Success, Try}
-import sp.supremicaStuff.base._
+import sp.supremica._
 
 object VariableKind {
   def fromString(s: String): Option[VariableKind] =

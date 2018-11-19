@@ -1,4 +1,4 @@
-package sp.supremicaStuff.base
+package sp.supremica
 
 import net.sourceforge.waters.subject.module.ModuleSubject
 import net.sourceforge.waters.subject.module.ModuleSubjectFactory

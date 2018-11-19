@@ -45,7 +45,7 @@ class ReadLogIn extends ModelDSL with ROS2ModelSupport {
 
   reader("OperatorLogIN", "std_msgs/Bool", "/rfid/login_authentication")
 
-  driver("OperatorLogIN", ROS2FlatStateDriver.driverType)
+  // TODO: driver("OperatorLogIN", ROS2FlatStateDriver.driverType)
   // blank list of things = take everything
   resource("resource")
 }

@@ -106,7 +106,7 @@ class RCLBase(system: ActorSystem) {
   implicit val executionContext = system.dispatcher
   implicit val materializer = ActorMaterializer()(system)
 
-  ROS2FlatStateDriver.rclInit()
+  RCLManager.rclInit()
   val exec = new SingleThreadedExecutor()
 
   class SubscriberNode(msgType: String, topic: String) extends BaseComposableNode("SPSubscriber") {
@@ -152,14 +152,12 @@ class RCLBase(system: ActorSystem) {
   }
 
   Source.tick(initialDelay = 0.nanos, interval = 100.millis, tick = ()).runWith(Sink.foreach(_ => exec.spinOnce(90))).onComplete { _ =>
-    ROS2FlatStateDriver.rclShutdown()
+    RCLManager.rclShutdown()
   }
 }
 
 
-object ROS2FlatStateDriver {
-  val driverType = "ROS2FlatStateDriver"
-
+object RCLManager {
   // rcl init/destroy
   var rclIsInit = 0
 
@@ -173,140 +171,5 @@ object ROS2FlatStateDriver {
     if(rclIsInit == 0) {
       RCLJava.shutdown()
     }
-  }
-
-  def props = DriverBase.props(driverType, ROS2FlatStateDriverInstance.props)
-}
-
-object ROS2FlatStateDriverInstance {
-  def props(d: VD.Driver) = Props(classOf[ROS2FlatStateDriverInstance], d)
-}
-
-class ROS2FlatStateDriverInstance(d: VD.Driver) extends Actor
-    with ActorLogging
-    with sp.service.MessageBussSupport {
-
-  import context.dispatcher
-
-  subscribe(api.topicRequest)
-
-  implicit val materializer = ActorMaterializer()(context.system)
-  val ros = new RCLBase(context.system)
-
-  val resourceName = d.name
-  val header = SPHeader(from = d.name)
-  val driverIdentifiers = d.setup.getAs[List[String]]("identifiers").getOrElse(List())
-
-  println("ROS2 drivers: " + driverIdentifiers)
-
-  val publishers = driverIdentifiers.filter(_.startsWith("pub:"))
-  val subscribers = driverIdentifiers.filter(_.startsWith("sub:"))
-
-  case class RosVar(did: String, msgType: String, topic: String, field: String, rate: Int)
-  def parseRosVar(s: String) = {
-    s.split(":").toList match {
-      case pubsub :: msg :: topic :: field :: freq :: Nil  =>
-        val f = Try[Int]{freq.toInt}.getOrElse(0)
-        Some(RosVar(s, msg, topic, field, f))
-      case pubsub :: msg :: topic :: field :: Nil =>
-        Some(RosVar(s, msg, topic, field, 0))
-      case _ =>
-        println("****************************")
-        println("The driver identifier is not correctly formed for ROS!")
-        println("Should be msg_type:topic:field:freq, where freq is an int or can be omitted")
-        println("You wrote: " + s)
-        None
-    }
-  }
-
-  val pubVars = publishers.flatMap(parseRosVar)
-  val subVars = subscribers.flatMap(parseRosVar)
-
-  val pubTopics = pubVars.groupBy(_.topic)
-  val subTopics = subVars.groupBy(_.topic)
-
-  val sinks = pubTopics.map{ case (topic, rv::rest) =>
-    val p = ros.publisher(rv.msgType, topic)
-    // start with an "empty" ros message, merge changes to field within the stream
-    val empty = ROSHelpers.createROSMsg(rv.msgType).map(ROSHelpers.msgToAttr).getOrElse(SPAttributes())
-    val partialMessages = Flow[SPAttributes].scan(empty){ case (attr, partial) => attr ++ partial }
-
-    // rate ticking
-    val ticking = if(rv.rate == 0) Flow[SPAttributes].map(identity)
-    else Flow[SPAttributes].merge(Source.tick(rv.rate.millis, rv.rate.millis, SPAttributes()))
-
-    Flow[(String, SPAttributes)].filter(p => p._1 == topic).map(_._2).via(ticking).via(partialMessages).to(p)
-  }
-
-  val allSinks = mergeSinks(sinks.toList)
-
-  val sources = subTopics.map{ case (topic, rv::rest) => ros.subscriber(rv.msgType, topic).map(q=>(topic,q)) }
-  val allSources = mergeSources(sources.toList)
-
-  def messageToState(topic: String, message: SPAttributes): Map[String, SPValue] = {
-    val l = subTopics.get(topic).getOrElse(List())
-    l.flatMap { case r@RosVar(id, msgType, topic, field, rate) =>
-      message.value.get(field).map(spval => id -> spval)
-    }.toMap
-  }
-  val keepState = Flow[Map[String, SPValue]].scan(Map[String, SPValue]()){ case (state, map) => state ++ map}
-
-  def fromMessages = Flow[(String, SPAttributes)].map(x=>messageToState(x._1,x._2))
-
-  def stateToMessages(state: Map[String, SPValue]) = {
-    pubTopics.map { case (topic, rvs) =>
-      (topic, rvs.foldLeft(SPAttributes()){case (attr, rv) =>
-        attr ++ state.get(rv.did).map(spval => SPAttributes(rv.field -> spval)).getOrElse(SPAttributes())
-      }) }
-  }
-
-  val toMessages = Flow[Map[String, SPValue]].mapConcat(stateToMessages)
-
-  val inputState = allSources.via(fromMessages).via(keepState)
-  val outputState = toMessages.to(allSinks)
-
-  // *********
-  // above should be kept, below is temp to work with old virtual device
-  // *********
-
-  inputState.to(Sink.foreach { state =>
-    println(s"ROSDRIVER sending on $state")
-    publish(api.topicResponse, SPMessage.makeJson(header, APIDeviceDriver.DriverStateChange(d.name, d.id, state)))
-  }).run()
-
-  val outputQueue = Source.queue[Map[String, SPValue]](100, akka.stream.OverflowStrategy.dropHead).to(outputState).run()
-
-  def receive = {
-    case x: String =>
-      SPMessage.fromJson(x).foreach{mess =>
-        for {
-          h <- mess.getHeaderAs[SPHeader] //if h.to == d.id.toString
-          b <- mess.getBodyAs[api.Request]
-        } yield {
-          b match {
-            case api.GetDriver =>
-              // doesnt make sense when driver is stateless
-
-            case api.DriverCommand(driverid, state) if driverid == d.id  =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
-
-              /// write driver commands to our out stream
-              outputQueue.offer(state)
-
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
-
-            // Terminating the driver
-            case api.TerminateDriver(driverid) if driverid == d.id =>
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPACK()))
-
-              self ! PoisonPill
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), api.DriverTerminated(d.id)))
-              publish(api.topicResponse, SPMessage.makeJson(h.swapToAndFrom(d.name), APISP.SPDone()))
-
-
-            case _ =>
-          }
-        }
-      }
   }
 }

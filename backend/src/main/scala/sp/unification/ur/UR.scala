@@ -57,6 +57,6 @@ class URPose extends ModelDSL with ROS2ModelSupport {
 
   // blank list of things = take everything
 
-  driver("URdriver", ROS2FlatStateDriver.driverType)
+  // TODO: driver("URdriver", ROS2FlatStateDriver.driverType)
   resource("resource")
 }

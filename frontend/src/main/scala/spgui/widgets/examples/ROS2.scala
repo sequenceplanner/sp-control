@@ -18,7 +18,7 @@ import play.api.libs.json._
 
 
 object ROS2Widget {
-  import sp.rosFrontendHelper.{APIRosFrontendHelper => api }
+  import sp.drivers.ros2.{APIRosFrontendHelper => api }
 
   case class State(spattr: SPAttributes = SPAttributes(), msgType: String = "msg type", topic: String = "/topic", mode: String = "code", urSpeed: Double = 0.1)
 

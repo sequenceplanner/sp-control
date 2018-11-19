@@ -1,4 +1,4 @@
-package sp.milowrapper
+package sp.drivers.milo
 
 // SP
 import sp.domain._

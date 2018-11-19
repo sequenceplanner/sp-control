@@ -1,4 +1,4 @@
-package sp.supremicaStuff.base
+package sp.supremica
 
 import net.sourceforge.waters.xsd.base.EventKind
 import scala.collection.JavaConverters._

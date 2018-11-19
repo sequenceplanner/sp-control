@@ -1,4 +1,4 @@
-package sp.supremicaStuff.base
+package sp.supremica
 
 import net.sourceforge.waters.subject.module.ModuleSubject
 import java.io.File
@@ -79,10 +79,10 @@ trait ParseTextFileToModule extends SimpleModuleFactory with FlowerPopulater wit
     variables.foreach(v => {
       if (v.data.getOrElse(Map()).size != 3) { println(s"Problem with variable ${v.name}! One domain value, one init value, and one marked value are required!"); return false }
       val rangeDomain = v.data.get("d").split("\\.\\.")
-      if (rangeDomain.size == 2) { //must be a variables with integers 
+      if (rangeDomain.size == 2) { //must be a variables with integers
         val markedValues = v.data.get("m").split(",").map(Integer.parseInt).toSet
         if (!addVariable(v.name, Integer.parseInt(rangeDomain(0)), Integer.parseInt(rangeDomain(1)), Integer.parseInt(v.data.get("i")), markedValues).isDefined) { return false }
-      } else { //must be a variables with values 
+      } else { //must be a variables with values
         val domain = v.data.get("d").split(",")
         if (!valuesFromStringToIntRepresentationFactory(domain)) { return false }
         val markedValues = v.data.get("m").split(",").map(mv => domain.indexOf(mv)).toSet

@@ -7,7 +7,7 @@ import sp.domain.logic.{ActionParser, PropositionParser, SOPLogic}
 import sp.runners.APIOperationRunner
 
 import scala.util.{Failure, Success, Try}
-import sp.supremicaStuff.base._
+import sp.supremica._
 
 trait SynthesizeMiniModel {
   def synthesizeModel(ids: List[IDAble], moduleName : String = "dummy"): (List[Operation], SPAttributes, Map[String, Int] => Option[Boolean]) = {

@@ -19,7 +19,7 @@ import play.api.libs.json._
 
 object URDemoWidget {
   import spgui.widgets.examples.{RunnerStateCSS => css}
-  import sp.rosFrontendHelper.{APIRosFrontendHelper => api }
+  import sp.drivers.ros2.{APIRosFrontendHelper => api }
 
   case class State(hasBlue: Boolean = false, hasRed: Boolean = false, hasYellow: Boolean = false, hasGreen: Boolean = false, urSpeed: Double = 0.1)
 

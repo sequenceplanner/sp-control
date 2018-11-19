@@ -1,4 +1,4 @@
-package sp.rosFrontendHelper
+package sp.drivers.ros2
 
 import play.api.libs.json._
 import sp.domain.{JSFormat, _}

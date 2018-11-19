@@ -28,7 +28,7 @@ class Executor extends ModelDSL with ROS2ModelSupport {
     c("reset", "true")
   )
 
-  driver("Executor", ROS2FlatStateDriver.driverType)
+  // TODO: driver("Executor", ROS2FlatStateDriver.driverType)
   // blank list of things = take everything
   resource("resource")
 }

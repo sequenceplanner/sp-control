@@ -1,4 +1,4 @@
-package sp.rosFrontendHelper
+package sp.drivers.ros2
 
 import akka.actor._
 import sp.domain.Logic._
@@ -10,9 +10,7 @@ import akka.stream._
 import akka.stream.scaladsl._
 import akka.NotUsed
 
-import sp.drivers.ros2._
-
-import sp.rosFrontendHelper.{APIRosFrontendHelper => api }
+import sp.drivers.ros2.{APIRosFrontendHelper => api }
 
 object RosFrontendHelper {
   def props = Props(classOf[RosFrontendHelper])

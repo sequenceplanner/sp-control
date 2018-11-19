@@ -1,4 +1,4 @@
-package sp.supremicaStuff.base
+package sp.supremica
 
 import scala.collection.JavaConverters._
 import org.supremica.automata.algorithms.EditorSynthesizerOptions

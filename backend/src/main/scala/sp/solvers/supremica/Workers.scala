@@ -1,4 +1,4 @@
-package sp.supremicaStuff.base
+package sp.supremica
 
 import net.sourceforge.waters.subject.module.SimpleExpressionSubject
 import net.sourceforge.waters.model.expr.Operator
@@ -52,7 +52,7 @@ trait Workers extends Algorithms {
       sec.eval(exp, mbc).toString() match {
         case "1" => return Some(true)
         case _ => return Some(false)
-      } 
+      }
     } catch { case _: Throwable => println("Problem when evaluating expression:\n Expression: " + exp); return None }
   }
 

@@ -12,7 +12,7 @@ import sp.domain._
 import sp.modelSupport._
 import sp.virtualdevice.APISPVD._
 
-import sp.milowrapper._
+import sp.drivers.milo._
 
 trait OPCUAResource extends Resource {
   type DriverState = Map[String, SPValue]
