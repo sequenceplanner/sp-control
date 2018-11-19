@@ -1,7 +1,6 @@
 package spgui.communication
 
 import rx.Obs
-import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
 import sp.domain._
 import sp.models.{APIModel, APIModelMaker => ModelMaker}
 import sp.vdtesting.APIVDTracker
@@ -26,9 +25,6 @@ object CommunicationAPI {
   onSocketChange(APIModel.topicResponse) {
     ModelCommunication.postRequest(ModelMaker.GetModels)
   }
-  onSocketChange(APIVirtualDevice.topicResponse) {
-    VDCommunication.postRequest(APIVirtualDevice.GetVD)
-  }
 
   onSocketChange(APIVDTracker.topicResponse) {
     VDTrackerCommunication.postRequest(APIVDTracker.getModelsInfo())
@@ -38,14 +34,10 @@ object CommunicationAPI {
    * and will therefore be null
    */
   List(
-    DriverCommunication,
     ModelCommunication,
-    OperationRunnerCommunication,
-    VDCommunication,
+    RunnerManagerCommunication,
     VDTrackerCommunication
   ).foreach(_.startListening())
-
-  DriverCommunication.postRequest(APIDeviceDriver.GetDrivers)
 
   type UnsubscribeFn = () => Unit
 
@@ -54,15 +46,9 @@ object CommunicationAPI {
       MainCircuit.subscribe(MainCircuit.readState(_.abilities)) { _ =>
         //println("1")
       },
-      MainCircuit.subscribe(MainCircuit.readState(_.runners)) { _ =>
-        //println("2")
-      },
       MainCircuit.subscribe(MainCircuit.readState(_.virtualDevices)) { _ =>
         //println("3")
       },
-      MainCircuit.subscribe(MainCircuit.readState(_.drivers)) { _ =>
-        //println("4")
-      }
     )
   }
 

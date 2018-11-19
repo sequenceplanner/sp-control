@@ -10,7 +10,8 @@ import sp.domain.Logic._
 import sp.domain._
 
 import sp.modelSupport._
-import sp.virtualdevice.APISPVD._
+import sp.runners.Shared._
+import sp.runners.API._
 
 import sp.drivers.milo._
 

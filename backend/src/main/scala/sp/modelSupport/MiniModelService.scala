@@ -1,20 +1,20 @@
 package sp.modelSupport
 
 import akka.actor._
-import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
 import sp.models.{APIModel, APIModelMaker}
 import sp.service.MessageBussSupport
 import sp.vdtesting.APIVDTracker
 import scala.concurrent.duration._
-import sp.virtualdevice._
 
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.NotUsed
 
-import sp.virtualdevice.APISPVD._
+import sp.runners._
+import sp.runners.Shared._
+import sp.runners.API._
 
 object MiniModelService {
   def props = Props(classOf[MiniModelService])
@@ -30,16 +30,10 @@ class MiniModelService extends Actor with MessageBussSupport {
     "NewExtendedDummy" -> new sp.unification.NewExtended(context.system)
   )
 
-
-
-
   subscribe(APIModel.topicResponse)
   subscribe(APIModelMaker.topicResponse)
   subscribe(APIVDTracker.topicRequest)
 
-  def launchVDAbilities(ids : List[IDAble]): Unit= {
-
-  }
 
   def createModel(name: String, modelID: ID): Unit = {
     //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
@@ -71,19 +65,19 @@ class MiniModelService extends Actor with MessageBussSupport {
 
     // start model
     context.system.scheduler.scheduleOnce(5 seconds) {
-      val vdrunner = APISPVD.SPVDRunner(
+      val runner = SPRunner(
         model.operations,
         initState,
         Struct("statevars"), // TODO
         AbilityRunnerTransitions.abilityTransitionSystem)
 
-      val spvd = APISPVD.SPVD(ID.newID, model.getIDAbles, resources, vdrunner)
+      val spvd = SetupRunnerInstance(ID.newID, model.getIDAbles, resources, runner)
 
       import akka.cluster.pubsub._
       val mediator = DistributedPubSub(context.system).mediator
       import DistributedPubSubMediator.{ Put, Send, Subscribe, Publish }
 
-      mediator ! Publish(APIVirtualDevice.topicRequest, spvd)
+      mediator ! Publish(APIRunnerManager.topicRequest, spvd)
     }
 
   }
@@ -101,12 +95,6 @@ class MiniModelService extends Actor with MessageBussSupport {
         body match { // Check if the body is any of the following classes, and execute program
           case APIVDTracker.createModel(modelName, modelID) =>
             createModel(modelName, modelID)
-
-          case APIVDTracker.launchVDAbilities(idAbles) =>
-            launchVDAbilities(idAbles)
-
-          case APIVDTracker.launchOpRunner(idAbles) =>
-
 
           case APIVDTracker.getModelsInfo(_) =>
             sendAnswer(SPMessage.makeJson(responseHeader, APIVDTracker.sendModelsInfo(models.keys.toList)))

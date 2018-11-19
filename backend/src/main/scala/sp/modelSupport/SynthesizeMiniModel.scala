@@ -1,10 +1,8 @@
 package sp.modelSupport
 
-import sp.devicehandler._
 import sp.domain._
 import sp.domain.Logic._
 import sp.domain.logic.{ActionParser, PropositionParser, SOPLogic}
-import sp.runners.APIOperationRunner
 
 import scala.util.{Failure, Success, Try}
 import sp.supremica._
@@ -65,8 +63,7 @@ trait SynthesizeMiniModel {
   }
 }
 
-// TODO: for now this is only for the transitions with the "ability runner" transition systems
-import sp.virtualdevice.AbilityRunnerTransitions._
+import sp.runners.AbilityRunnerTransitions._
 
 case class MiniParseToModuleWrapper(moduleName: String, varsIn: List[Thing], opsIn: List[Operation], sopSpec: List[SOPSpec], spSpec: List[SPSpec]) extends FlowerPopulater with Exporters with Algorithms with TextFilePrefix {
 

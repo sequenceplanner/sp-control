@@ -7,7 +7,7 @@ import sp.domain._
 import spgui.components.SPWidgetElements
 import diode.react.{ModelProxy, ReactConnectProxy}
 import spgui.communication._
-import sp.devicehandler.APIVirtualDevice
+import sp.runners.APIRunnerManager
 import spgui.circuits.main.MainCircuit
 import spgui.circuits.main.handlers.ModelHandlerState
 
@@ -23,11 +23,11 @@ object SopRunnerWidget {
 
   private class Backend($: BackendScope[Props, State]) {
     val operationRunnerHandler =
-      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIVirtualDevice.topicResponse)
+      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIRunnerManager.topicResponse)
 
     def onOperationRunnerMessage(mess: SPMessage) =
-      mess.getBodyAs[APIVirtualDevice.Response].map {
-        case APIVirtualDevice.StateEvent(_, _, state, _) => {
+      mess.getBodyAs[APIRunnerManager.Response].map {
+        case APIRunnerManager.StateEvent(_, state) => {
           $.modState(s => s.copy(opStates = s.opStates ++ state)).runNow()
         }
         case _ => Unit

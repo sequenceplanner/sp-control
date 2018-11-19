@@ -1,11 +1,9 @@
 package sp.drivers.ros2
 
 import akka.actor._
-import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
-import sp.devicehandler.{APIDeviceDriver => api}
-import sp.virtualdevice.SPStreamSupport._
+import sp.streams.SPStreamSupport._
 import scala.concurrent.duration._
 import sp.drivers._
 import scala.util.Try

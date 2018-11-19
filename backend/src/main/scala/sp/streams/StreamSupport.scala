@@ -1,4 +1,4 @@
-package sp.virtualdevice
+package sp.streams
 
 import akka.NotUsed
 import akka.actor._

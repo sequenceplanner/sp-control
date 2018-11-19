@@ -9,7 +9,7 @@ import spgui.communication._
 import sp.domain._
 import Logic._
 import spgui.circuits.main.{FrontendState, MainCircuit}
-import sp.devicehandler.{APIVirtualDevice => api}
+import sp.runners.{APIRunnerManager => api}
 import spgui.circuits.main.handlers._
 
 case class Props(proxy: ModelProxy[FrontendState]) {
@@ -21,6 +21,8 @@ object RunnerStateWidgetState {
 
   val typeFilters = List("type", "operation", "internal", "input", "output")
 
+  val runnerID = ID.newID
+
   case class State(state: Map[ID, SPValue], force: Map[ID, SPValue], activeForce: Set[ID], forceEvents: Map[ID, SPValue], idableFilter: String = "", typeFilter: String = typeFilters.head)
 
   private class Backend($: BackendScope[Props, State]) {
@@ -30,7 +32,7 @@ object RunnerStateWidgetState {
         b <- mess.getBodyAs[api.Response]
       } yield {
         val callback = b match {
-          case api.StateEvent(_, _, state, _) =>
+          case api.StateEvent(_, state) =>
             $.modState{s =>
               s.copy(state = s.state ++ state)
             }
@@ -47,7 +49,7 @@ object RunnerStateWidgetState {
         val newForce = s.force + (id -> value)
         // if force active, send new force table to backend
         if(s.activeForce.contains(id))
-          send(api.SetForceTable(newForce, s.forceEvents))
+          send(api.SetForceTable(runnerID, newForce, s.forceEvents))
         s.copy(force = newForce)
       }
     }
@@ -58,7 +60,7 @@ object RunnerStateWidgetState {
           if(value == SPValue("[none]")) s.forceEvents - id
           else s.forceEvents + (id -> SPValue(value))
 
-        send(api.SetForceTable(s.force, forceEvents))
+        send(api.SetForceTable(runnerID, s.force, forceEvents))
         s.copy(forceEvents = forceEvents)
       }
     }
@@ -84,7 +86,7 @@ object RunnerStateWidgetState {
 
         // send new force table to backend
         val f = newState.force.filterKeys(newState.activeForce.contains)
-        send(api.SetForceTable(f, s.forceEvents))
+        send(api.SetForceTable(runnerID, f, s.forceEvents))
 
         newState
       }
@@ -170,11 +172,11 @@ object RunnerStateWidgetState {
       <.div(
         <.button(
           ^.className := "btn btn-small",
-          ^.onClick --> send(api.StartAuto), "start auto"
+          ^.onClick --> send(api.StartAuto(runnerID)), "start auto"
         ),
         <.button(
           ^.className := "btn btn-small",
-          ^.onClick --> send(api.StopAuto), "stop auto"
+          ^.onClick --> send(api.StopAuto(runnerID)), "stop auto"
         ),
         <.label("Filter: "),
         <.input(
@@ -195,7 +197,7 @@ object RunnerStateWidgetState {
   }
 
   def send(mess: api.Request): Callback = {
-    VDCommunication.postRequest(mess)
+    RunnerManagerCommunication.postRequest(mess)
     Callback.empty
   }
 

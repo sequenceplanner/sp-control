@@ -9,17 +9,18 @@ import sp.domain.Logic._
 import sp.domain._
 import sp.domain.logic.{ActionParser, PropositionParser, SOPLogic}
 
-import sp.virtualdevice._
-import sp.virtualdevice.APISPVD._
+import sp.runners._
+import sp.runners.Shared._
+import sp.runners.API._
 
 
 object SOPLogic2 extends SOPLogics2
 
 trait SOPLogics2 {
   val kind = "pre"
-  val init = sp.virtualdevice.AbilityRunnerTransitions.AbilityStates.enabled
-  val executing = sp.virtualdevice.AbilityRunnerTransitions.AbilityStates.executing
-  val finished = sp.virtualdevice.AbilityRunnerTransitions.AbilityStates.finished
+  val init = sp.runners.AbilityRunnerTransitions.AbilityStates.enabled
+  val executing = sp.runners.AbilityRunnerTransitions.AbilityStates.executing
+  val finished = sp.runners.AbilityRunnerTransitions.AbilityStates.finished
 
   implicit def operationToSOP(o: Operation): SOP = OperationNode(o.id)
   implicit def operationIDToSOP(o: ID): SOP = OperationNode(o)
@@ -533,7 +534,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
     val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things))
 
-    import sp.virtualdevice.AbilityRunnerTransitions._
+    import sp.runners.AbilityRunnerTransitions._
     val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished)
 
     // merge op with its ability => merging the conditions
@@ -597,8 +598,8 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
       }
     }
 
-    val starting = sp.virtualdevice.AbilityRunnerTransitions.AbilityStates.starting
-    val executing = sp.virtualdevice.AbilityRunnerTransitions.AbilityStates.executing
+    val starting = sp.runners.AbilityRunnerTransitions.AbilityStates.starting
+    val executing = sp.runners.AbilityRunnerTransitions.AbilityStates.executing
 
     val newGuards = (for {
       (resource, ops) <- bookingMap

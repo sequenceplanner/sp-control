@@ -1,4 +1,4 @@
-package sp.virtualdevice
+package sp.runners
 
 import sp.domain._
 import Logic._
@@ -6,55 +6,35 @@ import akka.stream._
 import akka.stream.scaladsl._
 import akka.NotUsed
 
-object APISPVD {
-  type State = Map[ID, SPValue]
-  object State {
-    def empty = Map[ID, SPValue]()
-  }
+import Shared._
 
-  case class ResourcePipeline(message: Struct, flowDef: SPAttributes)
-  case class SPResource(resource: ID,
-                        initialState: State,
-                        outputs: List[Sink[State, _]],
-                        inputs: List[Source[State, _]]
-                        )
-  case class SPVDRunner(operations: List[Operation],
-                        initialState: State,
-                        stateVariables: Struct,
-                        transitionSystem: List[sp.runners.RunnerLogic.OperationTransition]
-                       )
+object API {
+  // TODO: serializable flows
+  // case class ResourcePipeline(message: Struct, flowDef: SPAttributes)
+  case class SPResource(
+    resource: ID,
+    initialState: State,
+    outputs: List[Sink[State, _]],
+    inputs: List[Source[State, _]]
+  )
+  case class SPRunner(
+    operations: List[Operation],
+    initialState: State,
+    stateVariables: Struct,
+    transitionSystem: List[sp.runners.RunnerLogic.OperationTransition]
+  )
 
-  case class SPVD(vd: ID,
-                  items: List[IDAble],
-                  resources: List[SPResource],
-                  runner: SPVDRunner
-                 )
+  case class SetupRunnerInstance(
+    id: ID,
+    items: List[IDAble],
+    resources: List[SPResource],
+    runner: SPRunner
+  )
 }
-
-object VirtualDeviceLogic {
-
-  // move somewhere
-  /**
-    * Is checking that all variables have an initial state.
-    * @param s
-    * @param structs
-    * @param ops
-    * @return
-    */
-  def validateInitialState(s: APISPVD.State, structs: List[Struct], ops: List[Operation]) = {
-    def extractLeafs(tree: Struct) = tree.getChildrenMap.collect{case (id, ch) if ch.isEmpty => id}
-    val ids = structs.flatMap(extractLeafs) ++ ops.map(_.id)
-    ids.forall(s.contains)
-  }
-
-
-
-}
-
 
 // Inte testad! Måste skriva test för denna så att det fungerar som tänkt
 object AbilityRunnerTransitions {
-  import sp.runners.RunnerLogic._
+  import RunnerLogic._
 
   // states
   object AbilityStates {
@@ -181,7 +161,6 @@ object AbilityRunnerTransitions {
     )
 
   }
-
 
   val abilityTransitionSystem = List(
     AbilityTransitions.notEnabledToEnabled,

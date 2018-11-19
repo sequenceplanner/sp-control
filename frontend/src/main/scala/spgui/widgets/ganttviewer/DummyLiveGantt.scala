@@ -9,7 +9,6 @@ import scalajs.js.JSConverters._
 import sp.domain._
 import sp.domain.Logic._
 
-import sp.devicehandler.{APIVirtualDevice => vdapi}
 import spgui.{SPWidget, SPWidgetBase}
 import spgui.communication.APIComm.StreamHelper
 import spgui.widgets.gantt.{Row, SPGantt, SPGanttOptions, Task}
