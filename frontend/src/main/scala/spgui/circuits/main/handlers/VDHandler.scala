@@ -7,6 +7,7 @@ import spgui.SimpleSet
 import spgui.circuits.main.handlers.Aliases._
 
 trait VDAction extends Action
+case class AddRunner(runner: ID) extends VDAction
 case class UpdateRunnerState(runner: ID, state: Map[ID, SPValue]) extends VDAction
 case class ModelNames(names: List[VDModelName]) extends VDAction
 case class RunnerCreated(id: RunnerId) extends VDAction
@@ -14,8 +15,8 @@ case object TerminateAllVirtualDevices extends VDAction
 
 @Lenses case class VDHandlerState( runnerStates: Map[ID, Map[ID, SPValue]],
                                    availableVDModels: List[VDModelName],
-                                   latestActiveRunnerId: Option[RunnerId]
-                                 )
+  latestActiveRunnerId: Option[ID]
+)
 
 
 // TODO Someone with domain knowledge needs to take a look at how updates happen.
@@ -25,6 +26,9 @@ class VDHandler[M](modelRW: ModelRW[M, VDHandlerState]) extends StateHandler[M, 
   import VDHandlerState.{runnerStates, availableVDModels, latestActiveRunnerId}
 
   override def onAction: PartialFunction[VDAction, Reaction] = {
+    case AddRunner(id) =>
+      latestActiveRunnerId.set(Some(id))
+
     case UpdateRunnerState(id, state) =>
       react {
         runnerStates.set(value.runnerStates + (id -> state))

@@ -36,7 +36,9 @@ class RunnerManager extends Actor
         val a = context.actorOf (RunnerInstance.props (setup) )
         runners += setup.id -> a
         context.watch (a)
-        // publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+        val header = SPHeader(from = APIRunnerManager.service)
+        publish(APIRunnerManager.topicResponse, SPMessage.makeJson(header, APIRunnerManager.RunnerStarted(setup.id)))
       }
 
 
@@ -154,8 +156,7 @@ class RunnerInstance(setup: API.SetupRunnerInstance) extends Actor
             runner.makeTransitionsControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
-
-          case APIRunnerManager.StartAuto(instanceID) => //  if instanceID == id =>
+          case APIRunnerManager.StartAuto(instanceID) if instanceID == id =>
             println("Starting auto")
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
             runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))

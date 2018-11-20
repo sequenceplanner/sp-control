@@ -8,8 +8,8 @@ import spgui.components.SPWidgetElements
 import diode.react.{ModelProxy, ReactConnectProxy}
 import spgui.communication._
 import sp.runners.APIRunnerManager
-import spgui.circuits.main.MainCircuit
-import spgui.circuits.main.handlers.ModelHandlerState
+import spgui.circuits.main.{FrontendState, MainCircuit}
+import spgui.circuits.main.handlers._
 
 object SopRunnerWidget {
 
@@ -19,23 +19,16 @@ object SopRunnerWidget {
     opStates: Map[ID, SPValue] = Map(),
     currentSop: Option[SOP] = None
   )
-  case class Props(proxy: ModelProxy[ModelHandlerState])
+  case class Props(proxy: ModelProxy[FrontendState]) {
+    val activeModel: Option[ModelMock] = proxy.value.models.activeModel
+    val activeRunner: Option[ID] = proxy.value.virtualDevices.latestActiveRunnerId
+    val runnerStates: Map[ID, Map[ID, SPValue]] = proxy.value.virtualDevices.runnerStates
+  }
 
   private class Backend($: BackendScope[Props, State]) {
-    val operationRunnerHandler =
-      BackendCommunication.getMessageObserver(onOperationRunnerMessage, APIRunnerManager.topicResponse)
-
-    def onOperationRunnerMessage(mess: SPMessage) =
-      mess.getBodyAs[APIRunnerManager.Response].map {
-        case APIRunnerManager.StateEvent(_, state) => {
-          $.modState(s => s.copy(opStates = s.opStates ++ state)).runNow()
-        }
-        case _ => Unit
-      }
-
     def onReceiveProps(props: Props) = {
       $.modState(state => {
-        props.proxy.value.activeModel.map{ model =>
+        props.activeModel.map{ model =>
           val l = model.items.toList  /// cannot collect on the simpleset.. crashes. figure out at a later date
           val sopSpecs = l.collect {
             case spec: SOPSpec => spec
@@ -68,7 +61,9 @@ object SopRunnerWidget {
           ))
         ),
         state.currentSop match {
-          case Some(sop) => SopVisualiser(sop, state.modelOps, state.opStates)
+          case Some(sop) =>
+            val s = props.activeRunner.flatMap(r => props.runnerStates.get(r)).getOrElse(Map())
+            SopVisualiser(sop, state.modelOps, s)
           case None => EmptyVdom
         }
       )
@@ -83,7 +78,7 @@ object SopRunnerWidget {
     }
     .build
 
-  val connectCircuit: ReactConnectProxy[ModelHandlerState] = MainCircuit.connect(_.models)
+  val connectCircuit: ReactConnectProxy[FrontendState] = MainCircuit.connectComponent(identity)
 
   def apply() = spgui.SPWidget(_ => connectCircuit { proxy => component(Props(proxy)) })
 }

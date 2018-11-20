@@ -14,6 +14,8 @@ import spgui.circuits.main.handlers._
 
 case class Props(proxy: ModelProxy[FrontendState]) {
   val activeModel: Option[ModelMock] = proxy.value.models.activeModel
+  val activeRunner: Option[ID] = proxy.value.virtualDevices.latestActiveRunnerId
+  val runnerStates: Map[ID, Map[ID, SPValue]] = proxy.value.virtualDevices.runnerStates
 }
 
 object RunnerStateWidgetState {
@@ -21,30 +23,11 @@ object RunnerStateWidgetState {
 
   val typeFilters = List("type", "operation", "internal", "input", "output")
 
-  val runnerID = ID.newID
-
-  case class State(state: Map[ID, SPValue], force: Map[ID, SPValue], activeForce: Set[ID], forceEvents: Map[ID, SPValue], idableFilter: String = "", typeFilter: String = typeFilters.head)
+  case class State(force: Map[ID, SPValue], activeForce: Set[ID], forceEvents: Map[ID, SPValue], idableFilter: String = "", typeFilter: String = typeFilters.head)
 
   private class Backend($: BackendScope[Props, State]) {
 
-    val messObs = BackendCommunication.getMessageObserver( mess => {
-      for {
-        b <- mess.getBodyAs[api.Response]
-      } yield {
-        val callback = b match {
-          case api.StateEvent(_, state) =>
-            $.modState{s =>
-              s.copy(state = s.state ++ state)
-            }
-          case _ => Callback.empty
-        }
-        callback.runNow()
-      }
-    },
-      api.topicResponse
-    )
-
-    def setForce(id: ID, value: SPValue): Callback = {
+    def setForce(runnerID: ID, id: ID, value: SPValue): Callback = {
       $.modState { s =>
         val newForce = s.force + (id -> value)
         // if force active, send new force table to backend
@@ -54,7 +37,7 @@ object RunnerStateWidgetState {
       }
     }
 
-    def setEvent(id: ID, value: SPValue): Callback = {
+    def setEvent(runnerID: ID, id: ID, value: SPValue): Callback = {
       $.modState { s =>
         val forceEvents =
           if(value == SPValue("[none]")) s.forceEvents - id
@@ -76,7 +59,7 @@ object RunnerStateWidgetState {
       else "internal"
     }
 
-    def toggleForce(id: ID) = {
+    def toggleForce(runnerID: ID, id: ID) = {
       $.modState{s =>
         val isForce = s.activeForce.contains(id)
 
@@ -106,54 +89,53 @@ object RunnerStateWidgetState {
             <.th(^.width:="200px","Active events"),
           )
         ),
-        <.tbody(
-          p.activeModel.map { m =>
-            s.state.flatMap { case (id, v) =>
-              m.items.get(id).map(item => item -> v)
-            }.toList.filter(_._1.name.contains(s.idableFilter)).sortBy(_._1.name)
-              .filter(p => s.typeFilter == typeFilters.head || s.typeFilter == itemType(p._1))
-              .map { case (item, v) =>
-                val internalValue = 0
-                val domain = item.attributes.getAs[List[SPValue]]("domain").getOrElse(List())
-                val dd = domain.map(d => <.div(d.toString, ^.onClick --> setForce(item.id, d)))
-                val selectedForce = s.force.get(item.id).getOrElse(SPValue("[set force]"))
-                val activeForce = s.activeForce.contains(item.id)
-
-                val events = List("[none]", "start", "reset", "forceReset")
-                val ed = events.map(e => <.div(e, ^.onClick --> setEvent(item.id, e)))
-                val selectedEvent = s.forceEvents.get(item.id).getOrElse(SPValue("[none]"))
-
-                val forceButtonStyle =
-                  if (activeForce) css.activeModelButton.htmlClass
-                  else css.inactiveModelButton.htmlClass
-
-                <.tr(
-                  <.td(item.name),
-                  <.td(v.toString),
-                  <.td(itemType(item)),
-                  <.td(
-                    SPWidgetElements.dropdown(selectedForce.toString, dd)
-                      // <.input(
-                      //   ^.width := "80px",
-                      //   ^.value     := internalValue,
-                      //   // ^.onChange ==> updateInternalValue(s, n.name)
-                      // )),
-                  ),
-                  <.td(
-                    <.button(
-                      ^.className := s"btn btn-sm ${forceButtonStyle}",
-                      ^.title := "Force value",
-                      ^.onClick --> toggleForce(item.id),
-                      <.i(^.className := (if (activeForce) "fa fa-circle" else "fa fa-circle-thin")),
-                    )
-                  ),
-                  <.td(
-                    SPWidgetElements.dropdown(selectedEvent.toString, ed).when(item.isInstanceOf[Operation])
-                  ),
-                )
+        <.tbody( {
+          val rows = for {
+            runnerID <- p.activeRunner.toList
+            state <- p.runnerStates.get(runnerID)
+            model <- p.activeModel
+          } yield {
+            val items = for {
+              (k,v) <- state
+              item <- model.items.get(k) if item.name.toLowerCase.contains(s.idableFilter.toLowerCase) && s.typeFilter == typeFilters.head || s.typeFilter == itemType(item)
+            } yield {
+              (item,v)
             }
-          }.getOrElse(List()).toTagMod
-        )
+            items.map { case (item, v) =>
+              val domain = item.attributes.getAs[List[SPValue]]("domain").getOrElse(List())
+              val dd = domain.map(d => <.div(d.toString, ^.onClick --> setForce(runnerID, item.id, d)))
+              val selectedForce = s.force.get(item.id).getOrElse(SPValue("[set force]"))
+              val activeForce = s.activeForce.contains(item.id)
+
+              val events = List("[none]", "start", "reset", "forceReset")
+              val ed = events.map(e => <.div(e, ^.onClick --> setEvent(runnerID, item.id, e)))
+              val selectedEvent = s.forceEvents.get(item.id).getOrElse(SPValue("[none]"))
+
+              val forceButtonStyle =
+                if (activeForce) css.activeModelButton.htmlClass
+                else css.inactiveModelButton.htmlClass
+
+              <.tr(
+                <.td(item.name),
+                <.td(v.toString),
+                <.td(itemType(item)),
+                <.td(SPWidgetElements.dropdown(selectedForce.toString, dd)),
+                <.td(
+                  <.button(
+                    ^.className := s"btn btn-sm ${forceButtonStyle}",
+                    ^.title := "Force value",
+                    ^.onClick --> toggleForce(runnerID, item.id),
+                    <.i(^.className := (if (activeForce) "fa fa-circle" else "fa fa-circle-thin")),
+                  )
+                ),
+                <.td(
+                  SPWidgetElements.dropdown(selectedEvent.toString, ed).when(item.isInstanceOf[Operation])
+                ),
+              )
+            }.toTagMod
+          }
+          rows.toTagMod
+        })
       )
     }
 
@@ -170,14 +152,17 @@ object RunnerStateWidgetState {
       val typeLinks = typeFilters.map(t => <.div(t, ^.onClick --> setTypeFilter(t)))
 
       <.div(
-        <.button(
-          ^.className := "btn btn-small",
-          ^.onClick --> send(api.StartAuto(runnerID)), "start auto"
-        ),
-        <.button(
-          ^.className := "btn btn-small",
-          ^.onClick --> send(api.StopAuto(runnerID)), "stop auto"
-        ),
+        p.activeRunner.map { runnerID =>
+          <.div(
+          <.button(
+            ^.className := "btn btn-small",
+            ^.onClick --> send(api.StartAuto(runnerID)), "start auto"
+          ),
+          <.button(
+            ^.className := "btn btn-small",
+            ^.onClick --> send(api.StopAuto(runnerID)), "stop auto"
+          ))
+        }.toList.toTagMod,
         <.label("Filter: "),
         <.input(
           ^.width := "150px",
@@ -185,6 +170,7 @@ object RunnerStateWidgetState {
           ^.onChange ==> onFilterChange
         ),
         SPWidgetElements.dropdown(s.typeFilter, typeLinks),
+        p.activeRunner.map(id => "Active runner: " + id.toString).toList.toTagMod,
         renderState(p, s)
       )
     }
@@ -204,7 +190,7 @@ object RunnerStateWidgetState {
   val connectCircuit: ReactConnectProxy[FrontendState] = MainCircuit.connectComponent(identity)
 
   private val component = ScalaComponent.builder[Props]("RunnerStateWidgetState")
-    .initialState(State(Map(), Map(), Set(), Map()))
+    .initialState(State(Map(), Set(), Map()))
     .renderBackend[Backend]
     .componentWillUnmount(_.backend.onUnmount())
     .build

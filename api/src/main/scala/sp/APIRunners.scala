@@ -20,6 +20,8 @@ package sp.runners {
     sealed trait Request
     sealed trait Response
 
+    case class RunnerStarted(id: ID) extends Response
+
     case class TerminateRunnerInstance(id: ID) extends Request
     case object TerminateAllRunnerInstances extends Request
     case class TerminatedRunnerInstance(id :ID) extends Response
@@ -33,6 +35,7 @@ package sp.runners {
 
     object Formats {
       import play.api.libs.json._
+      implicit lazy val fRunnerStarted:     JSFormat[RunnerStarted]     = Json.format[RunnerStarted]
       implicit lazy val fTerminateVD:     JSFormat[TerminateRunnerInstance]     = Json.format[TerminateRunnerInstance]
       implicit lazy val fTerminatedVD:     JSFormat[TerminatedRunnerInstance]     = Json.format[TerminatedRunnerInstance]
       implicit lazy val fTerminateAllVDs:     JSFormat[TerminateAllRunnerInstances.type ]     = deriveCaseObject[TerminateAllRunnerInstances.type]

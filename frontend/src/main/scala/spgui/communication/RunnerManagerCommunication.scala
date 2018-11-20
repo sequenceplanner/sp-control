@@ -2,7 +2,7 @@ package spgui.communication
 
 import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.circuits.main.handlers.{UpdateRunnerState, VDAction}
+import spgui.circuits.main.handlers.{AddRunner, UpdateRunnerState, VDAction}
 import spgui.circuits.main.FrontendState
 
 object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, VDAction] {
@@ -13,6 +13,9 @@ object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, 
     val response = message.as[API.Response]
 
     for ((_, body) <- response) body match {
+      case API.RunnerStarted(id) =>
+        localDispatch(AddRunner(id))
+
       case API.StateEvent(runnerID, stateData) =>
         localDispatch(UpdateRunnerState(runnerID, stateData))
 
@@ -20,7 +23,8 @@ object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, 
         // TODO What should be done here?
 
       case API.TerminatedAllRunnerInstances =>
-      // TODO What should be done here?
+        // TODO What should be done here?
+
     }
   }
 
