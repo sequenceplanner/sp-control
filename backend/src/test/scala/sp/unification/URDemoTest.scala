@@ -13,8 +13,11 @@ import scala.concurrent._
 
 import sp.domain.Logic._
 import sp.domain._
-import sp.virtualdevice._
-import sp.virtualdevice.APISPVD._
+
+import sp.streams._
+
+import sp.runners._
+import sp.runners.Shared._
 
 
 

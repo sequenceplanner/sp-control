@@ -6,7 +6,7 @@ import akka.cluster.pubsub._
 import akka.testkit._
 import com.typesafe.config._
 import org.scalatest._
-import sp.devicehandler._
+// import sp.devicehandler._
 import sp.domain.Logic._
 import sp.domain._
 
