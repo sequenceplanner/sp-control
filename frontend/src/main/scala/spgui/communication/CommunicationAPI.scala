@@ -3,7 +3,7 @@ package spgui.communication
 import rx.Obs
 import sp.domain._
 import sp.models.{APIModel, APIModelMaker => ModelMaker}
-import sp.vdtesting.APIVDTracker
+import sp.modelSupport.APIMiniModelService
 import spgui.circuits.main.handlers.StateHandler
 import spgui.circuits.main.{FrontendState, MainCircuit}
 
@@ -26,8 +26,8 @@ object CommunicationAPI {
     ModelCommunication.postRequest(ModelMaker.GetModels)
   }
 
-  onSocketChange(APIVDTracker.topicResponse) {
-    VDTrackerCommunication.postRequest(APIVDTracker.getModelsInfo())
+  onSocketChange(APIMiniModelService.topicResponse) {
+    MiniModelHelperCommunication.postRequest(APIMiniModelService.getModelsInfo)
   }
 
   /* This is necessary because responseTopics are instantiated after the calls in the Communicator trait,
@@ -36,17 +36,14 @@ object CommunicationAPI {
   List(
     ModelCommunication,
     RunnerManagerCommunication,
-    VDTrackerCommunication
+    MiniModelHelperCommunication
   ).foreach(_.startListening())
 
   type UnsubscribeFn = () => Unit
 
   def run(): Iterable[UnsubscribeFn] = {
     Seq(
-      MainCircuit.subscribe(MainCircuit.readState(_.abilities)) { _ =>
-        //println("1")
-      },
-      MainCircuit.subscribe(MainCircuit.readState(_.virtualDevices)) { _ =>
+      MainCircuit.subscribe(MainCircuit.readState(_.runners)) { _ =>
         //println("3")
       },
     )

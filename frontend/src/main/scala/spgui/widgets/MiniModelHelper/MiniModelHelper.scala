@@ -1,11 +1,10 @@
-package spgui.widgets.VDGUI
+package spgui.widgets.MiniModelHelper
 
 import diode.react.{ModelProxy, ReactConnectProxy}
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.internal.StyleA
 import sp.domain.{SPValue, _}
-import sp.vdtesting.APIVDTracker
 import spgui.{SPWidget, SimpleSet}
 import spgui.circuits.main.handlers.Aliases._
 import spgui.circuits.main.{FrontendState, MainCircuit}
@@ -14,16 +13,17 @@ import spgui.communication._
 import spgui.components.SPWidgetElements
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import spgui.widgets.virtcom.Style
+import sp.modelSupport.APIMiniModelService
+import sp.runners.APIRunnerManager
 
-object VDTrackerWidget {
+object MiniModelHelperWidget {
   case class Props(proxy: ModelProxy[FrontendState]) {
     val activeModel: Option[ModelMock] = proxy.value.models.activeModel
     val activeModelId: Option[ID] = proxy.value.models.activeModelId
-    val activeRunnerId: Option[RunnerId] = proxy.value.virtualDevices.latestActiveRunnerId
+    val activeRunnerId: Option[RunnerId] = proxy.value.runners.latestActiveRunnerId
 
-    def abilities: SimpleSet[AbilityId, AbilityData] = proxy.value.abilities.abilities
-    def models: SimpleSet[VDModelId, ModelMock] = proxy.value.models.models
-    def availableVDModels: List[VDModelName] = proxy.value.virtualDevices.availableVDModels
+    def models: SimpleSet[ID, ModelMock] = proxy.value.models.models
+    def availableMiniModels: List[String] = proxy.value.runners.availableMiniModels
   }
 
   private class Backend($: BackendScope[Props, Unit]) {
@@ -32,7 +32,7 @@ object VDTrackerWidget {
       import sp.models.APIModel
 
       def onModelClick(modelName: String): Callback = Callback {
-        VDTrackerCommunication.postRequest(APIVDTracker.createModel(modelName))
+        MiniModelHelperCommunication.postRequest(APIMiniModelService.createModel(modelName))
       }
 
       def onModelChoiceClick(modelId: ID): Callback = {
@@ -40,28 +40,17 @@ object VDTrackerWidget {
           Callback { ModelCommunication.postRequest(modelId, APIModel.GetItemList(0, 99999)) }
       }
 
-      def launchAbilities: Callback = Callback {
-        props.activeModel.foreach { model =>
-          VDTrackerCommunication.postRequest(APIVDTracker.launchVDAbilities(model.items.toList))
-        }
-      }
-
-      val models = props.availableVDModels.map { model => SPWidgetElements.dropdownElement(model, onModelClick(model)) }
+      val models = props.availableMiniModels.map { model => SPWidgetElements.dropdownElement(model, onModelClick(model)) }
       val idAbles = props.activeModel.map(_.items).getOrElse(SimpleSet[ID, IDAble](_.id))
-      val abilityStates = props.abilities.map(_.state).reduceOption(_ ++ _).getOrElse(Map())
 
       <.div(
         buttonGroup(Seq(
           dropdown("Create Model", models),
           ModelChoiceDropdown(onModelChoiceClick),
           TagMod(
-            button("Launch VD and Abilities", launchAbilities),
-            button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles.toList)) }),
             button("Terminate Everything", terminateAll(props))
           ).when(props.activeModelId.isDefined)
         )),
-        <.br(),
-        renderInfo("Ability state", abilityStates, idAbles),
         <.br(),
       ).render
     }
@@ -70,7 +59,6 @@ object VDTrackerWidget {
 //      terminateAbilities(props)
 //      terminateDrivers(props.drivers.map(_.id)) // Todo: also remove all drivers from gui disp? */
 //      terminateVDs(props)
-      VDTrackerCommunication.postRequest(APIVDTracker.ResetGUI)
 
       println("Terminating runners..")
 //      terminateRunners(props)
@@ -119,19 +107,8 @@ object VDTrackerWidget {
     }
 
     def terminateVDs(props: Props): Unit = {
-      // VDCommunication.postRequest(APIVirtualDevice.TerminateAllVDs)
-      props.proxy.dispatchCB(TerminateAllVirtualDevices).runNow()
+      RunnerManagerCommunication.postRequest(APIRunnerManager.TerminateAllRunnerInstances)
     }
-
-    // def terminateRunners(props: Props): Unit = {
-    //   props.proxy.dispatchCB(TerminateAllRunners).runNow()
-    // }
-
-    // def terminateRunner(id: ID): Unit = {
-    //   OperationRunnerCommunication.postRequest(APIOperationRunner.TerminateRunner(id))
-    // }
-
-
   }
 
   private val component = ScalaComponent.builder[Props]("VDTracker")

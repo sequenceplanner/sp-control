@@ -2,10 +2,10 @@ package spgui.communication
 
 import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.circuits.main.handlers.{AddRunner, UpdateRunnerState, VDAction}
+import spgui.circuits.main.handlers.{AddRunner, UpdateRunnerState, RunnerAction}
 import spgui.circuits.main.FrontendState
 
-object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, VDAction] {
+object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, RunnerAction] {
   import sp.runners.{APIRunnerManager => API}
   val responseTopic: String = API.topicResponse
 
@@ -31,7 +31,7 @@ object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, 
   def postRequest(request: API.Request): Unit = {
     post(
       request,
-      from = "VDCommunication",
+      from = "RunnerManagerCommunication",
       to = API.service,
       topic = API.topicRequest
     )
@@ -39,5 +39,5 @@ object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, 
 
   override protected def stateAccessFunction: FrontendState => String = NoState
 
-  override def defaultReply: String = "VDCommunication"
+  override def defaultReply: String = "RunnerManagerCommunication"
 }

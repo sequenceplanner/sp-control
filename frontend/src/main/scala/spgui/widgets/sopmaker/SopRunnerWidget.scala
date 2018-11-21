@@ -21,8 +21,8 @@ object SopRunnerWidget {
   )
   case class Props(proxy: ModelProxy[FrontendState]) {
     val activeModel: Option[ModelMock] = proxy.value.models.activeModel
-    val activeRunner: Option[ID] = proxy.value.virtualDevices.latestActiveRunnerId
-    val runnerStates: Map[ID, Map[ID, SPValue]] = proxy.value.virtualDevices.runnerStates
+    val activeRunner: Option[ID] = proxy.value.runners.latestActiveRunnerId
+    val runnerStates: Map[ID, Map[ID, SPValue]] = proxy.value.runners.runnerStates
   }
 
   private class Backend($: BackendScope[Props, State]) {

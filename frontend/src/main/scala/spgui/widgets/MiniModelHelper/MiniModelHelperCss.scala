@@ -1,9 +1,9 @@
-package spgui.widgets.VDGUI
+package spgui.widgets.MiniModelHelper
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
-object VDTrackerCSS extends StyleSheet.Inline  {
+object MiniModelHelperCSS extends StyleSheet.Inline  {
   import dsl._
   import spgui.CSSConfig.space
 

@@ -5,7 +5,6 @@ import sp.domain.Logic._
 import sp.domain._
 import sp.models.{APIModel, APIModelMaker}
 import sp.service.MessageBussSupport
-import sp.vdtesting.APIVDTracker
 import scala.concurrent.duration._
 
 import akka.stream._
@@ -32,7 +31,7 @@ class MiniModelService extends Actor with MessageBussSupport {
 
   subscribe(APIModel.topicResponse)
   subscribe(APIModelMaker.topicResponse)
-  subscribe(APIVDTracker.topicRequest)
+  subscribe(APIMiniModelService.topicRequest)
 
 
   def createModel(name: String, modelID: ID): Unit = {
@@ -43,8 +42,8 @@ class MiniModelService extends Actor with MessageBussSupport {
     val idables = model.getIDAbles()
     val attributes = SPAttributes("isa" -> "VD")
     val newModel = sp.models.APIModelMaker.CreateModel(name, attributes, id = modelID)
-    val virtualDevice = Struct(name, makeStructNodes(idables), attributes)
-    val items = APIModel.PutItems(virtualDevice :: idables, SPAttributes("info" -> "initial items"))
+    val rootNode = Struct(name, makeStructNodes(idables), attributes)
+    val items = APIModel.PutItems(rootNode :: idables, SPAttributes("info" -> "initial items"))
 
     context.system.scheduler.scheduleOnce(0.1 seconds) {
       publish(
@@ -64,49 +63,41 @@ class MiniModelService extends Actor with MessageBussSupport {
     val initState = model.getInitialState ++ resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
 
     // start model
-    context.system.scheduler.scheduleOnce(5 seconds) {
-      val runner = SPRunner(
-        model.operations,
-        initState,
-        Struct("statevars"), // TODO
-        AbilityRunnerTransitions.abilityTransitionSystem)
+    val runner = SPRunner(
+      model.operations,
+      initState,
+      Struct("statevars"), // TODO
+      AbilityRunnerTransitions.abilityTransitionSystem)
 
-      val spvd = SetupRunnerInstance(ID.newID, model.getIDAbles, resources, runner)
+    val setup = SetupRunnerInstance(ID.newID, model.getIDAbles, resources, runner)
 
-      import akka.cluster.pubsub._
-      val mediator = DistributedPubSub(context.system).mediator
-      import DistributedPubSubMediator.{ Put, Send, Subscribe, Publish }
-
-      mediator ! Publish(APIRunnerManager.topicRequest, spvd)
-    }
-
+    import akka.cluster.pubsub._
+    val mediator = DistributedPubSub(context.system).mediator
+    import DistributedPubSubMediator.{ Put, Send, Subscribe, Publish }
+    mediator ! Publish(APIRunnerManager.topicRequest, setup)
   }
 
   def receive: Receive = {
     case s : String =>
       for { // unpack message
         message <- SPMessage.fromJson(s)
-        header <- message.getHeaderAs[SPHeader] if  header.to == APIVDTracker.service
-        body <- message.getBodyAs[APIVDTracker.Request]
+        header <- message.getHeaderAs[SPHeader] if  header.to == APIMiniModelService.service
+        body <- message.getBodyAs[APIMiniModelService.Request]
       } yield {
         val responseHeader = header.swapToAndFrom()
         sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPACK())) // acknowledge message received
 
         body match { // Check if the body is any of the following classes, and execute program
-          case APIVDTracker.createModel(modelName, modelID) =>
+          case APIMiniModelService.createModel(modelName, modelID) =>
             createModel(modelName, modelID)
 
-          case APIVDTracker.getModelsInfo(_) =>
-            sendAnswer(SPMessage.makeJson(responseHeader, APIVDTracker.sendModelsInfo(models.keys.toList)))
+          case APIMiniModelService.getModelsInfo =>
+            sendAnswer(SPMessage.makeJson(responseHeader, APIMiniModelService.sendModelsInfo(models.keys.toList)))
 
           case _ => Unit
         }
         sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPDone()))
       }
   }
-  def sendAnswer(mess: String): Unit = publish(APIVDTracker.topicResponse, mess)
-
-  implicit class EnhancedSPAttributes(attributes: SPAttributes) {
-    def getWithDefault[A](key: String, default: => A)(implicit reads: JSReads[A]): A = attributes.getAs[A](key).getOrElse(default)
-  }
+  def sendAnswer(mess: String): Unit = publish(APIMiniModelService.topicResponse, mess)
 }

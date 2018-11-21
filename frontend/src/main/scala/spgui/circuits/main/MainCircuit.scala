@@ -7,8 +7,7 @@ import spgui.circuits.main.handlers._
 
 case class FrontendState(
                           models: ModelHandlerState,
-                          abilities: AbilityHandlerState,
-                          virtualDevices: VDHandlerState
+                          runners: RunnerHandlerState
                         )
 
 
@@ -34,16 +33,14 @@ object MainCircuit extends Circuit[FrontendState] with ReactConnector[FrontendSt
   override protected def initialModel: FrontendState = {
     FrontendState(
       models = ModelHandler.initialState,
-      abilities = AbilityHandler.initialState,
-      virtualDevices = VDHandler.initialState
+      runners = RunnerHandler.initialState
     )
   }
 
   private val handlers = {
     foldHandlers(
       new ModelHandler(zoomRW(_.models)((state, modelState) => state.copy(models = modelState))),
-      new AbilityHandler(zoomRW(_.abilities)((state, abilityState) => state.copy(abilities = abilityState))),
-      new VDHandler(zoomRW(_.virtualDevices)((state, vdState) => state.copy(virtualDevices = vdState)))
+      new RunnerHandler(zoomRW(_.runners)((state, runnerState) => state.copy(runners = runnerState)))
     )
   }
 
