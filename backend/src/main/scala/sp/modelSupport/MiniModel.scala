@@ -574,10 +574,10 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     s.id
   }
 
-  def synthesize() = {
+  def synthesize(name: String = "dummy", runNow: Boolean = false) = {
     import scala.util.{Failure, Success, Try}
     Try[Unit] {
-      val (updOps,_,_) = synthesizeModel(getIDAbles())
+      val (updOps,_,_) = synthesizeModel(getIDAbles(), name, runNow)
 
       operations = operations.filterNot(o => updOps.exists(_.id == o.id)) ++ updOps
     } match {

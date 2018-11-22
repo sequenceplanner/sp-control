@@ -8,7 +8,7 @@ import scala.util.{Failure, Success, Try}
 import sp.supremica._
 
 trait SynthesizeMiniModel {
-  def synthesizeModel(ids: List[IDAble], moduleName : String = "dummy"): (List[Operation], SPAttributes, Map[String, Int] => Option[Boolean]) = {
+  def synthesizeModel(ids: List[IDAble], moduleName : String = "dummy", runNow: Boolean = false): (List[Operation], SPAttributes, Map[String, Int] => Option[Boolean]) = {
 
     // Extract from IDAbles
 
@@ -23,43 +23,46 @@ trait SynthesizeMiniModel {
 
     //Create Supremica Module and synthesize guards.
     val ptmw = MiniParseToModuleWrapper(moduleName, vars, ops.map(_._2), sopSpecs, spSpecs)
-    val ptmwModule = {
-      ptmw.addVariables()
-      ptmw.saveToWMODFile("./testFiles/gitIgnore/")
-      ptmw.addOperations() // add operations, with transitions and guards as events to the EFA for the later synthesis
-      ptmw.saveToWMODFile("./testFiles/gitIgnore/")
-      ptmw.addForbiddenExpressions()
-      ptmw.saveToWMODFile("./testFiles/gitIgnore/")
-      ptmw.saveToWMODFile("./testFiles/gitIgnore/raw/")
-      ptmw.SupervisorAsBDD()
+
+    ptmw.addVariables()
+    ptmw.saveToWMODFile("./gitignore/")
+    ptmw.addOperations() // add operations, with transitions and guards as events to the EFA for the later synthesis
+    ptmw.saveToWMODFile("./gitignore/")
+    ptmw.addForbiddenExpressions()
+    ptmw.saveToWMODFile("./gitignore/")
+    ptmw.saveToWMODFile("./gitignore/raw/")
+
+    if(!runNow)
+      (List(), SPAttributes(), (_ => Some(true)))
+    else {
+      val ptmwModule = ptmw.SupervisorAsBDD()
+
+
+      val optSupervisorGuards = ptmwModule.getSupervisorGuards.map(_.filter(og => !og._2.equals("1")))
+      println("got guards from supremica: " + optSupervisorGuards)
+      val updatedOps = optSupervisorGuards.map(newGuards => ops.map(_._2).flatMap(o => ptmw.addSynthGuards(o, newGuards))).getOrElse(List())
+
+      lazy val synthesizedGuards = optSupervisorGuards.getOrElse(Map()).foldLeft(SPAttributes()) { case (acc, (event, guard)) =>
+        acc merge SPAttributes("synthesizedGuards" -> SPAttributes(event -> guard))
+      }
+      val numStates = ptmwModule.nbrOfStates().getOrElse(-1l)
+      lazy val nbrOfStates = SPAttributes("nbrOfStatesInSupervisor" -> numStates)
+      println(s"Nbr of states in supervisor: ${numStates}")
+      if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
+
+      ptmw.addSupervisorGuardsToFreshFlower(optSupervisorGuards)
+      ptmw.saveToWMODFile("./gitignore/")
+
+      lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
+      lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
+
+      val renameBackOps = updatedOps.flatMap{o =>
+        ops.map(_._1).find(_.id == o.id).map(orig => o.copy(name = orig.name))
+      }
+
+      // TODO: refactor to only return the new guards...
+      (renameBackOps, spAttributes, (x => ptmwModule.containsState(x)))
     }
-
-
-
-    val optSupervisorGuards = ptmwModule.getSupervisorGuards.map(_.filter(og => !og._2.equals("1")))
-    println("got guards from supremica: " + optSupervisorGuards)
-    val updatedOps = optSupervisorGuards.map(newGuards => ops.map(_._2).flatMap(o => ptmw.addSynthGuards(o, newGuards))).getOrElse(List())
-
-    lazy val synthesizedGuards = optSupervisorGuards.getOrElse(Map()).foldLeft(SPAttributes()) { case (acc, (event, guard)) =>
-      acc merge SPAttributes("synthesizedGuards" -> SPAttributes(event -> guard))
-    }
-    val numStates = ptmwModule.nbrOfStates().getOrElse(-1l)
-    lazy val nbrOfStates = SPAttributes("nbrOfStatesInSupervisor" -> numStates)
-    println(s"Nbr of states in supervisor: ${numStates}")
-    if (synthesizedGuards.value.nonEmpty) println(synthesizedGuards.pretty)
-
-    ptmw.addSupervisorGuardsToFreshFlower(optSupervisorGuards)
-    ptmw.saveToWMODFile("./testFiles/gitIgnore/")
-
-    lazy val opsWithSynthesizedGuard = optSupervisorGuards.getOrElse(Map()).keys
-    lazy val spAttributes = synthesizedGuards merge nbrOfStates merge SPAttributes("info" -> s"Model synthesized. ${opsWithSynthesizedGuard.size} operations are extended with a guard: ${opsWithSynthesizedGuard.mkString(", ")}") merge SPAttributes("moduleName" -> moduleName)
-
-    val renameBackOps = updatedOps.flatMap{o =>
-      ops.map(_._1).find(_.id == o.id).map(orig => o.copy(name = orig.name))
-    }
-
-    // TODO: refactor to only return the new guards...
-    (renameBackOps, spAttributes, (x => ptmwModule.containsState(x)))
   }
 }
 

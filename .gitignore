@@ -38,7 +38,7 @@ snapshots/
 servicesJournal/
 
 # output from tests
-testFiles/gitIgnore/
+backend/gitignore
 
 # hydra-mode
 .sbt-hydra-history

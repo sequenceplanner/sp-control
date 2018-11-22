@@ -26,7 +26,8 @@ class MiniModelService extends Actor with MessageBussSupport {
     "URTest" -> new sp.unification.urdemo.Demo(context.system),
     "SDU" -> new sp.sdu.Model(context.system),
     "Unification ROS2" -> new sp.unification.ros2.UnificationModel(context.system),
-    "NewExtendedDummy" -> new sp.unification.NewExtended(context.system)
+    "NewExtendedDummy" -> new sp.unification.NewExtended(context.system),
+    "UnicornDemo" -> new sp.unicorn.mondaydemo.MondayDemo(context.system),
   )
 
   subscribe(APIModel.topicResponse)
