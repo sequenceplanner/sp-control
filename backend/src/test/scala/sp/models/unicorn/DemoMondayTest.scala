@@ -17,8 +17,8 @@ import sp.domain._
 import sp.streams._
 
 import sp.runners.Shared._
+import sp.runners.API._
 import sp.runners._
-
 
 
 class DemoMondayTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLike with Matchers with BeforeAndAfterAll {
@@ -34,23 +34,15 @@ class DemoMondayTest(_system: ActorSystem) extends TestKit(_system) with FreeSpe
     TestKit.shutdownActorSystem(system)
   }
 
-  // import sp.drivers.ros2.ROSHelpers
-  // val uni2spmsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItUniToSP").get
-  // val sp2unimsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItSPToUni").get
+  import sp.drivers.ros2.ROSHelpers
+  val uni2spmsg = ROSHelpers.createROSMsg("unicorn_ros2_messages/HrpUniToSP").get
+  val sp2unimsg = ROSHelpers.createROSMsg("unicorn_ros2_messages/HrpSPToUni").get
 
-  // val robotInput = ROSHelpers.createROSMsg("unification_ros2_messages/RobotiqUniToSP").get
-  // val robotOutput = ROSHelpers.createROSMsg("unification_ros2_messages/RobotiqSPToUni").get
+  val uni2spAttr = ROSHelpers.msgToAttr(uni2spmsg)
+  val sp2uniAttr = ROSHelpers.msgToAttr(sp2unimsg)
 
-  // val uni2spAttr = ROSHelpers.msgToAttr(uni2spmsg)
-  // val sp2uniAttr = ROSHelpers.msgToAttr(sp2unimsg)
-
-  // val robotInputAttr = ROSHelpers.msgToAttr(robotInput)
-  // val robotOutputAttr = ROSHelpers.msgToAttr(robotOutput)
-
-  // println(uni2spAttr)
-  // println(sp2uniAttr)
-  // println(robotInputAttr)
-  // println(robotOutputAttr)
+  println(uni2spAttr)
+  println(sp2uniAttr)
 
 //  assert(false)
 
@@ -62,7 +54,7 @@ class DemoMondayTest(_system: ActorSystem) extends TestKit(_system) with FreeSpe
   val operations = model.operations
   val idables = model.getIDAbles()
   val init = model.getInitialState()
-  val resources = model.makeResources()
+  val resources = List[SPResource]() // model.makeResources()
 
   operations.foreach { o=>println(o.id + " - " + o.name) }
 

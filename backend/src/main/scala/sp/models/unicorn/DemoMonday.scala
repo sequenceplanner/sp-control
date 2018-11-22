@@ -15,47 +15,98 @@ import sp.modelSupport._
 import sp.modelSupport.ros2._
 
 object RobotData {
-  val poses = List("unkown", "at_garage", "at_wp1", "at_bin1", "at_bin2")
-  val initialPose = poses.head
-  val state = List("idle", "charging", "planning", "executing")
-  val initialState = state.head
+  val poses = List("unkown", "UWS", "G1", "G2", "C1", "C2", "C3", "C4", "C5", "GDP1F1", "GDP1F2", "GDP2F1", "GDP2F2")
+  val initialPose = "G1" // poses.head
 }
 
 
-class Robot(override val system: ActorSystem) extends ROSResource {
+class Robot(name: String, override val system: ActorSystem) extends ROSResource {
   val actPos = i("actPos", RobotData.initialPose, RobotData.poses.map(SPValue(_)))
+
   val subMapping = stringToIDMapper(Map("act_pos" -> actPos))
   val subFlow = subMapping
-  subscribe("/unicorn_roscontrol/robot_uni_to_sp", "unicorn_ros2_messages/something", subFlow)
+  subscribe(s"/unicorn_roscontrol/hrp$name/hrp_uni_to_sp", "unicorn_ros2_messages/HrpUniToSP", subFlow)
 
   val refPos = o("refPos", RobotData.initialPose, RobotData.poses.map(SPValue(_)))
   val pubMapping = IDToStringMapper(Map(refPos -> "ref_pos"))
   val pubFlow = pubMapping
-  publish("/unification_roscontrol/ur_moveit_sp_to_unidriver", "unification_ros2_messages/MoveItSPToUni", Some(1000.millis), pubFlow)
+  publish(s"/unicorn_roscontrol/robot$name/hrp_sp_to_uni", "unicorn_ros2_messages/HrpSPToUni", Some(1000.millis), pubFlow)
 
-  v("state", RobotData.initialState, RobotData.state.map(SPValue(_)))
+  v("hasBin", false)
 
-  a("moveToPos")(
+  a("planAndMove")(
     c("pre", "true"),
-    c("started", "actPos != refPos"),
     c("post", "actPos == refPos"),
     c("reset", "true"))
+
 }
 
 class MondayDemo(override val system: ActorSystem) extends MiniModel {
-  use("robot1", new Robot(system))
-  use("robot2", new Robot(system))
+  use("robot1", new Robot("1", system))
+  use("robot2", new Robot("2", system))
 
-  v("bin1", "empty", List("empty", "full"))
-  v("bin2", "empty", List("empty", "full"))
+  val bins = List("GDP1F1", "GDP1F2", "GDP2F1", "GDP2F2")
 
-  val robot1GotoBin1 = o("robot1.gotoBin1", "robot1.moveToPos", "robot1")(
-    c("pre", s"bin1 == 'full' && robot1.state == 'idle'", "robot1.refPos := 'at_bin1'"),
-    c("post", "true"),
-    c("reset", "true")
+  bins.foreach { b =>
+    i(b, "empty", List("empty", "full", "byRobot"))
+    o(s"fill$b")(
+      c("pre", s"$b == 'empty'"),
+      c("post", s"$b == 'full'"),
+      c("reset", "true")
+    )
+  }
+
+  val robots = List("robot1", "robot2")
+
+  // goto all poses except "unknown"
+  val gotos: List[(String, String)] = List(
+    // out of garage
+    "G1" -> "C1",
+    "G2" -> "C1",
+    // via points going to bins
+    "C1" -> "C2",
+    "C2" -> "GDP1F1",
+    "C2" -> "GDP1F2",
+    "C2" -> "GDP2F1",
+    "C2" -> "GDP2F2",
+    // via points returning to the uws
+    "GDP1F1" -> "C2",
+    "GDP1F2" -> "C2",
+    "GDP2F1" -> "C2",
+    "GDP2F2" -> "C2",
+    "C2" -> "C5",
+    "C5" -> "UWS",
+    // back to garage
+    "UWS" -> "G1",
+    "UWS" -> "G2",
   )
 
+  def gotoName(a: String, b: String): String = s"${a}to${b}"
+
+  for {
+    r <- robots
+    (a,b) <- gotos
+  } yield {
+    val movement = gotoName(a,b)
+    o(s"$r.go$movement", s"$r.planAndMove", List(r,a,b))(
+      c("pre", s"$r.actPos == '$a'", s"$r.refPos := '$b'"),
+      c("post", "true"),
+      c("reset", "true")
+    )
+  }
+
+  for {
+    r <- robots
+    b <- bins
+  } yield {
+    o(s"$r.pick$b")(
+      c("pre", s"$r.actPos == '$b' && $b == 'full'", s"$b := 'byRobot'"),
+      c("post", "true"),
+      c("reset", "true")
+    )
+  }
+
   addBookings()
-  synthesize()
+  synthesize("unicorn", false)
 
 }
