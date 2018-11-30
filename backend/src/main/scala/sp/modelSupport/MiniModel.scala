@@ -613,16 +613,20 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
       }
       if(mutexes.isEmpty) None
       else {
+        val otherOpNames = operations.filter(o => others.contains(o.id)).map(_.name).mkString(",")
+        val oName = operations.find(_.id == o).get.name
+        println(s"Because of booking $resource by operation $oName, forbidding starting for other operations $otherOpNames")
         val cond = Condition(AND(mutexes), List(), SPAttributes("kind" -> "pre", "group" -> "resource"))
         Some(o -> cond)
       }
-    }).flatten.toMap
+    }).flatten
 
-    val updO = newGuards.flatMap{ case (id,cond) =>
-      operations.find(_.id == id).map(o => o.copy(conditions = cond :: o.conditions))
+
+    operations = operations.foldLeft(operations){ case (operations, o) =>
+      val newCs = newGuards.filter(_._1 == o.id).map(_._2)
+      val newO = o.copy(conditions = o.conditions ++ newCs)
+      newO :: operations.filterNot(_.id == o.id)
     }
-
-    operations = operations.map(o => newGuards.get(o.id).map(c => o.copy(conditions = c :: o.conditions)).getOrElse(o))
   }
 
   def getIDAbles(): List[IDAble] = {

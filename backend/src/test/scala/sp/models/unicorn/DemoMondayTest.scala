@@ -57,6 +57,7 @@ class DemoMondayTest(_system: ActorSystem) extends TestKit(_system) with FreeSpe
   val resources = List[SPResource]() // model.makeResources()
 
   operations.foreach { o=>println(o.id + " - " + o.name) }
+  idables.find(_.name == "robot2.goG2toC1").foreach(x=>println(x.asInstanceOf[Operation].conditions))
 
   assert(false)
 

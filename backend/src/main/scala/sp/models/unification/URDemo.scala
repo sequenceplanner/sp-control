@@ -320,25 +320,25 @@ class Demo(override val system: ActorSystem) extends MiniModel {
   )
 
   val urGotoAboveYellow = o("ur.gotoAboveYellow", "ur.moveToPos", "ur")(
-    c("pre", "!done && ur.actPos == 'above_station' && yellow == 'atTable1'", "ur.refPos := 'above_yellow'"),
+    c("pre", s"!done && ur.actPos == 'above_station' && yellow == 'atTable1' && $robotDoesNotHaveTheOthersYellow", "ur.refPos := 'above_yellow'"),
     c("post", "true", "ur.actPos := ur.refPos"),
     c("reset", "true")
   )
 
   val urOpenGripperAboveYellow = o("ur.openGripperAboveYellow", "gripper.open", "ur")(
-    c("pre", "yellow == 'atTable1' && ur.actPos == 'above_yellow' && gripper.actPos != 'open'"),
+    c("pre", s"yellow == 'atTable1' && ur.actPos == 'above_yellow' && gripper.actPos != 'open' && $robotDoesNotHaveTheOthersYellow"),
     c("post", "true"),
     c("reset", "true")
   )
 
   val urGotoAtYellow = o("ur.gotoAtYellow", "ur.moveToPos", "ur")(
-    c("pre", "yellow == 'atTable1' && ur.actPos == 'above_yellow' && gripper.actPos == 'open'", "ur.refPos := 'at_yellow'"),
+    c("pre", s"yellow == 'atTable1' && ur.actPos == 'above_yellow' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersYellow", "ur.refPos := 'at_yellow'"),
     c("post", "true"),
     c("reset", "true")
   )
 
   val urTakeYellow = o("ur.takeYellow", "gripper.close", "ur")(
-    c("pre", "yellow == 'atTable1' && ur.actPos == 'at_yellow' && gripper.actPos == 'open'"),
+    c("pre", s"yellow == 'atTable1' && ur.actPos == 'at_yellow' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersYellow"),
     c("post", "true", "yellow := 'byRobot'"),
     c("reset", "true")
   )
@@ -385,25 +385,25 @@ class Demo(override val system: ActorSystem) extends MiniModel {
   )
 
   val urGotoAboveGreen = o("ur.gotoAboveGreen", "ur.moveToPos", "ur")(
-    c("pre", "!done && ur.actPos == 'above_station' && green == 'atTable1'", "ur.refPos := 'above_green'"),
+    c("pre", s"!done && ur.actPos == 'above_station' && green == 'atTable1' && $robotDoesNotHaveTheOthersGreen", "ur.refPos := 'above_green'"),
     c("post", "true", "ur.actPos := ur.refPos"),
     c("reset", "true")
   )
 
   val urOpenGripperAboveGreen = o("ur.openGripperAboveGreen", "gripper.open", "ur")(
-    c("pre", "green == 'atTable1' && ur.actPos == 'above_green' && gripper.actPos != 'open'"),
+    c("pre", s"green == 'atTable1' && ur.actPos == 'above_green' && gripper.actPos != 'open' && $robotDoesNotHaveTheOthersGreen"),
     c("post", "true"),
     c("reset", "true")
   )
 
   val urGotoAtGreen = o("ur.gotoAtGreen", "ur.moveToPos", "ur")(
-    c("pre", "green == 'atTable1' && ur.actPos == 'above_green' && gripper.actPos == 'open'", "ur.refPos := 'at_green'"),
+    c("pre", s"green == 'atTable1' && ur.actPos == 'above_green' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersGreen", "ur.refPos := 'at_green'"),
     c("post", "true"),
     c("reset", "true")
   )
 
   val urTakeGreen = o("ur.takeGreen", "gripper.close", "ur")(
-    c("pre", "green == 'atTable1' && ur.actPos == 'at_green' && gripper.actPos == 'open'"),
+    c("pre", s"green == 'atTable1' && ur.actPos == 'at_green' && gripper.actPos == 'open' && $robotDoesNotHaveTheOthersGreen"),
     c("post", "true", "green := 'byRobot'"),
     c("reset", "true")
   )
@@ -443,10 +443,10 @@ class Demo(override val system: ActorSystem) extends MiniModel {
   // resource bookings
   addBookings()
 
-  x("robot cannot pick more than one brick", List("green == 'byRobot' && yellow == 'byRobot'",
-    "blue == 'byRobot' && red == 'byRobot'",
-    "green == 'byRobot' && red == 'byRobot'")
-  )
+  // x("robot cannot pick more than one brick", List("green == 'byRobot' && yellow == 'byRobot'",
+  //   "blue == 'byRobot' && red == 'byRobot'",
+  //   "green == 'byRobot' && red == 'byRobot'")
+  // )
 
 
 
@@ -454,7 +454,7 @@ class Demo(override val system: ActorSystem) extends MiniModel {
   // synthesis
   // reachable states: 6957024
   // time to compute: 111.195122077 seconds
-  // synthesize()
+  synthesize("urdemo", false)
 
   // with addBookings instead of booking variables:
   // reachable states: 3895264

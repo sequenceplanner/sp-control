@@ -97,7 +97,9 @@ object RunnerStateWidgetState {
           } yield {
             val items = for {
               (k,v) <- state
-              item <- model.items.get(k) if item.name.toLowerCase.contains(s.idableFilter.toLowerCase) && s.typeFilter == typeFilters.head || s.typeFilter == itemType(item)
+              item <- model.items.get(k)
+              if item.name.toLowerCase.contains(s.idableFilter.toLowerCase)
+              if s.typeFilter == typeFilters.head || s.typeFilter == itemType(item)
             } yield {
               (item,v)
             }

@@ -17,6 +17,7 @@ object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, 
         localDispatch(AddRunner(id))
 
       case API.StateEvent(runnerID, stateData) =>
+        localDispatch(AddRunner(runnerID))
         localDispatch(UpdateRunnerState(runnerID, stateData))
 
       case API.TerminatedRunnerInstance(id) =>

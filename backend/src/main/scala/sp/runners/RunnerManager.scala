@@ -125,7 +125,7 @@ class RunnerInstance(setup: API.SetupRunnerInstance) extends Actor
   val frontendFlow = limitFrontend.to(frontendSink)
 
   // keep-alive source
-  val ticker = Source.tick(2500 millis, 2500 millis, Map())
+  val ticker = Source.tick(500 millis, 500 millis, Map())
 
   val killSwitch = resourceSources.merge(ticker)
     .map(state => state ++ forceTable) // force inputs and internal
