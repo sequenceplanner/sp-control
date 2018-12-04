@@ -503,7 +503,7 @@ trait Resource extends CondStuff with ThingStuff with ActorStuff {
 
 }
 
-trait MiniModel extends CondStuff with ThingStuff with ActorStuff with SynthesizeMiniModel {
+trait MiniModel extends CondStuff with ThingStuff with ActorStuff with SynthesizeMiniModel with ExportNuXmvFile {
   var resources: Map[String, Resource] = Map.empty
   var operations: List[Operation] = List.empty
   var specs: List[SPSpec] = List.empty
@@ -572,6 +572,10 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     val s = SOPSpec(name, sop, attributes)
     sops = s :: sops
     s.id
+  }
+
+  def exportNuXmv(filename : String = "dummy.smv"): Unit = {
+    exportNuXmv(getIDAbles(), s"gitignore/$filename")
   }
 
   def synthesize(name: String = "dummy", runNow: Boolean = false) = {

@@ -1,4 +1,4 @@
-// package sp.sdu
+// package sp.models.sdu
 
 // import org.scalatest._
 

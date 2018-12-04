@@ -1,4 +1,4 @@
-package sp.unicorn
+package sp.models.unicorn
 
 import org.scalatest._
 
@@ -47,7 +47,7 @@ class DemoMondayTest(_system: ActorSystem) extends TestKit(_system) with FreeSpe
 //  assert(false)
 
   val t0 = System.nanoTime()
-  val model = new sp.unicorn.mondaydemo.MondayDemo(system)
+  val model = new MondayDemo(system)
   val t1 = System.nanoTime()
   println("Time to make model: " + (t1 - t0) / 1e9d + " seconds")
 

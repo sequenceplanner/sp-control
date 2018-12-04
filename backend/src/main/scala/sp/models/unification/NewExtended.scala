@@ -1,4 +1,4 @@
-package sp.unification
+package sp.models.unification
 
 import scala.concurrent.duration._
 

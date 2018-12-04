@@ -1,5 +1,7 @@
 package sp.modelSupport
 
+import sp.models._
+
 import akka.actor._
 import sp.domain.Logic._
 import sp.domain._
@@ -23,11 +25,11 @@ class MiniModelService extends Actor with MessageBussSupport {
   import context.dispatcher
 
   val models = Map(
-    "URTest" -> new sp.unification.urdemo.Demo(context.system),
-    "SDU" -> new sp.sdu.Model(context.system),
-    "Unification ROS2" -> new sp.unification.ros2.UnificationModel(context.system),
-    "NewExtendedDummy" -> new sp.unification.NewExtended(context.system),
-    "UnicornDemo" -> new sp.unicorn.mondaydemo.MondayDemo(context.system),
+    "URTest" -> new unification.urdemo.Demo(context.system),
+    "SDU" -> new sdu.Model(context.system),
+    "Unification ROS2" -> new unification.UnificationModel(context.system),
+    "NewExtendedDummy" -> new unification.NewExtended(context.system),
+    "UnicornDemo" -> new unicorn.MondayDemo(context.system),
   )
 
   subscribe(APIModel.topicResponse)

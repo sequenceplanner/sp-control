@@ -1,4 +1,4 @@
-package sp.unification
+package sp.models.unification.urdemo
 
 import org.scalatest._
 
@@ -55,7 +55,7 @@ class URDemoTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLik
 //  assert(false)
 
   val t0 = System.nanoTime()
-  val model = new sp.unification.urdemo.Demo(system)
+  val model = new Demo(system)
   val t1 = System.nanoTime()
   println("Time to make model: " + (t1 - t0) / 1e9d + " seconds")
 

@@ -1,4 +1,4 @@
-package sp.unicorn.mondaydemo
+package sp.models.unicorn
 
 import scala.concurrent.duration._
 
@@ -18,7 +18,7 @@ object ModelData {
   val robots = List("robot1", "robot2")
   val robotInitialPoses = List("G1", "G2")
 
-  val bins = List("GDP1F1", "GDP1F2", "GDP2F1")
+  val bins = List("GDP1F1", "GDP1F2") // , "GDP2F1", "GDP2F2")
 
   val robotPoses = List("unknown", "UWS", "G1", "G2", "C1", "C2", "C3", "C4", "C5", "C6") ++ bins
 }
@@ -172,7 +172,9 @@ class MondayDemo(override val system: ActorSystem) extends MiniModel {
 
 
   addBookings()
-  // synthesize("unicorn", true)
+  synthesize("unicorn", false)
+
+  exportNuXmv("unicorn.smv")
 
   // two robots, two bins: Nbr of states in supervisor: 148704, 69 seconds
   // two robots, four bins: supremica crashes

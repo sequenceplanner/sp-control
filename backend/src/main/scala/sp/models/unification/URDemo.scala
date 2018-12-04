@@ -1,4 +1,4 @@
-package sp.unification.urdemo
+package sp.models.unification.urdemo
 
 import scala.concurrent.duration._
 
@@ -454,10 +454,12 @@ class Demo(override val system: ActorSystem) extends MiniModel {
   // synthesis
   // reachable states: 6957024
   // time to compute: 111.195122077 seconds
-  synthesize("urdemo", false)
+  synthesize("urdemo", true)
 
   // with addBookings instead of booking variables:
   // reachable states: 3895264
   // time to compute: 27.892120614 seconds
+
+  exportNuXmv("urdemo.smv")
 
 }

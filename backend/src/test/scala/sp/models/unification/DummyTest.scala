@@ -1,4 +1,4 @@
-// package sp.unification
+// package sp.models.unification
 
 // import org.scalatest._
 // import sp.domain.Logic._
