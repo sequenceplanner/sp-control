@@ -34,6 +34,20 @@ class URDemoTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLik
     TestKit.shutdownActorSystem(system)
   }
 
+
+
+  import java.io.{OutputStream,PrintStream}
+  val is: OutputStream = StreamConverters.asOutputStream().map(_.utf8String).zipWithIndex.map{ case (s,i) => s"$i: $s" }.to(Sink.foreach(println)).run()(ActorMaterializer())
+
+  System.setOut(new PrintStream(is))
+
+  import sys.process._
+  val result = "ls -al" #| "grep src" !
+  val result2 = "/home/martin/bin/nuxmv /home/martin/tests/bmc/ops2goodexample.smv" !
+
+  assert(false)
+
+
   import sp.drivers.ros2.ROSHelpers
   val uni2spmsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItUniToSP").get
   val sp2unimsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItSPToUni").get

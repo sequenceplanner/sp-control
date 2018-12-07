@@ -17,11 +17,18 @@ object APIMiniModelService {
 
   case class createModel(modelType: String, id :ID = ID.newID) extends  Request
 
+
+  case class bmc(model: List[IDAble], initialState: Map[ID, SPValue], query: String, bound: Int = 50) extends  Request
+  case class bmcOutput(stdout: String) extends  Response
+
+
+
   object Formats {
     implicit val fcreateModel: JSFormat[createModel] = Json.format[createModel]
     implicit val fgetModelsInfo: JSFormat[getModelsInfo.type] = deriveCaseObject[getModelsInfo.type]
     implicit val fsendModelInfo: JSFormat[sendModelsInfo] = Json.format[sendModelsInfo]
-
+    implicit val fbmc: JSFormat[bmc] = Json.format[bmc]
+    implicit val fbmcOutput: JSFormat[bmcOutput] = Json.format[bmcOutput]
 
     def fMiniModelServiceRequest: JSFormat[Request] = Json.format[Request]
     def fMiniModelServiceResponse: JSFormat[Response] = Json.format[Response]

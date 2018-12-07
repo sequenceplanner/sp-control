@@ -12,11 +12,11 @@ trait ExportNuXmvFile {
   import sp.runners.AbilityRunnerTransitions._
   val idle = "idle" // we dont keep track of enabled/not enabled
 
-  def exportNuXmv(ids: List[IDAble], filename : String): Unit = {
+  def exportNuXmv(ids: List[IDAble], filename : String, initialState: Map[ID, SPValue], specs: String): Unit = {
 
     // Extract from IDAbles
 
-    // supremica cannot handle "." in strings... work around
+    // nuxmv cannot handle "." in identifiers. do some renaming
     val ops = ids.filter(_.isInstanceOf[Operation]).map(_.asInstanceOf[Operation]).
       filterNot(_.attributes.getAs[String]("isa") == Some("Ability")).map(o => o.copy(name = "o_"+o.name.replaceAll("\\.", "_")))
 
@@ -109,11 +109,10 @@ trait ExportNuXmvFile {
     // add assignment of initial states
     lines += "\n\n"
     lines += "ASSIGN\n"
-    (vars).foreach { v => for {
-      is <- v.attributes.getAs[SPValue]("initialState")
-    } yield {
-      lines += "  init(" + v.name + ") := " + spValTonuXmv(is) + ";\n"
-    }
+    vars.foreach { v =>
+      val init = initialState.get(v.id) orElse v.attributes.getAs[SPValue]("initialState")
+      val initStr = spValTonuXmv(init.getOrElse(SPValue("[initial state not set]")))
+      lines += "  init(" + v.name + ") := " + initStr + ";\n"
     }
 
     def actionValTonuXmvSyntax(a: Action) = {
@@ -279,6 +278,14 @@ trait ExportNuXmvFile {
     lines += "INVAR\n"
 
     lines += "  count(" + opStartVars.map(_.name).mkString(", ") + ") <= 1; -- only one op transition can be taken at a time \n"
+
+    lines += "\n"
+    lines += "\n"
+
+    lines += specs
+
+    lines += "\n"
+    lines += "\n"
 
     import java.io.PrintWriter
     new PrintWriter(filename) { write(lines); close() }

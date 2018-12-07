@@ -575,7 +575,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   }
 
   def exportNuXmv(filename : String = "dummy.smv"): Unit = {
-    exportNuXmv(getIDAbles(), s"gitignore/$filename")
+    exportNuXmv(getIDAbles(), s"gitignore/$filename", Map(), "")
   }
 
   def synthesize(name: String = "dummy", runNow: Boolean = false) = {
