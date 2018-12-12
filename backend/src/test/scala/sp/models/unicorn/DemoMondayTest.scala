@@ -1,4 +1,4 @@
-package sp.models.unicorn
+package sp.models.unicorn.demoMonday2
 
 import org.scalatest._
 

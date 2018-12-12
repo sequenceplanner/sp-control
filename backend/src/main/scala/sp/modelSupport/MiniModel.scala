@@ -503,7 +503,7 @@ trait Resource extends CondStuff with ThingStuff with ActorStuff {
 
 }
 
-trait MiniModel extends CondStuff with ThingStuff with ActorStuff with SynthesizeMiniModel with ExportNuXmvFile {
+trait MiniModel extends CondStuff with ThingStuff with ActorStuff with SynthesizeMiniModel with ExportNuXmvFile2 {
   var resources: Map[String, Resource] = Map.empty
   var operations: List[Operation] = List.empty
   var specs: List[SPSpec] = List.empty
@@ -527,6 +527,74 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   def o(name: String, ab: String, bookResource: String)(conds: cond*): ID =
     o(name, ab, List(bookResource))(conds:_*)
 
+  def updateGuard(guard: Proposition, remap: Map[ID, StateUpdater]): Proposition = {
+    def updateID(pe: StateEvaluator): StateEvaluator = pe match {
+      case SVIDEval(id) =>
+        remap.get(id).map{
+          case ASSIGN(oid) => SVIDEval(oid)
+          case ValueHolder(spval) => ValueHolder(spval)
+        }.getOrElse(SVIDEval(id))
+      case x => x
+    }
+
+    guard match {
+      case AND(xs) => AND(xs.map(x=>updateGuard(x, remap)))
+      case OR(xs) => OR(xs.map(x=>updateGuard(x, remap)))
+      case NOT(x) => NOT(updateGuard(x, remap))
+      case EQ(left, right) => EQ(updateID(left), updateID(right))
+      case NEQ(left, right) => NEQ(updateID(left), updateID(right))
+      case GREQ(left, right) => GREQ(updateID(left), updateID(right))
+      case LEEQ(left, right) => LEEQ(updateID(left), updateID(right))
+      case GR(left, right) => GR(updateID(left), updateID(right))
+      case LE(left, right) => LE(updateID(left), updateID(right))
+      case AlwaysTrue => AlwaysTrue
+      case AlwaysFalse => AlwaysFalse
+    }
+  }
+
+  def filterProp(guard: Proposition, skip: List[ID]): Proposition = {
+    guard match {
+      case AND(xs) => AND(xs.map(x=>filterProp(x, skip)))
+      case OR(xs) => OR(xs.map(x=>filterProp(x, skip)))
+      case NOT(x) => NOT(filterProp(x, skip))
+      case EQ(SVIDEval(id), SVIDEval(id2)) if skip.contains(id) && skip.contains(id2) => throw new Exception("assignment does not make sense: " + guard); AlwaysTrue
+      case EQ(SVIDEval(id), SVIDEval(id2)) if skip.contains(id) || skip.contains(id2) => AlwaysTrue
+
+      case EQ(SVIDEval(id), x) if skip.contains(id) => AlwaysTrue
+      case EQ(x, SVIDEval(id)) if skip.contains(id) => AlwaysTrue
+
+      case NEQ(SVIDEval(id), x) if skip.contains(id) => AlwaysTrue
+      case NEQ(x, SVIDEval(id)) if skip.contains(id) => AlwaysTrue
+
+      case GREQ(SVIDEval(id), x) if skip.contains(id) => AlwaysTrue
+      case GREQ(x, SVIDEval(id)) if skip.contains(id) => AlwaysTrue
+
+      case LEEQ(SVIDEval(id), x) if skip.contains(id) => AlwaysTrue
+      case LEEQ(x, SVIDEval(id)) if skip.contains(id) => AlwaysTrue
+
+      case GR(SVIDEval(id), x) if skip.contains(id) => AlwaysTrue
+      case GR(x, SVIDEval(id)) if skip.contains(id) => AlwaysTrue
+
+      case LE(SVIDEval(id), x) if skip.contains(id) => AlwaysTrue
+      case LE(x, SVIDEval(id)) if skip.contains(id) => AlwaysTrue
+
+      case x => x
+    }
+  }
+
+
+  // def updateAction(action: Action, remap: Map[ID, StateUpdater]): Action = {
+  //   val nid = remap.get(action.id).getOrElse(action.id)
+  //   val nval = action.value match {
+  //     case ASSIGN(id) => ASSIGN(remap.get(id).getOrElse(id))
+  //     case x => x
+  //   }
+  //   action.copy(id = nid, value = nval)
+  // }
+
+  def getConds(conds: List[Condition], kind: String)  =
+      conds.filter(_.attributes.getAs[String]("kind").getOrElse("")==kind)
+
   def o(name: String, ab: String, bookResources: List[String] = List())(conds: cond*) = {
     val allAbs = resources.map { case (rn, r) => r.abilities.map(a=>a.copy(name = rn + "." + a.name)) }.flatten.toList
     val ability = allAbs.find(_.name == ab).get
@@ -538,7 +606,42 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished)
 
     // merge op with its ability => merging the conditions
-    val op = Operation(name, conditions ++ ability.conditions, SPAttributes("domain" -> domain, "ability" -> ab, "bookings" -> bookResources))
+    // but first, replace all occurences of the abiilty paremeters with assignment in the pre action
+    val params = ability.attributes.getAs[List[ID]]("parameters").getOrElse(List())
+    val update = params.flatMap{id =>
+      val actions = getConds(conditions, "pre").map(_.action).flatten
+      val assigns = actions.collect { case Action(`id`, x) => x }.headOption
+      assigns.map(su => id -> su)
+    }.toMap
+    val updatedAbConds = ability.conditions.map{c =>
+      val ng = updateGuard(c.guard, update)
+      c.copy(guard = ng)
+    }
+    // amend isExecuting and Post conditions with the assignments made in the pre action
+    // these are invariant during operation execution
+    val newConds = conditions ++ updatedAbConds
+    val preActions = getConds(newConds, "pre").map(_.action).flatten
+    val newGuards = preActions.map { a =>
+      val assignTo = a.id
+      val assignWhat = a.value match {
+        case ASSIGN(id) => SVIDEval(id)
+        case ValueHolder(spval) => ValueHolder(spval)
+        case x => ValueHolder(SPValue(x.toString)) // error
+      }
+      EQ(SVIDEval(assignTo), assignWhat)
+    }
+
+    // but also amend them with the preconditions set out -- they are invariant unless post depends on the inputs!
+    val skip = parseHelpers.filter(t => t.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
+    val extraIsExecConds = getConds(newConds, "pre").map(_.guard) // .map(g => filterProp(g, skip))
+    val extraIsExec = Condition(AND(newGuards ++ extraIsExecConds), List(), attributes = SPAttributes("kind"->"isExecuting"))
+
+    // for post we also need to skip assignments that we do in the post transition
+    val postAssigns = getConds(conditions, "post").map(_.action).flatten.map(_.id)
+    val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ postAssigns))
+    val extraPost = Condition(AND(newGuards ++ extraPostConds), List(), attributes = SPAttributes("kind"->"post"))
+
+    val op = Operation(name, conditions ++ updatedAbConds ++ List(extraIsExec, extraPost), SPAttributes("domain" -> domain, "ability" -> ab, "bookings" -> bookResources))
     operations = op :: operations
     op.id
   }
