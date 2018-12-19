@@ -51,7 +51,7 @@ object ROSHelpers {
     }
   }
 
-  def msgToAttr(m: MessageDefinition) = {
+  def msgToAttr(m: MessageDefinition): SPAttributes = {
     val rm = scala.reflect.runtime.currentMirror
     val fields = rm.classSymbol(m.getClass).toType.members.collect {
       case m: TermSymbol if m.isPrivate && !m.isStatic && !m.isFinal => m
@@ -68,7 +68,23 @@ object ROSHelpers {
         case v:Int => SPValue(v)
         case v:Long => SPValue(v)
         case v:Boolean => SPValue(v)
-        // TODO: missing types, arrays, nesting
+        case v:MessageDefinition => msgToAttr(v)
+        case v:java.util.ArrayList[_] =>
+          import scala.collection.JavaConverters._
+          val l = v.asScala.toList
+          SPValue(l.map {
+            case v:String => SPValue(v)
+            case v:Float => SPValue(v)
+            case v:Double => SPValue(v)
+            case v:Byte => SPValue(v)
+            case v:Int => SPValue(v)
+            case v:Long => SPValue(v)
+            case v:Boolean => SPValue(v)
+            case v: MessageDefinition => msgToAttr(v)
+            case x => println("TODO: add support for " + x + " " + x.getClass.toString); SPValue("could not parse " + v.toString)
+          })
+
+        // TODO: add missing types, clean up code
         case x => println("TODO: add support for " + x + " " + x.getClass.toString); SPValue("could not parse " + v.toString)
       }
       attr + (n, spval)
@@ -76,7 +92,7 @@ object ROSHelpers {
     attr
   }
 
-  def attrToMsg(attr: SPAttributes, m: MessageDefinition) = {
+  def attrToMsg(attr: SPAttributes, m: MessageDefinition): Unit = {
     val rm = scala.reflect.runtime.currentMirror
     val fields = rm.classSymbol(m.getClass).toType.members.collect {
       case m: TermSymbol if m.isPrivate && !m.isStatic && !m.isFinal => m
@@ -93,7 +109,54 @@ object ROSHelpers {
         case v:Int => attr.getAs[Int](n).foreach(v=>instanceMirror.reflectField(field).set(v))
         case v:Long => attr.getAs[Long](n).foreach(v=>instanceMirror.reflectField(field).set(v))
         case v:Boolean => attr.getAs[Boolean](n).foreach(v=>instanceMirror.reflectField(field).set(v))
-        // TODO: missing types, arrays, nesting
+        case f:MessageDefinition => attr.getAs[SPAttributes](n).foreach{v=>
+          // omg... this is scary stuff
+          attrToMsg(v,f)
+        }
+        case l:java.util.ArrayList[_] =>
+          import scala.collection.JavaConverters._
+
+          for {
+            elementType <- field.typeSignature.typeArgs.headOption
+            spval <- attr.get(n)
+          } yield {
+            spval match {
+              case play.api.libs.json.JsArray(newElements) =>
+
+
+
+
+                // if(emptyMsg.isInstanceOf[MessageDefinition]) {
+                //   // ros message -- element needs to be a spattribute
+                //   attrToMsg(e.as[SPAttributes],emptyMsg.asInstanceOf[MessageDefinition])
+                //   println(msgToAttr(emptyMsg.asInstanceOf[MessageDefinition]))
+                //   emptyMsg
+                // } else
+                {
+                  // built in type
+                  if(elementType == typeOf[java.lang.String]) {
+                    val nn = newElements.map(_.as[String])
+                    val jn = new java.util.ArrayList[String](nn.asJava)
+                    instanceMirror.reflectField(field).set(jn)
+                  } else if(elementType <:< typeOf[MessageDefinition]) {
+                    println("message type: " + elementType.toString)
+                    val nn = newElements.flatMap { e =>
+                      Try { Class.forName(elementType.toString).newInstance().asInstanceOf[MessageDefinition] }.toOption.map{emptyMsg => attrToMsg(e.as[SPAttributes],emptyMsg); emptyMsg }
+                    }
+                    println("NN IS: " + nn)
+                    val jn = new java.util.ArrayList[MessageDefinition](nn.asJava)
+                    instanceMirror.reflectField(field).set(jn)
+                  }
+                  // TODO... some how do this a better way
+                  // TODO also add missing PODs
+
+                }
+
+              case _ =>
+            }
+          }
+
+        // TODO: add missing types, cleanup
         case x => println("TODO: add support for " + x + " " + x.getClass.toString)
       }
     }
