@@ -12,14 +12,18 @@ import spgui.circuits.main.handlers.DriverHandler.DriverId
 import spgui.circuits.main.{FrontendState, MainCircuit}
 import spgui.circuits.main.handlers._
 import spgui.communication._
-import spgui.components.SPWidgetElements
+import spgui.components.{Icon, SPWidgetElements}
 import spgui.widgets.itemexplorerincontrol.ModelChoiceDropdown
 import spgui.widgets.virtcom.Style
+import spgui.components.Button._
+import spgui.widgets.VDGUI.cards.CardViewCSS
+
 
 object VDTrackerWidget {
   import sp.abilityhandler.APIAbilityHandler
   import sp.devicehandler.{APIDeviceDriver, APIVirtualDevice}
   import sp.runners.APIOperationRunner
+  import spgui.widgets.VDGUI.{VDTrackerCSS => css}
 
   case class Props(proxy: ModelProxy[FrontendState]) {
     val activeModel: Option[ModelMock] = proxy.value.models.activeModel
@@ -42,8 +46,8 @@ object VDTrackerWidget {
   }
 
   private class Backend($: BackendScope[Props, Unit]) {
+
     def render(props: Props): VdomElement = {
-      import SPWidgetElements.{button, buttonGroup, dropdown}
       import sp.models.APIModel
 
       def onModelClick(modelName: String): Callback = Callback {
@@ -61,29 +65,75 @@ object VDTrackerWidget {
         }
       }
 
-      val models = props.availableVDModels.map { model => SPWidgetElements.dropdownElement(model, onModelClick(model)) }
-      val idAbles = props.activeModel.map(_.items).getOrElse(SimpleSet[ID, IDAble](_.id))
-      val runners = props.runners.toList
-      val abilityStates = props.abilities.map(_.state).reduceOption(_ ++ _).getOrElse(Map())
-      val resourceStates = props.virtualDevices.flatMap(_.resources.toList).map(_.state).reduceOption(_ ++ _).getOrElse(Map())
+      def parseIdAbleData(data: Map[ID, SPValue], ids: SimpleSet[ID, IDAble]): Seq[(IDAble, SPValue)] = {
+        data
+          .flatMap { case (id, value) => ids.get(id).map(_ -> value) }
+          .toList
+          .sortBy { case (idAble, _) => idAble.name }
+      }
+
+      val models = props.availableVDModels.map { model => SPDropdownItem(model, onModelClick(model)) }
+    val idAbles = props.activeModel.map(_.items).getOrElse(SimpleSet[ID, IDAble](_.id))
+    val runners = props.runners.toList
+    val abilityStates = props.abilities.map(_.state).reduceOption(_ ++ _).getOrElse(Map())
+    val abilityTableData = parseIdAbleData(abilityStates, idAbles).map { case (idAble, value) =>
+      (idAble.name, shortenID(idAble), splitAbilityValue(value))
+    }
+
+    val resourceStates = props.virtualDevices.flatMap(_.resources.toList).map(_.state).reduceOption(_ ++ _).getOrElse(Map())
+    val resourceTableData = parseIdAbleData(resourceStates, idAbles).map { case (idAble, value) =>
+        (idAble.name, shortenID(idAble), splitAbilityValue(value))
+      }
+
 
       <.div(
-        buttonGroup(Seq(
-          dropdown("Create Model", models),
-          ModelChoiceDropdown(onModelChoiceClick),
-          TagMod(
-            button("Launch VD and Abilities", launchAbilities),
-            button("Launch operation runner", Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles.toList)) }),
-            button("Terminate Everything", terminateAll(props))
-          ).when(props.activeModelId.isDefined)
-        )),
-        <.br(),
-        props.activeRunnerId.map(activeRunnerId => renderRunners(activeRunnerId, runners, idAbles)).whenDefined,
-        <.br(),
-        renderInfo("Ability state", abilityStates, idAbles),
-        <.br(),
-        renderInfo("Virtual Device state", resourceStates, idAbles)
-      ).render
+        <.div(
+          SPDropdown("Create Model", Callback.empty, Icon.plus, models),
+          ModelChoiceDropdown(onModelChoiceClick)
+        ),
+        <.div(
+          <.span(^.marginBottom.:=(2.px),SPButton("Launch VD and Abilities", launchAbilities)),
+          <.span(^.marginBottom.:=(2.px),SPButton("Launch operation runner",
+            Callback { VDTrackerCommunication.postRequest(APIVDTracker.launchOpRunner(idAbles.toList)) })),
+          <.span(^.marginBottom.:=(2.px),SPButton("Terminate Everything", terminateAll(props)))
+        ).when(props.activeModelId.isDefined),
+        <.div(
+          ^.marginTop.:=(2.px),
+          props.activeRunnerId.map(activeRunnerId =>
+            renderRunners(activeRunnerId, runners, idAbles)).whenDefined,
+          renderInfoTable("Ability state", abilityTableData),
+          //testStuff(),
+          renderInfoTable("Virtual Device state", resourceTableData)
+        )
+      )
+    }
+
+    def shortenID(idAble: IDAble): String = idAble.id.toString.substring(0,6)
+
+    def splitAbilityValue(spVal: SPValue): String = {
+      val filter = spVal.toString()
+        .filter(_ != '{').filter(_ != '}').filter(_ != ':').filter(_ != ',')
+      val split = filter.split('"')
+      split.toString
+    }
+
+    val tableHeaders = Vector(
+      TableRefactor.ColumnData("Name"),
+      TableRefactor.ColumnData("Id"),
+      TableRefactor.ColumnData("Value")
+    )
+
+    def renderInfoTable(summary: TagMod, rows: Seq[Product]): TagMod = {
+      <.details(
+        css.tableDescriptionText,
+        <.summary(Style.collapsible, summary),
+        TableRefactor(tableHeaders, rows),
+        <.br()
+      )
+    }
+
+    def renderInfoTable(name: String, rows: Seq[Product]): TagMod = {
+      renderInfoTable(<.div(CardViewCSS.cardTitleExpanded, name), rows)
     }
 
     def terminateAll(props: Props): Callback = Callback {
@@ -102,13 +152,13 @@ object VDTrackerWidget {
         val state = runner.state
 
         val rows = state.map { case (id, value) =>
-            val name = ids.get(id).map(_.name).getOrElse("")
+          val name = ids.get(id).map(_.name).getOrElse("")
 
-            <.tr(
-              <.td(name),
-              <.td(id.toString),
-              <.td(value.toString())
-            )
+          <.tr(
+            <.td(name),
+            <.td(id.toString),
+            <.td(value.toString())
+          )
         }.toTagMod
 
         val summaryText = s"Operation runner state (${runner.id})"
