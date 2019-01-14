@@ -30,6 +30,7 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
     "Unification ROS2" -> new unification.UnificationModel(context.system),
     "NewExtendedDummy" -> new unification.NewExtended(context.system),
     "UnicornDemo" -> new unicorn.MondayDemo(context.system),
+    "IPSIntegration" -> new sp.models.unification.ipsintegration.IPSIntegrationModel(context.system),
   )
 
   subscribe(APIModel.topicResponse)

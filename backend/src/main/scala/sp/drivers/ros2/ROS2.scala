@@ -45,6 +45,11 @@ object ROSHelpers {
   }
 
   def createROSMsg(msgType: String): Option[MessageDefinition] = {
+    // File f = new File("/path/to/ros/stuff");
+    // URL[] cp = {f.toURI().toURL()};
+    // URLClassLoader urlcl = new URLClassLoader(cp);
+    // Class clazz = urlcl.loadClass("distantinterfaces.DistantClass");
+
     rosMsgFormatToJavaClass(msgType).flatMap { msgClass => Try {
       Class.forName(msgClass).newInstance().asInstanceOf[MessageDefinition]
     }.toOption
@@ -123,16 +128,6 @@ object ROSHelpers {
             spval match {
               case play.api.libs.json.JsArray(newElements) =>
 
-
-
-
-                // if(emptyMsg.isInstanceOf[MessageDefinition]) {
-                //   // ros message -- element needs to be a spattribute
-                //   attrToMsg(e.as[SPAttributes],emptyMsg.asInstanceOf[MessageDefinition])
-                //   println(msgToAttr(emptyMsg.asInstanceOf[MessageDefinition]))
-                //   emptyMsg
-                // } else
-                {
                   // built in type
                   if(elementType == typeOf[java.lang.String]) {
                     val nn = newElements.map(_.as[String])
@@ -149,8 +144,6 @@ object ROSHelpers {
                   }
                   // TODO... some how do this a better way
                   // TODO also add missing PODs
-
-                }
 
               case _ =>
             }
