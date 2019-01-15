@@ -44,12 +44,19 @@ object ROSHelpers {
     }
   }
 
-  def createROSMsg(msgType: String): Option[MessageDefinition] = {
-    // File f = new File("/path/to/ros/stuff");
-    // URL[] cp = {f.toURI().toURL()};
-    // URLClassLoader urlcl = new URLClassLoader(cp);
-    // Class clazz = urlcl.loadClass("distantinterfaces.DistantClass");
+  def javaClassToRosMsgFormat(msgType: String) = {
+    // val source = "unification_ros2_messages.msg.MoveItUniToSP"
+    // val target = "unification_ros2_messages/MoveItSPToUni"
+    val s = msgType.split("\\.msg\\.")
+    for {
+      p <- s.lift(0)
+      m <- s.lift(1)
+    } yield {
+      p + "/" + m
+    }
+  }
 
+  def createROSMsg(msgType: String): Option[MessageDefinition] = {
     rosMsgFormatToJavaClass(msgType).flatMap { msgClass => Try {
       Class.forName(msgClass).newInstance().asInstanceOf[MessageDefinition]
     }.toOption
@@ -94,15 +101,25 @@ object ROSHelpers {
       }
       attr + (n, spval)
     })
-    attr
+    val className = m.getClass().getCanonicalName()
+    val rosMsg = javaClassToRosMsgFormat(className)
+    rosMsg.map(mn => attr + ("_type" -> mn)).getOrElse(attr)
   }
 
-  def attrToMsg(attr: SPAttributes, m: MessageDefinition): Unit = {
+  def attrToMsg(attr: SPAttributes, messageType: String = ""): MessageDefinition = {
+    val msgType = if(messageType != "") messageType else attr.getAs[String]("_type").getOrElse("")
+
+    val m = createROSMsg(msgType) match {
+      case Some(msg) => msg
+      case _ => throw new Exception("ROS messageType not found: " + msgType + " -- " + attr)
+    }
+
     val rm = scala.reflect.runtime.currentMirror
     val fields = rm.classSymbol(m.getClass).toType.members.collect {
       case m: TermSymbol if m.isPrivate && !m.isStatic && !m.isFinal => m
     }.toList
     val instanceMirror = rm.reflect(m)
+
     fields.foreach { field =>
       val n = field.name.toString
       val curval = instanceMirror.reflectField(field).get
@@ -115,8 +132,10 @@ object ROSHelpers {
         case v:Long => attr.getAs[Long](n).foreach(v=>instanceMirror.reflectField(field).set(v))
         case v:Boolean => attr.getAs[Boolean](n).foreach(v=>instanceMirror.reflectField(field).set(v))
         case f:MessageDefinition => attr.getAs[SPAttributes](n).foreach{v=>
-          // omg... this is scary stuff
-          attrToMsg(v,f)
+          val className = f.getClass().getCanonicalName()
+          val rosMsg = javaClassToRosMsgFormat(className).getOrElse("")
+          val newMsg = attrToMsg(v, rosMsg)
+          instanceMirror.reflectField(field).set(newMsg)
         }
         case l:java.util.ArrayList[_] =>
           import scala.collection.JavaConverters._
@@ -126,26 +145,43 @@ object ROSHelpers {
             spval <- attr.get(n)
           } yield {
             spval match {
+              case play.api.libs.json.JsArray(newElements) if elementType =:= typeOf[java.lang.String] =>
+                val nn = newElements.map(_.as[String])
+                val jn = new java.util.ArrayList[String](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
+              case play.api.libs.json.JsArray(newElements) if elementType =:= typeOf[java.lang.Double] =>
+                val nn = newElements.map(_.as[Double])
+                val jn = new java.util.ArrayList[Double](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
+              case play.api.libs.json.JsArray(newElements) if elementType =:= typeOf[java.lang.Float] =>
+                val nn = newElements.map(_.as[Float])
+                val jn = new java.util.ArrayList[Float](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
+              case play.api.libs.json.JsArray(newElements) if elementType =:= typeOf[java.lang.Byte] =>
+                val nn = newElements.map(_.as[Byte])
+                val jn = new java.util.ArrayList[Byte](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
+              case play.api.libs.json.JsArray(newElements) if elementType =:= typeOf[java.lang.Integer] =>
+                val nn = newElements.map(_.as[Int])
+                val jn = new java.util.ArrayList[Int](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
+              case play.api.libs.json.JsArray(newElements) if elementType =:= typeOf[java.lang.Long] =>
+                val nn = newElements.map(_.as[Long])
+                val jn = new java.util.ArrayList[Long](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
+              case play.api.libs.json.JsArray(newElements) if elementType =:= typeOf[java.lang.Boolean] =>
+                val nn = newElements.map(_.as[Boolean])
+                val jn = new java.util.ArrayList[Boolean](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
+              case play.api.libs.json.JsArray(newElements) if elementType <:< typeOf[MessageDefinition] =>
+                val nn = newElements.map { e => attrToMsg(e.as[SPAttributes], javaClassToRosMsgFormat(elementType.toString).getOrElse("")) }
+                val jn = new java.util.ArrayList[MessageDefinition](nn.asJava)
+                instanceMirror.reflectField(field).set(jn)
               case play.api.libs.json.JsArray(newElements) =>
+                println("TODO: add array support for " + elementType)
+                throw new Exception("ros message fail")
 
-                  // built in type
-                  if(elementType == typeOf[java.lang.String]) {
-                    val nn = newElements.map(_.as[String])
-                    val jn = new java.util.ArrayList[String](nn.asJava)
-                    instanceMirror.reflectField(field).set(jn)
-                  } else if(elementType <:< typeOf[MessageDefinition]) {
-                    println("message type: " + elementType.toString)
-                    val nn = newElements.flatMap { e =>
-                      Try { Class.forName(elementType.toString).newInstance().asInstanceOf[MessageDefinition] }.toOption.map{emptyMsg => attrToMsg(e.as[SPAttributes],emptyMsg); emptyMsg }
-                    }
-                    println("NN IS: " + nn)
-                    val jn = new java.util.ArrayList[MessageDefinition](nn.asJava)
-                    instanceMirror.reflectField(field).set(jn)
-                  }
-                  // TODO... some how do this a better way
-                  // TODO also add missing PODs
-
-              case _ =>
+              case x => throw new Exception("UNEXPECTED SPVAL: " + x)
             }
           }
 
@@ -153,7 +189,9 @@ object ROSHelpers {
         case x => println("TODO: add support for " + x + " " + x.getClass.toString)
       }
     }
+    m
   }
+
 }
 
 class RCLBase(system: ActorSystem) {
@@ -189,13 +227,13 @@ class RCLBase(system: ActorSystem) {
     def pub[T <: MessageDefinition: ClassTag](msg: T, topic: String): Sink[SPAttributes, _] = {
       val publisher: Publisher[T] = node.createPublisher[T](msg.getClass.asInstanceOf[Class[T]], topic)
       val sink = Sink.foreach[SPAttributes](attr => {
-        ROSHelpers.attrToMsg(attr, msg)
-        publisher.publish(msg)
+        val toSend = ROSHelpers.attrToMsg(attr, msgType).asInstanceOf[T]
+        publisher.publish(toSend)
       })
       sink
     }
 
-    val msg = ROSHelpers.createROSMsg(msgType).get
+    val msg = ROSHelpers.createROSMsg(msgType).getOrElse { throw new Exception(s"$msgType could not be created"); null }
     val sink = pub(msg, topic)
   }
 

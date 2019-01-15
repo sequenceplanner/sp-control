@@ -34,53 +34,16 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
     TestKit.shutdownActorSystem(system)
   }
 
-  // import sp.drivers.ros2.ROSHelpers
-  // val nestedMsg = ROSHelpers.createROSMsg("geometry_msgs/Pose").get
-  // val nestedAttr = ROSHelpers.msgToAttr(nestedMsg)
-  // val newPosition = SPAttributes("position" -> Map ("x" -> 5))
-  // println(newPosition)
-  // println(nestedAttr)
-  // val updatedAttr = nestedAttr.deepMerge(newPosition)
-  // println(updatedAttr)
-  // // mutable message change
-  // ROSHelpers.attrToMsg(updatedAttr, nestedMsg)
-
-  // val changedNested = nestedMsg // breaks the scala compiler .clone()
-  // val changedAttr = ROSHelpers.msgToAttr(nestedMsg)
-  // println("SP CREATED A MESSAGE:")
-  // println(changedAttr)
-
-
-
-  // test class loading from different paths
-
-  import scala.collection.JavaConverters._
-  import org.ros2.rcljava.interfaces.MessageDefinition
-
-  System.load("/home/martin/ros2/test_ws/install/lib/libunification_ros2_messages__rosidl_generator_c.so")
-  System.load("/home/martin/ros2/test_ws/install/lib/jni/libunification_ros2_messages_msg__common__jni__rosidl_typesupport_c.so")
-  System.load("/home/martin/ros2/test_ws/install/lib/libunification_ros2_messages_msg__common__jni__rosidl_typesupport_introspection_c.so")
-  System.load("/home/martin/ros2/test_ws/install/lib/libunification_ros2_messages__rosidl_typesupport_c.so")
-  System.load("/home/martin/ros2/test_ws/install/lib/libunification_ros2_messages__rosidl_typesupport_introspection_c.so")
-
-  System.load("/home/martin/ros2/test_ws/install/lib/jni/libunification_ros2_messages_msg_ur_pose_uni_to_sp__jni__rosidl_typesupport_c.so")
-
-//  assert(false)
-
-  val f = new java.io.File("/home/martin/ros2/test_ws/install/share/unification_ros2_messages/java/unification_ros2_messages_messages.jar")
-  // val f2 = new java.io.File("/home/martin/ros2/test_ws/install/lib/libunification_ros2_messages__rosidl_generator_c.so")
-  // val f4 = new java.io.File("/home/martin/ros2/test_ws/install/lib/libunification_ros2_messages__rosidl_typesupport_c.so")
-  // val f3 = new java.io.File("/home/martin/ros2/test_ws/install/lib/jni/libunification_ros2_messages_msg_ur_pose_uni_to_sp__jni__rosidl_typesupport_c.so")
-
-  val cp: List[java.net.URL] = List(f.toURI().toURL()) //, f2.toURI().toURL(), f3.toURI().toURL())
-  println("CP: " + cp)
-  val urlcl = new java.net.URLClassLoader(cp.toArray[java.net.URL]);
-  println("CL: " + urlcl)
-  val loaded = urlcl.loadClass("unification_ros2_messages.msg.URPoseUniToSP");
-  println("loaded: " + loaded.newInstance().asInstanceOf[MessageDefinition].getClass)
-
-  assert(false)
-
+  import sp.drivers.ros2.ROSHelpers
+  val nestedMsg = ROSHelpers.createROSMsg("geometry_msgs/Pose").get
+  val nestedAttr = ROSHelpers.msgToAttr(nestedMsg)
+  val newPosition = SPAttributes("position" -> Map ("x" -> 5))
+  val updatedAttr = nestedAttr.merge(newPosition)
+  println(updatedAttr)
+  val chantedNested = ROSHelpers.attrToMsg(updatedAttr)
+  println("SP CREATED A MESSAGE:")
+  val changedAttr = ROSHelpers.msgToAttr(chantedNested)
+  println(changedAttr)
 
   /// now we add support for lists/arrays
 
@@ -89,24 +52,16 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
   import sp.drivers.ros2.ROSHelpers
   val listMsg = ROSHelpers.createROSMsg("sensor_msgs/MultiDOFJointState").get
   val listAttr = ROSHelpers.msgToAttr(listMsg)
+  println("original message: " + listAttr)
   val jointNames = SPAttributes("joint_names" -> List("hej", "hopp"))
   val twist = SPAttributes("twist" -> List(SPAttributes("linear" -> SPAttributes("x" -> 5))))
-  val newListAttr = listAttr.deepMerge(jointNames).deepMerge(twist)
-  ROSHelpers.attrToMsg(newListAttr, listMsg)
+  val newListAttr = listAttr.merge(jointNames).merge(twist)
+  val newListMsg = ROSHelpers.attrToMsg(newListAttr)
+  println("merged with sp stuff: " + newListAttr)
+  val convertBack = ROSHelpers.msgToAttr(newListMsg)
+  println("converted back to ros message: " + convertBack)
 
-  println(listAttr)
-
-  println(newListAttr)
-
-  val convertBack = ROSHelpers.msgToAttr(listMsg)
-  println(convertBack)
-
-
-
-
-
-
-  assert(false)
+//  assert(false)
 
 
 
