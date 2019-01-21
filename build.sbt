@@ -48,6 +48,9 @@ lazy val spcontrol_api = crossProject.crossType(CrossType.Pure).in(file("api"))
 lazy val spcontrol_api_jvm = spcontrol_api.jvm
 lazy val spcontrol_api_js = spcontrol_api.js
 
+// jesus christ SBT...
+val cp = System.getenv("CLASSPATH").split(":").map(x => new java.io.File(x)).toSeq.classpath
+
 lazy val spcontrol_backend = Project(base = file("backend"), id = "backend")
   .settings(
     libraryDependencies ++= commDependencies.value,
@@ -56,8 +59,8 @@ lazy val spcontrol_backend = Project(base = file("backend"), id = "backend")
     buildSettings,
     serviceSettings,
     fork in Test := true,
-    javaOptions in run += "-Djava.library.path=lib/",
-    javaOptions in Test += "-Djava.library.path=lib/",
+    unmanagedClasspath in Compile ++= cp,  // want Runtime here but it doesn't work
+    unmanagedClasspath in Test ++= cp,
     mainClass in (Compile, run) := Some("sp.Launch")
   )
   .dependsOn(spcontrol_api_jvm)
