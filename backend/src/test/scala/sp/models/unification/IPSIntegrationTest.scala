@@ -34,6 +34,16 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
     TestKit.shutdownActorSystem(system)
   }
 
+
+  println("\n\n\n")
+  println(System.getProperty("java.class.path"))
+  println("\n\n\n")
+
+  println("\n\n\n")
+  println(System.getProperty("java.library.path"))
+  println("\n\n\n")
+
+
   import sp.drivers.ros2.ROSHelpers
   val nestedMsg = ROSHelpers.createROSMsg("geometry_msgs/Pose").get
   val nestedAttr = ROSHelpers.msgToAttr(nestedMsg)
@@ -75,7 +85,7 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
   println(uni2spAttr)
   println(sp2uniAttr)
 
-  assert(false)
+//  assert(false)
 
   val t0 = System.nanoTime()
   val model = new IPSIntegrationModel(system)
