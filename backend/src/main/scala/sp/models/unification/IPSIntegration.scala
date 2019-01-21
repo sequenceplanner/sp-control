@@ -132,31 +132,62 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
     val source = UR.canOnlyGoFrom.get(p).map(source => c("pre", s"ur.actPos == '$source'")).getOrElse(c("pre", "true"))
 
-    o(s"ur.goto$p", "ur.moveToPos", "ur")(
+    val op = o(s"ur.goto$p", "ur.moveToPos", "ur")(
       c("pre", s"ur.actPos != '$p' && ur.refPos != '$p'", s"ur.refPos := '$p'"),
       ofc,
       source,
       c("post", "true"),
       c("reset", "true")
     )
-  }
+    (p, op)
+  }.toMap
 
   val attach = o("ur.attach")(
-    c("pre", s"!ur.ofAttached && ur.actPos == 'ATTACH_OF'", "ur.ofAttached := true"),
+    c("pre", s"!ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := true"),
     c("post", "true"),
     c("reset", "true")
   )
 
   val detach = o("ur.detach")(
-    c("pre", s"ur.ofAttached && ur.actPos == 'ATTACH_OF'", "ur.ofAttached := false"),
+    c("pre", s"ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := false"),
     c("post", "true"),
     c("reset", "true")
   )
 
-  val sopposes = Sequence(gotoPositions.map(o=>SOP(o)))
+  val tighten1 = SPAttributes(
+    "name" -> "tighten",
+    "target_state" -> "ur.actPos == _'PRE_ATTACH_OF'",
+    "goal_state" -> "ur.actPos == 'OF_1_TIGHTENED'",
+  )
+
+  // main sop for testing in auto
+
+  val mainSop = for {
+    op1 <- gotoPositions.get("PRE_ATTACH_OF")
+    op2 <- gotoPositions.get("ATTACH_OF")
+    op3 = attach
+    op4 <- gotoPositions.get("PRE_OF_1_UNTIGHTENED")
+    op5 <- gotoPositions.get("OF_1_TIGHTENED")
+    op6 <- gotoPositions.get("PRE_ATTACH_OF")
+    op7 <- gotoPositions.get("PRE_OF_2_UNTIGHTENED")
+    op8 <- gotoPositions.get("OF_2_TIGHTENED")
+    op9 <- gotoPositions.get("PRE_ATTACH_OF")
+    op10 <- gotoPositions.get("ATTACH_OF")
+    op11 = detach
+    op12 <- gotoPositions.get("PRE_ATTACH_OF")
+  } yield {
+    val l = List(op1, op2, op3, op4, op5, op1, op6, op7, op8, op9, op10, op11, op12).map(o=>SOP(o))
+    Sequence(l)
+  }
+
+//  sopC("main sequence", mainSop.toList)
+
+  val sopposes = Sequence(gotoPositions.map(o=>SOP(o._2)).toList)
   val sopattach = Sequence(List(SOP(attach), SOP(detach)))
   sop("UR", List(Parallel(List(sopposes, sopattach))))
 
   // resource bookings
   addBookings()
+
+  exportNuXmv("ipsintegration.smv")
 }
