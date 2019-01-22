@@ -65,13 +65,13 @@ trait ExportNuXmvFile2 {
     ops.foreach { o =>
       val pre = AND(getConds(o.conditions, "pre").map(_.guard))
       val exec = AND(getConds(o.conditions, "isExecuting").map(_.guard))
-      val fin = AND(getConds(o.conditions, "post").map(_.guard))
+      val fin = AND(getConds(o.conditions, "isFinished").map(_.guard))
       val reset = AND(getConds(o.conditions, "reset").map(_.guard))
 
       lines += "DEFINE " + o.name + "_finished := " + propTonuXmvSyntax(fin) + ";\n"
       lines += "DEFINE " + o.name + "_executing := !" + o.name + "_finished &" + propTonuXmvSyntax(exec) + ";\n"
       lines += "DEFINE " + o.name + "_enabled := !" + o.name + "_executing &" + propTonuXmvSyntax(pre) + ";\n"
-    }
+     }
 
     // add assignment of initial states
     lines += "\n\n"
@@ -198,7 +198,7 @@ trait ExportNuXmvFile2 {
       if(inputs.contains(v.id)) {
         // check post guards for inputs. special treatment for them!
         ops.foreach { o =>
-          val postGuards = getConds(o.conditions, "post").map(_.guard)
+          val postGuards = getConds(o.conditions, "isFinished").map(_.guard)
           val inputGuards = postGuards.map(p=>findInputGuard(p, v.id)).flatten
 
           if(inputGuards.size > 1) {
@@ -232,11 +232,12 @@ trait ExportNuXmvFile2 {
           }
 
 
-          val postActions = getConds(o.conditions, "post").map(_.action).flatten.filter(_.id == v.id)
+          val postActions = getConds(o.conditions, "isFinished").map(_.action).flatten.filter(_.id == v.id)
           postActions.foreach { pa =>
             val actionStr = actionValTonuXmvSyntax(pa)
 
-            lines += s"    ${o.name}_executing & next(${o.name}_finished) : $actionStr;\n"
+            // lines += s"    ${o.name}_executing & next(${o.name}_finished) : $actionStr;\n"
+            lines += s"    next(${o.name}_finished) : $actionStr;\n"
           }
         }
       }

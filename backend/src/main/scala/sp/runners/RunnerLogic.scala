@@ -62,6 +62,7 @@ object RunnerLogic {
     * @param sequence
     */
   case class OneOperationRun(lastState: SPState, sequence: List[(Operation, SPState)])
+
   case class FireEvent(event: SPValue, operation: ID)
 
   // Add force when we need it
@@ -116,9 +117,37 @@ object RunnerLogic {
 
     }
 
-    val res = runDeep(ops, s, List())
-    val lastState = res.headOption.map(_._2).getOrElse(s)
-    OneOperationRun(lastState, res)
+    val res = ops.foldLeft(s) { (s, op) =>
+      // hack this for now
+      val enabled = filterConditions(op.conditions, Set("pre"), Set())
+      val executing = filterConditions(op.conditions, Set("isExecuting"), Set())
+      val finished = filterConditions(op.conditions, Set("isFinished"), Set())
+
+      val ns = if(enabled.forall(p => p.eval(s)) && fire.exists(f=>f.operation==op.id)) {
+        // take start transition
+        println("taking start transition for: " + op.name)
+        enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+      } else if(finished.forall(p => p.eval(s))) {
+        // take finish transition
+        println("taking finish transition for: " + op.name)
+        finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+      } else s
+
+
+      val x = if(filterConditions(op.conditions, Set("isFinished"), Set()).forall(p => p.eval(ns)))
+        ns.next(op.id -> SPValue("finished"))
+      else if(filterConditions(op.conditions, Set("isExecuting"), Set()).forall(p => p.eval(ns)))
+        ns.next(op.id -> SPValue("executing"))
+      else if(filterConditions(op.conditions, Set("pre"), Set()).forall(p => p.eval(ns)))
+        ns.next(op.id -> SPValue("enabled"))
+      else ns.next(op.id -> SPValue("notEnabled"))
+
+      x
+    }
+
+    // val res = runDeep(ops, s, List())
+    val lastState = res // res.headOption.map(_._2).getOrElse(s)
+    OneOperationRun(lastState, List())
   }
 
 
@@ -175,6 +204,7 @@ object RunnerLogic {
                      onlyGuard: Boolean = false
                     ): SPState = {
 
+    println("TAKING TRANSITION OF KIND: " + kind.toString)
     val preF = filterConditions(op.conditions, kind, disabledGroups)
     val filtered = if (enableAlternatives) preF.filter(_.eval(s)) else preF
 

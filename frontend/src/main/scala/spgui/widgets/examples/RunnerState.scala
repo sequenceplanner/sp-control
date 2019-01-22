@@ -31,8 +31,8 @@ object RunnerStateWidgetState {
       $.modState { s =>
         val newForce = s.force + (id -> value)
         // if force active, send new force table to backend
-        if(s.activeForce.contains(id))
-          send(api.SetForceTable(runnerID, newForce, s.forceEvents))
+        val f = newForce.filterKeys(s.activeForce.contains)
+        send(api.SetForceTable(runnerID, f, s.forceEvents))
         s.copy(force = newForce)
       }
     }
@@ -43,7 +43,8 @@ object RunnerStateWidgetState {
           if(value == SPValue("[none]")) s.forceEvents - id
           else s.forceEvents + (id -> SPValue(value))
 
-        send(api.SetForceTable(runnerID, s.force, forceEvents))
+        val f = s.force.filterKeys(s.activeForce.contains)
+        send(api.SetForceTable(runnerID, f, forceEvents))
         s.copy(forceEvents = forceEvents)
       }
     }

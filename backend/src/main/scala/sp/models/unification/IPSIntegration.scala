@@ -116,19 +116,22 @@ class UR(override val system: ActorSystem) extends ROSResource {
   publish("/unification_roscontrol/ur_pose_unidriver_sp_to_uni", "unification_ros2_messages/URPoseSPToUni", Some(1000.millis), pubFlow)
   publish("/unification_roscontrol/scene_updater_sp_to_uni", "unification_ros2_messages/SceneUpdaterSPToUni", Some(1000.millis), attachMapping)
 
-  a("moveToPos")(
+  a("moveToPos", List(refPos))(
     c("pre", "true"),
-    c("started", "actPos != refPos"),
-    c("post", "actPos == refPos"),
+    c("isExecuting", "actPos != refPos"),
+    c("isFinished", "actPos == refPos"),
     c("reset", "true"))
 }
 
 class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   use("ur", new UR(system))
 
+  v("of1", false)
+
   val gotoPositions = UR.poses.filter(_!="UNKNOWN").map { p =>
     val of = UR.needsOf.contains(p)
     val ofc = if(of) c("pre", s"ur.ofAttached") else c("pre", "true")
+    val of1 = if(p == "OF_1_TIGHTENED") c("isFinished", "true", "of1 := true") else c("isFinished", "true")
 
     val source = UR.canOnlyGoFrom.get(p).map(source => c("pre", s"ur.actPos == '$source'")).getOrElse(c("pre", "true"))
 
@@ -136,7 +139,8 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
       c("pre", s"ur.actPos != '$p' && ur.refPos != '$p'", s"ur.refPos := '$p'"),
       ofc,
       source,
-      c("post", "true"),
+      c("isFinished", "true"),
+      of1,
       c("reset", "true")
     )
     (p, op)
@@ -144,14 +148,14 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
   val attach = o("ur.attach")(
     c("pre", s"!ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := true"),
-    c("post", "true"),
-    c("reset", "true")
+    c("isExecuting", "false"),
+    c("isFinished", "ur.ofAttached")
   )
 
   val detach = o("ur.detach")(
     c("pre", s"ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := false"),
-    c("post", "true"),
-    c("reset", "true")
+    c("isExecuting", "false"),
+    c("isFinished", "!ur.ofAttached")
   )
 
   val tighten1 = SPAttributes(

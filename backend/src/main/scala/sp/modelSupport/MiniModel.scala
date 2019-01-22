@@ -631,15 +631,17 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
       EQ(SVIDEval(assignTo), assignWhat)
     }
 
+    val preAssigns = preActions.map(_.id)
+
     // but also amend them with the preconditions set out -- they are invariant unless post depends on the inputs!
     val skip = parseHelpers.filter(t => t.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
-    val extraIsExecConds = getConds(newConds, "pre").map(_.guard) // .map(g => filterProp(g, skip))
+    val extraIsExecConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, preAssigns))
     val extraIsExec = Condition(AND(newGuards ++ extraIsExecConds), List(), attributes = SPAttributes("kind"->"isExecuting"))
 
     // for post we also need to skip assignments that we do in the post transition
-    val postAssigns = getConds(conditions, "post").map(_.action).flatten.map(_.id)
-    val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ postAssigns))
-    val extraPost = Condition(AND(newGuards ++ extraPostConds), List(), attributes = SPAttributes("kind"->"post"))
+    val postAssigns = getConds(conditions, "isFinished").map(_.action).flatten.map(_.id)
+    val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns ++ postAssigns))
+    val extraPost = Condition(AND(newGuards ++ extraPostConds), List(), attributes = SPAttributes("kind"->"isFinished"))
 
     val op = Operation(name, conditions ++ updatedAbConds ++ List(extraIsExec, extraPost), SPAttributes("domain" -> domain, "ability" -> ab, "bookings" -> bookResources))
     operations = op :: operations

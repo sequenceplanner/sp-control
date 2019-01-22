@@ -124,7 +124,7 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
   )
 
   runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
-  runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
+  // runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
 
   val resourceSources = SPStreamSupport.mergeSources(resources.map(r=>r.inputs).flatten)
   val resourceSinks = SPStreamSupport.mergeSinks(resources.map(r=>r.outputs).flatten)

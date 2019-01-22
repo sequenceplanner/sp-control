@@ -32,8 +32,107 @@ object API {
   )
 }
 
-// Inte testad! Måste skriva test för denna så att det fungerar som tänkt
 object AbilityRunnerTransitions {
+  import RunnerLogic._
+
+  // states
+  object AbilityStates {
+    val notEnabled = "notEnabled"
+    val enabled = "enabled"
+    val starting = "starting"
+    val executing = "executing"
+    val finished = "finished"
+  }
+
+  // kinds
+  object AbilityKinds {
+    val pre = "pre"
+    val started = "started"
+    val post = "post"
+    val postAlternative = "postAlternative"
+    val reset = "reset"
+  }
+
+  object AbilityTransitions {
+    import AbilityStates._
+    import AbilityKinds._
+
+    val isEnabled = OperationTransition(
+      states = Set(notEnabled, finished),
+      conditionKind = Set(pre),
+      nextState = enabled,
+      event = None,
+      alwaysTrueIfNoConditions = true,
+      enableAlternatives = false,
+      onlyGuard = true,
+      negateGuard = false
+    )
+    val enabledToNotEnabled = OperationTransition(
+      states = Set(enabled), // abilities will be finished until they are enabled again.
+      conditionKind = Set(pre),
+      nextState = notEnabled,
+      event = None,
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = true,
+      negateGuard = true // this will go back if pre guard is false when in enabled
+    )
+    val enabledToStarting = OperationTransition(
+      states = Set(enabled),
+      conditionKind = Set(pre),
+      nextState = starting,
+      event = Some("start"),
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = false,
+      negateGuard = false
+    )
+    val startingToExec = OperationTransition(
+      states = Set(starting),
+      conditionKind = Set(started),
+      nextState = executing,
+      event = None,
+      alwaysTrueIfNoConditions = true,
+      enableAlternatives = false,
+      onlyGuard = false,
+      negateGuard = false
+    )
+    val syncedExecution = OperationTransition( // For operations that should sync with reality
+      states = Set(notEnabled, enabled, starting, finished),
+      conditionKind = Set("isExecuting"),
+      nextState = executing,
+      event = None,
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = true,
+      negateGuard = false
+    )
+    val syncedFinished = OperationTransition( // For operations that should sync with reality
+      states = Set(notEnabled, enabled, starting, executing),
+      conditionKind = Set("isFinished"),
+      nextState = finished,
+      event = None,
+      alwaysTrueIfNoConditions = false,
+      enableAlternatives = false,
+      onlyGuard = false,  /// this will set the actions continously!!
+      negateGuard = false
+    )
+
+  }
+
+  val abilityTransitionSystem = List(
+    AbilityTransitions.isEnabled,
+    AbilityTransitions.enabledToNotEnabled,
+    AbilityTransitions.enabledToStarting,
+    AbilityTransitions.startingToExec,
+    AbilityTransitions.syncedExecution,
+    AbilityTransitions.syncedFinished
+  )
+}
+
+
+// Inte testad! Måste skriva test för denna så att det fungerar som tänkt
+object OriginalAbilityRunnerTransitions {
   import RunnerLogic._
 
   // states

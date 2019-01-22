@@ -109,7 +109,7 @@ class RunnerInstance(setup: API.SetupRunnerInstance) extends Actor
   // starting in "pause" mode with automatic reset
   // TODO: these id:s should come from outside...
   runner.makeTransitionsControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
-  runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
+//  runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
 
   val resourceSources = mergeSources(setup.resources.map(r=>r.inputs).flatten)
   val resourceSinks = mergeSinks(setup.resources.map(r=>r.outputs).flatten)
@@ -163,7 +163,7 @@ class RunnerInstance(setup: API.SetupRunnerInstance) extends Actor
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.SetForceTable(instanceID, force, events) if instanceID == id =>
-            println("Setting force table")
+            println("Setting force table: " + force.mkString("\n"))
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
             forceTable = force
             forceEvents = events.map{ case (id, spval) => sp.runners.RunnerLogic.FireEvent(spval, id) }.toList
