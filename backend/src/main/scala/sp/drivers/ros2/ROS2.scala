@@ -198,8 +198,13 @@ class RCLBase(system: ActorSystem) {
   implicit val executionContext = system.dispatcher
   implicit val materializer = ActorMaterializer()(system)
 
-  RCLManager.rclInit()
-  val exec = new SingleThreadedExecutor()
+  var exec: SingleThreadedExecutor = null
+  if(RCLManager.rclInit()) {
+    exec = new SingleThreadedExecutor()
+    Source.tick(initialDelay = 0.nanos, interval = 100.millis, tick = ()).runWith(Sink.foreach(_ => exec.spinOnce(90))).onComplete { _ =>
+      RCLManager.rclShutdown()
+    }
+  }
 
   class SubscriberNode(msgType: String, topic: String) extends BaseComposableNode("SPSubscriber") {
     val bufferSize = 100
@@ -218,9 +223,11 @@ class RCLBase(system: ActorSystem) {
   }
 
   def subscriber(msgClass: String, topic: String) = {
-    val subscriberNode = new SubscriberNode(msgClass, topic)
-    exec.addNode(subscriberNode)
-    subscriberNode.source
+    if(exec == null) Source.repeat(SPAttributes("error!" -> "ros not initialized. check your sourcing")) else {
+      val subscriberNode = new SubscriberNode(msgClass, topic)
+      exec.addNode(subscriberNode)
+      subscriberNode.source
+    }
   }
 
   class PublisherNode(msgType: String, topic: String) extends BaseComposableNode("SPPublisher") {
@@ -238,14 +245,13 @@ class RCLBase(system: ActorSystem) {
   }
 
   def publisher(msgClass: String, topic: String) = {
-    val publisherNode = new PublisherNode(msgClass, topic)
-    exec.addNode(publisherNode)
-    publisherNode.sink
+    if(exec == null) Sink.ignore else {
+      val publisherNode = new PublisherNode(msgClass, topic)
+      exec.addNode(publisherNode)
+      publisherNode.sink
+    }
   }
 
-  Source.tick(initialDelay = 0.nanos, interval = 100.millis, tick = ()).runWith(Sink.foreach(_ => exec.spinOnce(90))).onComplete { _ =>
-    RCLManager.rclShutdown()
-  }
 }
 
 
@@ -253,15 +259,49 @@ object RCLManager {
   // rcl init/destroy
   var rclIsInit = 0
 
-  def rclInit() = this.synchronized {
-    if(rclIsInit == 0) RCLJava.rclJavaInit()
-    rclIsInit += 1
+  def rclInit(): Boolean = this.synchronized {
+
+
+    // beatiful API design in ros java here, it will call system.exit
+    // on exception... we need to handle that. so we do it with a
+    // terrible hack
+
+    class SMExit extends SecurityManager {
+      override def checkPermission( permission: java.security.Permission  ) {
+        if( permission.getName().startsWith("exitVM") ) {
+          throw new Exception("not allow to call exit()")
+        }
+      }
+    }
+
+    if(rclIsInit == 0) {
+      try {
+        System.setSecurityManager( new SMExit() )
+        RCLJava.rclJavaInit()
+        System.setSecurityManager( null )
+        rclIsInit += 1
+        true
+      } catch {
+        case t:Throwable =>
+          println("Cannot initialize rosjava: " + t.getMessage())
+          println("Did you source your ROS workspaces?")
+          System.setSecurityManager( null )
+          false
+      }
+    } else {
+      rclIsInit += 1
+      true
+    }
   }
 
   def rclShutdown() = this.synchronized {
     rclIsInit -= 1
     if(rclIsInit == 0) {
-      RCLJava.shutdown()
+      try {
+        RCLJava.shutdown()
+      } catch {
+        case t:Throwable =>
+      }
     }
   }
 }

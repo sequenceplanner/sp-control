@@ -46,7 +46,7 @@ trait ROSResource extends Resource {
     val sinks = pubs.map { pub =>
       val p = ros.publisher(pub.messageType, pub.topic)
       // start with an "empty" ros message, merge changes to field within the stream
-      val empty = ROSHelpers.createROSMsg(pub.messageType).map(ROSHelpers.msgToAttr).get // getOrElse(SPAttributes()) we want to blow up on fail here
+      val empty = ROSHelpers.createROSMsg(pub.messageType).map(ROSHelpers.msgToAttr).getOrElse(SPAttributes()) // we may want to blow up here to catch errors
       val partialMessages = Flow[SPAttributes].scan(empty){ case (attr, partial) => attr ++ partial }
       val ticking = pub.tickInterval.map(interval => normalizeRate[SPAttributes](interval)).getOrElse(Flow[SPAttributes].map(identity))
 

@@ -49,7 +49,9 @@ lazy val spcontrol_api_jvm = spcontrol_api.jvm
 lazy val spcontrol_api_js = spcontrol_api.js
 
 // jesus christ SBT...
-val cp = System.getenv("CLASSPATH").split(":").map(x => new java.io.File(x)).toSeq.classpath
+val cps = System.getenv("CLASSPATH")
+val cp = if(cps!=null) cps.split(":").map(x => new java.io.File(x)).toSeq.classpath
+         else Seq[java.io.File]().classpath
 
 lazy val spcontrol_backend = Project(base = file("backend"), id = "backend")
   .settings(
