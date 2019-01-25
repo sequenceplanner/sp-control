@@ -258,7 +258,7 @@ trait ExportNuXmvFile2 {
     lines += "\n"
     lines += "\n"
 
-    lines += specs
+    lines += s"LTLSPEC $specs ;"
 
     lines += "\n"
     lines += "\n"

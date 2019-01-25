@@ -21,7 +21,7 @@ object MiniModelService {
   def props = Props(classOf[MiniModelService])
 }
 
-class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFile {
+class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFile2 {
   import context.dispatcher
 
   val models = Map(
@@ -102,15 +102,20 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
             exportNuXmv(model, "/tmp/problem.smv", initialState, query)
 
             import java.io.{OutputStream,PrintStream}
-            val is: OutputStream = StreamConverters.asOutputStream().map(_.utf8String).to(Sink.foreach{s=>
-              val msg = SPMessage.makeJson(responseHeader, APIMiniModelService.bmcOutput(s))
-              sendAnswer(msg)
-            }).run()(ActorMaterializer())
+            val (is: OutputStream, ks) = StreamConverters.asOutputStream().map(_.utf8String).
+              viaMat(KillSwitches.single)(Keep.both).to(Sink.foreach{s=>
+                val msg = SPMessage.makeJson(responseHeader, APIMiniModelService.bmcOutput(s))
+                sendAnswer(msg)
+              }).run()(ActorMaterializer())
 
+            val stdout = System.out
             System.setOut(new PrintStream(is))
 
             import sys.process._
-            val result = "/home/martin/bin/nuxmv /tmp/problem.smv" !
+            val result = s"/home/martin/bin/nuxmv -bmc -bmc_length $bound /tmp/problem.smv" !
+
+            System.setOut(stdout)
+            ks.shutdown()
 
           case _ => Unit
         }

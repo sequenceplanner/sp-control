@@ -36,12 +36,13 @@ object MiniModelHelperWidget {
     val activeModel: Option[ModelMock] = proxy.value.models.activeModel
     val activeModelId: Option[ID] = proxy.value.models.activeModelId
     val activeRunnerId: Option[RunnerId] = proxy.value.runners.latestActiveRunnerId
+    val runnerStates: Map[ID, Map[ID, SPValue]] = proxy.value.runners.runnerStates
 
     def models: SimpleSet[ID, ModelMock] = proxy.value.models.models
     def availableMiniModels: List[String] = proxy.value.runners.availableMiniModels
   }
 
-  case class State(ltl: String = "")
+  case class State(ltl: String = "", ltlresult: String = "")
 
   private class Backend($: BackendScope[Props, State]) {
     def render(props: Props, s: State): VdomElement = {
@@ -63,14 +64,29 @@ object MiniModelHelperWidget {
       }
 
       def check = {
-        comm.request(api.bmc(List(), Map(), s.ltl, 50)).map {
-          case (header, Left(SPError(err, attr))) =>
-            println("got error!: " + err)
-          case (header,Right(api.bmcOutput(stdout))) =>
-            println("GOT REPLY!: " + stdout)
-          case x =>
-            println("GOT OTHER REPLY!: " + x)
-        }.run.unsafeRunAsync(_ => ())
+        for {
+          idables <- props.activeModel.map(_.items.toList)
+          runnerID <- props.activeRunnerId
+          runnerState <- props.runnerStates.get(runnerID)
+        } yield {
+          $.modState(s => s.copy(ltlresult="computing...")).runNow()
+          val x= comm.request(api.bmc(idables, runnerState, s.ltl, 50)).map {
+            case (header, Left(SPError(err, attr))) =>
+              println("got error!: " + err)
+              None
+            case (header,Right(api.bmcOutput(stdout))) =>
+              println("GOT REPLY!: " + stdout)
+              Some(stdout)
+            case x =>
+              println("GOT OTHER REPLY!: " + x)
+              None
+          }
+          x.runLog.unsafeRunAsync { case Right(y) =>
+            val x = y.flatMap(x=>x).fold(""){ case (a,b) => a++b }
+            $.modState(s => s.copy(ltlresult=x.replaceAll("(?m)^\\*\\*\\*.*?\n", ""))).runNow()
+            case _ =>
+          }
+        }
       }
 
       val models = props.availableMiniModels.map { model => SPWidgetElements.dropdownElement(model, onModelClick(model)) }
@@ -86,7 +102,7 @@ object MiniModelHelperWidget {
         )),
         <.br(),
         <.input(
-          ^.width := "150px",
+          ^.width := "90%",
           ^.value := s.ltl,
           ^.onChange ==> onLTLChange
         ),
@@ -96,6 +112,8 @@ object MiniModelHelperWidget {
           ^.onClick --> Callback(check),
           <.i(^.className := "fa fa-circle")
         ),
+        <.br(),
+        <.pre(s.ltlresult)
       ).render
     }
 
