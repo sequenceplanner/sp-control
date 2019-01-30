@@ -99,6 +99,10 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
 
   idables.foreach { println }
 
+  idables.find(_.name == "ur.gotoPRE_OF_1_UNTIGHTENED").foreach { o =>
+    o.asInstanceOf[Operation].conditions.foreach(println)
+  }
+
   println("Initial state")
   init.map { case (id, value) =>
     println(idables.find(_.id == id).get.name + " - " + value.toString)

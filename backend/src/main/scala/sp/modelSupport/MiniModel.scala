@@ -582,6 +582,41 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     }
   }
 
+  // todo: finish and move to domain
+  def cleanProp(p: Proposition): Proposition = {
+    p match {
+      case AND(List()) => AlwaysTrue
+      case AND(x::Nil) => x
+
+      case AND(xs) if xs.exists(_==AlwaysFalse) => AlwaysFalse
+      case AND(xs) =>
+        val n = AND(xs.map(cleanProp).filterNot(_==AlwaysTrue))
+        n match {
+          case AND(List()) => AlwaysTrue
+          case AND(x::Nil) => x
+          case x => x
+        }
+
+      case OR(List()) => AlwaysTrue
+      case OR(x::Nil) => x
+
+      case OR(xs) if xs.exists(_==AlwaysTrue) => AlwaysTrue
+      case OR(xs) =>
+        val n = OR(xs.map(cleanProp))
+        n match {
+          case OR(List()) => AlwaysTrue
+          case OR(x::Nil) => x
+          case x => x
+        }
+
+      case NOT(x) if x == AlwaysFalse => AlwaysTrue
+      case NOT(x) if x == AlwaysTrue => AlwaysFalse
+
+      case NOT(x) => NOT(cleanProp(x))
+
+      case x => x
+    }
+  }
 
   // def updateAction(action: Action, remap: Map[ID, StateUpdater]): Action = {
   //   val nid = remap.get(action.id).getOrElse(action.id)
@@ -635,7 +670,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
 
     // but also amend them with the preconditions set out -- they are invariant unless post depends on the inputs!
     val skip = parseHelpers.filter(t => t.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
-    val extraIsExecConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, preAssigns))
+    val extraIsExecConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns))
     val extraIsExec = Condition(AND(newGuards ++ extraIsExecConds), List(), attributes = SPAttributes("kind"->"isExecuting"))
 
     // for post we also need to skip assignments that we do in the post transition
@@ -643,7 +678,9 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns ++ postAssigns))
     val extraPost = Condition(AND(newGuards ++ extraPostConds), List(), attributes = SPAttributes("kind"->"isFinished"))
 
-    val op = Operation(name, conditions ++ updatedAbConds ++ List(extraIsExec, extraPost), SPAttributes("domain" -> domain, "ability" -> ab, "bookings" -> bookResources))
+    val newConds2 = conditions ++ updatedAbConds ++ List(extraIsExec, extraPost)
+    val newCondsCleaned = newConds2.map(c=>c.copy(guard = cleanProp(c.guard)))
+    val op = Operation(name, newCondsCleaned, SPAttributes("domain" -> domain, "ability" -> ab, "bookings" -> bookResources))
     operations = op :: operations
     op.id
   }

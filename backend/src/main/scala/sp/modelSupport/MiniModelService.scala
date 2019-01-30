@@ -102,20 +102,18 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
             exportNuXmv(model, "/tmp/problem.smv", initialState, query)
 
             import java.io.{OutputStream,PrintStream}
-            val (is: OutputStream, ks) = StreamConverters.asOutputStream().map(_.utf8String).
-              viaMat(KillSwitches.single)(Keep.both).to(Sink.foreach{s=>
+            val is: OutputStream = StreamConverters.asOutputStream().map(_.utf8String).
+              to(Sink.foreach{s=>
                 val msg = SPMessage.makeJson(responseHeader, APIMiniModelService.bmcOutput(s))
                 sendAnswer(msg)
               }).run()(ActorMaterializer())
 
-            val stdout = System.out
-            System.setOut(new PrintStream(is))
+            // val stdout = System.out
+            val stdout = new PrintStream(is)
 
             import sys.process._
-            val result = s"/home/martin/bin/nuxmv -bmc -bmc_length $bound /tmp/problem.smv" !
-
-            System.setOut(stdout)
-            ks.shutdown()
+            val result = s"/home/martin/bin/nuxmv -bmc -bmc_length $bound /tmp/problem.smv" .! (ProcessLogger(stdout.println, _ => ()))
+            stdout.close()
 
           case _ => Unit
         }
