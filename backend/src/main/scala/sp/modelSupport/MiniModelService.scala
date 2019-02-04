@@ -24,6 +24,11 @@ object MiniModelService {
 class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFile2 {
   import context.dispatcher
 
+  import akka.cluster.pubsub._
+  val mediator = DistributedPubSub(context.system).mediator
+  import DistributedPubSubMediator.{ Put, Send, Subscribe, Publish }
+
+
   val models = Map(
     "URTest" -> new unification.urdemo.Demo(context.system),
     "SDU" -> new sdu.Model(context.system),
@@ -75,9 +80,6 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
 
     val setup = SetupRunnerInstance(ID.newID, model.getIDAbles, resources, runner)
 
-    import akka.cluster.pubsub._
-    val mediator = DistributedPubSub(context.system).mediator
-    import DistributedPubSubMediator.{ Put, Send, Subscribe, Publish }
     mediator ! Publish(APIRunnerManager.topicRequest, setup)
   }
 

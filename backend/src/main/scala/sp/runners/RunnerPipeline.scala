@@ -44,7 +44,7 @@ case class RunnerPipeline(operations: List[Operation],
   def removeDisabledGroups(xs: List[SPValue]): Future[RunnerState] = (runnerA ? RemoveDisabledGroups(xs)).mapTo[RunnerState]
   def addPersistentEvents(xs: List[RunnerLogic.FireEvent]): Future[RunnerState] = (runnerA ? AddPersistentEvents(xs)).mapTo[RunnerState]
   def removePersistentEvents(xs: List[RunnerLogic.FireEvent]): Future[RunnerState] = (runnerA ? RemovePersistentEvents(xs)).mapTo[RunnerState]
-
+  def setPlan(plan: List[String]): Future[RunnerState] = (runnerA ? SetPlan(plan)).mapTo[RunnerState]
 
 }
 
@@ -65,7 +65,7 @@ case class AddDisabledGroups(disabledGroups: List[SPValue]) extends RunnerActorA
 case class RemoveDisabledGroups(disabledGroups: List[SPValue]) extends RunnerActorAPI
 case class AddPersistentEvents(persistentEvents: List[RunnerLogic.FireEvent]) extends RunnerActorAPI
 case class RemovePersistentEvents(persistentEvents: List[RunnerLogic.FireEvent]) extends RunnerActorAPI
-
+case class SetPlan(plan: List[String]) extends RunnerActorAPI
 
 
 
@@ -81,7 +81,8 @@ case class RunnerState(state: Option[SPState],
                        controlledTransitions: List[RunnerLogic.OperationTransition],
                        unControlledTransitions: List[RunnerLogic.OperationTransition],
                        persistentEvents: List[RunnerLogic.FireEvent],
-                       disabledGroups: Set[SPValue]
+                       disabledGroups: Set[SPValue],
+                       plan: List[String]
                       )
 
 
@@ -97,9 +98,12 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
     controlledTransitions = transitionSystem.filter(_.event.nonEmpty),
     unControlledTransitions = transitionSystem.filter(_.event.isEmpty),
     persistentEvents = List(),
-    disabledGroups = Set()
+    disabledGroups = Set(),
+    plan = List()
   )
   var state = initialState
+
+  val nextStart = Thing("next")
 
 
 
@@ -118,9 +122,11 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
         es ++ internal.persistentEvents,
         internal.controlledTransitions,
         internal.unControlledTransitions,
-        internal.disabledGroups
+        internal.disabledGroups,
+        internal.plan
       )
       state = res.lastState
+      internal = internal.copy(plan = res.newPlan)
 
       sender() ! res
 
@@ -136,6 +142,9 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
     case RemoveOps(xs) =>
       internal = internal.copy(ops = internal.ops.filter(o => !xs.contains(o.id)))
       state = state.copy(state = state.state.filter(kv => !xs.contains(kv._1)))
+      sender() ! theState()
+    case SetPlan(plan) =>
+      internal = internal.copy(plan = plan)
       sender() ! theState()
     case AddDisabledGroups(xs) =>
       internal = internal.copy(disabledGroups = internal.disabledGroups ++ xs)

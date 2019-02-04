@@ -61,7 +61,7 @@ object RunnerLogic {
     * @param lastState
     * @param sequence
     */
-  case class OneOperationRun(lastState: SPState, sequence: List[(Operation, SPState)])
+  case class OneOperationRun(lastState: SPState, sequence: List[(Operation, SPState)], newPlan: List[String])
 
   case class FireEvent(event: SPValue, operation: ID)
 
@@ -90,6 +90,7 @@ object RunnerLogic {
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
                           disabledGroups: Set[SPValue] = Set(),
+                          plan: List[String] = List()
                          ): OneOperationRun =  {
 
 
@@ -117,22 +118,28 @@ object RunnerLogic {
 
     }
 
-    val res = ops.foldLeft(s) { (s, op) =>
+    val res = ops.foldLeft((s,plan)) { (acum, op) =>
       // hack this for now
+      val s = acum._1
+      val plan = acum._2
       val enabled = filterConditions(op.conditions, Set("pre"), Set())
       val executing = filterConditions(op.conditions, Set("isExecuting"), Set())
       val finished = filterConditions(op.conditions, Set("isFinished"), Set())
 
-      val ns = if(enabled.forall(p => p.eval(s)) && fire.exists(f=>f.operation==op.id)) {
+      // if(enabled.forall(p => p.eval(s)) && plan.headOption.contains(op.name)) {
+      //   println("plan allows: " + op.name)
+      // } else { println("plan is: " + plan.mkString(",")) }
+
+      val (ns, np) = if(enabled.forall(p => p.eval(s)) // && fire.exists(f=>f.operation==op.id)
+        && plan.headOption.contains(op.name)) {
         // take start transition
         println("taking start transition for: " + op.name)
-        enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+        (enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}, plan.tail)
       } else if(finished.forall(p => p.eval(s))) {
         // take finish transition
         println("taking finish transition for: " + op.name)
-        finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}
-      } else s
-
+        (finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}, plan)
+      } else (s, plan)
 
       val x = if(filterConditions(op.conditions, Set("isFinished"), Set()).forall(p => p.eval(ns)))
         ns.next(op.id -> SPValue("finished"))
@@ -142,12 +149,12 @@ object RunnerLogic {
         ns.next(op.id -> SPValue("enabled"))
       else ns.next(op.id -> SPValue("notEnabled"))
 
-      x
+      (x, np)
     }
 
     // val res = runDeep(ops, s, List())
-    val lastState = res // res.headOption.map(_._2).getOrElse(s)
-    OneOperationRun(lastState, List())
+    val lastState = res._1 // res.headOption.map(_._2).getOrElse(s)
+    OneOperationRun(lastState, List(), res._2)
   }
 
 

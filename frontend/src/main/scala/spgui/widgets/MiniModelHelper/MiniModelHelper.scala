@@ -63,6 +63,17 @@ object MiniModelHelperWidget {
           $.modState(_.copy(ltl = newValue))
       }
 
+      def setplan = {
+        val plan = s.ltlresult.split("\n").toList.filter(_.contains("_start = TRUE")).map(_.trim)
+        val ops = props.activeModel.map(_.items.toList).getOrElse(List()).collect { case op: Operation => op }
+        val opNames = ops.map(o => "o_"+o.name.replaceAll("\\.", "_") -> o.name).toMap
+        val p = plan.flatMap( str => opNames.get(str.stripSuffix("_start = TRUE")))
+
+        props.activeRunnerId.foreach { runnerID => send(APIRunnerManager.SetPlan(runnerID, p)) }
+
+        $.modState(_.copy(ltlresult = p.mkString("\n")))
+      }
+
       def check = {
         for {
           idables <- props.activeModel.map(_.items.toList)
@@ -102,7 +113,7 @@ object MiniModelHelperWidget {
         )),
         <.br(),
         <.input(
-          ^.width := "90%",
+          ^.width := "80%",
           ^.value := s.ltl,
           ^.onChange ==> onLTLChange
         ),
@@ -111,6 +122,12 @@ object MiniModelHelperWidget {
           ^.title := "Check",
           ^.onClick --> Callback(check),
           <.i(^.className := "fa fa-circle")
+        ),
+        <.button(
+          ^.className := "btn",
+          ^.title := "Set plan",
+          ^.onClick --> setplan,
+          <.i(^.className := "fa fa-bars")
         ),
         <.br(),
         <.pre(s.ltlresult)
@@ -171,6 +188,11 @@ object MiniModelHelperWidget {
     def terminateVDs(props: Props): Unit = {
       RunnerManagerCommunication.postRequest(APIRunnerManager.TerminateAllRunnerInstances)
     }
+  }
+
+  def send(mess: APIRunnerManager.Request): Callback = {
+    RunnerManagerCommunication.postRequest(mess)
+    Callback.empty
   }
 
   private val component = ScalaComponent.builder[Props]("VDTracker")

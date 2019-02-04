@@ -31,7 +31,7 @@ package sp.runners {
     case class StopAuto(runnerInstance: ID) extends Request
     case class StartAuto(runnerInstance: ID) extends Request
     case class SetForceTable(runnerInstance: ID, force: Map[ID, SPValue], events: Map[ID, SPValue]) extends Request
-
+    case class SetPlan(runnerInstance: ID, plan: List[String]) extends Request
 
     object Formats {
       import play.api.libs.json._
@@ -44,6 +44,8 @@ package sp.runners {
       implicit lazy val fStopAuto:     JSFormat[StopAuto]     = Json.format[StopAuto]
       implicit lazy val fStartAuto:     JSFormat[StartAuto]     = Json.format[StartAuto]
       implicit lazy val fSetForceTable:     JSFormat[SetForceTable]     = Json.format[SetForceTable]
+      implicit lazy val fSetPlan:     JSFormat[SetPlan]     = Json.format[SetPlan]
+
 
       def fVirtualDeviceRequest: JSFormat[Request] = Json.format[Request]
       def fVirtualDeviceResponse: JSFormat[Response] = Json.format[Response]

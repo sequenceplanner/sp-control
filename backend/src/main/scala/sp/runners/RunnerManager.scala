@@ -150,6 +150,13 @@ class RunnerInstance(setup: API.SetupRunnerInstance) extends Actor
         val updH = h.swapToAndFrom()
         b match {
 
+          case APIRunnerManager.SetPlan(instanceID, plan) if instanceID == id =>
+            println("Setting new plan: " + plan.mkString(","))
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            runner.setPlan(plan)
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+
           case APIRunnerManager.StopAuto(instanceID) if instanceID == id =>
             println("Stopping auto")
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
