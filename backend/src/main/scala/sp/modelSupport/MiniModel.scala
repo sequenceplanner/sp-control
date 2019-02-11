@@ -652,8 +652,9 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
       val ng = updateGuard(c.guard, update)
       c.copy(guard = ng)
     }
-    // amend isExecuting and Post conditions with the assignments made in the pre action
-    // these are invariant during operation execution
+
+    // amend isExecuting and isFinished conditions with the assignments made in the pre action
+    // these should be invariant during operation execution
     val newConds = conditions ++ updatedAbConds
     val preActions = getConds(newConds, "pre").map(_.action).flatten
     val newGuards = preActions.map { a =>
@@ -666,16 +667,16 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
       EQ(SVIDEval(assignTo), assignWhat)
     }
 
+
+    // also amend them with the preconditions set out -- they are invariant unless they are inputs
+    val skip = parseHelpers.filter(t => t.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
+    // ... or assigned in the pre action
     val preAssigns = preActions.map(_.id)
 
-    // but also amend them with the preconditions set out -- they are invariant unless post depends on the inputs!
-    val skip = parseHelpers.filter(t => t.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
     val extraIsExecConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns))
     val extraIsExec = Condition(AND(newGuards ++ extraIsExecConds), List(), attributes = SPAttributes("kind"->"isExecuting"))
 
-    // for post we also need to skip assignments that we do in the post transition
-    val postAssigns = getConds(conditions, "isFinished").map(_.action).flatten.map(_.id)
-    val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns ++ postAssigns))
+    val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns))
     val extraPost = Condition(AND(newGuards ++ extraPostConds), List(), attributes = SPAttributes("kind"->"isFinished"))
 
     val newConds2 = conditions ++ updatedAbConds ++ List(extraIsExec, extraPost)

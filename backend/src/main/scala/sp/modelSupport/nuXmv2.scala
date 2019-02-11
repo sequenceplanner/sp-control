@@ -68,9 +68,16 @@ trait ExportNuXmvFile2 {
       val fin = AND(getConds(o.conditions, "isFinished").map(_.guard))
       val reset = AND(getConds(o.conditions, "reset").map(_.guard))
 
-      lines += "DEFINE " + o.name + "_finished := " + propTonuXmvSyntax(fin) + ";\n"
-      lines += "DEFINE " + o.name + "_executing := !" + o.name + "_finished &" + propTonuXmvSyntax(exec) + ";\n"
-      lines += "DEFINE " + o.name + "_enabled := !" + o.name + "_executing &" + propTonuXmvSyntax(pre) + ";\n"
+      if(fin != AND(List()))
+        lines += "DEFINE " + o.name + "_finished := " + propTonuXmvSyntax(fin) + ";\n"
+
+      if(exec != AND(List()))
+        // lines += "DEFINE " + o.name + "_executing := !" + o.name + "_finished &" + propTonuXmvSyntax(exec) + ";\n"
+        lines += "DEFINE " + o.name + "_executing := " + propTonuXmvSyntax(exec) + ";\n"
+
+      assert(pre != AND(List()))
+      //lines += "DEFINE " + o.name + "_enabled := !" + o.name + "_executing &" + propTonuXmvSyntax(pre) + ";\n"
+      lines += "DEFINE " + o.name + "_enabled := " + propTonuXmvSyntax(pre) + ";\n"
      }
 
     // add assignment of initial states
@@ -237,7 +244,7 @@ trait ExportNuXmvFile2 {
             val actionStr = actionValTonuXmvSyntax(pa)
 
             // lines += s"    ${o.name}_executing & next(${o.name}_finished) : $actionStr;\n"
-            lines += s"    next(${o.name}_finished) : $actionStr;\n"
+            lines += s"    ${o.name}_finished : $actionStr;\n"
           }
         }
       }
@@ -258,7 +265,7 @@ trait ExportNuXmvFile2 {
     lines += "\n"
     lines += "\n"
 
-    lines += s"LTLSPEC $specs ;"
+    if(specs.nonEmpty) lines += s"LTLSPEC $specs ;"
 
     lines += "\n"
     lines += "\n"
