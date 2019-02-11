@@ -148,20 +148,33 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
   val attach = o("ur.attach")(
     c("pre", s"!ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := true"),
-    c("isExecuting", "false"),
-    c("isFinished", "ur.ofAttached")
+//    c("isExecuting", "false"),
+//    c("isFinished", "ur.ofAttached")
   )
 
   val detach = o("ur.detach")(
     c("pre", s"ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := false"),
-    c("isExecuting", "false"),
-    c("isFinished", "!ur.ofAttached")
+//    c("isExecuting", "false"),
+//    c("isFinished", "!ur.ofAttached")
+  )
+
+  val humanState = v("human", "idle", List("idle", "tightening", "reset"))
+  val humanDone = i("humanDone", false)
+
+  val humanTighten = o("human.tighten")(
+    c("pre", s"human == 'idle' && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'tightening'"),
+    c("isExecuting", "human == 'tightening' && !humanDone"),
+    c("isFinished", "human == 'tightening' && humanDone", "of1 := true", "human := 'reset'")
+  )
+
+  val humanReset = o("human.reset")(
+    c("pre", s"human == reset", "human := idle")
   )
 
   val tighten1 = SPAttributes(
     "name" -> "tighten",
-    "target_state" -> "ur.actPos == _'PRE_ATTACH_OF'",
-    "goal_state" -> "ur.actPos == 'OF_1_TIGHTENED'",
+    "pre" -> "ur.actPos == _'PRE_ATTACH_OF'",
+    "goal" -> "ur.actPos == 'OF_1_TIGHTENED'",
   )
 
   // main sop for testing in auto
