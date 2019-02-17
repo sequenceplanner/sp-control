@@ -7,7 +7,7 @@ import scala.annotation.tailrec
 
 
 
-object RunnerLogic {
+object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
 
   /**
     * 180914: We need to decide if each operation should be defined with its own transitions
@@ -68,6 +68,41 @@ object RunnerLogic {
   // Add force when we need it
   //case class ForceTransition(conditionKind: SPValue, operation: ID)
 
+  def computePlan(model: List[IDAble], state: Map[ID, SPValue], query: String, filename: String = "/tmp/runner.smv"): List[String] = {
+    exportNuXmv(model, filename, state, query)
+
+    import sys.process._
+    import java.io.{ByteArrayOutputStream,PrintWriter}
+    def runCommand(cmd: String): (Int, String, String) = {
+      val stdoutStream = new ByteArrayOutputStream
+      val stderrStream = new ByteArrayOutputStream
+      val stdoutWriter = new PrintWriter(stdoutStream)
+      val stderrWriter = new PrintWriter(stderrStream)
+      val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
+      stdoutWriter.close()
+      stderrWriter.close()
+      (exitValue, stdoutStream.toString, stderrStream.toString)
+    }
+
+    println("Running solver...")
+    val t0 = System.nanoTime()
+    val (result, stdout, stderr) = runCommand(s"/home/martin/bin/nuxmv -bmc -bmc_length 50 $filename")
+    val t1 = System.nanoTime()
+    println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
+    if(result == 0) {
+      val s = stdout.replaceAll("(?m)^\\*\\*\\*.*?\n", "")
+      val plan = s.split("\n").toList.filter(_.contains("_start = TRUE")).map(_.trim)
+      val ops = model.collect { case op: Operation => op }
+      val opNames = ops.map(o => "o_"+o.name.replaceAll("\\.", "_") -> o.name).toMap
+      val p = plan.flatMap( str => opNames.get(str.stripSuffix("_start = TRUE")))
+      println("New plan is: " + p.mkString(","))
+      p
+    } else {
+      println("Failed to compute plan!")
+      List()
+    }
+  }
+
   /**
     * This method runs the operations one step. only one op transition will be executed
     * per step.
@@ -90,7 +125,7 @@ object RunnerLogic {
                           controlledTransitions: List[OperationTransition],
                           unControlledTransitions: List[OperationTransition],
                           disabledGroups: Set[SPValue] = Set(),
-                          plan: List[String] = List()
+                          plan: List[String] = List(), stateHasChanged: Boolean = false, model: List[IDAble]
                          ): OneOperationRun =  {
 
 
@@ -130,10 +165,21 @@ object RunnerLogic {
       //   println("plan allows: " + op.name)
       // } else { println("plan is: " + plan.mkString(",")) }
 
-      // plan active in auto
+      // plan active only in auto
       val isInAuto = unControlledTransitions.exists(_.id==AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id)
 
-      val (ns, np) = if(enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.operation==op.id)) ||
+      val opGoal = op.attributes.getAs[String]("hasGoal").getOrElse("")
+
+      val (ns, np) = if(opGoal.nonEmpty && enabled.forall(p => p.eval(s)) && (isInAuto || fire.exists(f=>f.operation==op.id))) {
+        // high level plan operations can always start.
+        // 1. take the pre action transition
+        val ns = enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}
+        // 2. compute plan on new state
+        val plan = computePlan(model, ns.state, opGoal)
+        // 2. for now just replace the current plan
+        val np = plan
+        (ns, np)
+      } else if(opGoal.isEmpty && enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.operation==op.id)) ||
         (isInAuto && plan.headOption.contains(op.name)))) {
         // take start transition
         println("taking start transition for: " + op.name + " auto: " + isInAuto)

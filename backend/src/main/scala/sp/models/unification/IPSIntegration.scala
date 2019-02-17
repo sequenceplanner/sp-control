@@ -266,9 +266,10 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
   val humanState = v("human", "idle", List("idle", "tightening", "reset"))
   val humanDone = i("humanDone", false)
+  val humanAvailable = i("humanAvailable", true)
 
   val humanTighten = o("human.tighten")(
-    c("pre", s"human == 'idle' && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'tightening'"),
+    c("pre", s"human == 'idle' && humanAvailable && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'tightening'"),
     c("isExecuting", "human == 'tightening' && !humanDone"),
     c("isFinished", "human == 'tightening' && humanDone", "of1 := true", "human := 'reset'")
   )
@@ -277,10 +278,11 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     c("pre", s"human == reset", "human := idle")
   )
 
-  val tighten1 = SPAttributes(
-    "name" -> "tighten",
-    "pre" -> "ur.actPos == _'PRE_ATTACH_OF'",
-    "goal" -> "ur.actPos == 'OF_1_TIGHTENED'",
+  val tightenState = v("tighten", "idle", List("idle", "active"))
+  val t = o("tighten", SPAttributes("notInModel" -> true, "hasGoal" -> "! F v_of1"))(
+    c("pre", s"tighten == 'idle' && !of1 && ur.actPos == 'PRE_ATTACH_OF'", "tighten := active"),
+    c("isExecuting", s"tighten == 'active'"),
+    c("isFinished", s"tighten == 'active' && of1", "tighten := 'idle'")
   )
 
   // just build a simple sop to visualize the operation states

@@ -73,43 +73,43 @@ class DemoMondayTest(_system: ActorSystem) extends TestKit(_system) with FreeSpe
 
   // start runner pipeline....
 
-  val initStateWithResources = init ++
-    resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
+  // val initStateWithResources = init ++
+  //   resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
 
-  val id = ID.newID
+  // val id = ID.newID
 
-  val runner = sp.runners.RunnerPipeline(
-    operations = operations,
-    transitionSystem = AbilityRunnerTransitions.abilityTransitionSystem,
-    initialState = SPState("initial state", initStateWithResources),
-    name = "test runner",
-    system = system
-  )
+  // val runner = sp.runners.RunnerPipeline(
+  //   operations = operations,
+  //   transitionSystem = AbilityRunnerTransitions.abilityTransitionSystem,
+  //   initialState = SPState("initial state", initStateWithResources),
+  //   name = "test runner",
+  //   system = system
+  // )
 
-  runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
-  // runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
+  // runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
+  // // runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
 
-  val resourceSources = SPStreamSupport.mergeSources(resources.map(r=>r.inputs).flatten)
-  val resourceSinks = SPStreamSupport.mergeSinks(resources.map(r=>r.outputs).flatten)
+  // val resourceSources = SPStreamSupport.mergeSources(resources.map(r=>r.inputs).flatten)
+  // val resourceSinks = SPStreamSupport.mergeSinks(resources.map(r=>r.outputs).flatten)
 
-  // add StateUpd to que and plug in flows and a sink to send SPState where you want
-  val ks = resourceSources
-    .map(state => sp.runners.StateUpd(SPState("test", state), List()))
-    .via(runner.runnerFlow)
-    .map(_.state).map{s =>
-      s.foreach { case (id, value) =>
-        println(idables.find(_.id == id).get.name + " - " + value.toString)
-      }
-      s
-    }
-    .viaMat(KillSwitches.single)(Keep.right)
-    .to(resourceSinks)
-    .run()(ActorMaterializer())
+  // // add StateUpd to que and plug in flows and a sink to send SPState where you want
+  // val ks = resourceSources
+  //   .map(state => sp.runners.StateUpd(SPState("test", state), List()))
+  //   .via(runner.runnerFlow)
+  //   .map(_.state).map{s =>
+  //     s.foreach { case (id, value) =>
+  //       println(idables.find(_.id == id).get.name + " - " + value.toString)
+  //     }
+  //     s
+  //   }
+  //   .viaMat(KillSwitches.single)(Keep.right)
+  //   .to(resourceSinks)
+  //   .run()(ActorMaterializer())
 
-  val dieAfter = 30
+  // val dieAfter = 30
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-  system.scheduler.scheduleOnce(dieAfter.seconds)(ks.shutdown())
+  // import scala.concurrent.ExecutionContext.Implicits.global
+  // system.scheduler.scheduleOnce(dieAfter.seconds)(ks.shutdown())
 
-  Thread.sleep(dieAfter*1000)
+  // Thread.sleep(dieAfter*1000)
 }

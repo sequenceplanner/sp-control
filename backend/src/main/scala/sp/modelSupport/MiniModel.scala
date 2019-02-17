@@ -685,11 +685,14 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     operations = op :: operations
     op.id
   }
-  def o(name: String)(conds: cond*) = {
+  def o(name: String)(conds: cond*): ID = {
+    o(name, SPAttributes())(conds:_*)
+  }
+  def o(name: String, attr: SPAttributes)(conds: cond*): ID = {
     val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
     val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things))
 
-    val op = Operation(name, conditions, SPAttributes())
+    val op = Operation(name, conditions, attr)
     operations = op :: operations
     op.id
   }

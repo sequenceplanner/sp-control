@@ -12,6 +12,7 @@ import scala.concurrent.Future
 case class RunnerPipeline(operations: List[Operation],
                           transitionSystem: List[RunnerLogic.OperationTransition],
                           initialState: SPState,
+                          model: List[IDAble],
                           name: String,
                           system: ActorSystem
                           ) {
@@ -21,7 +22,7 @@ case class RunnerPipeline(operations: List[Operation],
 
   implicit val askTimeout = Timeout(5 seconds)
   import akka.pattern.ask
-  val runnerA = system.actorOf(Props(classOf[RunnerActor], transitionSystem, initialState, operations))
+  val runnerA = system.actorOf(Props(classOf[RunnerActor], transitionSystem, initialState, operations, model))
 
   def runnerFlow =
     Flow[StateUpd]
@@ -88,7 +89,8 @@ case class RunnerState(state: Option[SPState],
 
 class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
                   initialState: SPState,
-                  operations: List[Operation]
+                  operations: List[Operation],
+                  model: List[IDAble]
                  ) extends Actor {
 
 
@@ -102,6 +104,7 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
     plan = List()
   )
   var state = initialState
+  var prevState = state // remember when the state changes
 
   val nextStart = Thing("next")
 
@@ -123,9 +126,12 @@ class RunnerActor(transitionSystem: List[RunnerLogic.OperationTransition],
         internal.controlledTransitions,
         internal.unControlledTransitions,
         internal.disabledGroups,
-        internal.plan
+        internal.plan,
+        updS.state != prevState,
+        model
       )
       state = res.lastState
+      prevState = updS
       internal = internal.copy(plan = res.newPlan)
 
       sender() ! res

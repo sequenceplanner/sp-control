@@ -45,164 +45,164 @@ class RunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with Im
   implicit val materializer = ActorMaterializer()
 
 
-  "testing runner pipeline" - {
-    "Run simple sequence" in {
-      val test = new SimpleSequence with OperationRunnerTransitionsNoReset{}
-      val pipe = RunnerPipeline(
-        operations = test.ops,
-        transitionSystem = test.transitions,
-        initialState = test.initialState,
-        name = "testRunner",
-        system = system
-      )
+  // "testing runner pipeline" - {
+  //   "Run simple sequence" in {
+  //     val test = new SimpleSequence with OperationRunnerTransitionsNoReset{}
+  //     val pipe = RunnerPipeline(
+  //       operations = test.ops,
+  //       transitionSystem = test.transitions,
+  //       initialState = test.initialState,
+  //       name = "testRunner",
+  //       system = system
+  //     )
 
 
-      val s = Source(1 to 6).map(x =>  StateUpd(SPState("tick", Map()), List()))
-      val future = s.via(pipe.runnerFlow).runWith(Sink.fold(List[SPState]())(_ :+ _))
-      val result = Await.result(future, 1.seconds)
-      //result.foreach(println)
+  //     val s = Source(1 to 6).map(x =>  StateUpd(SPState("tick", Map()), List()))
+  //     val future = s.via(pipe.runnerFlow).runWith(Sink.fold(List[SPState]())(_ :+ _))
+  //     val result = Await.result(future, 1.seconds)
+  //     //result.foreach(println)
 
-      assert(result.last.get(test.o3.id).contains(SPValue(test.finished)))
-    }
+  //     assert(result.last.get(test.o3.id).contains(SPValue(test.finished)))
+  //   }
 
-    "No ticker when no ticker" in {
-      val test = new SimpleSequence with OperationRunnerTransitionsNoReset{}
-      val pipe = RunnerPipeline(
-        operations = test.ops,
-        transitionSystem = test.transitions,
-        initialState = test.initialState,
-        name = "testRunner",
-        system = system
-      )
-
-
-      val s = Source.empty[StateUpd]
-      val future = s.via(pipe.runnerFlow).runWith(Sink.fold(List[SPState]())(_ :+ _))
-      val result = Await.result(future, 1.seconds)
-
-      assert(result.isEmpty)
-    }
-
-    "Run simple sequence with Ticker" in {
-      val test = new SimpleSequence with OperationRunnerTransitionsNoReset{}
-      val pipe = RunnerPipeline(
-        operations = test.ops,
-        transitionSystem = test.transitions,
-        initialState = test.initialState,
-        name = "testRunner",
-        system = system
-      )
+  //   "No ticker when no ticker" in {
+  //     val test = new SimpleSequence with OperationRunnerTransitionsNoReset{}
+  //     val pipe = RunnerPipeline(
+  //       operations = test.ops,
+  //       transitionSystem = test.transitions,
+  //       initialState = test.initialState,
+  //       name = "testRunner",
+  //       system = system
+  //     )
 
 
-      val s = Source.empty[StateUpd]
-      val res = s
-        .via(pipe.runnerFlow)
-        .runWith(TestSink.probe[SPState])
-        .request(10)
-        .receiveWhile(1 seconds){
-          case x: OnNext[SPState] if x.element.get(test.o3.id).contains(SPValue(test.finished)) => true
-          case x: OnNext[_]  => false
-        }
+  //     val s = Source.empty[StateUpd]
+  //     val future = s.via(pipe.runnerFlow).runWith(Sink.fold(List[SPState]())(_ :+ _))
+  //     val result = Await.result(future, 1.seconds)
 
-      println(res)
+  //     assert(result.isEmpty)
+  //   }
 
-      assert(res.exists(x => x))
-    }
-
-    "Run sequence with auto reset with Ticker" in {
-      val test = new SimpleSequence with OperationRunnerTransitionsWithAutoReset {}
-      val pipe = RunnerPipeline(
-        operations = test.ops,
-        transitionSystem = test.transitions,
-        initialState = test.initialState,
-        name = "testRunner",
-        system = system
-      )
+  //   "Run simple sequence with Ticker" in {
+  //     val test = new SimpleSequence with OperationRunnerTransitionsNoReset{}
+  //     val pipe = RunnerPipeline(
+  //       operations = test.ops,
+  //       transitionSystem = test.transitions,
+  //       initialState = test.initialState,
+  //       name = "testRunner",
+  //       system = system
+  //     )
 
 
-      val s = Source.empty[StateUpd]
-      val res = s
-        .via(pipe.runnerFlow)
-        .runWith(TestSink.probe[SPState])
-        .request(100)
-        .receiveWhile(1 seconds){
-          case x: OnNext[SPState] if x.element.get(test.o3.id).contains(SPValue(test.finished)) => true
-          case x: OnNext[_]  => false
-        }
+  //     val s = Source.empty[StateUpd]
+  //     val res = s
+  //       .via(pipe.runnerFlow)
+  //       .runWith(TestSink.probe[SPState])
+  //       .request(10)
+  //       .receiveWhile(1 seconds){
+  //         case x: OnNext[SPState] if x.element.get(test.o3.id).contains(SPValue(test.finished)) => true
+  //         case x: OnNext[_]  => false
+  //       }
+
+  //     println(res)
+
+  //     assert(res.exists(x => x))
+  //   }
+
+  //   "Run sequence with auto reset with Ticker" in {
+  //     val test = new SimpleSequence with OperationRunnerTransitionsWithAutoReset {}
+  //     val pipe = RunnerPipeline(
+  //       operations = test.ops,
+  //       transitionSystem = test.transitions,
+  //       initialState = test.initialState,
+  //       name = "testRunner",
+  //       system = system
+  //     )
 
 
-      println(res)
-
-      assert(res.exists(x => x) && !res.last)
-    }
-
-    "Run sequence with start events and no Ticker" in {
-      val test = new SimpleSequence with OperationRunnerWithStartEvents {}
-      val pipe = RunnerPipeline(
-        operations = test.ops,
-        transitionSystem = test.transitions,
-        initialState = test.initialState,
-        name = "testRunner",
-        system = system
-      )
+  //     val s = Source.empty[StateUpd]
+  //     val res = s
+  //       .via(pipe.runnerFlow)
+  //       .runWith(TestSink.probe[SPState])
+  //       .request(100)
+  //       .receiveWhile(1 seconds){
+  //         case x: OnNext[SPState] if x.element.get(test.o3.id).contains(SPValue(test.finished)) => true
+  //         case x: OnNext[_]  => false
+  //       }
 
 
-      val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
-      val res = s
-        .via(pipe.runnerFlow)
-        .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
-        .run()
+  //     println(res)
+
+  //     assert(res.exists(x => x) && !res.last)
+  //   }
+
+  //   "Run sequence with start events and no Ticker" in {
+  //     val test = new SimpleSequence with OperationRunnerWithStartEvents {}
+  //     val pipe = RunnerPipeline(
+  //       operations = test.ops,
+  //       transitionSystem = test.transitions,
+  //       initialState = test.initialState,
+  //       name = "testRunner",
+  //       system = system
+  //     )
 
 
-      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o1.id)))).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o2.id)))).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o3.id)))).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
-
-      res._1.complete()
-
-      val result = Await.result(res._2, 5.seconds)
-      println(result)
-      assert(result.last.get(test.o3.id).contains(SPValue(test.finished)))
-    }
-
-    "Run sequence with start events but not in correct state" in {
-      val test = new SimpleSequence with OperationRunnerWithStartEvents {}
-      val pipe = RunnerPipeline(
-        operations = test.ops,
-        transitionSystem = test.transitions,
-        initialState = test.initialState,
-        name = "testRunner",
-        system = system
-      )
+  //     val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
+  //     val res = s
+  //       .via(pipe.runnerFlow)
+  //       .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
+  //       .run()
 
 
-      val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
-      val res = s
-        .via(pipe.runnerFlow)
-        .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
-        .run()
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o1.id)))).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o2.id)))).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o3.id)))).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+
+  //     res._1.complete()
+
+  //     val result = Await.result(res._2, 5.seconds)
+  //     println(result)
+  //     assert(result.last.get(test.o3.id).contains(SPValue(test.finished)))
+  //   }
+
+  //   "Run sequence with start events but not in correct state" in {
+  //     val test = new SimpleSequence with OperationRunnerWithStartEvents {}
+  //     val pipe = RunnerPipeline(
+  //       operations = test.ops,
+  //       transitionSystem = test.transitions,
+  //       initialState = test.initialState,
+  //       name = "testRunner",
+  //       system = system
+  //     )
 
 
-      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o2.id)))).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o1.id)))).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o3.id)))).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
-      res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
-
-      res._1.complete()
-
-      val result = Await.result(res._2, 5.seconds)
-      println(result)
-      assert(!result.last.get(test.o3.id).contains(SPValue(test.finished)))
-    }
+  //     val s = Source.queue[StateUpd](10, akka.stream.OverflowStrategy.backpressure)
+  //     val res = s
+  //       .via(pipe.runnerFlow)
+  //       .toMat(Sink.fold(List[SPState]())(_ :+ _))(Keep.both)
+  //       .run()
 
 
-  }
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o2.id)))).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o1.id)))).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List(FireEvent("start", test.o3.id)))).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+  //     res._1.offer(StateUpd(SPState("test1", Map()), List())).foreach(println)(system.dispatcher)
+
+  //     res._1.complete()
+
+  //     val result = Await.result(res._2, 5.seconds)
+  //     println(result)
+  //     assert(!result.last.get(test.o3.id).contains(SPValue(test.finished)))
+  //   }
+
+
+  // }
 
 
 

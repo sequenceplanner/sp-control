@@ -105,6 +105,7 @@ class RunnerInstance(setup: API.SetupRunnerInstance) extends Actor
     operations = setup.runner.operations,
     transitionSystem = setup.runner.transitionSystem,
     initialState = SPState("initial state", setup.runner.initialState),
+    model = setup.items,
     name = setup.id.toString,
     system = context.system
   )
