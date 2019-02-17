@@ -44,7 +44,12 @@ object UR {
     case ("OF_2_TIGHTENED", "PRE_OF_2_UNTIGHTENED") => ("JOINT", "MOVEJ")
     case (_, "PRE_OF_2_UNTIGHTENED") => ("JOINT", "PLANNED")
 
-    case _ => println(s"DEFAULT CASE for $source -> $target"); ("JOINT", "PLANNED")
+      // hack for old csv file
+    case (_, target) if target.contains("JOINTPose") => ("JOINT", "PLANNED")
+    case (_, target) if target.contains("TCPPose") => ("TCP", "PLANNED")
+
+    case _ => // println(s"DEFAULT CASE for $source -> $target");
+      ("JOINT", "PLANNED")
   }
 
   val needsOf = List("PRE_OF_1_UNTIGHTENED", "PRE_OF_1_TIGHTENED",
@@ -123,8 +128,109 @@ class UR(override val system: ActorSystem) extends ROSResource {
     c("reset", "true"))
 }
 
+class AECU(override val system: ActorSystem) extends ROSResource {
+  val tool_is_idle = i("tool_is_idle", false)
+  val tool_is_running_forward = i("tool_is_running_forward", false)
+  // bool tool_is_running_reverse
+  // bool tool_is_in_alarm
+  // bool positioned_at_home_station
+  // bool operating_position
+  // bool pre_home_position
+  // bool unclear_position
+  val ptr = i("programmed_torque_reached", false)
+  val home = i("positioned_at_home_station", false)
+
+  val subMapping = createInputMappingFromMessageType("unification_ros2_messages/AecuUniToSP")
+  subscribe("/unification_roscontrol/aecu_uni_to_sp", "unification_ros2_messages/AecuUniToSP", subMapping)
+
+  val set_tool_idle = o("set_tool_idle", true)
+  val run_tool_forward = o("run_tool_forward", false)
+  // val run_tool_in_reverse
+  // val inhibit_all_run_also_manual
+  // val activate_unload
+  val activate_unload = o("activate_unload", false)
+  // val activate_lift
+  val activate_lift = o("activate_lift", false)
+
+  val pubMapping = createOutputMappingFromMessageType("unification_ros2_messages/AecuSPToUni")
+
+  publish("/unification_roscontrol/aecu_sp_to_uni", "unification_ros2_messages/AecuSPToUni", Some(1000.millis), pubMapping)
+
+  a("startToolForward", List())(
+    c("pre", "tool_is_idle", "run_tool_forward:=true", "set_tool_idle := false"),
+    c("isExecuting", "!tool_is_running_forward"),
+    c("isFinished", "tool_is_running_forward"),
+  )
+}
+
+class HECU(override val system: ActorSystem) extends ROSResource {
+  val lf_tool_home = i("lf_tool_home", false)
+  val filter_tool_home = i("filter_tool_home", false)
+
+
+  val subMapping = stringToIDMapper(Map(
+    "lf_tool_home" -> lf_tool_home,
+    "filter_tool_home" -> filter_tool_home,
+  ))
+
+  val subFlow = subMapping
+  subscribe("/unification_roscontrol/hecu_uni_to_sp", "unification_ros2_messages/HecuUniToSP", subFlow)
+}
+
+class RECU(override val system: ActorSystem) extends ROSResource {
+  // bool robot_not_connected_to_tool
+  // bool robot_connected_to_lf_tool
+  // bool robot_connected_to_atlas_tool
+  // bool robot_connected_to_filter_tool
+  // bool undefined_connection_detected
+  // bool robot_tool_connection_failure
+  // bool ladder_frame_not_connected
+  // bool ladder_frame_connected
+  // bool ladder_frame_connection_failure
+  // bool pressure_ok
+
+  val pressure = i("pressure_ok", false)
+
+  val subMapping = stringToIDMapper(Map("pressure_ok" -> pressure))
+  subscribe("/unification_roscontrol/recu_uni_to_sp", "unification_ros2_messages/RecuUniToSP", subMapping)
+
+  val lock_rsp = o("lock_rsp", false)
+  val unlock_rsp = o("unlock_rsp", false)
+
+  val pubMapping = IDToStringMapper(Map(
+    lock_rsp -> "lock_rsp",
+    unlock_rsp -> "unlock_rsp"
+  ))
+
+  publish("/unification_roscontrol/recu_sp_to_uni", "unification_ros2_messages/RecuSPToUni", Some(100 millis), pubMapping)
+
+  a("lock")(
+    c("pre", "true", "lock_rsp := true"),
+    c("reset", "true")
+  )
+
+  a("unlock")(
+    c("pre", "true", "unlock_rsp := true"),
+    c("reset", "true")
+  )
+
+}
+
 class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   use("ur", new UR(system))
+  use("aecu", new AECU(system))
+  use("recu", new RECU(system))
+  use("hecu", new HECU(system))
+
+
+  val startMotor = o(s"aecu.startTool", "aecu.startToolForward", "aecu")()
+
+  v("bolt1Tightened", false)
+
+  o("watchForBolt1Tightened")(
+    c("isExecuting", "!aecu.programmed_torque_reached && ur.actPos == 'OF_1_TIGHTENED'"),
+    c("isFinished", "aecu.programmed_torque_reached && ur.actPos == 'OF_1_TIGHTENED'", "bolt1Tightened := true")
+  )
 
   v("of1", false)
 
@@ -177,31 +283,10 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     "goal" -> "ur.actPos == 'OF_1_TIGHTENED'",
   )
 
-  // main sop for testing in auto
-
-  val mainSop = for {
-    op1 <- gotoPositions.get("PRE_ATTACH_OF")
-    op2 <- gotoPositions.get("ATTACH_OF")
-    op3 = attach
-    op4 <- gotoPositions.get("PRE_OF_1_UNTIGHTENED")
-    op5 <- gotoPositions.get("OF_1_TIGHTENED")
-    op6 <- gotoPositions.get("PRE_ATTACH_OF")
-    op7 <- gotoPositions.get("PRE_OF_2_UNTIGHTENED")
-    op8 <- gotoPositions.get("OF_2_TIGHTENED")
-    op9 <- gotoPositions.get("PRE_ATTACH_OF")
-    op10 <- gotoPositions.get("ATTACH_OF")
-    op11 = detach
-    op12 <- gotoPositions.get("PRE_ATTACH_OF")
-  } yield {
-    val l = List(op1, op2, op3, op4, op5, op1, op6, op7, op8, op9, op10, op11, op12).map(o=>SOP(o))
-    Sequence(l)
-  }
-
-//  sopC("main sequence", mainSop.toList)
-
-  val sopposes = Sequence(gotoPositions.map(o=>SOP(o._2)).toList)
-  val sopattach = Sequence(List(SOP(attach), SOP(detach)))
-  sop("UR", List(Parallel(List(sopposes, sopattach))))
+  // just build a simple sop to visualize the operation states
+  // make a grid with four columns to utilize the space we have in the widget
+  val grid = List(0,1,2,3).map(n=>operations.sliding(4,4).flatMap(_.lift(n)).toList)
+  sop("sop", List(Parallel(grid.map(s=>Sequence(s.map(o=>SOP(o)))))))
 
   // resource bookings
   addBookings()

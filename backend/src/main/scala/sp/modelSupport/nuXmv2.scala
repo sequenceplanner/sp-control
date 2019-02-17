@@ -12,7 +12,8 @@ trait ExportNuXmvFile2 {
   import sp.runners.AbilityRunnerTransitions._
   val idle = "idle" // we dont keep track of enabled/not enabled
 
-  def exportNuXmv(ids: List[IDAble], filename : String, initialState: Map[ID, SPValue], specs: String): Unit = {
+  def exportNuXmv(ids_ : List[IDAble], filename : String, initialState: Map[ID, SPValue], specs: String): Unit = {
+    val ids = ids_.filterNot(_.attributes.getAs[Boolean]("notInModel").getOrElse(false))
 
     // Extract from IDAbles
 
@@ -75,9 +76,9 @@ trait ExportNuXmvFile2 {
         // lines += "DEFINE " + o.name + "_executing := !" + o.name + "_finished &" + propTonuXmvSyntax(exec) + ";\n"
         lines += "DEFINE " + o.name + "_executing := " + propTonuXmvSyntax(exec) + ";\n"
 
-      assert(pre != AND(List()))
-      //lines += "DEFINE " + o.name + "_enabled := !" + o.name + "_executing &" + propTonuXmvSyntax(pre) + ";\n"
-      lines += "DEFINE " + o.name + "_enabled := " + propTonuXmvSyntax(pre) + ";\n"
+      if(pre != AND(List()))
+        //lines += "DEFINE " + o.name + "_enabled := !" + o.name + "_executing &" + propTonuXmvSyntax(pre) + ";\n"
+        lines += "DEFINE " + o.name + "_enabled := " + propTonuXmvSyntax(pre) + ";\n"
      }
 
     // add assignment of initial states

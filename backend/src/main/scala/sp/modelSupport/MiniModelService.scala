@@ -117,6 +117,8 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
             val result = s"/home/martin/bin/nuxmv -bmc -bmc_length $bound /tmp/problem.smv" .! (ProcessLogger(stdout.println, _ => ()))
             stdout.close()
 
+            if(result != 0) sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPError("malformed input file")))
+
           case _ => Unit
         }
         sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPDone()))

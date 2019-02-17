@@ -135,7 +135,7 @@ object RunnerLogic {
         // take start transition
         println("taking start transition for: " + op.name)
         (enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}, plan.tail)
-      } else if(finished.forall(p => p.eval(s))) {
+      } else if(s.get(op.id) != Some(SPValue("finished")) && finished.forall(p => p.eval(s))) {
         // take finish transition
         println("taking finish transition for: " + op.name)
         (finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}, plan)

@@ -777,7 +777,11 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   }
 
   def getIDAbles(): List[IDAble] = {
-    operations ++ things ++ sops ++ specs ++ resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
+    // save away the abilties so we can use them for debugging
+    val abilities = resources.map { case (rn, r) => r.abilities.map(a=>a.copy(name = rn + "." + a.name)) }.flatten.toList
+    val abilityThing = Thing("abilities", SPAttributes("modelAbilities" -> abilities, "notInModel" -> true))
+
+    abilityThing :: operations ++ things ++ sops ++ specs ++ resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
   }
 
   def makeResources(): List[SPResource] = {

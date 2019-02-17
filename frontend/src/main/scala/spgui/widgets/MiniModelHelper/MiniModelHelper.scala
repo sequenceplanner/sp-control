@@ -80,10 +80,12 @@ object MiniModelHelperWidget {
           runnerID <- props.activeRunnerId
           runnerState <- props.runnerStates.get(runnerID)
         } yield {
+          // this is a terrible hack. shame!
           $.modState(s => s.copy(ltlresult="computing...")).runNow()
           val x= comm.request(api.bmc(idables, runnerState, s.ltl, 50)).map {
             case (header, Left(SPError(err, attr))) =>
               println("got error!: " + err)
+              $.modState(s => s.copy(ltlresult="error...")).runNow()
               None
             case (header,Right(api.bmcOutput(stdout))) =>
               println("GOT REPLY!: " + stdout)
@@ -95,7 +97,6 @@ object MiniModelHelperWidget {
           x.runLog.unsafeRunAsync { case Right(y) =>
             val x = y.flatMap(x=>x).fold(""){ case (a,b) => a++b }
             $.modState(s => s.copy(ltlresult=x.replaceAll("(?m)^\\*\\*\\*.*?\n", ""))).runNow()
-            case _ =>
           }
         }
       }

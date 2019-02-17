@@ -76,8 +76,8 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
 
 
   import sp.drivers.ros2.ROSHelpers
-  val uni2spmsg = ROSHelpers.createROSMsg("unification_ros2_messages/URPoseUniToSP").get
-  val sp2unimsg = ROSHelpers.createROSMsg("unification_ros2_messages/URPoseSPToUni").get
+  val uni2spmsg = ROSHelpers.createROSMsg("unification_ros2_messages/AecuUniToSP").get
+  val sp2unimsg = ROSHelpers.createROSMsg("unification_ros2_messages/AecuSPToUni").get
 
   val uni2spAttr = ROSHelpers.msgToAttr(uni2spmsg)
   val sp2uniAttr = ROSHelpers.msgToAttr(sp2unimsg)

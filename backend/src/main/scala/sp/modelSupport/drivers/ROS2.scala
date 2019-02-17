@@ -23,6 +23,24 @@ trait ROSResource extends Resource {
   case class Pub(topic: String, messageType: String, tickInterval: Option[FiniteDuration], via: Flow[State, DriverState, _])
   var pubs: List[Pub] = List.empty
 
+  // create a mapping out from a ros message based on (input) thing names
+  def createInputMappingFromMessageType(messageType: String) = {
+    val fieldNames = ROSHelpers.createROSMsg(messageType).map(ROSHelpers.msgToAttr).
+      map(_.value.keySet).getOrElse(throw new RuntimeException(s"No such message: $messageType, did you source your ROS ws?"))
+
+    val map = things.filter(t => fieldNames.contains(t.name) && t.attributes.getAs[Boolean]("input").getOrElse(false)).map(t=>t.name -> t.id).toMap
+    stringToIDMapper(map)
+  }
+
+  // create a mapping into a ros message based on (output) thing names
+  def createOutputMappingFromMessageType(messageType: String) = {
+    val fieldNames = ROSHelpers.createROSMsg(messageType).map(ROSHelpers.msgToAttr).
+      map(_.value.keySet).getOrElse(throw new RuntimeException(s"No such message: $messageType, did you source your ROS ws?"))
+
+    val map = things.filter(t => fieldNames.contains(t.name) && t.attributes.getAs[Boolean]("output").getOrElse(false)).map(t=>t.id -> t.name).toMap
+    IDToStringMapper(map)
+  }
+
   def subscribe(topic: String, messageType: String, via: Flow[DriverState, State, _]) =
     subs = Sub(topic, messageType, via) :: subs
 

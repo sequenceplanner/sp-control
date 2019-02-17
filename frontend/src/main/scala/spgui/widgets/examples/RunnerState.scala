@@ -154,17 +154,21 @@ object RunnerStateWidgetState {
     def render(p: Props, s: State) = {
       val typeLinks = typeFilters.map(t => <.div(t, ^.onClick --> setTypeFilter(t)))
 
+      // TODO: show abilities so we can force run them...
+      val abilities = p.activeModel.flatMap(m => m.items.find(_.name == "abilities").
+        flatMap(_.attributes.getAs[List[Operation]]("modelAbilities"))).getOrElse(List())
+
       <.div(
         p.activeRunner.map { runnerID =>
           <.div(
-          <.button(
-            ^.className := "btn btn-small",
-            ^.onClick --> send(api.StartAuto(runnerID)), "start auto"
-          ),
-          <.button(
-            ^.className := "btn btn-small",
-            ^.onClick --> send(api.StopAuto(runnerID)), "stop auto"
-          ))
+            <.button(
+              ^.className := "btn btn-small",
+              ^.onClick --> send(api.StartAuto(runnerID)), "start auto"
+            ),
+            <.button(
+              ^.className := "btn btn-small",
+              ^.onClick --> send(api.StopAuto(runnerID)), "stop auto"
+            ))
         }.toList.toTagMod,
         <.label("Filter: "),
         <.input(
