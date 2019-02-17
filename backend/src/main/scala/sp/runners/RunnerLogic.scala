@@ -130,22 +130,26 @@ object RunnerLogic {
       //   println("plan allows: " + op.name)
       // } else { println("plan is: " + plan.mkString(",")) }
 
-      val (ns, np) = if(enabled.forall(p => p.eval(s)) // && fire.exists(f=>f.operation==op.id)
-        && plan.headOption.contains(op.name)) {
+      // plan active in auto
+      val isInAuto = unControlledTransitions.exists(_.id==AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id)
+
+      val (ns, np) = if(enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.operation==op.id)) ||
+        (isInAuto && plan.headOption.contains(op.name)))) {
         // take start transition
-        println("taking start transition for: " + op.name)
-        (enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}, plan.tail)
+        println("taking start transition for: " + op.name + " auto: " + isInAuto)
+        val newPlan = if(isInAuto) plan.tail else plan
+        (enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}, newPlan)
       } else if(s.get(op.id) != Some(SPValue("finished")) && finished.forall(p => p.eval(s))) {
         // take finish transition
         println("taking finish transition for: " + op.name)
         (finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}, plan)
       } else (s, plan)
 
-      val x = if(filterConditions(op.conditions, Set("isFinished"), Set()).forall(p => p.eval(ns)))
+      val x = if(finished.forall(p => p.eval(ns)))
         ns.next(op.id -> SPValue("finished"))
-      else if(filterConditions(op.conditions, Set("isExecuting"), Set()).forall(p => p.eval(ns)))
+      else if(executing.forall(p => p.eval(ns)))
         ns.next(op.id -> SPValue("executing"))
-      else if(filterConditions(op.conditions, Set("pre"), Set()).forall(p => p.eval(ns)))
+      else if(enabled.forall(p => p.eval(ns)))
         ns.next(op.id -> SPValue("enabled"))
       else ns.next(op.id -> SPValue("notEnabled"))
 

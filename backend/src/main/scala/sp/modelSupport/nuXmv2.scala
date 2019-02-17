@@ -79,7 +79,7 @@ trait ExportNuXmvFile2 {
       if(pre != AND(List()))
         //lines += "DEFINE " + o.name + "_enabled := !" + o.name + "_executing &" + propTonuXmvSyntax(pre) + ";\n"
         lines += "DEFINE " + o.name + "_enabled := " + propTonuXmvSyntax(pre) + ";\n"
-     }
+    }
 
     // add assignment of initial states
     lines += "\n\n"
@@ -101,7 +101,7 @@ trait ExportNuXmvFile2 {
           println(s"actionTonuXmvSyntax cannot handle: $other right now. sorry")
           other.toString
       }
-     }
+    }
 
     def propTonuXmvSyntax(p: Proposition): String = p match {
       case AND(Nil) => "TRUE"
@@ -109,7 +109,7 @@ trait ExportNuXmvFile2 {
       case OR(Nil) => "TRUE"
       case OR(ps) => ps.map(propTonuXmvSyntax).mkString("(", ")|(", ")")
       case NOT(q) => s"!${propTonuXmvSyntax(q)}"
-        // special case for operation state
+      // special case for operation state
       case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("executing") => ops.find(_.id==op).get.name + "_executing"
       case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("starting") => "TRUE" // modifiedOps.find(_.id==op).get.name + "_starting"
       case EQ(l, r) => leftRight(l, "=", r)
@@ -162,7 +162,9 @@ trait ExportNuXmvFile2 {
     opStartVars.foreach { v =>
       lines += s"  next(${v.name}) := case\n"
       val o = ops.find(o => v.name == ostart(o)).get
-      lines += s"    ${o.name}_enabled : {FALSE,TRUE};\n"
+      val pre = AND(getConds(o.conditions, "pre").map(_.guard))
+      if(pre != AND(List()))
+        lines += s"    ${o.name}_enabled : {FALSE,TRUE};\n"
       lines += s"    TRUE : FALSE;\n"
       lines += "  esac;\n\n"
     }

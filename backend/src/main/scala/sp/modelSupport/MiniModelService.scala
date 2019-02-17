@@ -103,21 +103,41 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
           case APIMiniModelService.bmc(model, initialState, query, bound) =>
             exportNuXmv(model, "/tmp/problem.smv", initialState, query)
 
-            import java.io.{OutputStream,PrintStream}
-            val is: OutputStream = StreamConverters.asOutputStream().map(_.utf8String).
-              to(Sink.foreach{s=>
-                val msg = SPMessage.makeJson(responseHeader, APIMiniModelService.bmcOutput(s))
-                sendAnswer(msg)
-              }).run()(ActorMaterializer())
-
-            // val stdout = System.out
-            val stdout = new PrintStream(is)
-
             import sys.process._
-            val result = s"/home/martin/bin/nuxmv -bmc -bmc_length $bound /tmp/problem.smv" .! (ProcessLogger(stdout.println, _ => ()))
-            stdout.close()
+            import java.io.{ByteArrayOutputStream,PrintWriter}
+            def runCommand(cmd: String): (Int, String, String) = {
+              val stdoutStream = new ByteArrayOutputStream
+              val stderrStream = new ByteArrayOutputStream
+              val stdoutWriter = new PrintWriter(stdoutStream)
+              val stderrWriter = new PrintWriter(stderrStream)
+              val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
+              stdoutWriter.close()
+              stderrWriter.close()
+              (exitValue, stdoutStream.toString, stderrStream.toString)
+            }
 
-            if(result != 0) sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPError("malformed input file")))
+            println("Running solver...")
+            val t0 = System.nanoTime()
+            val (result, stdout, stderr) = runCommand(s"/home/martin/bin/nuxmv -bmc -bmc_length $bound /tmp/problem.smv")
+            val t1 = System.nanoTime()
+            println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
+
+            // import java.io.{OutputStream,PrintStream}
+            // val is: OutputStream = StreamConverters.asOutputStream().map(_.utf8String).
+            //   to(Sink.foreach{s=>
+            //     val msg = SPMessage.makeJson(responseHeader, APIMiniModelService.bmcOutput(s))
+            //     sendAnswer(msg)
+            //   }).run()(ActorMaterializer())
+
+            // // val stdout = System.out
+            // val stdout = new PrintStream(is)
+
+            // import sys.process._
+            // val result = s"/home/martin/bin/nuxmv -bmc -bmc_length $bound /tmp/problem.smv" .! (ProcessLogger(stdout.println, _ => ()))
+            // stdout.close()
+
+            if(result != 0) sendAnswer(SPMessage.makeJson(responseHeader, APISP.SPError(stderr)))
+            else sendAnswer(SPMessage.makeJson(responseHeader, APIMiniModelService.bmcOutput(stdout)))
 
           case _ => Unit
         }

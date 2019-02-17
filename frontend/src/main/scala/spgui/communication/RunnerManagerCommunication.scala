@@ -2,7 +2,7 @@ package spgui.communication
 
 import sp.domain.SPMessage
 import spgui.SPMessageUtil.BetterSPMessage
-import spgui.circuits.main.handlers.{AddRunner, UpdateRunnerState, RunnerAction}
+import spgui.circuits.main.handlers.{AddRunner, RemoveRunner, RemoveAllRunners, UpdateRunnerState, RunnerAction}
 import spgui.circuits.main.FrontendState
 
 object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, RunnerAction] {
@@ -21,10 +21,10 @@ object RunnerManagerCommunication extends CommunicationAPI.Communicator[String, 
         localDispatch(UpdateRunnerState(runnerID, stateData))
 
       case API.TerminatedRunnerInstance(id) =>
-        // TODO What should be done here?
+        localDispatch(RemoveRunner(id))
 
       case API.TerminatedAllRunnerInstances =>
-        // TODO What should be done here?
+        localDispatch(RemoveAllRunners)
 
     }
   }

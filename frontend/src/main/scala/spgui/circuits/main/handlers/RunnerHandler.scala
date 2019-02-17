@@ -7,6 +7,8 @@ import spgui.SimpleSet
 
 trait RunnerAction extends Action
 case class AddRunner(runner: ID) extends RunnerAction
+case class RemoveRunner(runner: ID) extends RunnerAction
+case object RemoveAllRunners extends RunnerAction
 case class UpdateRunnerState(runner: ID, state: Map[ID, SPValue]) extends RunnerAction
 case object TerminateAllRunners extends RunnerAction
 
@@ -26,6 +28,13 @@ class RunnerHandler[M](modelRW: ModelRW[M, RunnerHandlerState]) extends StateHan
   override def onAction: PartialFunction[RunnerAction, Reaction] = {
     case AddRunner(id) =>
       latestActiveRunnerId.set(Some(id))
+
+    case RemoveRunner(id) =>
+      val newActive = if(value.latestActiveRunnerId.contains(id)) None else value.latestActiveRunnerId
+      latestActiveRunnerId.set(newActive) andThen runnerStates.set(value.runnerStates - id)
+
+    case RemoveAllRunners =>
+      latestActiveRunnerId.set(None) andThen runnerStates.set(Map())
 
     case UpdateRunnerState(id, state) =>
       react {

@@ -57,6 +57,7 @@ class RunnerManager extends Actor
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.TerminateAllRunnerInstances =>
+            println("Terminating runners!")
             runners.foreach(_._2 ! PoisonPill)
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
           case x =>
@@ -64,7 +65,9 @@ class RunnerManager extends Actor
 
       }
 
-    case Terminated(x) => runners = runners.filterNot(_._2 == x) // remove VD from VDs map, send message that VD was terminated, if there are no more VDs: send that all have been terminated
+    case Terminated(x) =>
+      println("runner terminated!")
+      runners = runners.filterNot(_._2 == x) // remove VD from VDs map, send message that VD was terminated, if there are no more VDs: send that all have been terminated
       runners.find(_._2 == x).foreach(vd => publish (APIRunnerManager.topicResponse, SPMessage.makeJson (SPHeader(from = APIRunnerManager.service), APIRunnerManager.TerminatedRunnerInstance(vd._1) )))
       if(runners.isEmpty) publish (APIRunnerManager.topicResponse, SPMessage.makeJson (SPHeader(from = APIRunnerManager.service), APIRunnerManager.TerminatedAllRunnerInstances ) )
   }
@@ -177,14 +180,14 @@ class RunnerInstance(setup: API.SetupRunnerInstance) extends Actor
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.TerminateRunnerInstance(instanceID) if instanceID == id =>
-            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
-            killSwitch.shutdown()
-            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+            // publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            // killSwitch.shutdown()
+            // publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.TerminateAllRunnerInstances =>
-            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
-            killSwitch.shutdown()
-            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+            // publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            // killSwitch.shutdown()
+            // publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
 
           case _ =>

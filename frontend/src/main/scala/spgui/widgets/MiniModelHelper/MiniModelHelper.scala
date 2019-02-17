@@ -85,19 +85,20 @@ object MiniModelHelperWidget {
           val x= comm.request(api.bmc(idables, runnerState, s.ltl, 50)).map {
             case (header, Left(SPError(err, attr))) =>
               println("got error!: " + err)
-              $.modState(s => s.copy(ltlresult="error...")).runNow()
+              $.modState(s => s.copy(ltlresult=err)).runNow()
               None
             case (header,Right(api.bmcOutput(stdout))) =>
               println("GOT REPLY!: " + stdout)
+              $.modState(s => s.copy(ltlresult=stdout.replaceAll("(?m)^\\*\\*\\*.*?\n", ""))).runNow()
               Some(stdout)
             case x =>
               println("GOT OTHER REPLY!: " + x)
               None
-          }
-          x.runLog.unsafeRunAsync { case Right(y) =>
-            val x = y.flatMap(x=>x).fold(""){ case (a,b) => a++b }
-            $.modState(s => s.copy(ltlresult=x.replaceAll("(?m)^\\*\\*\\*.*?\n", ""))).runNow()
-          }
+          }.run.unsafeToFuture
+          // x.runLog.unsafeRunAsync { case Right(y) =>
+          //   val x = y.flatMap(x=>x).fold(""){ case (a,b) => a++b }
+          //   $.modState(s => s.copy(ltlresult=x.replaceAll("(?m)^\\*\\*\\*.*?\n", ""))).runNow()
+          // }
         }
       }
 
@@ -136,12 +137,8 @@ object MiniModelHelperWidget {
     }
 
     def terminateAll(props: Props): Callback = Callback {
-      //      terminateAbilities(props)
-      //      terminateDrivers(props.drivers.map(_.id)) // Todo: also remove all drivers from gui disp? */
-      //      terminateVDs(props)
-
       println("Terminating runners..")
-      //      terminateRunners(props)
+      terminateRunners(props)
     }
 
     // def renderRunners(activeRunnerId: RunnerId, runners: List[Runner], ids: SimpleSet[ID, IDAble]): TagMod = {
@@ -186,7 +183,7 @@ object MiniModelHelperWidget {
       ).when(data.nonEmpty)
     }
 
-    def terminateVDs(props: Props): Unit = {
+    def terminateRunners(props: Props): Unit = {
       RunnerManagerCommunication.postRequest(APIRunnerManager.TerminateAllRunnerInstances)
     }
   }
