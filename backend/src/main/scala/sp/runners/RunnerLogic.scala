@@ -68,46 +68,6 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
   // Add force when we need it
   //case class ForceTransition(conditionKind: SPValue, operation: ID)
 
-  def computePlan(model: List[IDAble], state: Map[ID, SPValue], goal: Proposition, filename: String = "/tmp/runner.smv"): List[String] = {
-    exportNuXmv(model, filename, state, goal, "")
-
-    // TODO: export command file
-    // then run it as: echo quit | nuxmv -source test.txt /tmp/runner.sm
-    //  val msg = "to stdin of process"; out.write(msg.getBytes); out.close;
-    // val process = new ProcessIO(writeJob, readJob, errJob)
-
-    import sys.process._
-    import java.io.{ByteArrayOutputStream,PrintWriter}
-    def runCommand(cmd: String): (Int, String, String) = {
-      val stdoutStream = new ByteArrayOutputStream
-      val stderrStream = new ByteArrayOutputStream
-      val stdoutWriter = new PrintWriter(stdoutStream)
-      val stderrWriter = new PrintWriter(stderrStream)
-      val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
-      stdoutWriter.close()
-      stderrWriter.close()
-      (exitValue, stdoutStream.toString, stderrStream.toString)
-    }
-
-    println("Running solver...")
-    val t0 = System.nanoTime()
-    val (result, stdout, stderr) = runCommand(s"/home/martin/bin/nuxmv -bmc -bmc_length 50 $filename")
-    val t1 = System.nanoTime()
-    println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
-    if(result == 0) {
-      val s = stdout.replaceAll("(?m)^\\*\\*\\*.*?\n", "")
-      val plan = s.split("\n").toList.filter(_.contains("_start = TRUE")).map(_.trim)
-      val ops = model.collect { case op: Operation => op }
-      val opNames = ops.map(o => "o_"+o.name.replaceAll("\\.", "_") -> o.name).toMap
-      val p = plan.flatMap( str => opNames.get(str.stripSuffix("_start = TRUE")))
-      println("New plan is: " + p.mkString(","))
-      p
-    } else {
-      println("Failed to compute plan!")
-      List()
-    }
-  }
-
   /**
     * This method runs the operations one step. only one op transition will be executed
     * per step.
@@ -166,6 +126,10 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
       val executing = filterConditions(op.conditions, Set("isExecuting"), Set())
       val finished = filterConditions(op.conditions, Set("isFinished"), Set())
 
+//      val goalStates = ID.makeID("c3eebb27-1181-4282-b384-0311ce3fcbe2").get
+//      val currentGoals = s.state.get(goalStates).flatMap(spval => spval.getAs[Map[ID, SPValue]]("goals")).getOrElse(Map())
+//      println("Current goal states: " + currentGoals)
+
       // if(enabled.forall(p => p.eval(s)) && plan.headOption.contains(op.name)) {
       //   println("plan allows: " + op.name)
       // } else { println("plan is: " + plan.mkString(",")) }
@@ -182,7 +146,7 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
         // 1. dont take the pre transition. in fact
         val ns = s
         // 2. compute plan on new state
-        val plan = computePlan(model, ns.state, resetGoal, "/tmp/reset.smv")
+        val (plan, ntrans, stdout, stderr) = computePlan(model, ns.state, 50, resetGoal, "", "/tmp/reset.smv")
         // 2. for now just replace the current plan
         val np = plan
         (ns, np)
@@ -192,7 +156,7 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
         val ns = enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}
         // 2. compute plan on new state
         val goal = AND(finished.map(_.guard))
-        val plan = computePlan(model, ns.state, goal)
+        val (plan, ntrans, stdout, stderr) = computePlan(model, ns.state, 50, goal, "", "/tmp/runner.smv")
         // 2. for now just replace the current plan
         val np = plan
         (ns, np)

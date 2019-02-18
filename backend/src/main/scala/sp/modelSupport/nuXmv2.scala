@@ -9,6 +9,61 @@ import sp.supremica._
 
 trait ExportNuXmvFile2 {
 
+  def computePlan(model: List[IDAble], state: Map[ID, SPValue], bound: Int, goal: Proposition, ltl: String, filename: String = "/tmp/runner.smv"):
+      (List[String], Int, String, String) = {
+    println("Running solver...")
+    val t0 = System.nanoTime()
+
+    exportNuXmv(model, filename, state, goal, ltl)
+
+    import sys.process._
+    import java.io.{InputStream,OutputStream,ByteArrayOutputStream,PrintWriter}
+
+    val stdout = new scala.concurrent.SyncVar[List[String]]()
+    val stderr = new scala.concurrent.SyncVar[List[String]]()
+
+    def output(in: InputStream) {
+      val lines = scala.io.Source.fromInputStream(in).getLines.toList
+      in.close()
+      stdout.put(lines)
+    }
+
+    def input(out: OutputStream) {
+      out.write("go_bmc\n".getBytes)
+      out.write(s"check_ltlspec_bmc_inc -k $bound\n".getBytes)
+      out.write("quit\n".getBytes)
+      out.close()
+    }
+    def error(err: InputStream) {
+      val lines = scala.io.Source.fromInputStream(err).getLines.toList
+      err.close()
+      stderr.put(lines)
+    }
+    val pio = new ProcessIO(input _, output _, error _)
+    val result = Process(s"/home/martin/bin/nuxmv -int $filename").run(pio).exitValue()
+    val t1 = System.nanoTime()
+    println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
+
+    val stderrLines = stderr.get.mkString("\n")
+
+    if(stderrLines.isEmpty) {
+      val stdoutLines = stdout.get
+      val numberOfTransitions = stdoutLines.reverse.find(line => line.contains("  -> State: 1.")).
+        map(line => line.stripPrefix("  -> State: 1.").stripSuffix(" <-")).getOrElse("0").toInt - 1 // should be minus one!
+      val s = stdoutLines.mkString("\n").replaceAll("(?m)^\\*\\*\\*.*?\n", "")
+      val plan = s.split("\n").toList.filter(_.contains("_start = TRUE")).map(_.trim)
+      val ops = model.collect { case op: Operation => op }
+      val opNames = ops.map(o => "o_"+o.name.replaceAll("\\.", "_") -> o.name).toMap
+      val p = plan.flatMap( str => opNames.get(str.stripSuffix("_start = TRUE")))
+      println(s"New plan is, after $numberOfTransitions steps: " + p.mkString(","))
+      (p, numberOfTransitions, stdoutLines.mkString("\n"), stderrLines)
+    } else {
+      println("Failed to compute plan!")
+      println(stderrLines)
+      (List(), 0, "", stderrLines)
+    }
+  }
+
   import sp.runners.AbilityRunnerTransitions._
   val idle = "idle" // we dont keep track of enabled/not enabled
 
