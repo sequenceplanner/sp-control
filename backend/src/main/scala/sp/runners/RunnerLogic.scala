@@ -68,8 +68,13 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
   // Add force when we need it
   //case class ForceTransition(conditionKind: SPValue, operation: ID)
 
-  def computePlan(model: List[IDAble], state: Map[ID, SPValue], query: String, filename: String = "/tmp/runner.smv"): List[String] = {
-    exportNuXmv(model, filename, state, query)
+  def computePlan(model: List[IDAble], state: Map[ID, SPValue], goal: Proposition, filename: String = "/tmp/runner.smv"): List[String] = {
+    exportNuXmv(model, filename, state, goal, "")
+
+    // TODO: export command file
+    // then run it as: echo quit | nuxmv -source test.txt /tmp/runner.sm
+    //  val msg = "to stdin of process"; out.write(msg.getBytes); out.close;
+    // val process = new ProcessIO(writeJob, readJob, errJob)
 
     import sys.process._
     import java.io.{ByteArrayOutputStream,PrintWriter}
@@ -170,16 +175,28 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
 
       val opGoal = op.attributes.getAs[String]("hasGoal").getOrElse("")
 
-      val (ns, np) = if(opGoal.nonEmpty && enabled.forall(p => p.eval(s)) && (isInAuto || fire.exists(f=>f.operation==op.id))) {
+      // reset high level op => enable the "pre" state!
+      val (ns, np) = if(opGoal.nonEmpty && !enabled.forall(p => p.eval(s)) && (!isInAuto && fire.exists(f=>f.event == SPValue("reset") && f.operation==op.id))) {
+        val resetGoal = AND(enabled.map(_.guard))
+        // high level plan operations can always start.
+        // 1. dont take the pre transition. in fact
+        val ns = s
+        // 2. compute plan on new state
+        val plan = computePlan(model, ns.state, resetGoal, "/tmp/reset.smv")
+        // 2. for now just replace the current plan
+        val np = plan
+        (ns, np)
+      } else if(opGoal.nonEmpty && enabled.forall(p => p.eval(s)) && (isInAuto || fire.exists(f=>f.event == SPValue("start") && f.operation==op.id))) {
         // high level plan operations can always start.
         // 1. take the pre action transition
         val ns = enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}
         // 2. compute plan on new state
-        val plan = computePlan(model, ns.state, opGoal)
+        val goal = AND(finished.map(_.guard))
+        val plan = computePlan(model, ns.state, goal)
         // 2. for now just replace the current plan
         val np = plan
         (ns, np)
-      } else if(opGoal.isEmpty && enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.operation==op.id)) ||
+      } else if(opGoal.isEmpty && enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.event == SPValue("start") && f.operation==op.id)) ||
         (isInAuto && plan.headOption.contains(op.name)))) {
         // take start transition
         println("taking start transition for: " + op.name + " auto: " + isInAuto)

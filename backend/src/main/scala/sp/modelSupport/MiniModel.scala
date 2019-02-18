@@ -690,7 +690,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   }
   def o(name: String, attr: SPAttributes)(conds: cond*): ID = {
     val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
-    val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things))
+    val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things ++ operations))
 
     val op = Operation(name, conditions, attr)
     operations = op :: operations
@@ -721,7 +721,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   }
 
   def exportNuXmv(filename : String = "dummy.smv"): Unit = {
-    exportNuXmv(getIDAbles(), s"gitignore/$filename", Map(), "")
+    exportNuXmv(getIDAbles(), s"gitignore/$filename", Map(), AND(List()), "")
   }
 
   def synthesize(name: String = "dummy", runNow: Boolean = false) = {

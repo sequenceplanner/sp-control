@@ -129,7 +129,7 @@ class UR(override val system: ActorSystem) extends ROSResource {
 }
 
 class AECU(override val system: ActorSystem) extends ROSResource {
-  val tool_is_idle = i("tool_is_idle", false)
+  val tool_is_idle = i("tool_is_idle", true)
   val tool_is_running_forward = i("tool_is_running_forward", false)
   // bool tool_is_running_reverse
   // bool tool_is_in_alarm
@@ -227,9 +227,11 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
   v("bolt1Tightened", false)
 
+  v("watching", false)
   o("watchForBolt1Tightened")(
-    c("isExecuting", "!aecu.programmed_torque_reached && ur.actPos == 'OF_1_TIGHTENED'"),
-    c("isFinished", "aecu.programmed_torque_reached && ur.actPos == 'OF_1_TIGHTENED'", "bolt1Tightened := true")
+    c("pre", "!watching && ur.actPos == 'PRE_OF_1_UNTIGHTENED' && aecu.startTool == 'finished'", "watching := true"),
+    c("isExecuting", "watching && !aecu.programmed_torque_reached"),
+    c("isFinished", "watching && aecu.programmed_torque_reached", "bolt1Tightened := true", "watching := false")
   )
 
   v("of1", false)

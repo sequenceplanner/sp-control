@@ -101,7 +101,7 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
             sendAnswer(SPMessage.makeJson(responseHeader, APIMiniModelService.sendModelsInfo(models.keys.toList)))
 
           case APIMiniModelService.bmc(model, initialState, query, bound) =>
-            exportNuXmv(model, "/tmp/problem.smv", initialState, query)
+            exportNuXmv(model, "/tmp/problem.smv", initialState, AND(List()), query)
 
             import sys.process._
             import java.io.{ByteArrayOutputStream,PrintWriter}

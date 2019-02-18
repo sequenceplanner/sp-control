@@ -12,7 +12,7 @@ trait ExportNuXmvFile2 {
   import sp.runners.AbilityRunnerTransitions._
   val idle = "idle" // we dont keep track of enabled/not enabled
 
-  def exportNuXmv(ids_ : List[IDAble], filename : String, initialState: Map[ID, SPValue], specs: String): Unit = {
+  def exportNuXmv(ids_ : List[IDAble], filename : String, initialState: Map[ID, SPValue], goal: Proposition, specs: String): Unit = {
     val ids = ids_.filterNot(_.attributes.getAs[Boolean]("notInModel").getOrElse(false))
 
     // Extract from IDAbles
@@ -108,12 +108,14 @@ trait ExportNuXmvFile2 {
       case AND(ps) => ps.map(propTonuXmvSyntax).mkString("(", ")&(", ")")
       case OR(Nil) => "TRUE"
       case OR(ps) => ps.map(propTonuXmvSyntax).mkString("(", ")|(", ")")
-      case NOT(q) => s"!${propTonuXmvSyntax(q)}"
+      case NOT(q) => s"!(${propTonuXmvSyntax(q)})"
       // special case for operation state
+      case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("finished") => ops.find(_.id==op).get.name + "_finished"
       case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("executing") => ops.find(_.id==op).get.name + "_executing"
       case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("starting") => "TRUE" // modifiedOps.find(_.id==op).get.name + "_starting"
       case EQ(l, r) => leftRight(l, "=", r)
 
+      case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("finished") => ops.find(_.id==op).get.name + "_finished"
       case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("executing") => "!" + ops.find(_.id==op).get.name + "_executing"
       case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("starting") => "TRUE"// "!" + modifiedOps.find(_.id==op).get.name + "_starting"
       case NEQ(l, r) => leftRight(l, "!=", r)
@@ -269,6 +271,10 @@ trait ExportNuXmvFile2 {
     lines += "\n"
 
     if(specs.nonEmpty) lines += s"LTLSPEC $specs ;"
+    else {
+      val goalStr= propTonuXmvSyntax(goal)
+      lines += s"LTLSPEC ! F ( $goalStr );"
+    }
 
     lines += "\n"
     lines += "\n"
