@@ -27,6 +27,96 @@ object UR {
     "OF_2_TIGHTENED",
   )
 
+  val poses2 = List("UNKNOWN",
+    "ATTACH_OF",
+    "PRE_ATTACH_OF",
+    "PRE_OF_1_UNTIGHTENED",
+    "OF_1_TIGHTENED",
+    "PRE_OF_2_UNTIGHTENED",
+    "OF_2_TIGHTENED",
+///////// old Joint poses
+    "HomeJOINTPose",
+    "PreHomeJOINTPose",
+    "PreAttachAtlasFarJOINTPose",
+    "PreAttachLFToolFarJOINTPose",
+    "PreAttachOFToolFarJOINTPose",
+    "AboveEngineJOINTPose",
+    "PreFindEngineJOINTPose",
+    "FindEngineRightUpJOINTPose",
+    "FindEngineLeftUpJOINTPose",
+    "FindEngineMidUpJOINTPose",
+    "LFOperationMidpoint1JOINTPose",
+    "LFOperationMidpoint2JOINTPose",
+    "LFOperationMidpoint3JOINTPose",
+    "LFOperationMidpoint4JOINTPose",
+    "LFOperationMidpoint5JOINTPose",
+    "AfterLFOperationJOINTPose",
+    "OFMidpoint1JOINTPose",
+    "OFMidpoint2JOINTPose",
+    "AboveUntightenedOF1JOINTPose",
+    "AtUntightenedOF1JOINTPose",
+    "AtTightenedOF1JOINTPose",
+    "AboveTightenedOF1JOINTPose",
+    "AboveUntightenedOF2JOINTPose",
+    "AtUntightenedOF2JOINTPose",
+    "AtTightenedOF2JOINTPose",
+    "AboveTightenedOF2JOINTPose",
+///////// old TCP poses
+    "FindEngineRightDownTCPPose",
+    "FindEngineRightCollideTCPPose",
+    "FindEngineLeftDownTCPPose",
+    "FindEngineLeftCollideTCPPose",
+    "FindEngineMidDownTCPPose",
+    "FindEngineMidCollideTCPPose",
+    "PreAttachAtlasCloseTCPPose",
+    "AttachAtlasTCPPose",
+    "AAPRAtlasTCPPose",
+    "PreAttachLFToolCloseTCPPose",
+    "AttachLFToolTCPPose",
+    "AAPRLFToolTCPPose",
+    "PreAttachOFToolCloseTCPPose",
+    "AttachOFToolTCPPose",
+    "AAPROFTool1TCPPose",
+    "AAPROFTool2TCPPose",
+    "AboveEngineTCPPose",
+    "FarAboveBoltPair1TCPPose",
+    "CloseAboveBoltPair1TCPPose",
+    "AtBoltPair1TCPPose",
+    "FarAboveBoltPair2TCPPose",
+    "CloseAboveBoltPair2TCPPose",
+    "AtBoltPair2TCPPose",
+    "FarAboveBoltPair3TCPPose",
+    "CloseAboveBoltPair3TCPPose",
+    "AtBoltPair3TCPPose",
+    "FarAboveBoltPair4TCPPose",
+    "CloseAboveBoltPair4TCPPose",
+    "AtBoltPair4TCPPose",
+    "FarAboveBoltPair5TCPPose",
+    "CloseAboveBoltPair5TCPPose",
+    "AtBoltPair5TCPPose",
+    "FarAboveBoltPair6TCPPose",
+    "CloseAboveBoltPair6TCPPose",
+    "AtBoltPair6TCPPose",
+    "FarAboveBoltPair7TCPPose",
+    "CloseAboveBoltPair7TCPPose",
+    "AtBoltPair7TCPPose",
+    "FarAboveBoltPair8TCPPose",
+    "CloseAboveBoltPair8TCPPose",
+    "AtBoltPair8TCPPose",
+    "FarAboveBoltPair9TCPPose",
+    "CloseAboveBoltPair9TCPPose",
+    "AtBoltPair9TCPPose",
+    "FarAboveBoltPair10TCPPose",
+    "CloseAboveBoltPair10TCPPose",
+    "AtBoltPair10TCPPose",
+    "FarAboveBoltPair11TCPPose",
+    "CloseAboveBoltPair11TCPPose",
+    "AtBoltPair11TCPPose",
+    "FarAboveBoltPair12TCPPose",
+    "CloseAboveBoltPair12TCPPose",
+    "AtBoltPair12TCPPose",
+  )
+
   def poseMapping(source: String, target: String) = (source, target) match {
     case ("ATTACH_OF", "PRE_ATTACH_OF") => ("JOINT", "MOVEJ") // ("TCP", "MOVEL")
     case ("PRE_ATTACH_OF", "ATTACH_OF") => ("JOINT", "MOVEJ") // ("TCP", "MOVEL")
@@ -44,9 +134,9 @@ object UR {
     case ("OF_2_TIGHTENED", "PRE_OF_2_UNTIGHTENED") => ("JOINT", "MOVEJ")
     case (_, "PRE_OF_2_UNTIGHTENED") => ("JOINT", "PLANNED")
 
-      // hack for old csv file
+    // hack for old csv file
     case (_, target) if target.contains("JOINTPose") => ("JOINT", "PLANNED")
-    case (_, target) if target.contains("TCPPose") => ("TCP", "PLANNED")
+    case (_, target) if target.contains("TCPPose") => ("TCP", "MOVEL")
 
     case _ => // println(s"DEFAULT CASE for $source -> $target");
       ("JOINT", "PLANNED")
@@ -256,14 +346,14 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
   val attach = o("ur.attach")(
     c("pre", s"!ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := true"),
-//    c("isExecuting", "false"),
-//    c("isFinished", "ur.ofAttached")
+    //    c("isExecuting", "false"),
+    //    c("isFinished", "ur.ofAttached")
   )
 
   val detach = o("ur.detach")(
     c("pre", s"ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := false"),
-//    c("isExecuting", "false"),
-//    c("isFinished", "!ur.ofAttached")
+    //    c("isExecuting", "false"),
+    //    c("isFinished", "!ur.ofAttached")
   )
 
   val humanState = v("human", "idle", List("idle", "tightening", "reset"))

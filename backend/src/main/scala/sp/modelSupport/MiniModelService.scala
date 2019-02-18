@@ -30,11 +30,11 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
 
 
   val models = Map(
-    "URTest" -> new unification.urdemo.Demo(context.system),
-    "SDU" -> new sdu.Model(context.system),
-    "Unification ROS2" -> new unification.UnificationModel(context.system),
-    "NewExtendedDummy" -> new unification.NewExtended(context.system),
-    "UnicornDemo" -> new unicorn.MondayDemo(context.system),
+    // "URTest" -> new unification.urdemo.Demo(context.system),
+    // "SDU" -> new sdu.Model(context.system),
+    // "Unification ROS2" -> new unification.UnificationModel(context.system),
+    // "NewExtendedDummy" -> new unification.NewExtended(context.system),
+    // "UnicornDemo" -> new unicorn.MondayDemo(context.system),
     "IPSIntegration" -> new sp.models.unification.ipsintegration.IPSIntegrationModel(context.system),
   )
 
