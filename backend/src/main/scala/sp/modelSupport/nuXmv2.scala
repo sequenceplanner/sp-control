@@ -247,6 +247,8 @@ trait ExportNuXmvFile2 {
         case EQ(SVIDEval(id), ValueHolder(x)) if id == input => List(Action(id, ValueHolder(x)))
         case EQ(ValueHolder(x), SVIDEval(id)) if id == input => List(Action(id, ValueHolder(x)))
 
+          // todo: add negation here!
+
         // todo, check for inequalities.... these cannot be handled
         case x => List()
       }

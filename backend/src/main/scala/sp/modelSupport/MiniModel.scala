@@ -556,7 +556,11 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
     guard match {
       case AND(xs) => AND(xs.map(x=>filterProp(x, skip)))
       case OR(xs) => OR(xs.map(x=>filterProp(x, skip)))
-      case NOT(x) => NOT(filterProp(x, skip))
+      case NOT(x) =>
+        // not true, should still be true.... TODO: very dangerous fix this
+        val res = filterProp(x, skip)
+        if(res == AlwaysTrue) AlwaysTrue
+        else NOT(res)
       case EQ(SVIDEval(id), SVIDEval(id2)) if skip.contains(id) && skip.contains(id2) => throw new Exception("assignment does not make sense: " + guard); AlwaysTrue
       case EQ(SVIDEval(id), SVIDEval(id2)) if skip.contains(id) || skip.contains(id2) => AlwaysTrue
 
@@ -662,7 +666,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
       val assignWhat = a.value match {
         case ASSIGN(id) => SVIDEval(id)
         case ValueHolder(spval) => ValueHolder(spval)
-        case x => ValueHolder(SPValue(x.toString)) // error
+        case x => throw new Exception("AAAAAA"); ValueHolder(SPValue(x.toString)) // error
       }
       EQ(SVIDEval(assignTo), assignWhat)
     }

@@ -97,11 +97,15 @@ class IPSIntegrationTest(_system: ActorSystem) extends TestKit(_system) with Fre
   val init = model.getInitialState()
   val resources = model.makeResources()
 
-  idables.foreach { println }
 
-  idables.find(_.name == "tighten").foreach { o =>
-    o.asInstanceOf[Operation].conditions.foreach(println)
+  idables.find(_.name == "ur.attachOFInMoveit").foreach { o =>
+    o.asInstanceOf[Operation].conditions.foreach(c => println(prettyPrint(idables)(c.guard) + " -- " + c.attributes.getAs[String]("kind")))
   }
+
+  assert(false)
+
+
+  idables.foreach { println }
 
   println("Initial state")
   init.map { case (id, value) =>

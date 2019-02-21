@@ -21,7 +21,7 @@ case class Props(proxy: ModelProxy[FrontendState]) {
 object RunnerStateWidgetState {
   import spgui.widgets.examples.{RunnerStateCSS => css}
 
-  val typeFilters = List("type", "operation", "internal", "input", "output")
+  val typeFilters = List("type", "operation", "ability", "internal", "input", "output")
 
   case class State(force: Map[ID, SPValue], activeForce: Set[ID], forceEvents: Map[ID, SPValue], idableFilter: String = "", typeFilter: String = typeFilters.head)
 
@@ -54,7 +54,9 @@ object RunnerStateWidgetState {
       val input = item.attributes.getAs[Boolean]("input").getOrElse(false)
       val output = item.attributes.getAs[Boolean]("output").getOrElse(false)
       val op = item.isInstanceOf[Operation]
-      if(op) "operation"
+      val ability = op && item.attributes.getAs[String]("ability").getOrElse("").nonEmpty
+      if(ability) "ability"
+      else if(op) "operation"
       else if(input) "input"
       else if(output) "output"
       else "internal"

@@ -17,7 +17,7 @@ import sp.modelSupport.ros2._
 object UR {
   val initialState = "UNKNOWN"
 
-  val poses = List("UNKNOWN",
+  val poses2 = List("UNKNOWN",
     "PRE_ATTACH_OF", "ATTACH_OF",
 
     "PRE_OF_1_UNTIGHTENED",
@@ -27,7 +27,7 @@ object UR {
     "OF_2_TIGHTENED",
   )
 
-  val poses2 = List("UNKNOWN",
+  val poses = List("UNKNOWN",
     "ATTACH_OF",
     "PRE_ATTACH_OF",
     "PRE_OF_1_UNTIGHTENED",
@@ -35,86 +35,86 @@ object UR {
     "PRE_OF_2_UNTIGHTENED",
     "OF_2_TIGHTENED",
 ///////// old Joint poses
-    "HomeJOINTPose",
-    "PreHomeJOINTPose",
-    "PreAttachAtlasFarJOINTPose",
-    "PreAttachLFToolFarJOINTPose",
+    // "HomeJOINTPose",
+    // "PreHomeJOINTPose",
+    // "PreAttachAtlasFarJOINTPose",
+    // "PreAttachLFToolFarJOINTPose",
     "PreAttachOFToolFarJOINTPose",
-    "AboveEngineJOINTPose",
-    "PreFindEngineJOINTPose",
-    "FindEngineRightUpJOINTPose",
-    "FindEngineLeftUpJOINTPose",
-    "FindEngineMidUpJOINTPose",
-    "LFOperationMidpoint1JOINTPose",
-    "LFOperationMidpoint2JOINTPose",
-    "LFOperationMidpoint3JOINTPose",
-    "LFOperationMidpoint4JOINTPose",
-    "LFOperationMidpoint5JOINTPose",
-    "AfterLFOperationJOINTPose",
-    "OFMidpoint1JOINTPose",
-    "OFMidpoint2JOINTPose",
-    "AboveUntightenedOF1JOINTPose",
-    "AtUntightenedOF1JOINTPose",
-    "AtTightenedOF1JOINTPose",
-    "AboveTightenedOF1JOINTPose",
-    "AboveUntightenedOF2JOINTPose",
-    "AtUntightenedOF2JOINTPose",
-    "AtTightenedOF2JOINTPose",
-    "AboveTightenedOF2JOINTPose",
+    // "AboveEngineJOINTPose",
+    // "PreFindEngineJOINTPose",
+    // "FindEngineRightUpJOINTPose",
+    // "FindEngineLeftUpJOINTPose",
+    // "FindEngineMidUpJOINTPose",
+    // "LFOperationMidpoint1JOINTPose",
+    // "LFOperationMidpoint2JOINTPose",
+    // "LFOperationMidpoint3JOINTPose",
+    // "LFOperationMidpoint4JOINTPose",
+    // "LFOperationMidpoint5JOINTPose",
+    // "AfterLFOperationJOINTPose",
+    // "OFMidpoint1JOINTPose",
+    // "OFMidpoint2JOINTPose",
+    // "AboveUntightenedOF1JOINTPose",
+    // "AtUntightenedOF1JOINTPose",
+    // "AtTightenedOF1JOINTPose",
+    // "AboveTightenedOF1JOINTPose",
+    // "AboveUntightenedOF2JOINTPose",
+    // "AtUntightenedOF2JOINTPose",
+    // "AtTightenedOF2JOINTPose",
+    // "AboveTightenedOF2JOINTPose",
 ///////// old TCP poses
-    "FindEngineRightDownTCPPose",
-    "FindEngineRightCollideTCPPose",
-    "FindEngineLeftDownTCPPose",
-    "FindEngineLeftCollideTCPPose",
-    "FindEngineMidDownTCPPose",
-    "FindEngineMidCollideTCPPose",
-    "PreAttachAtlasCloseTCPPose",
-    "AttachAtlasTCPPose",
-    "AAPRAtlasTCPPose",
-    "PreAttachLFToolCloseTCPPose",
-    "AttachLFToolTCPPose",
-    "AAPRLFToolTCPPose",
+    // "FindEngineRightDownTCPPose",
+    // "FindEngineRightCollideTCPPose",
+    // "FindEngineLeftDownTCPPose",
+    // "FindEngineLeftCollideTCPPose",
+    // "FindEngineMidDownTCPPose",
+    // "FindEngineMidCollideTCPPose",
+    // "PreAttachAtlasCloseTCPPose",
+    // "AttachAtlasTCPPose",
+    // "AAPRAtlasTCPPose",
+    // "PreAttachLFToolCloseTCPPose",
+    // "AttachLFToolTCPPose",
+    // "AAPRLFToolTCPPose",
     "PreAttachOFToolCloseTCPPose",
     "AttachOFToolTCPPose",
     "AAPROFTool1TCPPose",
     "AAPROFTool2TCPPose",
-    "AboveEngineTCPPose",
-    "FarAboveBoltPair1TCPPose",
-    "CloseAboveBoltPair1TCPPose",
-    "AtBoltPair1TCPPose",
-    "FarAboveBoltPair2TCPPose",
-    "CloseAboveBoltPair2TCPPose",
-    "AtBoltPair2TCPPose",
-    "FarAboveBoltPair3TCPPose",
-    "CloseAboveBoltPair3TCPPose",
-    "AtBoltPair3TCPPose",
-    "FarAboveBoltPair4TCPPose",
-    "CloseAboveBoltPair4TCPPose",
-    "AtBoltPair4TCPPose",
-    "FarAboveBoltPair5TCPPose",
-    "CloseAboveBoltPair5TCPPose",
-    "AtBoltPair5TCPPose",
-    "FarAboveBoltPair6TCPPose",
-    "CloseAboveBoltPair6TCPPose",
-    "AtBoltPair6TCPPose",
-    "FarAboveBoltPair7TCPPose",
-    "CloseAboveBoltPair7TCPPose",
-    "AtBoltPair7TCPPose",
-    "FarAboveBoltPair8TCPPose",
-    "CloseAboveBoltPair8TCPPose",
-    "AtBoltPair8TCPPose",
-    "FarAboveBoltPair9TCPPose",
-    "CloseAboveBoltPair9TCPPose",
-    "AtBoltPair9TCPPose",
-    "FarAboveBoltPair10TCPPose",
-    "CloseAboveBoltPair10TCPPose",
-    "AtBoltPair10TCPPose",
-    "FarAboveBoltPair11TCPPose",
-    "CloseAboveBoltPair11TCPPose",
-    "AtBoltPair11TCPPose",
-    "FarAboveBoltPair12TCPPose",
-    "CloseAboveBoltPair12TCPPose",
-    "AtBoltPair12TCPPose",
+    // "AboveEngineTCPPose",
+    // "FarAboveBoltPair1TCPPose",
+    // "CloseAboveBoltPair1TCPPose",
+    // "AtBoltPair1TCPPose",
+    // "FarAboveBoltPair2TCPPose",
+    // "CloseAboveBoltPair2TCPPose",
+    // "AtBoltPair2TCPPose",
+    // "FarAboveBoltPair3TCPPose",
+    // "CloseAboveBoltPair3TCPPose",
+    // "AtBoltPair3TCPPose",
+    // "FarAboveBoltPair4TCPPose",
+    // "CloseAboveBoltPair4TCPPose",
+    // "AtBoltPair4TCPPose",
+    // "FarAboveBoltPair5TCPPose",
+    // "CloseAboveBoltPair5TCPPose",
+    // "AtBoltPair5TCPPose",
+    // "FarAboveBoltPair6TCPPose",
+    // "CloseAboveBoltPair6TCPPose",
+    // "AtBoltPair6TCPPose",
+    // "FarAboveBoltPair7TCPPose",
+    // "CloseAboveBoltPair7TCPPose",
+    // "AtBoltPair7TCPPose",
+    // "FarAboveBoltPair8TCPPose",
+    // "CloseAboveBoltPair8TCPPose",
+    // "AtBoltPair8TCPPose",
+    // "FarAboveBoltPair9TCPPose",
+    // "CloseAboveBoltPair9TCPPose",
+    // "AtBoltPair9TCPPose",
+    // "FarAboveBoltPair10TCPPose",
+    // "CloseAboveBoltPair10TCPPose",
+    // "AtBoltPair10TCPPose",
+    // "FarAboveBoltPair11TCPPose",
+    // "CloseAboveBoltPair11TCPPose",
+    // "AtBoltPair11TCPPose",
+    // "FarAboveBoltPair12TCPPose",
+    // "CloseAboveBoltPair12TCPPose",
+    // "AtBoltPair12TCPPose",
   )
 
   def poseMapping(source: String, target: String) = (source, target) match {
@@ -147,6 +147,10 @@ object UR {
 
     "PRE_OF_2_UNTIGHTENED", "PRE_OF_2_TIGHTENED",
     "OF_2_UNTIGHTENED", "OF_2_TIGHTENED",
+
+    "AAPROFTool1TCPPose", // getting and leaving the tool via these
+    "AAPROFTool2TCPPose",
+
   )
   val canOnlyGoFrom = Map(
     "ATTACH_OF" -> "PRE_ATTACH_OF",
@@ -156,30 +160,45 @@ object UR {
     "OF_2_TIGHTENED" -> "PRE_OF_2_UNTIGHTENED",
   )
 
+  val canOnlyGoFromOFTool = Map(
+    "PreAttachOFToolFarJOINTPose" -> List("AAPROFTool2TCPPose", "PRE_ATTACH_OF", "AttachOFToolTCPPose"),
+    "PreAttachOFToolCloseTCPPose" -> List("PreAttachOFToolFarJOINTPose"),
+    "AAPROFTool2TCPPose" -> List("PreAttachOFToolFarJOINTPose"),
+    "AttachOFToolTCPPose" -> List("PreAttachOFToolCloseTCPPose", "AAPROFTool1TCPPose"),
+    "AAPROFTool1TCPPose" -> List("AttachOFToolTCPPose", "AAPROFTool2TCPPose"),
+    "AAPROFTool2TCPPose" -> List("AAPROFTool1TCPPose", "PreAttachOFToolFarJOINTPose"),
+  )
+
 }
 
 
 class UR(override val system: ActorSystem) extends ROSResource {
   val actPos = i("actPos", UR.initialState, UR.poses.map(SPValue(_)))
+  val moving = i("moving", false)
   val prevPos = i("prevPos", UR.initialState, UR.poses.map(SPValue(_))) /// internal mirror of the last seen actual position
 
-  val subMapping = stringToIDMapper(Map("actual_pose" -> actPos,
-    "previous_pose" -> prevPos))
+  val subMapping = stringToIDMapper(Map("moving" -> moving, "actual_pose" -> actPos, "previous_pose" -> prevPos))
 
   val prevMapping = Flow[Map[String, SPValue]].map{ state =>
-    println(state)
-    state ++ state.get("actual_pose").toList.filter(_!=SPValue("UNKNOWN")).map(spval => {println("AAA: " + spval); "previous_pose" -> spval})
+    state ++ state.get("actual_pose").toList.filter(_!=SPValue("UNKNOWN")).map(spval => "previous_pose" -> spval)
   }
 
   val subFlow = prevMapping.via(subMapping)
   subscribe("/unification_roscontrol/ur_TARS_pose_unidriver_uni_to_sp", "unification_ros2_messages/URPoseUniToSP", subFlow)
 
+  val attachedInMoveit = i("isAttachedOFMoveit", false)
+  val fromMoveitMapping = Flow[Map[String, SPValue]].map{ state =>
+    val attached = state.get("attached_objects").flatMap(_.asOpt[List[String]]).map(_.contains("OFTOOL")).getOrElse(false)
+    Map(attachedInMoveit -> SPValue(attached))
+  }
+  subscribe("/unification_roscontrol/scene_updater_uni_to_sp", "unification_ros2_messages/SceneUpdaterUniToSP", fromMoveitMapping)
+
   val refPos = o("refPos", UR.initialState, UR.poses.map(SPValue(_)))
   val pubMapping = IDToStringMapper(Map(refPos -> "pose_name"))
 
-  val attached = o("ofAttached", false)
+  val attachInMoveit = o("attachOFMoveit", false)
   val attachMapping = Flow[Map[ID, SPValue]].map { state =>
-    state.get(attached).map{value =>
+    state.get(attachInMoveit).map{value =>
       if(value == SPValue(true)) Map("object_action" -> SPValue("ATTACH"), "object_name" -> SPValue("OFTOOL"))
       else Map("object_action" -> SPValue("DETACH"), "object_name" -> SPValue("OFTOOL"))
     }.getOrElse(Map[String, SPValue]())
@@ -212,9 +231,21 @@ class UR(override val system: ActorSystem) extends ROSResource {
   publish("/unification_roscontrol/scene_updater_sp_to_uni", "unification_ros2_messages/SceneUpdaterSPToUni", Some(1000.millis), attachMapping)
 
   a("moveToPos", List(refPos))(
-    c("pre", "true"),
-    c("isExecuting", "actPos != refPos"),
-    c("isFinished", "actPos == refPos"),
+    c("pre", "!moving"),
+    c("isExecuting", "actPos != refPos"),   /// note: we want to have "moving" here but then we need to plan the planner that moving is an effect of starting....
+    c("isFinished", "!moving && actPos == refPos"),
+    c("reset", "true"))
+
+  a("attachOFMoveit", List())(
+    c("pre", "!isAttachedOFMoveit", "attachOFMoveit := true"),
+    c("isExecuting", "attachOFMoveit && !isAttachedOFMoveit"),
+    c("isFinished", "attachOFMoveit && isAttachedOFMoveit"),
+    c("reset", "true"))
+
+  a("detachOFMoveit", List())(
+    c("pre", "isAttachedOFMoveit", "attachOFMoveit := false"),
+    c("isExecuting", "!attachOFMoveit && isAttachedOFMoveit"),
+    c("isFinished", "!attachOFMoveit && isAttachedOFMoveit == false"),
     c("reset", "true"))
 }
 
@@ -279,9 +310,11 @@ class RECU(override val system: ActorSystem) extends ROSResource {
   // bool ladder_frame_connection_failure
   // bool pressure_ok
 
+  val notool = i("robot_not_connected_to_tool", true)
+  val oftool = i("robot_connected_to_filter_tool", false)
   val pressure = i("pressure_ok", false)
 
-  val subMapping = stringToIDMapper(Map("pressure_ok" -> pressure))
+  val subMapping = createInputMappingFromMessageType("unification_ros2_messages/RecuUniToSP")
   subscribe("/unification_roscontrol/recu_uni_to_sp", "unification_ros2_messages/RecuUniToSP", subMapping)
 
   val lock_rsp = o("lock_rsp", false)
@@ -294,13 +327,15 @@ class RECU(override val system: ActorSystem) extends ROSResource {
 
   publish("/unification_roscontrol/recu_sp_to_uni", "unification_ros2_messages/RecuSPToUni", Some(100 millis), pubMapping)
 
+  // there no feedback whether the tool is locked or not. use our outputs
+
   a("lock")(
-    c("pre", "true", "lock_rsp := true"),
+    c("pre", "true", "lock_rsp := true", "unlock_rsp := false"),
     c("reset", "true")
   )
 
   a("unlock")(
-    c("pre", "true", "unlock_rsp := true"),
+    c("pre", "true", "lock_rsp := false", "unlock_rsp := true"),
     c("reset", "true")
   )
 
@@ -313,30 +348,32 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   use("hecu", new HECU(system))
 
 
-  val startMotor = o(s"aecu.startTool", "aecu.startToolForward", "aecu")()
-
-  v("bolt1Tightened", false)
-
-  v("watching", false)
-  o("watchForBolt1Tightened")(
-    c("pre", "!watching && ur.actPos == 'PRE_OF_1_UNTIGHTENED' && aecu.startTool == 'finished'", "watching := true"),
-    c("isExecuting", "watching && !aecu.programmed_torque_reached"),
-    c("isFinished", "watching && aecu.programmed_torque_reached", "bolt1Tightened := true", "watching := false")
-  )
+  val startMotor = o(s"aecu.startToolForward", "aecu.startToolForward", "aecu")()
 
   v("of1", false)
 
   val gotoPositions = UR.poses.filter(_!="UNKNOWN").map { p =>
+
+    // if we need the of tool, we need it both physically and in the planning interface
     val of = UR.needsOf.contains(p)
-    val ofc = if(of) c("pre", s"ur.ofAttached") else c("pre", "true")
+    val ofc = if(of) c("pre", s"ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool") else c("pre", "true")
     val of1 = if(p == "OF_1_TIGHTENED") c("isFinished", "true", "of1 := true") else c("isFinished", "true")
 
+    // PRE_ATTACH_OF is always reachable. except from: PreAttachOFToolCloseTCPPose, AttachOFToolTCPPose, AAPROFTool1TCPose, AAPROFTool2TCPose,
+    val preof =
+      if(p == "PRE_ATTACH_OF") c("pre", s"ur.actPos != 'PreAttachOFToolCloseTCPPose' && ur.actPos != 'AttachOFToolTCPPose' && ur.actPos != 'AAPROFTool1TCPPose' && ur.actPos != 'AAPROFTool2TCPPose'")
+      else c("pre", "true")
+
     val source = UR.canOnlyGoFrom.get(p).map(source => c("pre", s"ur.actPos == '$source'")).getOrElse(c("pre", "true"))
+
+    val ofSource = UR.canOnlyGoFromOFTool.get(p).map(source => c("pre", s"${source.map(s=>s"ur.actPos == '$s'").mkString("||")}")).getOrElse(c("pre", "true"))
 
     val op = o(s"ur.goto$p", "ur.moveToPos", "ur")(
       c("pre", s"ur.actPos != '$p' && ur.refPos != '$p'", s"ur.refPos := '$p'"),
       ofc,
       source,
+      ofSource,
+      preof,
       c("isFinished", "true"),
       of1,
       c("reset", "true")
@@ -344,43 +381,103 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     (p, op)
   }.toMap
 
-  val attach = o("ur.attach")(
-    c("pre", s"!ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := true"),
-    //    c("isExecuting", "false"),
-    //    c("isFinished", "ur.ofAttached")
+  v("bolt1Tightened", false)
+  o("watchForBolt1Tightened", SPAttributes("ability" -> "yes"))(
+    c("isExecuting", "aecu.startToolForward == 'finished' && (ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && !aecu.programmed_torque_reached"),
+    c("isFinished", "aecu.startToolForward == 'finished' &&(ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && aecu.programmed_torque_reached", "bolt1Tightened := true")
   )
 
-  val detach = o("ur.detach")(
-    c("pre", s"ur.ofAttached && ur.actPos == 'ATTACH_OF' && ur.refPos == 'ATTACH_OF'", "ur.ofAttached := false"),
-    //    c("isExecuting", "false"),
-    //    c("isFinished", "!ur.ofAttached")
+
+  //////// attach OF tool sequence
+  // 1. PreAttachOFToolFarJOINT                     ---> PreAttachOFToolCloseTCP
+  // 2. PreAttachOFToolCloseTCP                     ---> unlockRSP
+  // 3. RSP is unlocked and PreAttachOFToolCloseTCP ---> AttachOFToolTCP
+  // 4. AttachOFToolTCP                             ---> lockRSP --- we have the tool
+  // 5. RSP is locked and AttachOFToolTCP           ---> AAPROFTool1TCP
+  // 6. AAPROFTool1TCP and we have the tool         ---> AAPROFTool2TCP
+  // 7. AAPROFTool2TCP                              ---> PreAttachOFToolFarJOINT
+  // 8. PreAttachOFToolFarJOINT and have the tool   ---> done!
+
+  //////// detach OF tool sequence
+  // 1. PreAttachOFToolFarJOINT                     ---> AAPROFTool2TCP
+  // 2. AAPROFTool2TCP                              ---> AAPROFTool1TCP
+  // 3. AAPROFTool1TCP                              ---> AttachOFToolTCP
+  // 4. AttachOFToolTCP                             ---> unlockrsp
+  // 5. rsp unlocked and AttachOFToolTCP            ---> PreAttachOFToolFarJOINT
+  // 6. PreAttachOFToolFarJOINT and no tool         ---> done!
+
+  val unlockRspWhenConnectingOFTool = o("ofAttach.unlockRSP", "recu.unlock", "RSP")(
+    c("pre", s"recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolCloseTCPPose' && ur.refPos == 'PreAttachOFToolCloseTCPPose'"),
+  )
+  val lockRspWhenConnectingOFTool = o("ofAttach.lockRSP", "recu.lock", "RSP")(
+    c("pre", s"recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+    c("isExecuting", s"recu.lock_rsp && recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+    c("isFinished", s"recu.robot_connected_to_filter_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+  )
+  val unlockRspWhenDisconnectingOFTool = o("ofDetach.unlockRSP", "recu.unlock", "RSP")(
+    c("pre", s"recu.robot_connected_to_filter_tool && !recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+    c("isExecuting", s"recu.unlock_rsp && !recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+    c("isFinished", s"recu.unlock_rsp && recu.robot_connected_to_filter_tool == false && recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
 
-  val humanState = v("human", "idle", List("idle", "tightening", "reset"))
-  val humanDone = i("humanDone", false)
-  val humanAvailable = i("humanAvailable", true)
-
-  val humanTighten = o("human.tighten")(
-    c("pre", s"human == 'idle' && humanAvailable && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'tightening'"),
-    c("isExecuting", "human == 'tightening' && !humanDone"),
-    c("isFinished", "human == 'tightening' && humanDone", "of1 := true", "human := 'reset'")
+  val attachOFMoveit = o("ur.attachOFInMoveit", "ur.attachOFMoveit")(
+    c("pre", s"ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
 
-  val humanReset = o("human.reset")(
-    c("pre", s"human == reset", "human := idle")
+  val detachOFMoveit = o("ur.detachOFInMoveit", "ur.detachOFMoveit")(
+    c("pre", s"ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
 
-  val tightenState = v("tighten", "idle", List("idle", "active"))
-  val t = o("tighten", SPAttributes("notInModel" -> true, "hasGoal" -> "! F v_of1"))(
-    c("pre", s"tighten == 'idle' && !of1 && ur.actPos == 'PRE_ATTACH_OF'", "tighten := active"),
-    c("isExecuting", s"tighten == 'active'"),
-    c("isFinished", s"tighten == 'active' && of1", "tighten := 'idle'")
+  // val humanState = v("human", "idle", List("idle", "tightening", "reset"))
+  // val humanDone = i("humanDone", false)
+  // val humanAvailable = i("humanAvailable", true)
+
+  // val humanTighten = o("human.tighten")(
+  //   c("pre", s"human == 'idle' && humanAvailable && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'tightening'"),
+  //   c("isExecuting", "human == 'tightening' && !humanDone"),
+  //   c("isFinished", "human == 'tightening' && humanDone", "of1 := true", "human := 'reset'")
+  // )
+
+  // val humanReset = o("human.reset")(
+  //   c("pre", s"human == reset", "human := idle")
+  // )
+
+  // val tightenState = v("tighten", "idle", List("idle", "active"))
+  // val t = o("tighten", SPAttributes("notInModel" -> true, "hasGoal" -> "! F v_of1"))(
+  //   c("pre", s"tighten == 'idle' && !of1 && ur.actPos == 'PRE_ATTACH_OF'", "tighten := active"),
+  //   c("isExecuting", s"tighten == 'active'"),
+  //   c("isFinished", s"tighten == 'active' && of1", "tighten := 'idle'")
+  // )
+
+  val ofToolState = v("getOfTool", "idle", List("idle", "active"))
+  val getoftool = o("getOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+    c("pre", s"getOfTool == 'idle' && recu.robot_not_connected_to_tool && ur.actPos == 'PRE_ATTACH_OF'", "getOfTool := active"),
+    c("isExecuting", s"getOfTool == 'active'"),
+    c("isFinished", s"getOfTool == 'active' && ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'", "getOfTool := 'idle'")
   )
 
-  // just build a simple sop to visualize the operation states
+  val leaveoftoolState = v("leaveOfTool", "idle", List("idle", "active"))
+  val leaveoftool = o("leaveOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+    c("pre", s"leaveOfTool == 'idle' && recu.robot_connected_to_filter_tool && ur.actPos == 'PRE_ATTACH_OF'", "leaveOfTool := active"),
+    c("isExecuting", s"leaveOfTool == 'active'"),
+    c("isFinished", s"leaveOfTool == 'active' && !ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'", "leaveOfTool := 'idle'")
+  )
+
+
+  val attachOF1State = v("attachOF1", "idle", List("idle", "active"))
+  val attachOF1 = o("attachOF1", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+    c("pre", s"attachOF1 == 'idle' && !of1 && ur.actPos == 'PRE_ATTACH_OF' && recu.robot_connected_to_filter_tool", "attachOF1 := active"),
+    c("isExecuting", s"attachOF1 == 'active'"),
+    c("isFinished", s"attachOF1 == 'active' && of1 && ur.actPos == 'PRE_ATTACH_OF'", "attachOF1 := 'idle'")
+  )
+
+  val highLevelOps = List(getoftool, attachOF1, leaveoftool)
+  // just build a simple sop to visualize the ability states
   // make a grid with four columns to utilize the space we have in the widget
-  val grid = List(0,1,2,3).map(n=>operations.sliding(4,4).flatMap(_.lift(n)).toList)
-  sop("sop", List(Parallel(grid.map(s=>Sequence(s.map(o=>SOP(o)))))))
+  val grid = List(0,1,2,3).map(n=>operations.filterNot(o=>highLevelOps.exists(_==o.id)).sliding(4,4).flatMap(_.lift(n)).toList)
+  sop("abilities", List(Parallel(grid.map(s=>Sequence(s.map(o=>SOP(o)))))))
+  sop("operations", List(Sequence(highLevelOps.map(o=>SOP(o)))))
+
 
   // resource bookings
   addBookings()

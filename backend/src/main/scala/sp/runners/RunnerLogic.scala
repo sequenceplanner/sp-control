@@ -137,20 +137,20 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
       // plan active only in auto
       val isInAuto = unControlledTransitions.exists(_.id==AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id)
 
-      val opGoal = op.attributes.getAs[String]("hasGoal").getOrElse("")
+      val opGoal = op.attributes.getAs[Boolean]("hasGoal").getOrElse(false)
 
       // reset high level op => enable the "pre" state!
-      val (ns, np) = if(opGoal.nonEmpty && !enabled.forall(p => p.eval(s)) && (!isInAuto && fire.exists(f=>f.event == SPValue("reset") && f.operation==op.id))) {
+      val (ns, np) = if(s.get(op.id) != Some(SPValue("resetting")) && opGoal && !enabled.forall(p => p.eval(s)) && (!isInAuto && fire.exists(f=>f.event == SPValue("reset") && f.operation==op.id))) {
         val resetGoal = AND(enabled.map(_.guard))
         // high level plan operations can always start.
         // 1. dont take the pre transition. in fact
-        val ns = s
+        val ns = s.next(op.id -> SPValue("resetting"))
         // 2. compute plan on new state
         val (plan, ntrans, stdout, stderr) = computePlan(model, ns.state, 50, resetGoal, "", "/tmp/reset.smv")
         // 2. for now just replace the current plan
         val np = plan
         (ns, np)
-      } else if(opGoal.nonEmpty && enabled.forall(p => p.eval(s)) && (isInAuto || fire.exists(f=>f.event == SPValue("start") && f.operation==op.id))) {
+      } else if(opGoal && enabled.forall(p => p.eval(s)) && (/*isInAuto || i think we want "levels" of auto*/fire.exists(f=>f.event == SPValue("start") && f.operation==op.id))) {
         // high level plan operations can always start.
         // 1. take the pre action transition
         val ns = enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}
@@ -160,7 +160,7 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
         // 2. for now just replace the current plan
         val np = plan
         (ns, np)
-      } else if(opGoal.isEmpty && enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.event == SPValue("start") && f.operation==op.id)) ||
+      } else if(!opGoal && enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.event == SPValue("start") && f.operation==op.id)) ||
         (isInAuto && plan.headOption.contains(op.name)))) {
         // take start transition
         println("taking start transition for: " + op.name + " auto: " + isInAuto)
@@ -178,7 +178,10 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
         ns.next(op.id -> SPValue("executing"))
       else if(enabled.forall(p => p.eval(ns)))
         ns.next(op.id -> SPValue("enabled"))
-      else ns.next(op.id -> SPValue("notEnabled"))
+      else if(ns.get(op.id) == Some(SPValue("resetting")))
+        ns.next(op.id -> SPValue("resetting"))
+      else
+        ns.next(op.id -> SPValue("notEnabled"))
 
       (x, np)
     }
