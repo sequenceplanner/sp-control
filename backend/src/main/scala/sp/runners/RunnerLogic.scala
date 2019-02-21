@@ -118,72 +118,133 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
 
     }
 
+    def plansToLTL(plans: List[String]): String = {
+      val s = plans.map(p => s"(F ($p))").mkString("&")
+      s"! ($s)"
+    }
+
     val res = ops.foldLeft((s,plan)) { (acum, op) =>
       // hack this for now
       val s = acum._1
       val plan = acum._2
-      val enabled = filterConditions(op.conditions, Set("pre"), Set())
-      val executing = filterConditions(op.conditions, Set("isExecuting"), Set())
-      val finished = filterConditions(op.conditions, Set("isFinished"), Set())
 
-//      val goalStates = ID.makeID("c3eebb27-1181-4282-b384-0311ce3fcbe2").get
-//      val currentGoals = s.state.get(goalStates).flatMap(spval => spval.getAs[Map[ID, SPValue]]("goals")).getOrElse(Map())
-//      println("Current goal states: " + currentGoals)
+      val goalStates = ID.makeID("c3eebb27-1181-4282-b384-0311ce3fcbe2").get
+      val currentGoals = s.state.get(goalStates).flatMap(spval => spval.asOpt[Map[ID, SPValue]]).getOrElse(Map())
 
-      // if(enabled.forall(p => p.eval(s)) && plan.headOption.contains(op.name)) {
-      //   println("plan allows: " + op.name)
-      // } else { println("plan is: " + plan.mkString(",")) }
-
-      // plan active only in auto
+      // plan for abilities active only in auto
       val isInAuto = unControlledTransitions.exists(_.id==AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id)
 
-      val opGoal = op.attributes.getAs[Boolean]("hasGoal").getOrElse(false)
+      // high level op
+      val isOp = op.attributes.getAs[Boolean]("hasGoal").getOrElse(false)
 
-      // reset high level op => enable the "pre" state!
-      val (ns, np) = if(s.get(op.id) != Some(SPValue("resetting")) && opGoal && !enabled.forall(p => p.eval(s)) && (!isInAuto && fire.exists(f=>f.event == SPValue("reset") && f.operation==op.id))) {
-        val resetGoal = AND(enabled.map(_.guard))
-        // high level plan operations can always start.
-        // 1. dont take the pre transition. in fact
-        val ns = s.next(op.id -> SPValue("resetting"))
-        // 2. compute plan on new state
-        val (plan, ntrans, stdout, stderr) = computePlan(model, ns.state, 50, resetGoal, "", "/tmp/reset.smv")
-        // 2. for now just replace the current plan
-        val np = plan
-        (ns, np)
-      } else if(opGoal && enabled.forall(p => p.eval(s)) && (/*isInAuto || i think we want "levels" of auto*/fire.exists(f=>f.event == SPValue("start") && f.operation==op.id))) {
-        // high level plan operations can always start.
-        // 1. take the pre action transition
-        val ns = enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}
-        // 2. compute plan on new state
-        val goal = AND(finished.map(_.guard))
-        val (plan, ntrans, stdout, stderr) = computePlan(model, ns.state, 50, goal, "", "/tmp/runner.smv")
-        // 2. for now just replace the current plan
-        val np = plan
-        (ns, np)
-      } else if(!opGoal && enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.event == SPValue("start") && f.operation==op.id)) ||
-        (isInAuto && plan.headOption.contains(op.name)))) {
-        // take start transition
-        println("taking start transition for: " + op.name + " auto: " + isInAuto)
-        val newPlan = if(isInAuto) plan.tail else plan
-        (enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}, newPlan)
-      } else if(s.get(op.id) != Some(SPValue("finished")) && finished.forall(p => p.eval(s))) {
-        // take finish transition
-        println("taking finish transition for: " + op.name)
-        (finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}, plan)
-      } else (s, plan)
+      if(isOp) {
+        val enabled = filterConditions(op.conditions, Set("pre"), Set())
+        val post = filterConditions(op.conditions, Set("post"), Set())
+        val isEnabled = enabled.forall(p => p.eval(s))
+        if(s.get(op.id) != Some(SPValue("resetting")) && s.get(op.id) != Some(SPValue("enabled")) && (/*!isInAuto && */ fire.exists(f=>f.event == SPValue("reset") && f.operation==op.id))) {
+          val resetGoal = AND(enabled.map(_.guard))
+          val resetGoalStr = SPpropTonuXmvSyntax(resetGoal,
+            model.collect{case v:Thing=>v}.map(v => v.copy(name = "v_"+v.name.replaceAll("\\.", "_"))),         /// TODO: terrible
+            model.collect{case o:Operation=>o}.map(o => o.copy(name = "o_"+o.name.replaceAll("\\.", "_"))))
+          println("updGoals: " + resetGoalStr)
+          // high level plan operations can always be reset
+          // update global goal state
+          val updGoals = currentGoals + (op.id -> SPValue(resetGoalStr))
+          println("updGoals: " + updGoals)
+          val ns = s.next(op.id -> SPValue("resetting")).next(goalStates -> SPValue(updGoals))
+          // 2. compute plan on new state
+          val planSpec = plansToLTL(updGoals.values.toList.flatMap(v=>v.asOpt[String]))
+          println("planspec: " + planSpec)
+          val (plan, ntrans, stdout, stderr) = computePlan(model, ns.state, 50, AND(List()), planSpec, "/tmp/reset.smv")
+          // 3. replace the current plan
+          val np = plan
+          (ns, np)
+        } else if(s.get(op.id) == Some(SPValue("enabled")) && isEnabled && (/*isInAuto || i think we want "levels" of auto*/fire.exists(f=>f.event == SPValue("start") && f.operation==op.id))) {
+          // high level plan operations can always start.
+          // 1. take the pre action transition
+          val ns = (enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}).next(op.id -> SPValue("executing"))
+          // 2. compute plan on new state
+          val goal = AND(post.map(_.guard))
 
-      val x = if(finished.forall(p => p.eval(ns)))
-        ns.next(op.id -> SPValue("finished"))
-      else if(executing.forall(p => p.eval(ns)))
-        ns.next(op.id -> SPValue("executing"))
-      else if(enabled.forall(p => p.eval(ns)))
-        ns.next(op.id -> SPValue("enabled"))
-      else if(ns.get(op.id) == Some(SPValue("resetting")))
-        ns.next(op.id -> SPValue("resetting"))
-      else
-        ns.next(op.id -> SPValue("notEnabled"))
+          val goalStr = SPpropTonuXmvSyntax(goal,
+            model.collect{case v:Thing=>v}.map(v => v.copy(name = "v_"+v.name.replaceAll("\\.", "_"))),         /// TODO: terrible
+            model.collect{case o:Operation=>o}.map(o => o.copy(name = "o_"+o.name.replaceAll("\\.", "_"))))
+          println("current goal: " + goalStr)
+          // high level plan operations can always reset when not enabled
+          // update global goal state
+          val updGoals = currentGoals + (op.id -> SPValue(goalStr))
+          println("current total goals: " + updGoals)
+          val ns2 = ns.next(goalStates -> SPValue(updGoals))
+          // 2. compute plan on new state
+          val planSpec = plansToLTL(updGoals.values.toList.flatMap(v=>v.asOpt[String]))
+          println("planspec: " + planSpec)
+          val (plan, ntrans, stdout, stderr) = computePlan(model, ns.state, 50, AND(List()), planSpec, "/tmp/runner.smv")
+          // 3. replace the current plan
+          val np = plan
+          (ns2, np)
+        } else if(s.get(op.id) == Some(SPValue("executing")) && post.forall(p => p.eval(s))) {
+          // take finish transition
+          println("taking finish transition for operation: " + op.name)
+          val updGoals = currentGoals - op.id
+          println("updGoals: " + updGoals)
+          val ns = (post.foldLeft(s){(tempS, cond) => cond.next(tempS)}).next(op.id -> SPValue("finished")).next(goalStates -> SPValue(updGoals))
+          (ns, plan)
+        } else if(s.get(op.id) == Some(SPValue("executing"))) {
+          // do nothing
+          (s, plan)
+        }
+        else if(s.get(op.id) == Some(SPValue("resetting")) && isEnabled) {
+          println("resetting done, back to enabled! clearing the goal")
+          val updGoals = currentGoals - op.id
+          println("updGoals: " + updGoals)
+          (s.next(op.id -> SPValue("enabled")).next(goalStates -> SPValue(updGoals)), plan)
+        } else if(s.get(op.id) == Some(SPValue("resetting"))) {
+          (s, plan)
+        }
+        else if(s.get(op.id) == Some(SPValue("notEnabled")) && isEnabled) {
+          (s.next(op.id -> SPValue("enabled")), plan)
+        }
+        else if(s.get(op.id) == Some(SPValue("enabled")) && isEnabled) {
+          (s, plan)
+        }
+        else
+          (s.next(op.id -> SPValue("notEnabled")), plan)
+      } else {
+        val enabled = filterConditions(op.conditions, Set("pre"), Set())
+        val executing = filterConditions(op.conditions, Set("isExecuting"), Set())
+        val finished = filterConditions(op.conditions, Set("isFinished"), Set())
 
-      (x, np)
+        val (ns, np) = if(enabled.forall(p => p.eval(s)) && ((!isInAuto && fire.exists(f=>f.event == SPValue("start") && f.operation==op.id)) ||
+          (isInAuto && plan.headOption.contains(op.name)))) {
+          // take start transition
+          println("taking start transition for ability: " + op.name + " auto: " + isInAuto)
+          val newPlan = if(isInAuto) plan.tail else plan
+          (enabled.foldLeft(s){(tempS, cond) => cond.next(tempS)}, newPlan)
+        } else if(s.get(op.id) != Some(SPValue("finished")) && finished.forall(p => p.eval(s))) {
+          // take finish transition
+          println("taking finish transition for ability: " + op.name)
+
+          // re-plan after finishing...
+          val planSpec = plansToLTL(currentGoals.values.toList.flatMap(v=>v.asOpt[String]))
+          println("planspec: " + planSpec)
+          val (newPlan, ntrans, stdout, stderr) = computePlan(model, s.state, 50, AND(List()), planSpec, "/tmp/runner.smv")
+
+          (finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}, newPlan)
+        } else (s, plan)
+
+        val x = if(finished.forall(p => p.eval(ns)))
+          ns.next(op.id -> SPValue("finished"))
+        else if(executing.forall(p => p.eval(ns)))
+          ns.next(op.id -> SPValue("executing"))
+        else if(enabled.forall(p => p.eval(ns)))
+          ns.next(op.id -> SPValue("enabled"))
+        else
+          ns.next(op.id -> SPValue("notEnabled"))
+
+        (x, np)
+
+      }
+
     }
 
     // val res = runDeep(ops, s, List())

@@ -103,6 +103,10 @@ object SopMakerCSS extends Theming.SPStyleSheet {
     backgroundColor.rgb(255, 255, 255)
   )
 
+  val opStateResetting = style(
+    backgroundColor.rgb(248, 131, 121)
+  )
+
   val opStateNone = style(
 
   )

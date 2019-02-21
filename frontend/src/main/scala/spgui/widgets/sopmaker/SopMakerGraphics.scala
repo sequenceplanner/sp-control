@@ -44,6 +44,7 @@ object SopMakerGraphics {
               case "\"starting\"" => ^.className := SopMakerCSS.opStateStarting.htmlClass
               case "\"executing\"" => ^.className := SopMakerCSS.opStateExecuting.htmlClass
               case "\"finished\"" => ^.className := SopMakerCSS.opStateFinished.htmlClass
+              case "\"resetting\"" => ^.className := SopMakerCSS.opStateResetting.htmlClass
               case _ => ^.className := SopMakerCSS.opStateNone.htmlClass
             }
           },

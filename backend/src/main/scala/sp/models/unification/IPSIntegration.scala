@@ -357,6 +357,8 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     // if we need the of tool, we need it both physically and in the planning interface
     val of = UR.needsOf.contains(p)
     val ofc = if(of) c("pre", s"ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool") else c("pre", "true")
+    // PreAttachOFToolFarJOINTPose => cannot take this move from AttachOFToolTCPPose if we have the tool
+    val ofc2 = if(p == "PreAttachOFToolFarJOINTPose") c("pre", s"(ur.actPos != 'AttachOFToolTCPPose' || (!recu.lock_rsp && recu.robot_not_connected_to_tool))") else c("pre", "true")
     val of1 = if(p == "OF_1_TIGHTENED") c("isFinished", "true", "of1 := true") else c("isFinished", "true")
 
     // PRE_ATTACH_OF is always reachable. except from: PreAttachOFToolCloseTCPPose, AttachOFToolTCPPose, AAPROFTool1TCPose, AAPROFTool2TCPose,
@@ -371,6 +373,7 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     val op = o(s"ur.goto$p", "ur.moveToPos", "ur")(
       c("pre", s"ur.actPos != '$p' && ur.refPos != '$p'", s"ur.refPos := '$p'"),
       ofc,
+      ofc2,
       source,
       ofSource,
       preof,
@@ -449,26 +452,20 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   //   c("isFinished", s"tighten == 'active' && of1", "tighten := 'idle'")
   // )
 
-  val ofToolState = v("getOfTool", "idle", List("idle", "active"))
   val getoftool = o("getOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
-    c("pre", s"getOfTool == 'idle' && recu.robot_not_connected_to_tool && ur.actPos == 'PRE_ATTACH_OF'", "getOfTool := active"),
-    c("isExecuting", s"getOfTool == 'active'"),
-    c("isFinished", s"getOfTool == 'active' && ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'", "getOfTool := 'idle'")
+    c("pre", s"recu.robot_not_connected_to_tool && ur.actPos == 'PRE_ATTACH_OF'"),
+    c("post", s"ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'")
   )
 
-  val leaveoftoolState = v("leaveOfTool", "idle", List("idle", "active"))
   val leaveoftool = o("leaveOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
-    c("pre", s"leaveOfTool == 'idle' && recu.robot_connected_to_filter_tool && ur.actPos == 'PRE_ATTACH_OF'", "leaveOfTool := active"),
-    c("isExecuting", s"leaveOfTool == 'active'"),
-    c("isFinished", s"leaveOfTool == 'active' && !ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'", "leaveOfTool := 'idle'")
+    c("pre", s"recu.robot_connected_to_filter_tool && ur.actPos == 'PRE_ATTACH_OF'"),
+    c("isFinished", s"!ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'")
   )
 
 
-  val attachOF1State = v("attachOF1", "idle", List("idle", "active"))
   val attachOF1 = o("attachOF1", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
-    c("pre", s"attachOF1 == 'idle' && !of1 && ur.actPos == 'PRE_ATTACH_OF' && recu.robot_connected_to_filter_tool", "attachOF1 := active"),
-    c("isExecuting", s"attachOF1 == 'active'"),
-    c("isFinished", s"attachOF1 == 'active' && of1 && ur.actPos == 'PRE_ATTACH_OF'", "attachOF1 := 'idle'")
+    c("pre", s"!of1 && ur.actPos == 'PRE_ATTACH_OF' && recu.robot_connected_to_filter_tool"),
+    c("isFinished", s"of1 && ur.actPos == 'PRE_ATTACH_OF'")
   )
 
   val highLevelOps = List(getoftool, attachOF1, leaveoftool)

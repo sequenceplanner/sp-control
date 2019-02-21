@@ -64,6 +64,79 @@ trait ExportNuXmvFile2 {
     }
   }
 
+  def spValTonuXmv(s: SPValue): String = s match {
+    case play.api.libs.json.JsNumber(n) => n.toString
+    case play.api.libs.json.JsBoolean(b) => if(b) "TRUE" else "FALSE"
+    case play.api.libs.json.JsString(s) => s
+    case _ => "ERROR"
+  }
+
+  def SPactionValTonuXmvSyntax(a: Action, vars: List[Thing]) = {
+    a.value match {
+      case ValueHolder(spval) => spValTonuXmv(spval)
+      case ASSIGN(id) =>
+        val name = vars.find(_.id==id).get.name // die if we are not careful
+                                                // dont look up in domain for names
+        name
+      case other =>
+        println(s"actionTonuXmvSyntax cannot handle: $other right now. sorry")
+        other.toString
+    }
+  }
+
+  def SPpropTonuXmvSyntax(p: Proposition, vars: List[Thing], ops: List[Operation]): String = {
+    def leftRight(l: StateEvaluator, operator: String, r: StateEvaluator) = {
+      val left = l match {
+        case SVIDEval(id) =>
+          val name = vars.find(_.id==id).get.name // die if we are not careful
+                                                  // dont look up in domain for names
+          name
+        case ValueHolder(spval) =>
+          println("problem with guard, value holder " + spval + " on left side")
+          "none"
+      }
+
+      val right = r match {
+        case SVIDEval(id) =>
+          val rightVar = vars.find(_.id==id).get.name // die if we are not careful
+                                                      // dont look up in domain for names
+          rightVar
+        case ValueHolder(spval) =>
+          spValTonuXmv(spval)
+
+      }
+
+      s"$left $operator $right"
+    }
+    p match {
+      case AND(Nil) => "TRUE"
+      case AND(ps) => ps.map(p=>SPpropTonuXmvSyntax(p,vars,ops)).mkString("(", ")&(", ")")
+      case OR(Nil) => "TRUE"
+      case OR(ps) => ps.map(p=>SPpropTonuXmvSyntax(p,vars,ops)).mkString("(", ")|(", ")")
+      case NOT(q) => s"!(${SPpropTonuXmvSyntax(q,vars,ops)})"
+      // special case for operation state
+      case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("finished") => ops.find(_.id==op).get.name + "_finished"
+      case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("executing") => ops.find(_.id==op).get.name + "_executing"
+      case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("starting") => "TRUE" // modifiedOps.find(_.id==op).get.name + "_starting"
+      case EQ(l, r) => leftRight(l, "=", r)
+
+      case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("finished") => ops.find(_.id==op).get.name + "_finished"
+      case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("executing") => "!" + ops.find(_.id==op).get.name + "_executing"
+      case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("starting") => "TRUE"// "!" + modifiedOps.find(_.id==op).get.name + "_starting"
+      case NEQ(l, r) => leftRight(l, "!=", r)
+      case GREQ(l, r) => leftRight(l, ">=", r)
+      case GR(l, r) => leftRight(l, ">", r)
+      case LEEQ(l, r) => leftRight(l, "<=", r)
+      case LE(l, r) => leftRight(l, "<", r)
+      case AlwaysTrue => "TRUE"
+      case AlwaysFalse => "FALSE"
+      case other =>
+        println(s"propTonuXmvSyntax cannot handle: $other right now. sorry")
+        other.toString
+    }
+  }
+
+
   import sp.runners.AbilityRunnerTransitions._
   val idle = "idle" // we dont keep track of enabled/not enabled
 
@@ -86,6 +159,9 @@ trait ExportNuXmvFile2 {
 
     val vars = vs ++ opStartVars
 
+    def propTonuXmvSyntax(p: Proposition) = SPpropTonuXmvSyntax(p,vars,ops)
+    def actionValTonuXmvSyntax(a: Action) = SPactionValTonuXmvSyntax(a,vars)
+
     val sopSpecs = ids.filter(_.isInstanceOf[SOPSpec]).map(_.asInstanceOf[SOPSpec])
     val spSpecs = ids.filter(_.isInstanceOf[SPSpec]).map(_.asInstanceOf[SPSpec])
 
@@ -95,13 +171,6 @@ trait ExportNuXmvFile2 {
     var lines = "-- " + filename + " - created at " + new java.util.Date().toString + " --\n"
 
     lines += "MODULE main\n"
-
-    def spValTonuXmv(s: SPValue): String = s match {
-      case play.api.libs.json.JsNumber(n) => n.toString
-      case play.api.libs.json.JsBoolean(b) => if(b) "TRUE" else "FALSE"
-      case play.api.libs.json.JsString(s) => s
-      case _ => "ERROR"
-    }
 
     // add variables and their domains
     lines += "VAR\n"
@@ -143,70 +212,6 @@ trait ExportNuXmvFile2 {
       val init = initialState.get(v.id) orElse v.attributes.getAs[SPValue]("initialState")
       val initStr = spValTonuXmv(init.getOrElse(SPValue("[initial state not set]")))
       lines += "  init(" + v.name + ") := " + initStr + ";\n"
-    }
-
-    def actionValTonuXmvSyntax(a: Action) = {
-      a.value match {
-        case ValueHolder(spval) => spValTonuXmv(spval)
-        case ASSIGN(id) =>
-          val name = vars.find(_.id==id).get.name // die if we are not careful
-                                                  // dont look up in domain for names
-          name
-        case other =>
-          println(s"actionTonuXmvSyntax cannot handle: $other right now. sorry")
-          other.toString
-      }
-    }
-
-    def propTonuXmvSyntax(p: Proposition): String = p match {
-      case AND(Nil) => "TRUE"
-      case AND(ps) => ps.map(propTonuXmvSyntax).mkString("(", ")&(", ")")
-      case OR(Nil) => "TRUE"
-      case OR(ps) => ps.map(propTonuXmvSyntax).mkString("(", ")|(", ")")
-      case NOT(q) => s"!(${propTonuXmvSyntax(q)})"
-      // special case for operation state
-      case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("finished") => ops.find(_.id==op).get.name + "_finished"
-      case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("executing") => ops.find(_.id==op).get.name + "_executing"
-      case EQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("starting") => "TRUE" // modifiedOps.find(_.id==op).get.name + "_starting"
-      case EQ(l, r) => leftRight(l, "=", r)
-
-      case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("finished") => ops.find(_.id==op).get.name + "_finished"
-      case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("executing") => "!" + ops.find(_.id==op).get.name + "_executing"
-      case NEQ(SVIDEval(op), ValueHolder(v)) if ops.exists(_.id == op) && v == SPValue("starting") => "TRUE"// "!" + modifiedOps.find(_.id==op).get.name + "_starting"
-      case NEQ(l, r) => leftRight(l, "!=", r)
-      case GREQ(l, r) => leftRight(l, ">=", r)
-      case GR(l, r) => leftRight(l, ">", r)
-      case LEEQ(l, r) => leftRight(l, "<=", r)
-      case LE(l, r) => leftRight(l, "<", r)
-      case AlwaysTrue => "TRUE"
-      case AlwaysFalse => "FALSE"
-      case other =>
-        println(s"propTonuXmvSyntax cannot handle: $other right now. sorry")
-        other.toString
-    }
-
-    def leftRight(l: StateEvaluator, operator: String, r: StateEvaluator) = {
-      val left = l match {
-        case SVIDEval(id) =>
-          val name = vars.find(_.id==id).get.name // die if we are not careful
-                                                  // dont look up in domain for names
-          name
-        case ValueHolder(spval) =>
-          println("problem with guard, value holder " + spval + " on left side")
-          "none"
-      }
-
-      val right = r match {
-        case SVIDEval(id) =>
-          val rightVar = vars.find(_.id==id).get.name // die if we are not careful
-                                                      // dont look up in domain for names
-          rightVar
-        case ValueHolder(spval) =>
-          spValTonuXmv(spval)
-
-      }
-
-      s"$left $operator $right"
     }
 
     lines += "\n\n";
