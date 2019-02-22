@@ -225,11 +225,14 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
           println("taking finish transition for ability: " + op.name)
 
           // re-plan after finishing...
-          val planSpec = plansToLTL(currentGoals.values.toList.flatMap(v=>v.asOpt[String]))
-          println("planspec: " + planSpec)
-          val (newPlan, ntrans, stdout, stderr) = computePlan(model, s.state, 50, AND(List()), planSpec, "/tmp/runner.smv")
+          val np = if(currentGoals.values.isEmpty) plan else {
+            val planSpec = plansToLTL(currentGoals.values.toList.flatMap(v=>v.asOpt[String]))
+            println("planspec: " + planSpec)
+            val (newPlan, ntrans, stdout, stderr) = computePlan(model, s.state, 50, AND(List()), planSpec, "/tmp/runner.smv")
+            newPlan
+          }
 
-          (finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}, newPlan)
+          (finished.foldLeft(s){(tempS, cond) => cond.next(tempS)}, np)
         } else (s, plan)
 
         val x = if(finished.forall(p => p.eval(ns)))

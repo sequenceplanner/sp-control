@@ -175,7 +175,8 @@ object UR {
 class UR(override val system: ActorSystem) extends ROSResource {
   val actPos = i("actPos", UR.initialState, UR.poses.map(SPValue(_)))
   val moving = i("moving", false)
-  val prevPos = i("prevPos", UR.initialState, UR.poses.map(SPValue(_))) /// internal mirror of the last seen actual position
+  // val prevPos = i("prevPos", UR.initialState, UR.poses.map(SPValue(_))) /// internal mirror of the last seen actual position
+  val prevPos = vm("prevPos", UR.initialState, UR.poses.map(SPValue(_)), Set(), SPAttributes("input" -> true, "notInModel" -> true))
 
   val subMapping = stringToIDMapper(Map("moving" -> moving, "actual_pose" -> actPos, "previous_pose" -> prevPos))
 
@@ -350,7 +351,10 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
   val startMotor = o(s"aecu.startToolForward", "aecu.startToolForward", "aecu")()
 
+  // oil filters
   v("of1", false)
+  v("of2", false)
+
 
   val gotoPositions = UR.poses.filter(_!="UNKNOWN").map { p =>
 
@@ -423,27 +427,27 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     c("isFinished", s"recu.unlock_rsp && recu.robot_connected_to_filter_tool == false && recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
 
-  val attachOFMoveit = o("ur.attachOFInMoveit", "ur.attachOFMoveit")(
+  val attachOFMoveit = o("ur.attachOFInMoveit", "ur.attachOFMoveit", "ur")(
     c("pre", s"ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
 
-  val detachOFMoveit = o("ur.detachOFInMoveit", "ur.detachOFMoveit")(
+  val detachOFMoveit = o("ur.detachOFInMoveit", "ur.detachOFMoveit", "ur")(
     c("pre", s"ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
 
-  // val humanState = v("human", "idle", List("idle", "tightening", "reset"))
-  // val humanDone = i("humanDone", false)
-  // val humanAvailable = i("humanAvailable", true)
+  val humanState = v("human", "idle", List("idle", "executing", "finished"))
+  val humanDone = i("humanDone", false)
+  val humanAvailable = i("humanAvailable", true)
 
-  // val humanTighten = o("human.tighten")(
-  //   c("pre", s"human == 'idle' && humanAvailable && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'tightening'"),
-  //   c("isExecuting", "human == 'tightening' && !humanDone"),
-  //   c("isFinished", "human == 'tightening' && humanDone", "of1 := true", "human := 'reset'")
-  // )
+  val humanTighten = o("human.tighten", SPAttributes("ability" -> "yes"))(
+    c("pre", s"human == 'idle' && humanAvailable && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'executing'"),
+    c("isExecuting", "human == 'executing' && !humanDone"),
+    c("isFinished", "human == 'executing' && humanDone", "of2 := true", "human := 'finished'")
+  )
 
-  // val humanReset = o("human.reset")(
-  //   c("pre", s"human == reset", "human := idle")
-  // )
+  val humanReset = o("human.reset", SPAttributes("ability" -> "yes"))(
+    c("pre", s"human == finished", "human := idle")
+  )
 
   // val tightenState = v("tighten", "idle", List("idle", "active"))
   // val t = o("tighten", SPAttributes("notInModel" -> true, "hasGoal" -> "! F v_of1"))(
@@ -453,22 +457,27 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   // )
 
   val getoftool = o("getOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
-    c("pre", s"recu.robot_not_connected_to_tool && ur.actPos == 'PRE_ATTACH_OF'"),
+    c("pre", s"!ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PRE_ATTACH_OF'"),
     c("post", s"ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'")
   )
 
   val leaveoftool = o("leaveOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
     c("pre", s"recu.robot_connected_to_filter_tool && ur.actPos == 'PRE_ATTACH_OF'"),
-    c("isFinished", s"!ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'")
+    c("post", s"!ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'")
   )
 
 
   val attachOF1 = o("attachOF1", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
     c("pre", s"!of1 && ur.actPos == 'PRE_ATTACH_OF' && recu.robot_connected_to_filter_tool"),
-    c("isFinished", s"of1 && ur.actPos == 'PRE_ATTACH_OF'")
+    c("post", s"of1 && ur.actPos == 'PRE_ATTACH_OF'")
   )
 
-  val highLevelOps = List(getoftool, attachOF1, leaveoftool)
+  val attachOF2 = o("attachOF2", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+    c("pre", s"!of2"),
+    c("post", s"of2")
+  )
+
+  val highLevelOps = List(getoftool, leaveoftool, attachOF1, attachOF2)
   // just build a simple sop to visualize the ability states
   // make a grid with four columns to utilize the space we have in the widget
   val grid = List(0,1,2,3).map(n=>operations.filterNot(o=>highLevelOps.exists(_==o.id)).sliding(4,4).flatMap(_.lift(n)).toList)
