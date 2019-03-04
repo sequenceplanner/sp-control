@@ -160,12 +160,19 @@ object UR {
     "OF_2_TIGHTENED" -> "PRE_OF_2_UNTIGHTENED",
   )
 
-  val canOnlyGoFromOFTool = Map(
+  val moveMapOFToolNoTool = Map(
     "PreAttachOFToolFarJOINTPose" -> List("AAPROFTool2TCPPose", "PRE_ATTACH_OF", "AttachOFToolTCPPose"),
     "PreAttachOFToolCloseTCPPose" -> List("PreAttachOFToolFarJOINTPose"),
-    "AAPROFTool2TCPPose" -> List("PreAttachOFToolFarJOINTPose"),
-    "AttachOFToolTCPPose" -> List("PreAttachOFToolCloseTCPPose", "AAPROFTool1TCPPose"),
-    "AAPROFTool1TCPPose" -> List("AttachOFToolTCPPose", "AAPROFTool2TCPPose"),
+    "AttachOFToolTCPPose" -> List("PreAttachOFToolCloseTCPPose"), // , "AAPROFTool1TCPPose"),
+    "AAPROFTool1TCPPose" -> List("AAPROFTool2TCPPose"),
+    "AAPROFTool2TCPPose" -> List("AAPROFTool1TCPPose", "PreAttachOFToolFarJOINTPose"),
+  )
+
+  val moveMapOFToolWithTool = Map(
+    "PreAttachOFToolFarJOINTPose" -> List("AAPROFTool2TCPPose", "PRE_ATTACH_OF"),
+    "PreAttachOFToolCloseTCPPose" -> List(),
+    "AttachOFToolTCPPose" -> List("AAPROFTool1TCPPose"),
+    "AAPROFTool1TCPPose" -> List("AAPROFTool2TCPPose", "AttachOFToolTCPPose"),
     "AAPROFTool2TCPPose" -> List("AAPROFTool1TCPPose", "PreAttachOFToolFarJOINTPose"),
   )
 
@@ -233,20 +240,24 @@ class UR(override val system: ActorSystem) extends ROSResource {
 
   a("moveToPos", List(refPos))(
     c("pre", "!moving"),
-    c("isExecuting", "actPos != refPos"),   /// note: we want to have "moving" here but then we need to plan the planner that moving is an effect of starting....
+    c("startEffect", "true", "moving := true", "actPos := 'UNKNOWN'"),
+    c("isExecuting", "moving || actPos != refPos"),
+    c("executingEffect", "true", "moving := false", "actPos := refPos"),
     c("isFinished", "!moving && actPos == refPos"),
     c("reset", "true"))
 
   a("attachOFMoveit", List())(
     c("pre", "!isAttachedOFMoveit", "attachOFMoveit := true"),
     c("isExecuting", "attachOFMoveit && !isAttachedOFMoveit"),
+    c("executingEffect", "true", "isAttachedOFMoveit := true"),
     c("isFinished", "attachOFMoveit && isAttachedOFMoveit"),
     c("reset", "true"))
 
   a("detachOFMoveit", List())(
     c("pre", "isAttachedOFMoveit", "attachOFMoveit := false"),
     c("isExecuting", "!attachOFMoveit && isAttachedOFMoveit"),
-    c("isFinished", "!attachOFMoveit && isAttachedOFMoveit == false"),
+    c("executingEffect", "true", "isAttachedOFMoveit := false"),
+    c("isFinished", "!attachOFMoveit && isAttachedOFMoveit == false"), // TODO: fix filter props...
     c("reset", "true"))
 }
 
@@ -281,6 +292,7 @@ class AECU(override val system: ActorSystem) extends ROSResource {
   a("startToolForward", List())(
     c("pre", "tool_is_idle", "run_tool_forward:=true", "set_tool_idle := false"),
     c("isExecuting", "!tool_is_running_forward"),
+    c("executingEffect", "true", "tool_is_running_forward := true"),
     c("isFinished", "tool_is_running_forward"),
   )
 }
@@ -328,7 +340,8 @@ class RECU(override val system: ActorSystem) extends ROSResource {
 
   publish("/unification_roscontrol/recu_sp_to_uni", "unification_ros2_messages/RecuSPToUni", Some(100 millis), pubMapping)
 
-  // there no feedback whether the tool is locked or not. use our outputs
+  // there no feedback whether the tool is locked or not.
+  // we can only know which specific tool has been attached
 
   a("lock")(
     c("pre", "true", "lock_rsp := true", "unlock_rsp := false"),
@@ -362,7 +375,6 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     val of = UR.needsOf.contains(p)
     val ofc = if(of) c("pre", s"ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool") else c("pre", "true")
     // PreAttachOFToolFarJOINTPose => cannot take this move from AttachOFToolTCPPose if we have the tool
-    val ofc2 = if(p == "PreAttachOFToolFarJOINTPose") c("pre", s"(ur.actPos != 'AttachOFToolTCPPose' || (!recu.lock_rsp && recu.robot_not_connected_to_tool))") else c("pre", "true")
     val of1 = if(p == "OF_1_TIGHTENED") c("isFinished", "true", "of1 := true") else c("isFinished", "true")
 
     // PRE_ATTACH_OF is always reachable. except from: PreAttachOFToolCloseTCPPose, AttachOFToolTCPPose, AAPROFTool1TCPose, AAPROFTool2TCPose,
@@ -372,14 +384,19 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
 
     val source = UR.canOnlyGoFrom.get(p).map(source => c("pre", s"ur.actPos == '$source'")).getOrElse(c("pre", "true"))
 
-    val ofSource = UR.canOnlyGoFromOFTool.get(p).map(source => c("pre", s"${source.map(s=>s"ur.actPos == '$s'").mkString("||")}")).getOrElse(c("pre", "true"))
+    val ofWithoutTool = UR.moveMapOFToolNoTool.get(p).map{source =>
+      val pose = if(source.isEmpty) "false" else s"(${source.map(s=>s"ur.actPos == '$s'").mkString("||")})"
+      s"(recu.robot_not_connected_to_tool && !recu.lock_rsp) && $pose"}.getOrElse("true")
+    val ofWithTool = UR.moveMapOFToolWithTool.get(p).map{source =>
+      val pose = if(source.isEmpty) "false" else s"(${source.map(s=>s"ur.actPos == '$s'").mkString("||")})"
+      s"(recu.robot_connected_to_filter_tool && !recu.unlock_rsp) && $pose"}.getOrElse("true")
+    val ofTool = c("pre", s"($ofWithoutTool || $ofWithTool)")
 
     val op = o(s"ur.goto$p", "ur.moveToPos", "ur")(
       c("pre", s"ur.actPos != '$p' && ur.refPos != '$p'", s"ur.refPos := '$p'"),
       ofc,
-      ofc2,
       source,
-      ofSource,
+      ofTool,
       preof,
       c("isFinished", "true"),
       of1,
@@ -416,14 +433,16 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   val unlockRspWhenConnectingOFTool = o("ofAttach.unlockRSP", "recu.unlock", "RSP")(
     c("pre", s"recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolCloseTCPPose' && ur.refPos == 'PreAttachOFToolCloseTCPPose'"),
   )
-  val lockRspWhenConnectingOFTool = o("ofAttach.lockRSP", "recu.lock", "RSP")(
+  val lockRspWhenConnectingOFTool = o("ofAttach.lockRSP", "recu.lock", "ur")(
     c("pre", s"recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
     c("isExecuting", s"recu.lock_rsp && recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+    c("executingEffect", "true", "recu.robot_connected_to_filter_tool := true", "recu.robot_not_connected_to_tool := false"),
     c("isFinished", s"recu.robot_connected_to_filter_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
-  val unlockRspWhenDisconnectingOFTool = o("ofDetach.unlockRSP", "recu.unlock", "RSP")(
+  val unlockRspWhenDisconnectingOFTool = o("ofDetach.unlockRSP", "recu.unlock", "ur")(
     c("pre", s"recu.robot_connected_to_filter_tool && !recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
-    c("isExecuting", s"recu.unlock_rsp && !recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+    c("isExecuting", s"recu.unlock_rsp && (recu.robot_connected_to_filter_tool || !recu.robot_not_connected_to_tool) && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
+    c("executingEffect", "true", "recu.robot_connected_to_filter_tool := false", "recu.robot_not_connected_to_tool := true"),
     c("isFinished", s"recu.unlock_rsp && recu.robot_connected_to_filter_tool == false && recu.robot_not_connected_to_tool && ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
 
@@ -442,6 +461,7 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   val humanTighten = o("human.tighten", SPAttributes("ability" -> "yes"))(
     c("pre", s"human == 'idle' && humanAvailable && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'executing'"),
     c("isExecuting", "human == 'executing' && !humanDone"),
+    c("executingEffect", "true", "humanDone := true"),
     c("isFinished", "human == 'executing' && humanDone", "of2 := true", "human := 'finished'")
   )
 

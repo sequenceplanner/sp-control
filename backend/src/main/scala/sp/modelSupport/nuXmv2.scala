@@ -191,7 +191,7 @@ trait ExportNuXmvFile2 {
       val pre = AND(getConds(o.conditions, "pre").map(_.guard))
       val exec = AND(getConds(o.conditions, "isExecuting").map(_.guard))
       val fin = AND(getConds(o.conditions, "isFinished").map(_.guard))
-      val reset = AND(getConds(o.conditions, "reset").map(_.guard))
+      val reset = AND(getConds(o.conditions, "reset").map(_.guard))  // TODO
 
       if(fin != AND(List()))
         lines += "DEFINE " + o.name + "_finished := " + propTonuXmvSyntax(fin) + ";\n"
@@ -239,59 +239,25 @@ trait ExportNuXmvFile2 {
     lines += "-- VARIABLES -- \n"
     lines += "\n"
 
-    def findInputGuard(guard: Proposition, input: ID): List[Action] = {
-      guard match {
-        case AND(xs) => xs.map(x=>findInputGuard(x, input)).flatten
-        case OR(xs) => xs.map(x=>findInputGuard(x, input)).flatten
-        case NOT(x) => findInputGuard(x, input)
-        case EQ(SVIDEval(id), SVIDEval(id2)) if inputs.contains(id) && inputs.contains(id2) => throw new Exception("assignment does not make sense: " + guard); List()
-
-        case EQ(SVIDEval(id), SVIDEval(id2)) if id == input && !inputs.contains(id2) => List(Action(id, ASSIGN(id2)))
-        case EQ(SVIDEval(id), SVIDEval(id2)) if !inputs.contains(id) && id2 == input => List(Action(id2, ASSIGN(id)))
-
-        case EQ(SVIDEval(id), ValueHolder(x)) if id == input => List(Action(id, ValueHolder(x)))
-        case EQ(ValueHolder(x), SVIDEval(id)) if id == input => List(Action(id, ValueHolder(x)))
-
-          // todo: add negation here!
-
-        // todo, check for inequalities.... these cannot be handled
-        case x => List()
-      }
-    }
-
-    def findAssignToSPVal(o: Operation, assignee: ID):Option[SPValue] = {
-      val allActions = getConds(o.conditions, "pre").map(_.action).flatten
-      val x = allActions.collect { case Action(`assignee`, ValueHolder(spval)) => spval }
-      x.headOption
-    }
-
     vs.foreach { v =>
 
       lines += s"  next(${v.name}) := case\n"
 
       if(inputs.contains(v.id)) {
-        // check post guards for inputs. special treatment for them!
+        // for inputs (and only inputs!) we check if there are any effects associated with them
         ops.foreach { o =>
-          val postGuards = getConds(o.conditions, "isFinished").map(_.guard)
-          val inputGuards = postGuards.map(p=>findInputGuard(p, v.id)).flatten
+          val startEffects = getConds(o.conditions, "startEffect").map(_.action).flatten.filter(a=>a.id==v.id)
+          val executingEffects = getConds(o.conditions, "executingEffect").map(_.action).flatten.filter(a=>a.id==v.id)
 
-          if(inputGuards.size > 1) {
-            println(o.name)
-            println(o.conditions)
-            println(inputGuards)
-          }
-          assert(inputGuards.size < 2)
-          inputGuards.headOption.foreach { ig =>
-            // val nv = ig.value match {
-            //   case ASSIGN(other) =>
-            //     // check if input guard has a corresponding pre action that sets the expected value
-            //     findAssignToSPVal(o, other).map(spval => ValueHolder(spval)).getOrElse(ASSIGN(other))
-            //   case x => x
-            // }
-            val igStr = actionValTonuXmvSyntax(ig) // .copy(value = nv))
-            lines += s"    ${o.name}_executing : {$igStr, ${v.name}} ;   --- post-guard from sp model transformed into this\n"
+          if(startEffects.nonEmpty) {
+            val startString = startEffects.map(actionValTonuXmvSyntax).mkString(",")
+            lines += s"    !${ostart(o)} & next(${ostart(o)}) : {$startString} ;   --- sp start effect\n"
           }
 
+          if(executingEffects.nonEmpty) {
+            val executingString = executingEffects.map(actionValTonuXmvSyntax).mkString(",")
+            lines += s"    ${o.name}_executing : {$executingString, ${v.name}} ;   --- sp executing effect\n"
+          }
         }
       } else {
 
