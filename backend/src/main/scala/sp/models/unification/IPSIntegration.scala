@@ -38,7 +38,7 @@ object UR {
     // "HomeJOINTPose",
     // "PreHomeJOINTPose",
     // "PreAttachAtlasFarJOINTPose",
-    // "PreAttachLFToolFarJOINTPose",
+    "PreAttachLFToolFarJOINTPose",
     "PreAttachOFToolFarJOINTPose",
     // "AboveEngineJOINTPose",
     // "PreFindEngineJOINTPose",
@@ -71,9 +71,9 @@ object UR {
     // "PreAttachAtlasCloseTCPPose",
     // "AttachAtlasTCPPose",
     // "AAPRAtlasTCPPose",
-    // "PreAttachLFToolCloseTCPPose",
-    // "AttachLFToolTCPPose",
-    // "AAPRLFToolTCPPose",
+    "PreAttachLFToolCloseTCPPose",
+    "AttachLFToolTCPPose",
+    "AAPRLFToolTCPPose",
     "PreAttachOFToolCloseTCPPose",
     "AttachOFToolTCPPose",
     "AAPROFTool1TCPPose",
@@ -160,6 +160,7 @@ object UR {
     "OF_2_TIGHTENED" -> "PRE_OF_2_UNTIGHTENED",
   )
 
+  val OFToolPoses = List("PreAttachOFToolCloseTCPPose", "AttachOFToolTCPPose", "AAPROFTool1TCPose", "AAPROFTool2TCPose")
   val moveMapOFToolNoTool = Map(
     "PreAttachOFToolFarJOINTPose" -> List("AAPROFTool2TCPPose", "PRE_ATTACH_OF", "AttachOFToolTCPPose"),
     "PreAttachOFToolCloseTCPPose" -> List("PreAttachOFToolFarJOINTPose"),
@@ -175,6 +176,39 @@ object UR {
     "AAPROFTool1TCPPose" -> List("AAPROFTool2TCPPose", "AttachOFToolTCPPose"),
     "AAPROFTool2TCPPose" -> List("AAPROFTool1TCPPose", "PreAttachOFToolFarJOINTPose"),
   )
+
+
+
+
+
+
+  // allowed movements witout the tool
+  // PreAttachLFToolFarJOINT from PRE_ATTACH_OF, PreAttachLFToolCloseTCP
+  // PreAttachLFToolCloseTCP from PreAttachLFToolFarJOINT, AttachLFToolTCP,
+  // AttachLFToolTCP from PreAttachLFToolCloseTCP,
+  // AAPRLFToolTCP from List()
+  val LFToolPoses = List("PreAttachLFToolFarJOINT", "PreAttachLFToolCloseTCP", "AttachLFToolTCP", "AAPRLFToolTCP")
+  val moveMapLFToolNoTool = Map(
+    "PreAttachLFToolFarJOINT" -> List("PRE_ATTACH_OF", "PreAttachLFToolCloseTCP"),
+    "PreAttachLFToolCloseTCP" -> List("PreAttachLFToolFarJOINT", "AttachLFToolTCP"),
+    "AttachLFToolTCP" -> List("PreAttachLFToolCloseTCP"),
+    "AAPRLFToolTCP" -> List()
+  )
+
+  // allowed movements with the tool:
+  // PreAttachLFToolFarJOINT from PRE_ATTACH_OF, AAPRLFToolTCP
+  // PreAttachLFToolCloseTCP from List(),
+  // AttachLFToolTCP from AAPRLFToolTCP,
+  // AAPRLFToolTCP from PreAttachLFToolFarJOINT with gripper open
+  val moveMapLFToolWithTool = Map(
+    "PreAttachLFToolFarJOINT" -> List("PRE_ATTACH_OF", "AAPRLFToolTCP"),
+    "PreAttachLFToolCloseTCP" -> List(),
+    "AttachLFToolTCP" -> List("AAPRLFToolTCP"),
+    "AAPRLFToolTCP" -> List("PreAttachLFToolFarJOINT") // with gripper open
+  )
+
+
+
 
 }
 
@@ -453,6 +487,27 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   val detachOFMoveit = o("ur.detachOFInMoveit", "ur.detachOFMoveit", "ur")(
     c("pre", s"ur.actPos == 'AttachOFToolTCPPose' && ur.refPos == 'AttachOFToolTCPPose'"),
   )
+
+
+
+  //////// attach LF tool sequence
+  // 1. PreAttachLFToolFarJOINT                       ---> PreAttachLFToolCloseTCP
+  // 2. PreAttachLFToolCloseTCP                       ---> unlock rsp
+  // 3. rsp unlocked and PreAttachLFToolCloseTCP      ---> AttachLFToolTCP
+  // 4. AttachLFToolTCP                               ---> lock rsp
+  // 5. rsp locked and AttachLFToolTCP                ---> open gripper
+  // 6. gripper opened and AttachLFToolTCP            ---> AAPRLFToolTCP
+  // 7. AAPRLFToolTCP                                 ---> PreAttachLFToolFarJOINT
+
+
+  /////// detach LF tool sequence
+  // 1. PreAttachLFToolFarJOINT                      ---> open gripper
+  // 2. gripper opened and PreAttachLFToolFarJOINT   ---> AAPRLFToolTCP
+  // 3. AAPRLFToolTCP and gripper opened             ---> close gripper
+  // 4. AAPRLFToolTCP and gripper closed             ---> AttachLFToolTCP
+  // 5. AttachLFToolTCP                              ---> unlock rsp
+  // 6. AttachLFToolTCP and rsp unlocked             ---> PreAttachLFToolFarJOINT
+
 
   val humanState = v("human", "idle", List("idle", "executing", "finished"))
   val humanDone = i("humanDone", false)
