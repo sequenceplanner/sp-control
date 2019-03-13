@@ -509,6 +509,8 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   var specs: List[SPSpec] = List.empty
   def use(name: String, resource: Resource) = resources = resources + (name -> resource)
 
+  case class op(id: ID, name: String, ability : Option[String], bookings: Set[String], conds: List[cond], attr: SPAttributes)
+  var ops: Map[String, op] = Map.empty
 
   def x(name: String, exprs: List[String]) = {
     val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList ++ operations
@@ -524,8 +526,8 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   }
 
 
-  def o(name: String, ab: String, bookResource: String)(conds: cond*): ID =
-    o(name, ab, List(bookResource))(conds:_*)
+  // def o(name: String, ab: String, bookResource: String)(conds: cond*): ID =
+  //   o(name, ab, Set(bookResource))(conds:_*)
 
   def updateGuard(guard: Proposition, remap: Map[ID, StateUpdater]): Proposition = {
     def updateID(pe: StateEvaluator): StateEvaluator = pe match {
@@ -634,72 +636,101 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
   def getConds(conds: List[Condition], kind: String)  =
       conds.filter(_.attributes.getAs[String]("kind").getOrElse("")==kind)
 
-  def o(name: String, ab: String, bookResources: List[String] = List())(conds: cond*) = {
+  def makeOps() = {
     val allAbs = resources.map { case (rn, r) => r.abilities.map(a=>a.copy(name = rn + "." + a.name)) }.flatten.toList
-    val ability = allAbs.find(_.name == ab).get
+    val allOps = ops.values.map(o => Operation(name = o.name, id = o.id)).toList
+    val parseHelpers = allOps ++ resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
 
-    val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
-    val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things))
+    val abOps = ops.values.filter(_.ability.nonEmpty).map { o =>
+      val ability = allAbs.find(_.name == o.ability.get).get
+      val conditions = o.conds.map(c=>parse(c)(parseHelpers ++ things))
 
-    import sp.runners.AbilityRunnerTransitions._
-    val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished)
+      import sp.runners.AbilityRunnerTransitions._
+      val domain = List(AbilityStates.notEnabled, AbilityStates.enabled, AbilityStates.starting, AbilityStates.executing, AbilityStates.finished)
 
-    // merge op with its ability => merging the conditions
-    // but first, replace all occurences of the abiilty paremeters with assignment in the pre action
-    val params = ability.attributes.getAs[List[ID]]("parameters").getOrElse(List())
-    val update = params.flatMap{id =>
-      val actions = getConds(conditions, "pre").map(_.action).flatten
-      val assigns = actions.collect { case Action(`id`, x) => x }.headOption
-      assigns.map(su => id -> su)
-    }.toMap
-    val updatedAbConds = ability.conditions.map{c =>
-      val ng = updateGuard(c.guard, update)
-      c.copy(guard = ng)
-    }
-
-    // amend isExecuting and isFinished conditions with the assignments made in the pre action
-    // these should be invariant during operation execution
-    val newConds = conditions ++ updatedAbConds
-    val preActions = getConds(newConds, "pre").map(_.action).flatten
-    val newGuards = preActions.map { a =>
-      val assignTo = a.id
-      val assignWhat = a.value match {
-        case ASSIGN(id) => SVIDEval(id)
-        case ValueHolder(spval) => ValueHolder(spval)
-        case x => throw new Exception("AAAAAA"); ValueHolder(SPValue(x.toString)) // error
+      // merge op with its ability => merging the conditions
+      // but first, replace all occurences of the abiilty paremeters with assignment in the pre action
+      val params = ability.attributes.getAs[List[ID]]("parameters").getOrElse(List())
+      val update = params.flatMap{id =>
+        val actions = getConds(conditions, "pre").map(_.action).flatten
+        val assigns = actions.collect { case Action(`id`, x) => x }.headOption
+        assigns.map(su => id -> su)
+      }.toMap
+      val updatedAbConds = ability.conditions.map{c =>
+        val ng = updateGuard(c.guard, update)
+        c.copy(guard = ng)
       }
-      EQ(SVIDEval(assignTo), assignWhat)
+
+      // amend isExecuting and isFinished conditions with the assignments made in the pre action
+      // these should be invariant during operation execution
+      val newConds = conditions ++ updatedAbConds
+      val preActions = getConds(newConds, "pre").map(_.action).flatten
+      val newGuards = preActions.map { a =>
+        val assignTo = a.id
+        val assignWhat = a.value match {
+          case ASSIGN(id) => SVIDEval(id)
+          case ValueHolder(spval) => ValueHolder(spval)
+          case x => throw new Exception("AAAAAA"); ValueHolder(SPValue(x.toString)) // error
+        }
+        EQ(SVIDEval(assignTo), assignWhat)
+      }
+
+      // also amend them with the preconditions set out -- they are invariant unless they are inputs
+      val skip = parseHelpers.filter(t => t.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
+      // ... or assigned in the pre action
+      val preAssigns = preActions.map(_.id)
+
+      val extraIsExecConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns))
+      //val extraIsExec = Condition(AND(newGuards ++ extraIsExecConds), List(), attributes = SPAttributes("kind"->"isExecuting"))
+      // TODO: do we really need the above. I think not
+      val extraIsExec = Condition(AND(newGuards), List(), attributes = SPAttributes("kind"->"isExecuting"))
+
+      val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns))
+      //val extraPost = Condition(AND(newGuards ++ extraPostConds), List(), attributes = SPAttributes("kind"->"isFinished"))
+      val extraPost = Condition(AND(newGuards), List(), attributes = SPAttributes("kind"->"isFinished"))
+
+      val newConds2 = conditions ++ updatedAbConds ++ List(extraIsExec, extraPost)
+      val newCondsCleaned = newConds2.map(c=>c.copy(guard = cleanProp(c.guard)))
+      val op = Operation(o.name, newCondsCleaned, o.attr ++ SPAttributes("domain" -> domain, "ability" -> o.ability.get, "bookings" -> o.bookings), o.id)
+      op
     }
 
+    // op ops
+    val opops = ops.values.filter(o=>o.ability.isEmpty && o.attr.getAs[String]("ability") == Some("yes")).map { o =>
+      val conditions = o.conds.map(c=>parse(c)(parseHelpers ++ things))
+      Operation(o.name, conditions, o.attr ++ SPAttributes("bookings" -> o.bookings), o.id)
+    }
 
-    // also amend them with the preconditions set out -- they are invariant unless they are inputs
-    val skip = parseHelpers.filter(t => t.attributes.getAs[Boolean]("input").getOrElse(false)).map(_.id)
-    // ... or assigned in the pre action
-    val preAssigns = preActions.map(_.id)
+    // planning ops
+    val plops = ops.values.filter(o=>o.ability.isEmpty && o.attr.getAs[Boolean]("hasGoal").getOrElse(false)).map { o =>
+      val conditions = o.conds.map(c=>parse(c)(parseHelpers ++ things))
+      Operation(o.name, conditions, o.attr, o.id)
+    }
 
-    val extraIsExecConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns))
-    val extraIsExec = Condition(AND(newGuards ++ extraIsExecConds), List(), attributes = SPAttributes("kind"->"isExecuting"))
-
-    val extraPostConds = getConds(newConds, "pre").map(_.guard).map(g => filterProp(g, skip ++ preAssigns))
-    val extraPost = Condition(AND(newGuards ++ extraPostConds), List(), attributes = SPAttributes("kind"->"isFinished"))
-
-    val newConds2 = conditions ++ updatedAbConds ++ List(extraIsExec, extraPost)
-    val newCondsCleaned = newConds2.map(c=>c.copy(guard = cleanProp(c.guard)))
-    val op = Operation(name, newCondsCleaned, SPAttributes("domain" -> domain, "ability" -> ab, "bookings" -> bookResources))
-    operations = op :: operations
-    op.id
+    operations = abOps.toList ++ opops.toList ++ plops.toList
   }
-  def o(name: String)(conds: cond*): ID = {
-    o(name, SPAttributes())(conds:_*)
-  }
-  def o(name: String, attr: SPAttributes)(conds: cond*): ID = {
-    val parseHelpers = resources.map { case (rn, r) => r.things.map(t=>t.copy(name = rn + "." + t.name)) }.flatten.toList
-    val conditions = conds.toList.map(c=>parse(c)(parseHelpers ++ things ++ operations))
 
-    val op = Operation(name, conditions, attr)
-    operations = op :: operations
-    op.id
+  // helper
+  def o(name: String, ability: String, booking: String)(conds: cond*): ID = {
+    o(name, Some(ability), Set(booking))(conds:_*)
   }
+
+  def o(name: String, ability: Option[String] = None, bookings: Set[String] = Set(), attr: SPAttributes = SPAttributes())(conds: cond*): ID = {
+    val updOp = ops.get(name) match {
+      case Some(o) =>
+        val updAb = if(o.ability.isEmpty && ability.nonEmpty) ability else o.ability
+        val updBookings = o.bookings ++ bookings
+        val updAttr = o.attr ++ attr
+        val updConds = o.conds ++ conds.toList
+        op(o.id, o.name, updAb, updBookings, updConds, updAttr)
+
+      case None => op(ID.newID, name, ability, bookings, conds.toList, attr)
+    }
+
+    ops = ops + (name -> updOp)
+    updOp.id
+  }
+
 
   var sops: List[SOPSpec] = List.empty
   def sop(name: String, sop: List[SOP], attributes: SPAttributes = SPAttributes()) = {
@@ -746,7 +777,7 @@ trait MiniModel extends CondStuff with ThingStuff with ActorStuff with Synthesiz
 
   def addBookings() = {
     val bookingMap = operations.foldLeft(Map[String, Set[ID]]()){ case (aggr, o) =>
-      val bookingsForOp = o.attributes.getAs[List[String]]("bookings").getOrElse(List())
+      val bookingsForOp = o.attributes.getAs[Set[String]]("bookings").getOrElse(List())
       bookingsForOp.foldLeft(aggr){ case (aggr, resource) =>
         aggr + aggr.get(resource).map(s => resource -> (s + o.id)).getOrElse(resource -> Set(o.id))
       }
