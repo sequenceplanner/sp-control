@@ -45,12 +45,12 @@ object UR {
     // "FindEngineRightUpJOINTPose",
     // "FindEngineLeftUpJOINTPose",
     // "FindEngineMidUpJOINTPose",
-    // "LFOperationMidpoint1JOINTPose",
-    // "LFOperationMidpoint2JOINTPose",
-    // "LFOperationMidpoint3JOINTPose",
-    // "LFOperationMidpoint4JOINTPose",
-    // "LFOperationMidpoint5JOINTPose",
-    // "AfterLFOperationJOINTPose",
+    "LFOperationMidpoint1JOINTPose",
+    "LFOperationMidpoint2JOINTPose",
+    "LFOperationMidpoint3JOINTPose",
+    "LFOperationMidpoint4JOINTPose",
+    "LFOperationMidpoint5JOINTPose",
+    "AfterLFOperationJOINTPose",
     // "OFMidpoint1JOINTPose",
     // "OFMidpoint2JOINTPose",
     // "AboveUntightenedOF1JOINTPose",
@@ -187,12 +187,12 @@ object UR {
   // PreAttachLFToolCloseTCP from PreAttachLFToolFarJOINT, AttachLFToolTCP,
   // AttachLFToolTCP from PreAttachLFToolCloseTCP,
   // AAPRLFToolTCP from List()
-  val LFToolPoses = List("PreAttachLFToolFarJOINT", "PreAttachLFToolCloseTCP", "AttachLFToolTCP", "AAPRLFToolTCP")
+  val LFToolPoses = List("PreAttachLFToolFarJOINTPose", "PreAttachLFToolCloseTCPPose", "AttachLFToolTCPPose", "AAPRLFToolTCPPose")
   val moveMapLFToolNoTool = Map(
-    "PreAttachLFToolFarJOINT" -> List("PRE_ATTACH_OF", "PreAttachLFToolCloseTCP"),
-    "PreAttachLFToolCloseTCP" -> List("PreAttachLFToolFarJOINT", "AttachLFToolTCP"),
-    "AttachLFToolTCP" -> List("PreAttachLFToolCloseTCP"),
-    "AAPRLFToolTCP" -> List()
+    "PreAttachLFToolFarJOINTPose" -> List("PRE_ATTACH_OF", "PreAttachLFToolCloseTCPPose"),
+    "PreAttachLFToolCloseTCPPose" -> List("PreAttachLFToolFarJOINTPose", "AttachLFToolTCPPose"),
+    "AttachLFToolTCPPose" -> List("PreAttachLFToolCloseTCPPose"),
+    "AAPRLFToolTCPPose" -> List()
   )
 
   // allowed movements with the tool:
@@ -201,14 +201,21 @@ object UR {
   // AttachLFToolTCP from AAPRLFToolTCP,
   // AAPRLFToolTCP from PreAttachLFToolFarJOINT with gripper open
   val moveMapLFToolWithTool = Map(
-    "PreAttachLFToolFarJOINT" -> List("PRE_ATTACH_OF", "AAPRLFToolTCP"),
-    "PreAttachLFToolCloseTCP" -> List(),
-    "AttachLFToolTCP" -> List("AAPRLFToolTCP"),
-    "AAPRLFToolTCP" -> List("PreAttachLFToolFarJOINT") // with gripper open
+    "PreAttachLFToolFarJOINTPose" -> List("PRE_ATTACH_OF", "AAPRLFToolTCPPose"),
+    "PreAttachLFToolCloseTCPPose" -> List(),
+    "AttachLFToolTCPPose" -> List("AAPRLFToolTCPPose"),
+    "AAPRLFToolTCPPose" -> List("AttachLFToolTCPPose", "PreAttachLFToolFarJOINTPose") // with gripper open
   )
 
 
 
+  val moveMapLFOp = Map(  // these all need the LF tool
+    "LFOperationMidpoint1JOINTPose" -> List("PRE_ATTACH_OF", "LFOperationMidpoint2JOINTPose"),
+    "LFOperationMidpoint2JOINTPose" -> List("LFOperationMidpoint1JOINTPose","LFOperationMidpoint3JOINTPose"),
+    "LFOperationMidpoint3JOINTPose" -> List("LFOperationMidpoint2JOINTPose","LFOperationMidpoint4JOINTPose"),
+    "LFOperationMidpoint4JOINTPose" -> List("LFOperationMidpoint3JOINTPose", "LFOperationMidpoint5JOINTPose"),
+    "LFOperationMidpoint5JOINTPose" -> List("LFOperationMidpoint4JOINTPose")
+  )
 
 }
 
@@ -358,6 +365,7 @@ class RECU(override val system: ActorSystem) extends ROSResource {
   // bool pressure_ok
 
   val notool = i("robot_not_connected_to_tool", true)
+  val lftool = i("robot_connected_to_lf_tool", false)
   val oftool = i("robot_connected_to_filter_tool", false)
   val pressure = i("pressure_ok", false)
 
@@ -366,24 +374,39 @@ class RECU(override val system: ActorSystem) extends ROSResource {
 
   val lock_rsp = o("lock_rsp", false)
   val unlock_rsp = o("unlock_rsp", false)
+  val open_gripper = o("open_gripper", false)
+  val close_gripper = o("close_gripper", false)
 
-  val pubMapping = IDToStringMapper(Map(
-    lock_rsp -> "lock_rsp",
-    unlock_rsp -> "unlock_rsp"
-  ))
 
+  val pubMapping = createOutputMappingFromMessageType("unification_ros2_messages/RecuSPToUni")
   publish("/unification_roscontrol/recu_sp_to_uni", "unification_ros2_messages/RecuSPToUni", Some(100 millis), pubMapping)
 
-  // there no feedback whether the tool is locked or not.
+  // there no feedback whether the tool is locked or not. same for the gripper
   // we can only know which specific tool has been attached
 
   a("lock")(
     c("pre", "true", "lock_rsp := true", "unlock_rsp := false"),
+    c("isFinished", "lock_rsp == true && unlock_rsp == false"),
     c("reset", "true")
   )
 
   a("unlock")(
     c("pre", "true", "lock_rsp := false", "unlock_rsp := true"),
+    c("isFinished", "lock_rsp == false && unlock_rsp == true"),
+    c("reset", "true")
+  )
+
+  a("open")(
+    c("pre", "robot_connected_to_lf_tool", "open_gripper := true", "close_gripper := false"),
+    c("isExecuting", "false"),
+    c("isFinished", "open_gripper == true && close_gripper == false"),
+    c("reset", "true")
+  )
+
+  a("close")(
+    c("pre", "robot_connected_to_lf_tool", "open_gripper := false", "close_gripper := true"),
+    c("isExecuting", "false"),
+    c("isFinished", "open_gripper == false && close_gripper == true"),  /// these should use the "auto-shadowed echo" variables...
     c("reset", "true")
   )
 
@@ -440,7 +463,7 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   }.toMap
 
   v("bolt1Tightened", false)
-  o("watchForBolt1Tightened", SPAttributes("ability" -> "yes"))(
+  o("watchForBolt1Tightened", attr = SPAttributes("ability" -> "yes"))(
     c("isExecuting", "aecu.startToolForward == 'finished' && (ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && !aecu.programmed_torque_reached"),
     c("isFinished", "aecu.startToolForward == 'finished' &&(ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && aecu.programmed_torque_reached", "bolt1Tightened := true")
   )
@@ -508,19 +531,72 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   // 5. AttachLFToolTCP                              ---> unlock rsp
   // 6. AttachLFToolTCP and rsp unlocked             ---> PreAttachLFToolFarJOINT
 
+  UR.LFToolPoses.foreach { p =>
+    val withoutTool = UR.moveMapLFToolNoTool.get(p).map{source =>
+      val pose = if(source.isEmpty) "false" else s"(${source.map(s=>s"ur.actPos == '$s'").mkString("||")})"
+      s"(recu.robot_not_connected_to_tool && !recu.lock_rsp) && $pose"}.getOrElse("true")
+    val withTool = UR.moveMapLFToolWithTool.get(p).map{source =>
+      val pose = if(source.isEmpty) "false" else s"(${source.map(s=>s"ur.actPos == '$s'").mkString("||")})"
+      s"(recu.robot_connected_to_lf_tool && recu.lock_rsp) && $pose"}.getOrElse("true")
+    val lftool = c("pre", s"($withoutTool || $withTool)")
+    o(s"ur.goto$p")(lftool)
+  }
+
+  // moving into position for LF magic operation
+  UR.moveMapLFOp.foreach { case (target, sources) =>
+    val sourcePose = if(sources.isEmpty) "false" else s"(${sources.map(s=>s"ur.actPos == '$s'").mkString("||")})"
+    val hasTool = "recu.robot_connected_to_lf_tool"
+    o(s"ur.goto$target")(c("pre", s"$sourcePose && $hasTool"))
+  }
+
+  // disable this move -- performed by the ur-script
+  o(s"ur.gotoAfterLFOperationJOINTPose")(c("pre", "false"))
+
+  // execute "lf magic" ur-script
+  v("lf", "onMir", List("onMir", "onEngine"))
+  v("doingLFMagic", false) // no feedback for now, fake it
+  o("ur.lfmagic", bookings = Set("ur"), attr = SPAttributes("ability" -> "yes"))(
+    c("pre", s"recu.robot_connected_to_lf_tool && ur.gotoLFOperationMidpoint5JOINTPose == 'finished'", "doingLFMagic := true"),
+    c("isExecuting", s"doingLFMagic"),
+    c("executingEffect", "true", "ur.actPos := 'AfterLFOperationJOINTPose'"),
+    c("isFinished", s"doingLFMagic && ur.actPos == 'AfterLFOperationJOINTPose'", "doingLFMagic := false", "lf := onEngine"),
+  )
+
+
+  // disable moving to home during tool change sequence
+  o("ur.gotoPRE_ATTACH_OF")(
+    c("pre", s"ur.actPos != 'AttachLFToolTCPPose' && ur.actPos != 'AAPRLFToolTCPPose' && ur.actPos != 'PreAttachLFToolCloseTCPPose'")
+  )
+  // gripper needs to be opened/closed during some moves
+  o("recu.open", "recu.open", "ur")()
+  o("recu.close", "recu.close", "ur")()
+
+  o(s"ur.gotoAAPRLFToolTCPPose")(c("pre", "(recu.robot_connected_to_lf_tool && recu.open == 'finished') || recu.robot_not_connected_to_tool"))
+
+
+
+  val unlockRspWhenNotHoldingATool = o("lfAttach.unlockRSP", "recu.unlock", "ur")(
+    c("pre", s"recu.robot_not_connected_to_tool"),
+  )
+  val lockRspToConnectLFTool = o("lfAttach.lockRSP", "recu.lock", "ur")(
+    c("pre", s"recu.robot_not_connected_to_tool && ur.gotoAttachLFToolTCPPose == 'finished'"),
+    c("isExecuting", s"recu.lock_rsp && recu.robot_not_connected_to_tool && ur.gotoAttachLFToolTCPPose == 'finished'"),
+    c("executingEffect", "true", "recu.robot_connected_to_lf_tool := true", "recu.robot_not_connected_to_tool := false"),
+    c("isFinished", s"recu.robot_connected_to_lf_tool && ur.gotoAttachLFToolTCPPose == 'finished'"),
+  )
 
   val humanState = v("human", "idle", List("idle", "executing", "finished"))
   val humanDone = i("humanDone", false)
   val humanAvailable = i("humanAvailable", true)
 
-  val humanTighten = o("human.tighten", SPAttributes("ability" -> "yes"))(
+  val humanTighten = o("human.tighten", attr = SPAttributes("ability" -> "yes"))(
     c("pre", s"human == 'idle' && humanAvailable && ur.actPos != 'OF_1_TIGHTENED' && ur.refPos != 'OF_1_TIGHTENED'", "human := 'executing'"),
     c("isExecuting", "human == 'executing' && !humanDone"),
     c("executingEffect", "true", "humanDone := true"),
     c("isFinished", "human == 'executing' && humanDone", "of2 := true", "human := 'finished'")
   )
 
-  val humanReset = o("human.reset", SPAttributes("ability" -> "yes"))(
+  val humanReset = o("human.reset", attr = SPAttributes("ability" -> "yes"))(
     c("pre", s"human == finished", "human := idle")
   )
 
@@ -531,37 +607,50 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   //   c("isFinished", s"tighten == 'active' && of1", "tighten := 'idle'")
   // )
 
-  val getoftool = o("getOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+  val getlftool = o("getLfTool", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+    c("pre", s"recu.robot_not_connected_to_tool && ur.actPos == 'PRE_ATTACH_OF'"),
+    c("post", s"recu.robot_connected_to_lf_tool && ur.actPos == 'PRE_ATTACH_OF'")
+  )
+
+  val lfToEngine = o("putLfOnEngine", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+    c("pre", s"ur.actPos == 'PRE_ATTACH_OF' && lf == 'onMir'"),
+    c("post", s"lf == 'onEngine'")
+  )
+
+  val getoftool = o("getOfTool", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true))(
     c("pre", s"!ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PRE_ATTACH_OF'"),
     c("post", s"ur.isAttachedOFMoveit && recu.robot_connected_to_filter_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'")
   )
 
-  val leaveoftool = o("leaveOfTool", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+  val leaveoftool = o("leaveOfTool", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true))(
     c("pre", s"recu.robot_connected_to_filter_tool && ur.actPos == 'PRE_ATTACH_OF'"),
     c("post", s"!ur.isAttachedOFMoveit && recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachOFToolFarJOINTPose'")
   )
 
 
-  val attachOF1 = o("attachOF1", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+  val attachOF1 = o("attachOF1", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true))(
     c("pre", s"!of1 && ur.actPos == 'PRE_ATTACH_OF' && recu.robot_connected_to_filter_tool"),
     c("post", s"of1 && ur.actPos == 'PRE_ATTACH_OF'")
   )
 
-  val attachOF2 = o("attachOF2", SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+  val attachOF2 = o("attachOF2", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true))(
     c("pre", s"!of2"),
     c("post", s"of2")
   )
 
-  val highLevelOps = List(getoftool, leaveoftool, attachOF1, attachOF2)
+  // instantiate abilities
+  makeOps()
+
+  // add resource bookings
+  addBookings()
+
+
+  val highLevelOps = List(getlftool, lfToEngine, getoftool, leaveoftool, attachOF1, attachOF2)
   // just build a simple sop to visualize the ability states
   // make a grid with four columns to utilize the space we have in the widget
   val grid = List(0,1,2,3).map(n=>operations.filterNot(o=>highLevelOps.exists(_==o.id)).sliding(4,4).flatMap(_.lift(n)).toList)
   sop("abilities", List(Parallel(grid.map(s=>Sequence(s.map(o=>SOP(o)))))))
   sop("operations", List(Sequence(highLevelOps.map(o=>SOP(o)))))
-
-
-  // resource bookings
-  addBookings()
 
   exportNuXmv("ipsintegration.smv")
 }
