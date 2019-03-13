@@ -150,7 +150,7 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
           // high level plan operations can always be reset
           // update global goal state
           val updGoals = currentGoals + (op.id -> SPValue(resetGoalStr))
-          println("updGoals: " + updGoals)
+          println("updGoals (start reset): " + updGoals)
           val ns = s.next(op.id -> SPValue("resetting")).next(goalStates -> SPValue(updGoals))
           // 2. compute plan on new state
           val planSpec = plansToLTL(updGoals.values.toList.flatMap(v=>v.asOpt[String]))
@@ -173,7 +173,7 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
           // high level plan operations can always reset when not enabled
           // update global goal state
           val updGoals = currentGoals + (op.id -> SPValue(goalStr))
-          println("current total goals: " + updGoals)
+          println("updGoals (starting): " + updGoals)
           val ns2 = ns.next(goalStates -> SPValue(updGoals))
           // 2. compute plan on new state
           val planSpec = plansToLTL(updGoals.values.toList.flatMap(v=>v.asOpt[String]))
@@ -186,7 +186,7 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
           // take finish transition
           println("taking finish transition for operation: " + op.name)
           val updGoals = currentGoals - op.id
-          println("updGoals: " + updGoals)
+          println("updGoals (finish op): " + updGoals)
           val ns = (post.foldLeft(s){(tempS, cond) => cond.next(tempS)}).next(op.id -> SPValue("finished")).next(goalStates -> SPValue(updGoals))
           (ns, plan)
         } else if(s.get(op.id) == Some(SPValue("executing"))) {
@@ -196,7 +196,7 @@ object RunnerLogic extends sp.modelSupport.ExportNuXmvFile2 {
         else if(s.get(op.id) == Some(SPValue("resetting")) && isEnabled) {
           println("resetting done, back to enabled! clearing the goal")
           val updGoals = currentGoals - op.id
-          println("updGoals: " + updGoals)
+          println("updGoals after reset: " + updGoals)
           (s.next(op.id -> SPValue("enabled")).next(goalStates -> SPValue(updGoals)), plan)
         } else if(s.get(op.id) == Some(SPValue("resetting"))) {
           (s, plan)

@@ -556,7 +556,7 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   v("lf", "onMir", List("onMir", "onEngine"))
   v("doingLFMagic", false) // no feedback for now, fake it
   o("ur.lfmagic", bookings = Set("ur"), attr = SPAttributes("ability" -> "yes"))(
-    c("pre", s"recu.robot_connected_to_lf_tool && ur.gotoLFOperationMidpoint5JOINTPose == 'finished'", "doingLFMagic := true"),
+    c("pre", s"recu.robot_connected_to_lf_tool && ur.gotoLFOperationMidpoint5JOINTPose == 'finished'", "doingLFMagic := true", "ur.refPos := 'UNKNOWN'"),
     c("isExecuting", s"doingLFMagic"),
     c("executingEffect", "true", "ur.actPos := 'AfterLFOperationJOINTPose'"),
     c("isFinished", s"doingLFMagic && ur.actPos == 'AfterLFOperationJOINTPose'", "doingLFMagic := false", "lf := onEngine"),
