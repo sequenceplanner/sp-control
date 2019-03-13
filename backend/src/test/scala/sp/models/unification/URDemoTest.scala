@@ -1,124 +1,124 @@
-package sp.models.unification.urdemo2
+// package sp.models.unification.urdemo2
 
-import org.scalatest._
+// import org.scalatest._
 
-import akka.testkit._
-import akka.actor.ActorSystem
-import com.typesafe.config.ConfigFactory
-import akka.stream._
-import akka.stream.scaladsl._
-import akka.{ NotUsed, Done }
-import scala.concurrent.duration._
-import scala.concurrent._
+// import akka.testkit._
+// import akka.actor.ActorSystem
+// import com.typesafe.config.ConfigFactory
+// import akka.stream._
+// import akka.stream.scaladsl._
+// import akka.{ NotUsed, Done }
+// import scala.concurrent.duration._
+// import scala.concurrent._
 
-import sp.domain.Logic._
-import sp.domain._
+// import sp.domain.Logic._
+// import sp.domain._
 
-import sp.streams._
+// import sp.streams._
 
-import sp.runners._
-import sp.runners.Shared._
-
-
-
-class URDemoTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLike with Matchers with BeforeAndAfterAll {
-
-  def this() = this(ActorSystem("SP", ConfigFactory.parseString(
-    """
-      | akka.actor.provider = "cluster"
-      | akka.remote.netty.tcp.port=0
-      | akka.remote.artery.canonical.port=0
-    """.stripMargin)))
-
-  override def afterAll {
-    TestKit.shutdownActorSystem(system)
-  }
+// import sp.runners._
+// import sp.runners.Shared._
 
 
-  import sp.drivers.ros2.ROSHelpers
-  val uni2spmsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItUniToSP").get
-  val sp2unimsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItSPToUni").get
 
-  val robotInput = ROSHelpers.createROSMsg("unification_ros2_messages/RobotiqUniToSP").get
-  val robotOutput = ROSHelpers.createROSMsg("unification_ros2_messages/RobotiqSPToUni").get
+// class URDemoTest(_system: ActorSystem) extends TestKit(_system) with FreeSpecLike with Matchers with BeforeAndAfterAll {
 
-  val uni2spAttr = ROSHelpers.msgToAttr(uni2spmsg)
-  val sp2uniAttr = ROSHelpers.msgToAttr(sp2unimsg)
+//   def this() = this(ActorSystem("SP", ConfigFactory.parseString(
+//     """
+//       | akka.actor.provider = "cluster"
+//       | akka.remote.netty.tcp.port=0
+//       | akka.remote.artery.canonical.port=0
+//     """.stripMargin)))
 
-  val robotInputAttr = ROSHelpers.msgToAttr(robotInput)
-  val robotOutputAttr = ROSHelpers.msgToAttr(robotOutput)
+//   override def afterAll {
+//     TestKit.shutdownActorSystem(system)
+//   }
 
-  println(uni2spAttr)
-  println(sp2uniAttr)
-  println(robotInputAttr)
-  println(robotOutputAttr)
 
-//  assert(false)
+//   import sp.drivers.ros2.ROSHelpers
+//   val uni2spmsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItUniToSP").get
+//   val sp2unimsg = ROSHelpers.createROSMsg("unification_ros2_messages/MoveItSPToUni").get
 
-  val t0 = System.nanoTime()
-  val model = new Demo(system)
-  val t1 = System.nanoTime()
-  println("Time to make model: " + (t1 - t0) / 1e9d + " seconds")
+//   val robotInput = ROSHelpers.createROSMsg("unification_ros2_messages/RobotiqUniToSP").get
+//   val robotOutput = ROSHelpers.createROSMsg("unification_ros2_messages/RobotiqSPToUni").get
 
-  val operations = model.operations
-  val idables = model.getIDAbles()
-  val init = model.getInitialState()
-  val resources = model.makeResources()
+//   val uni2spAttr = ROSHelpers.msgToAttr(uni2spmsg)
+//   val sp2uniAttr = ROSHelpers.msgToAttr(sp2unimsg)
 
-  operations.foreach { o=>println(o.id + " - " + o.name) }
-  idables.find(_.name == "human.takeBlue").foreach(x=>println(x.asInstanceOf[Operation].conditions))
+//   val robotInputAttr = ROSHelpers.msgToAttr(robotInput)
+//   val robotOutputAttr = ROSHelpers.msgToAttr(robotOutput)
 
-  assert(false)
+//   println(uni2spAttr)
+//   println(sp2uniAttr)
+//   println(robotInputAttr)
+//   println(robotOutputAttr)
 
-  idables.foreach { println }
+// //  assert(false)
 
-  println("Initial state")
-  init.map { case (id, value) =>
-    println(idables.find(_.id == id).get.name + " - " + value.toString)
-  }
+//   val t0 = System.nanoTime()
+//   val model = new Demo(system)
+//   val t1 = System.nanoTime()
+//   println("Time to make model: " + (t1 - t0) / 1e9d + " seconds")
 
-  println("Resources")
-  resources.foreach { println }
+//   val operations = model.operations
+//   val idables = model.getIDAbles()
+//   val init = model.getInitialState()
+//   val resources = model.makeResources()
 
-  // start runner pipeline....
+//   operations.foreach { o=>println(o.id + " - " + o.name) }
+//   idables.find(_.name == "human.takeBlue").foreach(x=>println(x.asInstanceOf[Operation].conditions))
 
-  val initStateWithResources = init ++
-    resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
+//   assert(false)
 
-  val id = ID.newID
+//   idables.foreach { println }
 
-//   val runner = sp.runners.RunnerPipeline(
-//     operations = operations,
-//     transitionSystem = AbilityRunnerTransitions.abilityTransitionSystem,
-//     initialState = SPState("initial state", initStateWithResources),
-//     name = "test runner",
-//     system = system
-//   )
+//   println("Initial state")
+//   init.map { case (id, value) =>
+//     println(idables.find(_.id == id).get.name + " - " + value.toString)
+//   }
 
-//   runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
-// //  runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
+//   println("Resources")
+//   resources.foreach { println }
 
-//   val resourceSources = SPStreamSupport.mergeSources(resources.map(r=>r.inputs).flatten)
-//   val resourceSinks = SPStreamSupport.mergeSinks(resources.map(r=>r.outputs).flatten)
+//   // start runner pipeline....
 
-//   // add StateUpd to que and plug in flows and a sink to send SPState where you want
-//   val ks = resourceSources
-//     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
-//     .via(runner.runnerFlow)
-//     .map(_.state).map{s =>
-//       s.foreach { case (id, value) =>
-//         println(idables.find(_.id == id).get.name + " - " + value.toString)
-//       }
-//       s
-//     }
-//     .viaMat(KillSwitches.single)(Keep.right)
-//     .to(resourceSinks)
-//     .run()(ActorMaterializer())
+//   val initStateWithResources = init ++
+//     resources.foldLeft(State.empty){case (s,r) => s++r.initialState}
 
-//   val dieAfter = 30
+//   val id = ID.newID
 
-//   import scala.concurrent.ExecutionContext.Implicits.global
-//   system.scheduler.scheduleOnce(dieAfter.seconds)(ks.shutdown())
+// //   val runner = sp.runners.RunnerPipeline(
+// //     operations = operations,
+// //     transitionSystem = AbilityRunnerTransitions.abilityTransitionSystem,
+// //     initialState = SPState("initial state", initStateWithResources),
+// //     name = "test runner",
+// //     system = system
+// //   )
 
-//   Thread.sleep(dieAfter*1000)
-}
+// //   runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.enabledToStarting.id))
+// // //  runner.makeTransitionsUnControlled(List(AbilityRunnerTransitions.AbilityTransitions.finToNotEnabled.id))
+
+// //   val resourceSources = SPStreamSupport.mergeSources(resources.map(r=>r.inputs).flatten)
+// //   val resourceSinks = SPStreamSupport.mergeSinks(resources.map(r=>r.outputs).flatten)
+
+// //   // add StateUpd to que and plug in flows and a sink to send SPState where you want
+// //   val ks = resourceSources
+// //     .map(state => sp.runners.StateUpd(SPState("test", state), List()))
+// //     .via(runner.runnerFlow)
+// //     .map(_.state).map{s =>
+// //       s.foreach { case (id, value) =>
+// //         println(idables.find(_.id == id).get.name + " - " + value.toString)
+// //       }
+// //       s
+// //     }
+// //     .viaMat(KillSwitches.single)(Keep.right)
+// //     .to(resourceSinks)
+// //     .run()(ActorMaterializer())
+
+// //   val dieAfter = 30
+
+// //   import scala.concurrent.ExecutionContext.Implicits.global
+// //   system.scheduler.scheduleOnce(dieAfter.seconds)(ks.shutdown())
+
+// //   Thread.sleep(dieAfter*1000)
+// }
