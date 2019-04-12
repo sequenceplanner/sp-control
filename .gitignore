@@ -42,3 +42,5 @@ backend/gitignore
 
 # hydra-mode
 .sbt-hydra-history
+
+nohup.out
