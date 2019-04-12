@@ -140,6 +140,9 @@ trait ExportNuXmvFile2 {
   import sp.runners.AbilityRunnerTransitions._
   val idle = "idle" // we dont keep track of enabled/not enabled
 
+  private def getConds(conds: List[Condition], kind: String) = conds.filter(_.attributes.getAs[String]("kind").getOrElse("")==kind)
+
+
   def exportNuXmv(ids_ : List[IDAble], filename : String, initialState: Map[ID, SPValue], goal: Proposition, specs: String): Unit = {
     val ids = ids_.filterNot(_.attributes.getAs[Boolean]("notInModel").getOrElse(false))
 
@@ -153,7 +156,7 @@ trait ExportNuXmvFile2 {
 
     def ostart(o: Operation) = o.name+"_start"
 
-    val opStartVars = ops.map{o =>
+    val opStartVars = ops.filter(o=>getConds(o.conditions, "pre").map(_.guard).nonEmpty).map{o =>
       Thing(ostart(o), SPAttributes("initialState" -> SPValue(false), "domain" -> List(false, true)))
     }
 
@@ -216,17 +219,12 @@ trait ExportNuXmvFile2 {
 
     lines += "\n\n";
 
-    def getConds(conds: List[Condition], kind: String)  =
-      conds.filter(_.attributes.getAs[String]("kind").getOrElse("")==kind)
-
-
     // for convenience, start variables can only change when we can actually start the op, i.e. when we are enabled
     opStartVars.foreach { v =>
       lines += s"  next(${v.name}) := case\n"
       val o = ops.find(o => v.name == ostart(o)).get
       val pre = AND(getConds(o.conditions, "pre").map(_.guard))
-      if(pre != AND(List()))
-        lines += s"    ${o.name}_enabled : {FALSE,TRUE};\n"
+      lines += s"    ${o.name}_enabled : {FALSE,TRUE};\n"
       lines += s"    TRUE : FALSE;\n"
       lines += "  esac;\n\n"
     }

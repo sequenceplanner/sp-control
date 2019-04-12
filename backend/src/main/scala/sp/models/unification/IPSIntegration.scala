@@ -235,6 +235,14 @@ class UR(override val system: ActorSystem) extends ROSResource {
   val subFlow = prevMapping.via(subMapping)
   subscribe("/unification_roscontrol/ur_TARS_pose_unidriver_uni_to_sp", "unification_ros2_messages/URPoseUniToSP", subFlow)
 
+
+  // effects mapping and publisher. think a bit about this.
+  // val effectsMapping = IDToStringMapper(Map(moving -> "moving", actPos -> "actual_pose"))
+  // publish("/unification_roscontrol/ur_TARS_pose_unidriver_uni_to_sp", "unification_ros2_messages/URPoseUniToSP", None, effectsMapping)
+
+
+
+
   val attachedInMoveit = i("isAttachedOFMoveit", false)
   val fromMoveitMapping = Flow[Map[String, SPValue]].map{ state =>
     val attached = state.get("attached_objects").flatMap(_.asOpt[List[String]]).map(_.contains("OFTOOL")).getOrElse(false)
@@ -278,6 +286,22 @@ class UR(override val system: ActorSystem) extends ROSResource {
 
   publish("/unification_roscontrol/ur_pose_unidriver_sp_to_uni", "unification_ros2_messages/URPoseSPToUni", Some(1000.millis), pubFlow)
   publish("/unification_roscontrol/scene_updater_sp_to_uni", "unification_ros2_messages/SceneUpdaterSPToUni", Some(1000.millis), attachMapping)
+
+  // a("moveToPos", Map("rp" -> refPos))(
+
+  //   p(Map(                                      /// Named predicates
+  //     "isEnabled" -> "!moving",
+  //     "isStarting" -> "!moving && refPos != actPos",
+  //     "isExecuting", "moving || actPos != refPos",
+  //     "isFinished", "!moving && actPos == refPos"
+  //   )),
+
+  //   da("isEnabled", "refPos := rp"),            /// Deliberated control Action
+  //   aa("isFinished", "refPos := 'UNKNOWN'"),    /// Automatic control Action
+
+  //   e("isStarting", "moving := true", "actPos := 'UNKNOWN'"),    /// Effect
+  //   e("isExecuting", "moving := false", "actPos := refPos"),     /// Effect
+  // )
 
   a("moveToPos", List(refPos))(
     c("pre", "!moving"),
@@ -465,6 +489,7 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   v("bolt1Tightened", false)
   o("watchForBolt1Tightened", attr = SPAttributes("ability" -> "yes"))(
     c("isExecuting", "aecu.startToolForward == 'finished' && (ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && !aecu.programmed_torque_reached"),
+    c("executingEffect", "true", "aecu.programmed_torque_reached := true"),
     c("isFinished", "aecu.startToolForward == 'finished' &&(ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && aecu.programmed_torque_reached", "bolt1Tightened := true")
   )
 
