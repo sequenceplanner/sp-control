@@ -6,9 +6,9 @@ import sp.domain.logic._
 import sp.domain.Logic._
 import sp.runners.PTM_Models._
 
-class PTMRunnerTest extends FreeSpec with Matchers {
+class PTMRunnerLogicTest extends FreeSpec with Matchers {
 
-  "testing the runner" - {
+  "testing PTM logic runner" - {
     val m = new TestModel {}
     import m._
     "uncontrolled ordering testing" in {
@@ -201,6 +201,18 @@ class PTMRunnerTest extends FreeSpec with Matchers {
       assert(res3._2.xs.isEmpty && res3._3.nonEmpty)
 
     }
+
+    "test runnerlogic with operations" in {
+      val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))
+      var res = runOps(initState, List(o1, o2), List(preO1.id, preO2.id))
+      println(s"one step: ${res.fired.map(_.name)}")
+      res = runOps(res.updS, List(o1, o2), res.updQ)
+      println(s"one step: ${res.fired.map(_.name)}")
+      res = runOps(res.updS, List(o1, o2), res.updQ)
+      println(s"one step: ${res.fired.map(_.name)}")
+      assert(res.updQ.isEmpty)
+
+    }
   }
 
 }
@@ -209,10 +221,11 @@ trait TestModel {
   val v1 = Thing("v1")
   val v2 = Thing("v2")
   val v3 = Thing("v3")
+  val v4 = Thing("v4")
   val t = SPValue(true)
   val f = SPValue(false)
 
-  val ids = List(v1, v2, v3)
+  val ids = List(v1, v2, v3, v4)
 
   val t1 = PTMTransition(
     condition = c(ids, "v1 && !v2", "v3 := true"),
@@ -228,9 +241,39 @@ trait TestModel {
     name = "t3"
   )
 
+  val preO1 = PTMTransition(
+    condition = c(ids, "!v1", "v1 := true"),
+    name = "preO1"
+  )
+  val postO1 = PTMTransition(
+    condition = c(ids, "v1 && !v2", "v2 := true"),
+    name = "postO1"
+  )
+
+
+  val preO2 = PTMTransition(
+    condition = c(ids, "v2", "v3 := true"),
+    name = "preO2"
+  )
+  val postO2 = PTMTransition(
+    condition = c(ids, "v3 && !v4", "v4 := true"),
+    name = "postO2"
+  )
+
   val trans = List(t1, t2, t3)
 
-  //val o1 = PTMOperation()
+  val o1 = PTMOperation(
+    predicates = List(),
+    controlled = List(preO1),
+    unControlled = List(postO1),
+    effects = List()
+  )
+  val o2 = PTMOperation(
+    predicates = List(),
+    controlled = List(preO2),
+    unControlled = List(postO2),
+    effects = List()
+  )
 
 
   def c(ids: List[IDAble], guard: String, actions: String*) = {

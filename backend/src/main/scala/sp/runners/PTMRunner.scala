@@ -3,7 +3,7 @@ package sp.runners
 import sp.domain._
 import sp.domain.Logic._
 import PTM_Models._
-import akka.actor.Actor
+import akka.actor.{Actor, Props}
 case class PTMRunnerState(state: Option[SPState] = None,
                           ops: List[PTMOperation] = List(),
                           abs: List[PTMOperation] = List(),
@@ -14,6 +14,9 @@ case class PTMRunnerState(state: Option[SPState] = None,
                       )
 
 
+object PTMRunnerActor {
+  def props(init: PTMRunnerState) = Props(classOf[PTMRunnerActor], init)
+}
 class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
 
   var internal = initialRunnerState
