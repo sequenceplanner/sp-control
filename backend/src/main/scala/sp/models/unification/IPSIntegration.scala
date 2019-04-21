@@ -78,25 +78,26 @@ object UR {
     "AttachOFToolTCPPose",
     "AAPROFTool1TCPPose",
     "AAPROFTool2TCPPose",
-    // "AboveEngineTCPPose",
-    // "FarAboveBoltPair1TCPPose",
-    // "CloseAboveBoltPair1TCPPose",
-    // "AtBoltPair1TCPPose",
-    // "FarAboveBoltPair2TCPPose",
-    // "CloseAboveBoltPair2TCPPose",
-    // "AtBoltPair2TCPPose",
-    // "FarAboveBoltPair3TCPPose",
-    // "CloseAboveBoltPair3TCPPose",
-    // "AtBoltPair3TCPPose",
-    // "FarAboveBoltPair4TCPPose",
-    // "CloseAboveBoltPair4TCPPose",
-    // "AtBoltPair4TCPPose",
-    // "FarAboveBoltPair5TCPPose",
-    // "CloseAboveBoltPair5TCPPose",
-    // "AtBoltPair5TCPPose",
-    // "FarAboveBoltPair6TCPPose",
-    // "CloseAboveBoltPair6TCPPose",
-    // "AtBoltPair6TCPPose",
+    // bolt tightening
+    "AboveEngineTCPPose",
+    "FarAboveBoltPair1TCPPose",
+    "CloseAboveBoltPair1TCPPose",
+    "AtBoltPair1TCPPose",
+    "FarAboveBoltPair2TCPPose",
+    "CloseAboveBoltPair2TCPPose",
+    "AtBoltPair2TCPPose",
+    "FarAboveBoltPair3TCPPose",
+    "CloseAboveBoltPair3TCPPose",
+    "AtBoltPair3TCPPose",
+    "FarAboveBoltPair4TCPPose",
+    "CloseAboveBoltPair4TCPPose",
+    "AtBoltPair4TCPPose",
+    "FarAboveBoltPair5TCPPose",
+    "CloseAboveBoltPair5TCPPose",
+    "AtBoltPair5TCPPose",
+    "FarAboveBoltPair6TCPPose",
+    "CloseAboveBoltPair6TCPPose",
+    "AtBoltPair6TCPPose",
     // "FarAboveBoltPair7TCPPose",
     // "CloseAboveBoltPair7TCPPose",
     // "AtBoltPair7TCPPose",
@@ -177,10 +178,20 @@ object UR {
     "AAPROFTool2TCPPose" -> List("AAPROFTool1TCPPose", "PreAttachOFToolFarJOINTPose"),
   )
 
+  val boltPairs = List(1,2,3,4,5,6)
+  val atlasFarAbovePoses = boltPairs.map(p=> s"FarAboveBoltPair${p}TCPPose")
+  val atlasCloseAbovePoses = boltPairs.map(p=> s"CloseAboveBoltPair${p}TCPPose")
+  val atlasAtPoses = boltPairs.map(p=> s"AtBoltPair${p}TCPPose")
 
+  val moveMapAtlasToAbove = Map("AboveEngineTCPPose" -> (atlasFarAbovePoses ++ atlasCloseAbovePoses ++ List("PRE_ATTACH_OF")))
+  val moveMapAtlasToFar = boltPairs.map(p =>
+    s"FarAboveBoltPair${p}TCPPose" -> List("AboveEngineTCPPose", s"CloseAboveBoltPair${p}TCPPose")).toMap
+  val moveMapAtlasToClose = boltPairs.map(p =>
+    s"CloseAboveBoltPair${p}TCPPose" -> List(s"FarAboveBoltPair${p}TCPPose",s"AtBoltPair${p}TCPPose")).toMap
+  val moveMapAtlasAt = boltPairs.map(p =>
+    s"AtBoltPair${p}TCPPose" -> List(s"CloseAboveBoltPair${p}TCPPose")).toMap
 
-
-
+  val moveMapAtlasWithTool = moveMapAtlasToAbove ++ moveMapAtlasToFar ++ moveMapAtlasToClose ++ moveMapAtlasAt
 
   // allowed movements witout the tool
   // PreAttachLFToolFarJOINT from PRE_ATTACH_OF, PreAttachLFToolCloseTCP
@@ -486,13 +497,6 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
     (p, op)
   }.toMap
 
-  v("bolt1Tightened", false)
-  o("watchForBolt1Tightened", attr = SPAttributes("ability" -> "yes"))(
-    c("isExecuting", "aecu.startToolForward == 'finished' && (ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && !aecu.programmed_torque_reached"),
-    c("executingEffect", "true", "aecu.programmed_torque_reached := true"),
-    c("isFinished", "aecu.startToolForward == 'finished' &&(ur.gotoOF_1_TIGHTENED == 'executing' ||  ur.gotoOF_1_TIGHTENED == 'finished') && aecu.programmed_torque_reached", "bolt1Tightened := true")
-  )
-
 
   //////// attach OF tool sequence
   // 1. PreAttachOFToolFarJOINT                     ---> PreAttachOFToolCloseTCP
@@ -599,6 +603,23 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   o(s"ur.gotoAAPRLFToolTCPPose")(c("pre", "(recu.robot_connected_to_lf_tool && recu.open == 'finished') || recu.robot_not_connected_to_tool"))
 
 
+  UR.moveMapAtlasWithTool.foreach { case (target, sources) =>
+    val sourcePose = if(sources.isEmpty) "false" else s"(${sources.map(s=>s"ur.actPos == '$s'").mkString("||")})"
+    val hasTool = "recu.robot_connected_to_filter_tool && !recu.unlock_rsp"
+    o(s"ur.goto$target")(c("pre", s"$sourcePose && $hasTool"))
+  }
+
+  val bolts = List(1,2,3,4,5,6)
+  bolts.foreach { p =>
+    val atPose = s"ur.gotoAtBoltPair${p}TCPPose"
+    val b = s"Bolt$p"
+    v(s"${b}Tightened", false)
+    o(s"watchFor${b}Tightened", attr = SPAttributes("ability" -> "yes"))(
+      c("isExecuting", s"aecu.startToolForward == 'finished' && (${atPose} == 'executing' ||  ${atPose} == 'finished') && !aecu.programmed_torque_reached"),
+      c("executingEffect", "true", "aecu.programmed_torque_reached := true"),
+      c("isFinished", s"aecu.startToolForward == 'finished' && (${atPose} == 'executing' ||  ${atPose} == 'finished') && aecu.programmed_torque_reached", s"${b}Tightened := true")
+    )
+  }
 
   val unlockRspWhenNotHoldingATool = o("lfAttach.unlockRSP", "recu.unlock", "ur")(
     c("pre", s"recu.robot_not_connected_to_tool"),
@@ -664,9 +685,11 @@ class IPSIntegrationModel(override val system: ActorSystem) extends MiniModel {
   )
 
   // instantiate abilities
+  println("make ops")
   makeOps()
 
   // add resource bookings
+  println("add booking")
   addBookings()
 
 
