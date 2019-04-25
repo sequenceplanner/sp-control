@@ -35,7 +35,8 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
       internal = internal.copy(opsQ = planningOps.updQ)
       val opsPredicates = evaluatePredicates(planningOps.updS, internal.ops)
 
-      //val newGoals =
+      val newGoals = makeGoal(opsPredicates)
+
       // Send away new planning for abs and ops with fire and forget. Also send out predicates
 
       val abilities = runOps(planningOps.updS, internal.abs, internal.absQ)
@@ -94,7 +95,7 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     OneStep(res._1, res._2.xs, res._3)
   }
 
-  def evaluatePredicates(s: SPState, xs: List[PTMOperation]) = {
+  def evaluatePredicates(s: SPState, xs: List[PTMOperation]): Map[PTMOperation, List[StatePredicate]] = {
     xs.map(o =>  o -> o.predicates.filter(_.predicate.eval(s))).toMap
   }
 
@@ -180,23 +181,37 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     c.action.map(a => a.id -> a.nextValue(s)).toMap
   }
 
-  def makePlanningOp(o: PTMOperation) = {
-    val variable = Thing(o.o.name)
+  def makePlanningOP(name: String, start: Condition, goal: Condition): (PTMOperation, Thing) = {
+    val variable = Thing(name)
+    val init = StatePredicate("i", EQ(SVIDEval(variable.id), ValueHolder("i")))
+    val execute = StatePredicate("e", EQ(SVIDEval(variable.id), ValueHolder("e")))
     val pre = PTMTransition(
-      Condition(EQ(SVIDEval(variable.id), ValueHolder("i")),
-        List(Action(variable.id, ValueHolder("e"))),
-        SPAttributes("kind" -> "pre")),
+      start.copy(
+        guard = AND(List(init.predicate, start.guard)),
+        action = Action(variable.id, ValueHolder("e")) +: start.action,
+        attributes = start.attributes + ("kind" -> "pre")
+      ),
       "pre"
     )
     val post = PTMTransition(
-      Condition(EQ(SVIDEval(variable.id), ValueHolder("e")),
-        List(Action(variable.id, ValueHolder("f"))),
-        SPAttributes("kind" -> "post")),
+      goal.copy(
+        guard = AND(List(execute.predicate, goal.guard)),
+        action = Action(variable.id, ValueHolder("f")) +: goal.action,
+        attributes = goal.attributes + ("kind" -> "post")
+      ),
       "post"
     )
-
+    (PTMOperation(List(init, execute), List(pre), List(post), List(), Operation("OP_"+name)), variable)
   }
 
+
+  def makeGoal(predicateMap: Map[PTMOperation, List[StatePredicate]]): Proposition = {
+    val runningOps = predicateMap.filter(o => o._2.exists(x => x.name == "e"))
+    val allPosts = runningOps.flatMap(o => o._1.unControlled.filter(_.name == "post").map(_.condition.guard)).toList
+    AND(allPosts)
+  }
+
+  // How to send in the transitions? Should we convert to operations or update the code in computePlan?
   def planAbilities(ids: List[IDAble], state: SPState, goal: Proposition) = {
     val (plan, ntrans, stdout, stderr) = computePlan(ids, state.state, 50, goal, "", "/tmp/runner.smv")
     println(plan)

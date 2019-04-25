@@ -52,28 +52,28 @@ trait SimplePlanningModel extends ConditionParseSupport {
   val abilities = List(p1, p2, p3).flatMap(p => List(makePick(p), makePlace(p)))
 
 
-  def makeMoveOP(name: String, start: Condition, goal: Condition) = {
-    val variable = Thing(name)
-    val init = StatePredicate("i", EQ(SVIDEval(variable.id), ValueHolder("i")))
-    val execute = StatePredicate("e", EQ(SVIDEval(variable.id), ValueHolder("e")))
-    val pre = PTMTransition(
-      start.copy(
-        guard = AND(List(init.predicate, start.guard)),
-        action = Action(variable.id, ValueHolder("e")) +: start.action,
-        attributes = start.attributes + ("kind" -> "pre")
-        ),
-      "pre"
-    )
-    val post = PTMTransition(
-      goal.copy(
-        guard = AND(List(execute.predicate, goal.guard)),
-        action = Action(variable.id, ValueHolder("f")) +: goal.action,
-        attributes = goal.attributes + ("kind" -> "post")
-      ),
-      "post"
-    )
-    (PTMOperation(List(init, execute), List(pre), List(post), List(), Operation("OP_"+name)), variable)
-  }
+//  def makeMoveOP(name: String, start: Condition, goal: Condition) = {
+//    val variable = Thing(name)
+//    val init = StatePredicate("i", EQ(SVIDEval(variable.id), ValueHolder("i")))
+//    val execute = StatePredicate("e", EQ(SVIDEval(variable.id), ValueHolder("e")))
+//    val pre = PTMTransition(
+//      start.copy(
+//        guard = AND(List(init.predicate, start.guard)),
+//        action = Action(variable.id, ValueHolder("e")) +: start.action,
+//        attributes = start.attributes + ("kind" -> "pre")
+//        ),
+//      "pre"
+//    )
+//    val post = PTMTransition(
+//      goal.copy(
+//        guard = AND(List(execute.predicate, goal.guard)),
+//        action = Action(variable.id, ValueHolder("f")) +: goal.action,
+//        attributes = goal.attributes + ("kind" -> "post")
+//      ),
+//      "post"
+//    )
+//    (PTMOperation(List(init, execute), List(pre), List(post), List(), Operation("OP_"+name)), variable)
+//  }
 
   val from12To23 = (
     "from12To23",
@@ -94,15 +94,15 @@ trait SimplePlanningModel extends ConditionParseSupport {
   )
 
   val opsMove = List(from12To23, from23To13).map{case (name, start, goal) =>
-    makeMoveOP(name, Condition(start), Condition(goal))
+    makePlanningOP(name, Condition(start), Condition(goal))
   }
 
   val opsSingle = List(from12To23).map{case (name, start, goal) =>
-    makeMoveOP(name, Condition(start), Condition(goal))
+    makePlanningOP(name, Condition(start), Condition(goal))
   }
 
   val opsImpossible = List(from12ToImpossible).map{case (name, start, goal) =>
-    makeMoveOP(name, Condition(start), Condition(goal))
+    makePlanningOP(name, Condition(start), Condition(goal))
   }
 
   val allOpsVars = List(opsImpossible, opsMove, opsSingle).flatMap(_.map(_._2))
@@ -204,6 +204,33 @@ class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with
 
 
 
+    }
+
+    "test evaluate predicates" in {
+      val ops = opsMove.map(_._1)
+      val predMap = evaluatePredicates(initState, ops)
+      val res = predMap.flatMap(_._2.map(_.name)).toList
+      res shouldEqual List("i", "i")
+    }
+
+    "test goal making" in {
+      val from12To23 = opsMove(0)
+      val from23To13 = opsMove(1)
+      val ops = opsMove.map(_._1)
+      val predMap = evaluatePredicates(initState, ops)
+      val noGoal = makeGoal(predMap)
+      noGoal shouldEqual AND(List())
+
+      val aGoal = makeGoal(evaluatePredicates(initState.next(from12To23._2.id -> SPValue("e")), ops))
+      println(aGoal)
+      aGoal shouldEqual AND(List(from12To23._1.unControlled.head.condition.guard))
+
+      val twoGoals = makeGoal(evaluatePredicates(initState.next(Map(
+        from12To23._2.id -> SPValue("e"),
+        from23To13._2.id -> SPValue("e")
+      )), ops))
+      println(twoGoals)
+      twoGoals shouldEqual AND(List(from12To23._1.unControlled.head.condition.guard, from23To13._1.unControlled.head.condition.guard))
     }
 
     "testing planning" in {
