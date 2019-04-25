@@ -12,13 +12,118 @@ import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Matchers}
 import sp.domain._
 import sp.domain.Logic._
 
+
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util._
 
+import PTM_Models._
+
+
+trait SimplePlanningModel extends ConditionParseSupport {
+  val p1 = Thing("p1")  // all has domain {none, partA, partB}
+  val p2 = Thing("p2")
+  val p3 = Thing("p3")
+  val gripper = Thing("gripper")
+  val ids = List(p1, p2, p3, gripper)
+
+  val t = SPValue(true)
+  val f = SPValue(false)
+  val none = SPValue("none")
+  val partA = SPValue("partA")
+  val partB = SPValue("partB")
+
+  def hasPred(t: Thing, v: SPValue): Proposition = EQ(SVIDEval(t.id), ValueHolder(v))
+  def notHavePred(t: Thing, v: SPValue): Proposition = NEQ(SVIDEval(t.id), ValueHolder(v))
+  def move(from: Thing, to: Thing): List[Action] = List(Action(to.id, ASSIGN(from.id)), Action(from.id, ValueHolder(none)))
+
+
+  def makePlace(pos: Thing) = {
+    val enabled = StatePredicate("enabled", AND(List(hasPred(pos, none), notHavePred(gripper, none))))
+    val run = PTMTransition(Condition(enabled.predicate, move(gripper, pos)))
+    PTMOperation(List(enabled), List(run), List(), List(), Operation(s"PlaceAt_${pos.name}"))
+  }
+  def makePick(pos: Thing) = {
+    val enabled = StatePredicate("enabled", AND(List(notHavePred(pos, none), hasPred(gripper, none))))
+    val run = PTMTransition(Condition(enabled.predicate, move(pos, gripper)))
+    PTMOperation(List(enabled), List(run), List(), List(), Operation(s"PickAt_${pos.name}"))
+  }
+
+  val abilities = List(p1, p2, p3).flatMap(p => List(makePick(p), makePlace(p)))
+
+
+  def makeMoveOP(name: String, start: Condition, goal: Condition) = {
+    val variable = Thing(name)
+    val init = StatePredicate("i", EQ(SVIDEval(variable.id), ValueHolder("i")))
+    val execute = StatePredicate("e", EQ(SVIDEval(variable.id), ValueHolder("e")))
+    val pre = PTMTransition(
+      start.copy(
+        guard = AND(List(init.predicate, start.guard)),
+        action = Action(variable.id, ValueHolder("e")) +: start.action,
+        attributes = start.attributes + ("kind" -> "pre")
+        ),
+      "pre"
+    )
+    val post = PTMTransition(
+      goal.copy(
+        guard = AND(List(execute.predicate, goal.guard)),
+        action = Action(variable.id, ValueHolder("f")) +: goal.action,
+        attributes = goal.attributes + ("kind" -> "post")
+      ),
+      "post"
+    )
+    (PTMOperation(List(init, execute), List(pre), List(post), List(), Operation("OP_"+name)), variable)
+  }
+
+  val from12To23 = (
+    "from12To23",
+    parseGuard("p1 == partA && p2 == partB && p3 == none", ids),
+    parseGuard("p1 == none && p2 == partA && p3 == partB", ids)
+  )
+
+  val from23To13 = (
+    "from23To13",
+    parseGuard("p1 == none && p2 == partA && p3 == partB", ids),
+    parseGuard("p1 == partB && p2 == none && p3 == partA", ids)
+  )
+
+  val from12ToImpossible = (
+    "from12ToImpossible",
+    parseGuard("p1 == partA && p2 == partB && p3 == none", ids),
+    parseGuard("p1 == none && p2 == none && p3 == none", ids)
+  )
+
+  val opsMove = List(from12To23, from23To13).map{case (name, start, goal) =>
+    makeMoveOP(name, Condition(start), Condition(goal))
+  }
+
+  val opsSingle = List(from12To23).map{case (name, start, goal) =>
+    makeMoveOP(name, Condition(start), Condition(goal))
+  }
+
+  val opsImpossible = List(from12ToImpossible).map{case (name, start, goal) =>
+    makeMoveOP(name, Condition(start), Condition(goal))
+  }
+
+  val allOpsVars = List(opsImpossible, opsMove, opsSingle).flatMap(_.map(_._2))
+  val opsMap = allOpsVars.map(_.id -> SPValue("i"))
+
+  val initState = SPState("runner",
+    Map(
+      p1.id -> partA,
+      p2.id -> partB,
+      p3.id -> none,
+      gripper.id -> none
+    ) ++ opsMap
+  )
+
+
+
+}
 
 class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with ImplicitSender
-  with FreeSpecLike with Matchers with BeforeAndAfterAll {
+  with FreeSpecLike with Matchers with BeforeAndAfterAll with SimplePlanningModel {
+
 
   def this() = this(ActorSystem("SP", ConfigFactory.parseString(
     """
@@ -40,51 +145,71 @@ class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with
   import akka.pattern.ask
 
   "PTM runner actor test" - {
-    import PTM_Models._
     val m = new TestModel {}
-    import m._
+
     "simple change internals" in {
       var init = PTMRunnerState(
-        state = Some(SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))), // replace complete state
-        ops = List(o1),
-        abs = List(o2),
-        opsQ = List(preO1.id),
-        absQ = List(preO2.id),
+        state = Some(SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))), // replace complete state
+        ops = List(m.o1),
+        abs = List(m.o2),
+        opsQ = List(m.preO1.id),
+        absQ = List(m.preO2.id),
         pause = Some(false)
       )
 
       val runner = system.actorOf(PTMRunnerActor.props(init))
 
-      var answer = runner ? SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))
+      var answer = runner ? SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))
       val result = Await.result(answer, 1.seconds)
 
       init = PTMRunnerState(
-        state = Some(SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))), // replace complete state
-        ops = List(o1, o2),
+        state = Some(SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))), // replace complete state
+        ops = List(m.o1, m.o2),
         abs = List(),
-        opsQ = List(preO1.id),
+        opsQ = List(m.preO1.id),
         absQ = List(),
         pause = Some(false)
       )
 
       runner ! init
-      answer = runner ? SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))
+      answer = runner ? SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))
       println(Await.result(answer, 1.seconds))
 
       init = PTMRunnerState(
-        state = Some(SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))), // replace complete state
+        state = Some(SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))), // replace complete state
         ops = List(),
-        abs = List(o1, o2),
+        abs = List(m.o1, m.o2),
         opsQ = List(),
-        absQ = List(preO1.id, preO2.id),
+        absQ = List(m.preO1.id, m.preO2.id),
         pause = Some(false)
       )
 
       runner ! init
-      answer = runner ? SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))
+      answer = runner ? SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))
       println(Await.result(answer, 1.seconds))
 
     }
+
+    "testing the model" in {
+      var res = abilities.filter(_.controlled.exists(x => x.condition.eval(initState)))
+      res.map(_.o.name) shouldEqual List("PickAt_p1", "PickAt_p2")
+
+      res = opsMove.map(_._1).filter(_.controlled.filter(x => x.condition.eval(initState)).nonEmpty)
+      res.map(_.o.name) shouldEqual List("OP_from12To23")
+
+      var newState = initState.next(Map(gripper.id -> partA, p1.id -> none))
+      res = abilities.filter(_.controlled.exists(x => x.condition.eval(newState)))
+      res.map(_.o.name).foreach(println)
+      res.map(_.o.name) shouldEqual List("PlaceAt_p1", "PlaceAt_p3")
+
+
+
+    }
+
+    "testing planning" in {
+      //val goal =
+    }
+
   }
 
 

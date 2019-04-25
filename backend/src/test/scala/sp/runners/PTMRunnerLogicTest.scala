@@ -296,5 +296,23 @@ trait TestModel {
 
 }
 
+trait ConditionParseSupport {
+  def c(ids: List[IDAble], guard: String, actions: String*) = {
+    val g = parseGuard(guard, ids)
+    val a = actions.map(x => parseAction(x, ids)).toList
+    Condition(g, a)
+  }
+  def parseGuard(x: String, ids: List[IDAble]): Proposition = {
+    val res = PropositionParser(ids).parseStr(x)
+    if (res.isLeft) println(res)
+    res.toOption.get
+  }
+  def parseAction(x: String, ids: List[IDAble]): Action = {
+    val res = ActionParser(ids).parseStr(x)
+    if (res.isLeft) println(res)
+    res.toOption.get
+  }
+}
+
 
 

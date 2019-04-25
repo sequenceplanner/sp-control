@@ -2,11 +2,10 @@ package sp.runners
 
 import sp.domain._
 import sp.domain.Logic._
-import PTM_Models._
 import akka.actor.{Actor, Props}
 case class PTMRunnerState(state: Option[SPState] = None,
-                          ops: List[PTMOperation] = List(),
-                          abs: List[PTMOperation] = List(),
+                          ops: List[PTM_Models.PTMOperation] = List(),
+                          abs: List[PTM_Models.PTMOperation] = List(),
                           opsQ: List[ID] = List(),
                           absQ: List[ID] = List(),
                           //disabledGroups: Set[SPValue],
@@ -14,10 +13,13 @@ case class PTMRunnerState(state: Option[SPState] = None,
                       )
 
 
+
 object PTMRunnerActor {
   def props(init: PTMRunnerState) = Props(classOf[PTMRunnerActor], init)
 }
+
 class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
+  import PTM_Models._
 
   var internal = initialRunnerState
   var state = initialRunnerState.state.getOrElse(SPState("noState", Map()))
@@ -71,9 +73,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
 
 
 
-
-
-object PTM_Models {
+object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
   case class StatePredicate(name: String, predicate: Proposition)
   case class PTMTransition(condition: Condition, name: String = "", id: ID = ID.newID)
 
@@ -81,7 +81,7 @@ object PTM_Models {
                           controlled: List[PTMTransition],
                           unControlled: List[PTMTransition],
                           effects: List[PTMTransition],
-                          //o: Operation
+                          o: Operation = Operation("noName")
                          )
   case class ControlQue(xs: List[ID])
   case class OneStep(updS: SPState, updQ: List[ID], fired: List[PTMTransition])
@@ -178,6 +178,31 @@ object PTM_Models {
   // returns only changed. Maybe better
   def next(c: Condition, s: SPState): Map[ID, SPValue] = {
     c.action.map(a => a.id -> a.nextValue(s)).toMap
+  }
+
+  def makePlanningOp(o: PTMOperation) = {
+    val variable = Thing(o.o.name)
+    val pre = PTMTransition(
+      Condition(EQ(SVIDEval(variable.id), ValueHolder("i")),
+        List(Action(variable.id, ValueHolder("e"))),
+        SPAttributes("kind" -> "pre")),
+      "pre"
+    )
+    val post = PTMTransition(
+      Condition(EQ(SVIDEval(variable.id), ValueHolder("e")),
+        List(Action(variable.id, ValueHolder("f"))),
+        SPAttributes("kind" -> "post")),
+      "post"
+    )
+
+  }
+
+  def planAbilities(ids: List[IDAble], state: SPState, goal: Proposition) = {
+    val (plan, ntrans, stdout, stderr) = computePlan(ids, state.state, 50, goal, "", "/tmp/runner.smv")
+    println(plan)
+    println(ntrans)
+    println(stdout)
+    println(stderr)
   }
 
 
