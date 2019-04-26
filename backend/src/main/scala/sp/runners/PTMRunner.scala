@@ -8,6 +8,7 @@ case class PTMRunnerState(state: Option[SPState] = None,
                           abs: List[PTM_Models.PTMOperation] = List(),
                           opsQ: List[ID] = List(),
                           absQ: List[ID] = List(),
+                          model: List[IDAble] = List(),
                           //disabledGroups: Set[SPValue],
                           pause: Option[Boolean] = None
                       )
@@ -31,7 +32,10 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
 
     case s: SPState =>  // Only allowed to be called via the flow!
 
-      val planningOps = runOps(state.next(s.state), internal.ops, internal.opsQ)
+      val planningOps = if (! pause)
+        runOps(state.next(s.state), internal.ops, internal.opsQ)
+      else
+        runPause(state.next(s.state), internal.ops, internal.opsQ)
       internal = internal.copy(opsQ = planningOps.updQ)
       val opsPredicates = evaluatePredicates(planningOps.updS, internal.ops)
 
@@ -39,7 +43,16 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
 
       // Send away new planning for abs and ops with fire and forget. Also send out predicates
 
-      val abilities = runOps(planningOps.updS, internal.abs, internal.absQ)
+      // *** planning in sync for testing
+      val aPlanWithBFS = findMeAPlan(internal.abs, planningOps.updS, newGoals)
+      internal = internal.copy(absQ = aPlanWithBFS)
+      // ***
+
+
+      val abilities = if (! pause)
+        runOps(planningOps.updS, internal.abs, internal.absQ)
+      else
+        runPause(planningOps.updS, internal.abs, internal.absQ)
       state = abilities.updS
       internal = internal.copy(state = Some(state), absQ = abilities.updQ)
       val absPredicates = evaluatePredicates(abilities.updS, internal.abs)
@@ -47,6 +60,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
       val fired = planningOps.fired ++ abilities.fired // We should send this to someone nice
       if (fired.nonEmpty) println(s"the following transition fired: ${fired.map(_.name)}")
       // Maybe also send out if a que was changed?
+      // Send out the state predicates or maybe we should include them in the state?
 
       sender() ! state
 
@@ -61,6 +75,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
         abs = if (x.abs.nonEmpty) x.abs else internal.abs,
         opsQ = if (x.opsQ.nonEmpty) x.opsQ else internal.opsQ,
         absQ = if (x.absQ.nonEmpty) x.absQ else internal.absQ,
+        model = if (x.model.nonEmpty) x.model else internal.model,
         pause = Some(pause)
       )
 
@@ -93,6 +108,10 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     val us = ops.flatMap(_.unControlled)
     val res = runOneStepSeq(s, cs, us, ControlQue(q))
     OneStep(res._1, res._2.xs, res._3)
+  }
+
+  def runPause(s: SPState, ops: List[PTMOperation], q: List[ID]): OneStep = {
+    OneStep(s, q, List())
   }
 
   def evaluatePredicates(s: SPState, xs: List[PTMOperation]): Map[PTMOperation, List[StatePredicate]] = {
@@ -212,12 +231,57 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
   }
 
   // How to send in the transitions? Should we convert to operations or update the code in computePlan?
-  def planAbilities(ids: List[IDAble], state: SPState, goal: Proposition) = {
-    val (plan, ntrans, stdout, stderr) = computePlan(ids, state.state, 50, goal, "", "/tmp/runner.smv")
-    println(plan)
-    println(ntrans)
-    println(stdout)
-    println(stderr)
+  def planAbilities(abilities: List[PTMOperation], model: List[IDAble], state: SPState, goal: Proposition) = {
+
+    // a temporary dummy planner
+    //val enabledOps =
+
+//    val absAsOps = abilities.map{a =>
+//
+//    }
+//
+//
+//    val (plan, ntrans, stdout, stderr) = computePlan(ids, state.state, 50, goal, "", "/tmp/runner.smv")
+//    println(plan)
+//    println(ntrans)
+//    println(stdout)
+//    println(stderr)
+  }
+
+  // DFS or BFS.
+  def findMeAPlan(ops: List[PTMOperation], state: SPState, goal: Proposition, maxPath: Int = 30): List[ID] = {
+    val controlled = ops.flatMap(_.controlled)
+    val unControlled = ops.flatMap(_.unControlled)
+
+    case class PimpedState(state: SPState, path: List[ID])
+    var stack = List[PimpedState](PimpedState(state, List()))
+    var foundGoal: Option[PimpedState] = None
+    var visited = Set[SPState]()
+
+    while (stack.nonEmpty && foundGoal.isEmpty) {
+      val s = stack.head
+      stack = stack.tail
+      if (!visited.contains(s.state)){  // no need to loop in the state!
+        visited += s.state
+        if (goal.eval(s.state)) foundGoal = Some(s)
+
+        val enabled = controlled.filter(t => t.condition.eval(s.state))
+        val nextStates = enabled.flatMap{t =>
+          val next = runOneStepSeq(s.state, controlled, unControlled, ControlQue(List(t.id)))
+          val path = t.id :: s.path
+          if (path.size > maxPath) None else Some(PimpedState(next._1, path))
+        }
+
+        // DFS
+        //stack = nextStates ++ stack
+
+        // BFS
+        stack = stack ++ nextStates
+
+      }
+    }
+
+    foundGoal.map(_.path.reverse).getOrElse(List())
   }
 
 

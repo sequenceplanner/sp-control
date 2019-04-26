@@ -39,41 +39,21 @@ trait SimplePlanningModel extends ConditionParseSupport {
 
 
   def makePlace(pos: Thing) = {
+    val name = s"PlaceAt_${pos.name}"
     val enabled = StatePredicate("enabled", AND(List(hasPred(pos, none), notHavePred(gripper, none))))
-    val run = PTMTransition(Condition(enabled.predicate, move(gripper, pos)))
-    PTMOperation(List(enabled), List(run), List(), List(), Operation(s"PlaceAt_${pos.name}"))
+    val run = PTMTransition(Condition(enabled.predicate, move(gripper, pos)), name)
+    PTMOperation(List(enabled), List(run), List(), List(), Operation(name))
   }
   def makePick(pos: Thing) = {
+    val name = s"PickAt_${pos.name}"
     val enabled = StatePredicate("enabled", AND(List(notHavePred(pos, none), hasPred(gripper, none))))
-    val run = PTMTransition(Condition(enabled.predicate, move(pos, gripper)))
-    PTMOperation(List(enabled), List(run), List(), List(), Operation(s"PickAt_${pos.name}"))
+    val run = PTMTransition(Condition(enabled.predicate, move(pos, gripper)), name)
+    PTMOperation(List(enabled), List(run), List(), List(), Operation(name))
   }
 
   val abilities = List(p1, p2, p3).flatMap(p => List(makePick(p), makePlace(p)))
+  val transitionMap = abilities.flatMap(_.controlled.map(x => x.id -> x.name)).toMap
 
-
-//  def makeMoveOP(name: String, start: Condition, goal: Condition) = {
-//    val variable = Thing(name)
-//    val init = StatePredicate("i", EQ(SVIDEval(variable.id), ValueHolder("i")))
-//    val execute = StatePredicate("e", EQ(SVIDEval(variable.id), ValueHolder("e")))
-//    val pre = PTMTransition(
-//      start.copy(
-//        guard = AND(List(init.predicate, start.guard)),
-//        action = Action(variable.id, ValueHolder("e")) +: start.action,
-//        attributes = start.attributes + ("kind" -> "pre")
-//        ),
-//      "pre"
-//    )
-//    val post = PTMTransition(
-//      goal.copy(
-//        guard = AND(List(execute.predicate, goal.guard)),
-//        action = Action(variable.id, ValueHolder("f")) +: goal.action,
-//        attributes = goal.attributes + ("kind" -> "post")
-//      ),
-//      "post"
-//    )
-//    (PTMOperation(List(init, execute), List(pre), List(post), List(), Operation("OP_"+name)), variable)
-//  }
 
   val from12To23 = (
     "from12To23",
@@ -234,7 +214,20 @@ class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with
     }
 
     "testing planning" in {
-      //val goal =
+      var goal = parseGuard("p1 == partB && p2 == none && p3 == partA", ids)
+      var plan = findMeAPlan(abilities, initState, goal)
+      println(plan.map(transitionMap))
+      plan.map(transitionMap) shouldEqual List("PickAt_p1", "PlaceAt_p3", "PickAt_p2", "PlaceAt_p1")
+
+      goal = parseGuard("p1 == none && p2 == partB && p3 == partA", ids)
+      plan = findMeAPlan(abilities, initState, goal)
+      println(plan.map(transitionMap))
+      plan.map(transitionMap) shouldEqual List("PickAt_p1", "PlaceAt_p3")
+
+      goal = parseGuard("p1 == none && p2 == none && p3 == none", ids)
+      plan = findMeAPlan(abilities, initState, goal)
+      println(plan.map(transitionMap))
+      plan.map(transitionMap) shouldEqual List()
     }
 
   }
