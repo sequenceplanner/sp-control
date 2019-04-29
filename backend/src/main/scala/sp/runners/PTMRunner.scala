@@ -3,13 +3,14 @@ package sp.runners
 import sp.domain._
 import sp.domain.Logic._
 import akka.actor.{Actor, Props}
+
+
 case class PTMRunnerState(state: Option[SPState] = None,
                           ops: List[PTM_Models.PTMOperation] = List(),
                           abs: List[PTM_Models.PTMOperation] = List(),
                           opsQ: List[ID] = List(),
                           absQ: List[ID] = List(),
                           model: List[IDAble] = List(),
-                          //disabledGroups: Set[SPValue],
                           pause: Option[Boolean] = None
                       )
 
@@ -25,18 +26,19 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
   var internal = initialRunnerState
   var state = initialRunnerState.state.getOrElse(SPState("noState", Map()))
   var pause = initialRunnerState.pause.getOrElse(false)
-  var prevState = state // remember when the state changes
+  var predicates: List[StatePredicate] = (internal.ops ++ internal.abs).flatMap(_.predicates)
 
 
   override def receive = {
 
     case s: SPState =>  // Only allowed to be called via the flow!
 
+      val updState = updPredicatesInState(state.next(s.state), predicates)
+
       val planningOps = if (! pause)
-        runOps(state.next(s.state), internal.ops, internal.opsQ)
+        runOps(updState, internal.ops, internal.opsQ, predicates)
       else
-        runPause(state.next(s.state), internal.ops, internal.opsQ)
-      internal = internal.copy(opsQ = planningOps.updQ)
+        runPause(updState, internal.ops, internal.opsQ)
       val opsPredicates = evaluatePredicates(planningOps.updS, internal.ops)
 
       val newGoals = makeGoal(opsPredicates)
@@ -50,12 +52,17 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
 
 
       val abilities = if (! pause)
-        runOps(planningOps.updS, internal.abs, internal.absQ)
+        runOps(planningOps.updS, internal.abs, internal.absQ, predicates)
       else
         runPause(planningOps.updS, internal.abs, internal.absQ)
-      state = abilities.updS
-      internal = internal.copy(state = Some(state), absQ = abilities.updQ)
       val absPredicates = evaluatePredicates(abilities.updS, internal.abs)
+
+      state = abilities.updS
+      internal = internal.copy(
+        state = Some(state),
+        opsQ = planningOps.updQ,
+        absQ = abilities.updQ
+      )
 
       val fired = planningOps.fired ++ abilities.fired // We should send this to someone nice
       if (fired.nonEmpty) println(s"the following transition fired: ${fired.map(_.name)}")
@@ -69,6 +76,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
       // just a simple way to handle update of internals. To be used by planners
       state = x.state.getOrElse(state)
       pause = x.pause.getOrElse(pause)
+      predicates = (internal.ops ++ internal.abs).flatMap(_.predicates)
       internal = PTMRunnerState(
         state = Some(state), // replace complete state
         ops = if (x.ops.nonEmpty) x.ops else internal.ops,
@@ -78,6 +86,9 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
         model = if (x.model.nonEmpty) x.model else internal.model,
         pause = Some(pause)
       )
+      sender() ! true
+
+    case "GetTheData" => sender() ! internal
 
   }
 
@@ -90,7 +101,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerState) extends Actor {
 
 
 object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
-  case class StatePredicate(name: String, predicate: Proposition)
+  case class StatePredicate(name: String, predicate: Proposition, id: ID = ID.newID)
   case class PTMTransition(condition: Condition, name: String = "", id: ID = ID.newID)
 
   case class PTMOperation(predicates: List[StatePredicate],
@@ -103,10 +114,10 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
   case class OneStep(updS: SPState, updQ: List[ID], fired: List[PTMTransition])
 
 
-  def runOps(s: SPState, ops: List[PTMOperation], q: List[ID]) = {
+  def runOps(s: SPState, ops: List[PTMOperation], q: List[ID], predicates: List[StatePredicate]) = {
     val cs = ops.flatMap(_.controlled)
     val us = ops.flatMap(_.unControlled)
-    val res = runOneStepSeq(s, cs, us, ControlQue(q))
+    val res = runOneStepSeq(s, cs, us, ControlQue(q), predicates)
     OneStep(res._1, res._2.xs, res._3)
   }
 
@@ -118,57 +129,14 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     xs.map(o =>  o -> o.predicates.filter(_.predicate.eval(s))).toMap
   }
 
-  /**
-    * This runs one controlled transition and multiple uncontrolled. Currently runs all based on
-    * the given state.
-    * @param state The input state
-    * @param controlled A list of controlled transition that only starts based on the que
-    * @param unControlled A list of uncontrolled transitions that starts when they are enabled
-    * @param que A list of transition ids defining the starting order
-    * @return A new state, que and list of fired transitions (just nu namn, sedan id)
-    *         (and returns the same if they where not updated)
-    */
-  def runOneStep(state: SPState,
-                 controlled: List[PTMTransition],
-                 unControlled: List[PTMTransition],
-                 que: ControlQue): (SPState, ControlQue, List[PTMTransition]) = {
-
-    // Some initial test that we can remove or do something with later
-    que.xs.foreach{t =>
-      if (!controlled.exists(c => c.id == t) ) println(s"transition $t in the que, does not exist in the controlled list")
-    }
-
-    val cT = for {
-      toStart <- que.xs.headOption
-      transition <- controlled.find(_.id == toStart)
-      if transition.condition.eval(state)
-    } yield transition
-
-    val tryControlledTransition = cT.map(t => next(t.condition, state)) // take step if controlled transition is enabled
-    val updQue = if (tryControlledTransition.isDefined) ControlQue(que.xs.tail) else que // remove head in que if transition taken
-
-    val stateAfterUncontrolled = unControlled.foldLeft((Map[ID, SPValue](), cT.toList)){case (sl, t) =>
-      if (t.condition.eval(state)){
-        val newS = next(t.condition, state)
-        // check so that we do not overwrite when newS ++ sl._1
-        (newS ++ sl._1, sl._2 :+ t)
-      } else
-        sl
-    }
-
-    // Maybe we should return only changed values?
-    val newS = stateAfterUncontrolled._1 ++ tryControlledTransition.getOrElse(Map())
-
-    (state.next(newS), updQue, stateAfterUncontrolled._2)
-  }
-
 
 
   // Runs all transition in sequence
   def runOneStepSeq(state: SPState,
                     controlled: List[PTMTransition],
                     unControlled: List[PTMTransition],
-                    que: ControlQue): (SPState, ControlQue, List[PTMTransition]) = {
+                    que: ControlQue,
+                    predicates: List[StatePredicate] = List()): (SPState, ControlQue, List[PTMTransition]) = {
 
     // Some initial test that we can remove or do something with later
     que.xs.foreach{t =>
@@ -181,13 +149,13 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
       if transition.condition.eval(state)
     } yield transition
 
-    val tryControlledTransition = cT.map(_.condition.next(state))
+    val tryControlledTransition = cT.map(x => updPredicatesInState(x.condition.next(state), predicates))
     val updQue = if (tryControlledTransition.isDefined) ControlQue(que.xs.tail) else que // remove head in que if transition taken
 
     val stateAfterControlled = tryControlledTransition.getOrElse(state)
     val stateAfterUncontrolled = unControlled.foldLeft(stateAfterControlled, cT.toList){case (sl, t) =>
       if (t.condition.eval(sl._1)){
-        (t.condition.next(sl._1), sl._2 :+ t)
+        (updPredicatesInState(t.condition.next(sl._1), predicates), sl._2 :+ t)
       } else
         sl
     }
@@ -198,6 +166,11 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
   // returns only changed. Maybe better
   def next(c: Condition, s: SPState): Map[ID, SPValue] = {
     c.action.map(a => a.id -> a.nextValue(s)).toMap
+  }
+
+  def updPredicatesInState(s: SPState, predicates: List[StatePredicate]): SPState = {
+    val updP = predicates.map(p => p.id -> SPValue(p.predicate.eval(s))).toMap
+    s.next(updP)
   }
 
   def makePlanningOP(name: String, start: Condition, goal: Condition): (PTMOperation, Thing) = {
@@ -252,6 +225,7 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
   def findMeAPlan(ops: List[PTMOperation], state: SPState, goal: Proposition, maxPath: Int = 30): List[ID] = {
     val controlled = ops.flatMap(_.controlled)
     val unControlled = ops.flatMap(_.unControlled)
+    val ps = ops.flatMap(_.predicates)
 
     case class PimpedState(state: SPState, path: List[ID])
     var stack = List[PimpedState](PimpedState(state, List()))
@@ -267,7 +241,7 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
 
         val enabled = controlled.filter(t => t.condition.eval(s.state))
         val nextStates = enabled.flatMap{t =>
-          val next = runOneStepSeq(s.state, controlled, unControlled, ControlQue(List(t.id)))
+          val next = runOneStepSeq(s.state, controlled, unControlled, ControlQue(List(t.id)), ps)
           val path = t.id :: s.path
           if (path.size > maxPath) None else Some(PimpedState(next._1, path))
         }
@@ -283,6 +257,52 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
 
     foundGoal.map(_.path.reverse).getOrElse(List())
   }
+
+
+
+  //  /**
+  //    * This runs one controlled transition and multiple uncontrolled. Currently runs all based on
+  //    * the given state.
+  //    * @param state The input state
+  //    * @param controlled A list of controlled transition that only starts based on the que
+  //    * @param unControlled A list of uncontrolled transitions that starts when they are enabled
+  //    * @param que A list of transition ids defining the starting order
+  //    * @return A new state, que and list of fired transitions (just nu namn, sedan id)
+  //    *         (and returns the same if they where not updated)
+  //    */
+  //  def runOneStep(state: SPState,
+  //                 controlled: List[PTMTransition],
+  //                 unControlled: List[PTMTransition],
+  //                 que: ControlQue): (SPState, ControlQue, List[PTMTransition]) = {
+  //
+  //    // Some initial test that we can remove or do something with later
+  //    que.xs.foreach{t =>
+  //      if (!controlled.exists(c => c.id == t) ) println(s"transition $t in the que, does not exist in the controlled list")
+  //    }
+  //
+  //    val cT = for {
+  //      toStart <- que.xs.headOption
+  //      transition <- controlled.find(_.id == toStart)
+  //      if transition.condition.eval(state)
+  //    } yield transition
+  //
+  //    val tryControlledTransition = cT.map(t => next(t.condition, state)) // take step if controlled transition is enabled
+  //    val updQue = if (tryControlledTransition.isDefined) ControlQue(que.xs.tail) else que // remove head in que if transition taken
+  //
+  //    val stateAfterUncontrolled = unControlled.foldLeft((Map[ID, SPValue](), cT.toList)){case (sl, t) =>
+  //      if (t.condition.eval(state)){
+  //        val newS = next(t.condition, state)
+  //        // check so that we do not overwrite when newS ++ sl._1
+  //        (newS ++ sl._1, sl._2 :+ t)
+  //      } else
+  //        sl
+  //    }
+  //
+  //    // Maybe we should return only changed values?
+  //    val newS = stateAfterUncontrolled._1 ++ tryControlledTransition.getOrElse(Map())
+  //
+  //    (state.next(newS), updQue, stateAfterUncontrolled._2)
+  //  }
 
 
 }

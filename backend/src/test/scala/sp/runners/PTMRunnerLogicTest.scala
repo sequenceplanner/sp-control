@@ -11,34 +11,34 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
   "testing PTM logic runner" - {
     val m = new TestModel {}
     import m._
-    "uncontrolled ordering testing" in {
-
-      val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f))
-
-      val res = runOneStep(
-        state = initState,
-        controlled = List(),
-        unControlled = List(t1, t2, t3),
-        ControlQue(List())
-      )
-
-      val res2 = runOneStep(
-        state = initState,
-        controlled = List(),
-        unControlled = List(t2, t1, t3),
-        ControlQue(List())
-      )
-
-      val res3 = runOneStep(
-        state = initState,
-        controlled = List(),
-        unControlled = List(t3, t1, t2),
-        ControlQue(List())
-      )
-
-      res shouldEqual res2
-      res2 shouldEqual res3
-    }
+//    "uncontrolled ordering testing" in {
+//
+//      val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f))
+//
+//      val res = runOneStepSeq(
+//        state = initState,
+//        controlled = List(),
+//        unControlled = List(t1, t2, t3),
+//        ControlQue(List())
+//      )
+//
+//      val res2 = runOneStepSeq(
+//        state = initState,
+//        controlled = List(),
+//        unControlled = List(t2, t1, t3),
+//        ControlQue(List())
+//      )
+//
+//      val res3 = runOneStepSeq(
+//        state = initState,
+//        controlled = List(),
+//        unControlled = List(t3, t1, t2),
+//        ControlQue(List())
+//      )
+//
+//      res shouldEqual res2
+//      res2 shouldEqual res3
+//    }
 
     "uncontrolled ordering testing when in seq" in {
 
@@ -74,7 +74,7 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
     "test with controlled" in {
       val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f))
 
-      val res = runOneStep(
+      val res = runOneStepSeq(
         state = initState,
         controlled = List(t2),
         unControlled = List(t1, t3),
@@ -83,7 +83,7 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
 
       assert(res._2.xs.isEmpty && res._3.nonEmpty)
 
-      val res2 = runOneStep(
+      val res2 = runOneStepSeq(
         state = initState,
         controlled = List(t1),
         unControlled = List(t1, t3),
@@ -97,28 +97,28 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
     "test with controlled, multiple" in {
       val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f))
 
-      val res = runOneStep(
+      val res = runOneStepSeq(
         state = initState,
         controlled = trans,
         unControlled = List(),
         ControlQue(List(t2.id, t1.id, t3.id))
       )
 
-      val res2 = runOneStep(res._1, trans, List(), res._2)
-      val res3 = runOneStep(res2._1, trans, List(), res2._2)
+      val res2 = runOneStepSeq(res._1, trans, List(), res._2)
+      val res3 = runOneStepSeq(res2._1, trans, List(), res2._2)
 
       //println(res3)
       assert(res3._2.xs.isEmpty && res3._3.nonEmpty)
 
-      val ault = runOneStep(
+      val ault = runOneStepSeq(
         state = initState,
         controlled = trans,
         unControlled = List(),
         ControlQue(List(t2.id, t3.id, t1.id))
       )
 
-      val ault2 = runOneStep(ault._1, trans, List(), ault._2)
-      val ault3 = runOneStep(ault2._1, trans, List(), ault2._2)
+      val ault2 = runOneStepSeq(ault._1, trans, List(), ault._2)
+      val ault3 = runOneStepSeq(ault2._1, trans, List(), ault2._2)
 
       //println(ault3)
       assert(ault3._2.xs.nonEmpty && ault3._3.isEmpty)
@@ -131,15 +131,15 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
 
       var cs = List(t1, t3)
       var us = List(t2)
-      val res = runOneStep(
+      val res = runOneStepSeq(
         state = initState,
         controlled = cs,
         unControlled = us,
         ControlQue(List(t1.id, t3.id))
       )
 
-      val res2 = runOneStep(res._1, cs, us, res._2)
-      val res3 = runOneStep(res2._1, cs, us, res2._2)
+      val res2 = runOneStepSeq(res._1, cs, us, res._2)
+      val res3 = runOneStepSeq(res2._1, cs, us, res2._2)
 
       //println(res3)
       assert(res3._2.xs.isEmpty && res3._3.nonEmpty)
@@ -147,15 +147,15 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
 
       cs = List(t3)
       us = List(t1, t2)
-      val ault = runOneStep(
+      val ault = runOneStepSeq(
         state = initState,
         controlled = cs,
         unControlled = us,
         ControlQue(List(t3.id))
       )
 
-      val ault2 = runOneStep(ault._1, cs, us, ault._2)
-      val ault3 = runOneStep(ault2._1, cs, us, ault2._2)
+      val ault2 = runOneStepSeq(ault._1, cs, us, ault._2)
+      val ault3 = runOneStepSeq(ault2._1, cs, us, ault2._2)
 
       println(ault)
       println(ault2)
@@ -204,11 +204,11 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
 
     "test runnerlogic with operations" in {
       val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))
-      var res = runOps(initState, List(o1, o2), List(preO1.id, preO2.id))
+      var res = runOps(initState, List(o1, o2), List(preO1.id, preO2.id), List())
       println(s"one step: ${res.fired.map(_.name)}")
-      res = runOps(res.updS, List(o1, o2), res.updQ)
+      res = runOps(res.updS, List(o1, o2), res.updQ, List())
       println(s"one step: ${res.fired.map(_.name)}")
-      res = runOps(res.updS, List(o1, o2), res.updQ)
+      res = runOps(res.updS, List(o1, o2), res.updQ, List())
       println(s"one step: ${res.fired.map(_.name)}")
       assert(res.updQ.isEmpty)
 
