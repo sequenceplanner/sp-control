@@ -128,12 +128,12 @@ class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with
     val m = new TestModel {}
 
     "simple change internals" in {
-      var init = PTMRunnerState(
+      var init = PTMRunnerSetState(
         state = Some(SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))), // replace complete state
-        ops = List(m.o1),
-        abs = List(m.o2),
-        opsQ = List(m.preO1.id),
-        absQ = List(m.preO2.id),
+        ops = Some(List(m.o1)),
+        abs = Some(List(m.o2)),
+        opsQ = Some(List(m.preO1.id)),
+        absQ = Some(List(m.preO2.id)),
         pause = Some(false)
       )
 
@@ -142,12 +142,12 @@ class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with
       var answer = runner ? SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))
       val result = Await.result(answer, 1.seconds)
 
-      init = PTMRunnerState(
+      init = PTMRunnerSetState(
         state = Some(SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))), // replace complete state
-        ops = List(m.o1, m.o2),
-        abs = List(),
-        opsQ = List(m.preO1.id),
-        absQ = List(),
+        ops = Some(List(m.o1, m.o2)),
+        abs = Some(List()),
+        opsQ = Some(List(m.preO1.id)),
+        absQ = Some(List()),
         pause = Some(false)
       )
 
@@ -155,12 +155,12 @@ class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with
       answer = runner ? SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))
       println(Await.result(answer, 1.seconds))
 
-      init = PTMRunnerState(
+      init = PTMRunnerSetState(
         state = Some(SPState(state = Map(m.v1.id -> f, m.v2.id -> f, m.v3.id -> f, m.v4.id -> f))), // replace complete state
-        ops = List(),
-        abs = List(m.o1, m.o2),
-        opsQ = List(),
-        absQ = List(m.preO1.id, m.preO2.id),
+        ops = Some(List()),
+        abs = Some(List(m.o1, m.o2)),
+        opsQ = Some(List()),
+        absQ = Some(List(m.preO1.id, m.preO2.id)),
         pause = Some(false)
       )
 
@@ -174,7 +174,7 @@ class PTMRunnerPipeLineTests(_system: ActorSystem) extends TestKit(_system) with
       var res = abilities.filter(_.controlled.exists(x => x.condition.eval(initState)))
       res.map(_.o.name) shouldEqual List("PickAt_p1", "PickAt_p2")
 
-      res = opsMove.map(_._1).filter(_.controlled.filter(x => x.condition.eval(initState)).nonEmpty)
+      res = opsMove.map(_._1).filter(_.controlled.exists(x => x.condition.eval(initState)))
       res.map(_.o.name) shouldEqual List("OP_from12To23")
 
       var newState = initState.next(Map(gripper.id -> partA, p1.id -> none))

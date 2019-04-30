@@ -202,6 +202,81 @@ class PTMRunnerLogicTest extends FreeSpec with Matchers {
 
     }
 
+
+    "Force table is forcing" in {
+      val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f))
+      val force =  Map(v1.id -> f, v2.id -> f, v3.id -> f)
+
+      var cs = List(t1, t3)
+      var us = List(t2)
+      val res = runOneStepSeq(
+        state = initState,
+        controlled = cs,
+        unControlled = us,
+        ControlQue(List(t1.id, t3.id)),
+        List(),
+        force
+      )
+
+      val res2 = runOneStepSeq(res._1, cs, us, res._2, List(), force)
+      val res3 = runOneStepSeq(res2._1, cs, us, res2._2, List(), force)
+
+      //println(res3)
+      assert(res3._1 == initState && res2._1 == initState)
+
+
+
+    }
+    "Force table is forcing, part 2" in {
+      val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f))
+      val force =  Map(v3.id -> f)
+
+      var cs = List(t1, t3)
+      var us = List(t2)
+      val res = runOneStepSeq(
+        state = initState,
+        controlled = cs,
+        unControlled = us,
+        ControlQue(List(t1.id, t3.id)),
+        List(),
+        force
+      )
+
+      val res2 = runOneStepSeq(res._1, cs, us, res._2, List(), force)
+      val res3 = runOneStepSeq(res2._1, cs, us, res2._2, List(), force)
+
+      //println(res3)
+      assert(res3._1 == initState.next(v1.id -> t))
+
+    }
+
+    "Test the predicates" in {
+      val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f))
+      val force =  Map(v3.id -> f)
+      val p = StatePredicate("test", parseGuard("v1", ids))
+      val p2 = StatePredicate("test_false", parseGuard("v3", ids))
+
+      var cs = List(t1, t3)
+      var us = List(t2)
+      val res = runOneStepSeq(
+        state = initState,
+        controlled = cs,
+        unControlled = us,
+        ControlQue(List(t1.id, t3.id)),
+        List(p, p2),
+        force
+      )
+
+      val res2 = runOneStepSeq(res._1, cs, us, res._2, List(), force)
+      val res3 = runOneStepSeq(res2._1, cs, us, res2._2, List(), force)
+
+      println(s"p: $p")
+      println(s"p2: $p2")
+      println(res3)
+      assert(res3._1.get(p.id).contains(t) && res3._1.get(p2.id).contains(f))
+
+    }
+
     "test runnerlogic with operations" in {
       val initState = SPState(state = Map(v1.id -> f, v2.id -> f, v3.id -> f, v4.id -> f))
       var res = runOps(initState, List(o1, o2), List(preO1.id, preO2.id), List())

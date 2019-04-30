@@ -25,12 +25,18 @@ case class PTMRunnerPipeline(operations: List[PTMOperation],
 
   implicit val askTimeout = Timeout(5 seconds)
   import akka.pattern.ask
-  val runnerA = system.actorOf(PTMRunnerActor.props(PTMRunnerState(Some(initialState), operations, abilities, initialOperationTransitionQue, List(), model)))
+  val runnerA = system.actorOf(PTMRunnerActor.props(PTMRunnerSetState(
+    Some(initialState),
+    Some(operations),
+    Some(abilities),
+    Some(initialOperationTransitionQue),
+    Some(List()),
+    Some(model))))
 
   def runnerFlow =
     Flow[SPState].ask[SPState](runnerA)
 
   def getRunnerData: Future[PTMRunnerState] = (runnerA ? "GetTheData").mapTo[PTMRunnerState]
-  def setRunnerData(data: PTMRunnerState): Future[Boolean] = (runnerA ? data).mapTo[Boolean]
+  def setRunnerData(data: PTMRunnerSetState): Future[Boolean] = (runnerA ? data).mapTo[Boolean]
 
 }
