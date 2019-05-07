@@ -35,13 +35,15 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
     // "Unification ROS2" -> new unification.UnificationModel(context.system),
     // "NewExtendedDummy" -> new unification.NewExtended(context.system),
     // "UnicornDemo" -> new unicorn.MondayDemo(context.system),
-    "IPSIntegration" -> new sp.models.unification.ipsintegration.IPSIntegrationModel(context.system),
+    //"IPSIntegration" -> new sp.models.unification.ipsintegration.IPSIntegrationModel(context.system),
+    "Minimal" -> new sp.models.unification.minimal.NewModel(context.system),
   )
 
   subscribe(APIModel.topicResponse)
   subscribe(APIModelMaker.topicResponse)
   subscribe(APIMiniModelService.topicRequest)
 
+  createModel("Minimal", ID.newID)
 
   def createModel(name: String, modelID: ID): Unit = {
     //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time

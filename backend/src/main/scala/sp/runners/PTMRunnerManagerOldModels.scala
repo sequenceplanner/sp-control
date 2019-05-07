@@ -99,13 +99,13 @@ class PTMRunnerInstanceOldModel(setup: API.SetupRunnerInstance) extends Actor
     val kinds = o.conditions.filter(c => hasStrAttr(c.attributes, "kind", kind))
     val pred = StatePredicate(name, AND(kinds.map(k => k.guard)))
     val predState = EQ(pred.id, ValueHolder(true))
-    val trans = PTMTransition(Condition(predState, kinds.flatMap(_.action)))
+    val trans = PTMTransition(Condition(predState, kinds.flatMap(_.action)), name)
     (pred, trans)
   }
   def makeEffects(o: Operation, pred: StatePredicate, kind: String) = {
     val kinds = o.conditions.filter(c => hasStrAttr(c.attributes, "kind", kind))
     val predState = EQ(pred.id, ValueHolder(true))
-    PTMTransition(Condition(predState, kinds.flatMap(_.action)))
+    PTMTransition(Condition(predState, kinds.flatMap(_.action)), o.name + "_" + kind)
   }
   def foldConditions(xs: List[Condition]): Condition = {
     val first = xs.headOption.getOrElse(Condition(AlwaysTrue))
@@ -116,18 +116,18 @@ class PTMRunnerInstanceOldModel(setup: API.SetupRunnerInstance) extends Actor
     }
   }
 
-  val abilities = setup.runner.operations.filter(o => hasStrAttr(o.attributes, "isa", "ability")).map{a =>
+  val abilities = setup.runner.operations.filter(o => !hasStrAttr(o.attributes, "isa", "operation")).map{a =>
     val pre = makePredAndTrans(a, "pre")
     val startEffect = makeEffects(a, pre._1, "startEffect")
     val isExecuting = makePredAndTrans(a, "isExecuting")
     val executingEffect = makeEffects(a, isExecuting._1,"executingEffect")
     val isFinished = makePredAndTrans(a, "isFinished")
-    val reset = makePredAndTrans(a, "reset")
+//    val reset = makePredAndTrans(a, "reset")
 
     PTMOperation(
-      predicates = List(pre._1, isExecuting._1, isFinished._1, reset._1),
+      predicates = List(pre._1, isExecuting._1, isFinished._1),
       controlled = List(pre._2),
-      unControlled = List(isExecuting._2, isFinished._2, reset._2),
+      unControlled = List(isExecuting._2, isFinished._2),
       effects = List(startEffect, executingEffect),
       a
     )
@@ -176,6 +176,13 @@ class PTMRunnerInstanceOldModel(setup: API.SetupRunnerInstance) extends Actor
     .to(resourceSinks)
     .run()
 
+
+  import context.dispatcher
+  context.system.scheduler.scheduleOnce(5 seconds) {
+    runner.setRunnerData(PTMRunnerSetState(pause = Some(false)))
+  }
+
+
   override def receive = {
     // todo: handle some commands like pausing the runner
     case x: String =>
@@ -199,13 +206,13 @@ class PTMRunnerInstanceOldModel(setup: API.SetupRunnerInstance) extends Actor
           case APIRunnerManager.StopAuto(instanceID) if instanceID == id =>
             println("Stopping auto")
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
-            runner.setRunnerData(PTMRunnerSetState(pause = Some(true)))
+            runner.setRunnerData(PTMRunnerSetState(step = Some(true)))
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.StartAuto(instanceID) if instanceID == id =>
             println("Starting auto")
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
-            runner.setRunnerData(PTMRunnerSetState(pause = Some(false)))
+            runner.setRunnerData(PTMRunnerSetState(step = None))
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.SetForceTable(instanceID, force, events) if instanceID == id =>

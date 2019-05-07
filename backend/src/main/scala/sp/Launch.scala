@@ -16,7 +16,7 @@ object Launch extends App {
     println("spcontrol node has joined the cluster")
     sp.SPCore.launch(system)
 
-    system.actorOf(sp.runners.RunnerManager.props)
+    system.actorOf(sp.runners.PTMRunnerManagerOldModels.props)
     system.actorOf(sp.modelSupport.MiniModelService.props)
     system.actorOf(dashboardpresets.DashboardPresetsActor())
     system.actorOf(sp.modelImport.SPModelImport.props)

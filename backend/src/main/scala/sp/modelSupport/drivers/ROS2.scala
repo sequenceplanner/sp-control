@@ -48,7 +48,6 @@ trait ROSResource extends Resource {
     pubs = Pub(topic, messageType, tickInterval, via) :: pubs
 
   def makeResource(): SPResource = {
-    implicit val materializer = ActorMaterializer()(system)
     val ros = new RCLBase(system)
 
     val initialState = things.flatMap(t => t.attributes.get("initialState").map(s=>t.id->s)).toMap
@@ -74,7 +73,7 @@ trait ROSResource extends Resource {
 
       pub.via.via(toAttr).via(ticking).via(partialMessages).
         // debug
-        // map(a=>{println("SENDING ATTR: " +a);a}).
+        map(a=>{println("SENDING ATTR: " +a);a}).
         to(p)
     }
 
