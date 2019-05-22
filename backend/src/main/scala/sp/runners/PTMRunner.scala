@@ -74,7 +74,6 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
         // ***
       }
 
-
       val abilities = if(step.contains(false))
         runOps(planningOps.updS, internal.abs, List(), internal.predicates, internal.forceState)
       else if(! internal.pause)
@@ -83,8 +82,35 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
         runPause(planningOps.updS, internal.abs, internal.absQ)
       val absPredicates = evaluatePredicates(abilities.updS, internal.abs)
 
+      // hacky map to old domain to make old frontend work...
+      def predNameToAbState(s: String): String = {
+        s match {
+          case _ if s.contains("_pre") => "enabled"
+          case _ if s.contains("_isExecuting") => "executing"
+          case _ if s.contains("_isFinished") => "finished"
+          case _  => "notEnabled"
+        }
+      }
+      val updAbState = absPredicates.map { case (a,p) =>
+        a.o.id -> SPValue(p.headOption.map(x=>predNameToAbState(x.name)).getOrElse("notEnabled"))
+      }.toMap
+      val ns = abilities.updS.next(updAbState)
+      def toOldOpState(s: String): String = {
+        s match {
+          case "i" => "enabled"
+          case "e" => "executing"
+          case "f" => "finished"
+          case x => println("x: " + x); "notEnabled"
+        }
+      }
+      val updOpState = internal.model.collect {
+        case t: Thing if t.attributes.getAs[ID]("op").nonEmpty => (t.id, t.attributes.getAs[ID]("op").get)
+      }.flatMap { case (tid,opid) =>
+        ns.get(tid).map(spval => (opid -> SPValue(toOldOpState(spval.as[String]))))
+      }.toMap
+
       internal = internal.copy(
-        state = abilities.updS,
+        state = ns.next(updOpState),
         opsQ = planningOps.updQ,
         absQ = abilities.updQ
       )
@@ -92,7 +118,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
       step = step.map(_ => false)
 
       val fired = planningOps.fired ++ abilities.fired // We should send this to someone nice
-      if (fired.nonEmpty) println(s"the following transition fired: ${fired.map(_.name)}")
+      if (planningOps.fired.nonEmpty) println(s"the following transition fired: ${planningOps.fired.map(_.name)}")
       // Maybe also send out if a que was changed?
       // Send out the state internal.predicates or maybe we should include them in the state?
 
@@ -236,7 +262,8 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
   }
 
   def makePlanningOP(name: String, start: Condition, goal: Condition, op: Option[Operation] = None): (PTMOperation, Thing) = {
-    val variable = Thing(name, SPAttributes("domain" -> List("i", "e", "f"), "initialState" -> "i"))
+    val o = op.getOrElse(Operation("OP_"+name))
+    val variable = Thing(name, SPAttributes("domain" -> List("i", "e", "f"), "initialState" -> "i", "op" -> o.id)) // TODO: hack to be able to use old style state in frontend
     val init = StatePredicate("i", EQ(SVIDEval(variable.id), ValueHolder("i")))
     val execute = StatePredicate("e", EQ(SVIDEval(variable.id), ValueHolder("e")))
     val pre = PTMTransition(
@@ -250,12 +277,12 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     val post = PTMTransition(
       goal.copy(
         guard = AND(List(execute.predicate, goal.guard)),
-        action = Action(variable.id, ValueHolder("f")) +: goal.action,
+        action = Action(variable.id, ValueHolder("i")) +: goal.action,   /// TODO: hack to reset ops for the demo
         attributes = goal.attributes + ("kind" -> "post")
       ),
       "post"
     )
-    (PTMOperation(List(init, execute), List(pre), List(post), List(), op.getOrElse(Operation("OP_"+name))), variable)
+    (PTMOperation(List(init, execute), List(pre), List(post), List(), o), variable)
   }
 
 

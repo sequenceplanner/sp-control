@@ -55,10 +55,10 @@ class Robot(name: String, override val system: ActorSystem) extends ROSResource 
   publish(s"extended_dummy$name/control", "extended_dummy_messages/Control", Some(1000.millis), pubFlow)
 
   a("moveToPos")(
-    c("pre", "true", "active := true"),
+    c("pre", "!active", "active := true"),
     c("isExecuting", "actPos != refPos"),
     c("executingEffect", "true", "actPos := refPos"),
-    c("isFinished", "actPos == refPos"),
+    c("isFinished", "actPos == refPos", "active := false"),
     c("reset", "true"))
 
 }
@@ -104,19 +104,25 @@ class Example(override val system: ActorSystem) extends MiniModel {
     c("isFinished", "true", "part3 := false"),
   )
 
-  val placePart3 = o("placePart3", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true))(
+  val placePart3 = o("placePart3", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation"))(
     c("pre", s"!part3"),
     c("post", s"part3")
+  )
+
+  val removePart3 = o("removePart3", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation"))(
+    c("pre", s"part3"),
+    c("post", s"!part3")
   )
 
   // instantiate abilities
   println("make ops")
   makeOps()
 
-  val highLevelOps = List(placePart3)
+  val highLevelOps = operations.filter(_.attributes.getAs[String]("isa").contains("operation"))
+  val abilities = operations.filterNot(_.attributes.getAs[String]("isa").contains("operation"))
   // just build a simple sop to visualize the ability states
   // make a grid with four columns to utilize the space we have in the widget
-  val grid = List(0,1,2,3).map(n=>operations.filterNot(o=>highLevelOps.exists(_==o.id)).sliding(4,4).flatMap(_.lift(n)).toList)
+  val grid = List(0,1,2,3).map(n=>abilities.sliding(4,4).flatMap(_.lift(n)).toList)
   sop("abilities", List(Parallel(grid.map(s=>Sequence(s.map(o=>SOP(o)))))))
   sop("operations", List(Sequence(highLevelOps.map(o=>SOP(o)))))
 

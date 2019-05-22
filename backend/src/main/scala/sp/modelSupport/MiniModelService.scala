@@ -44,7 +44,7 @@ class MiniModelService extends Actor with MessageBussSupport with ExportNuXmvFil
   subscribe(APIModelMaker.topicResponse)
   subscribe(APIMiniModelService.topicRequest)
 
-  createModel("Minimal", ID.newID)
+  createModel("Example", ID.newID)
 
   def createModel(name: String, modelID: ID): Unit = {
     //val modelID = ID.makeID("0d80d1d6-48cd-48ec-bfb1-d69714ef35be").get // hardcoded model id so we do not get a new model every time
