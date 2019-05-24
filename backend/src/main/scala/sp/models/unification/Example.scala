@@ -75,7 +75,7 @@ class Example(override val system: ActorSystem) extends MiniModel {
 
   // instantiation of abilities into global system model
   val r1place1 = o("R1_place1", "R1.moveToPos", "r1")(
-    c("pre", "!part1 && !part3", "R1.refPos := 'place'"),
+    c("pre", "!part1 && !part3 && R1.actPos != 'place'", "R1.refPos := 'place'"),
     c("isFinished", "true", "part1 := true"),
   )
 

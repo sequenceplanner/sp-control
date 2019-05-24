@@ -13,7 +13,7 @@ case class PTMRunnerSetState(state: Option[SPState] = None,
                           absQ: Option[List[ID]] = None,
                           model: Option[List[IDAble]] = None,
                           pause: Option[Boolean] = None,
-                          step: Option[Boolean] = Some(false),
+                          step: Option[Option[Boolean]] = None,
                           forceState: Option[Map[ID, SPValue]] = None
                          )
 
@@ -24,11 +24,12 @@ case class PTMRunnerState(state: SPState,
                           absQ: List[ID],
                           model: List[IDAble],
                           pause: Boolean = true,
+                          step: Option[Boolean] = None,
                           forceState: Map[ID, SPValue],
                           predicates: List[StatePredicate]
                       )
 object PTMRunnerState {
-  def empty = PTMRunnerState(SPState("empty", Map()), List(), List(), List(), List(), List(), true, Map(), List())
+  def empty = PTMRunnerState(SPState("empty", Map()), List(), List(), List(), List(), List(), true, None, Map(), List())
 }
 
 
@@ -40,7 +41,6 @@ object PTMRunnerActor {
 class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
   import PTM_Models._
 
-  var step: Option[Boolean] = Some(false)
   var internal = PTMRunnerState.empty
   setInternalState(initialRunnerState)
 
@@ -58,28 +58,23 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
 
       val newGoals = makeGoal(opsPredicates)
 
-      if(newGoals != AND(List())) {
-        println("new goal: " + prettyPrint(internal.model)(newGoals))
-
+      val plan = if(newGoals != AND(List())) {
+        // println("new goal: " + prettyPrint(internal.model)(newGoals))
         // Send away new planning for abs and ops with fire and forget. Also send out internal.predicates
-
         // *** planning in sync for testing
-        val aPlanWithBFS = findMeAPlanNuxmv(internal.abs, planningOps.updS, newGoals, internal.model)
-        //findMeAPlan(internal.abs, planningOps.updS, newGoals, internal.forceState)
-        val abNames = aPlanWithBFS.flatMap { id =>
-          internal.abs.flatMap(a => a.controlled.find(_.id == id).map(_.name))
-        }
-        println("resulting plan: " + abNames)
-        internal = internal.copy(absQ = aPlanWithBFS)
-        // ***
+        findMeAPlanNuxmv(internal.abs, planningOps.updS, newGoals, internal.model)
+      } else {
+        Some(List())
       }
+      internal = internal.copy(absQ = plan.getOrElse(List()))
 
-      val abilities = if(step.contains(false))
-        runOps(planningOps.updS, internal.abs, List(), internal.predicates, internal.forceState)
-      else if(! internal.pause)
-        runOps(planningOps.updS, internal.abs, internal.absQ, internal.predicates, internal.forceState)
-      else
-        runPause(planningOps.updS, internal.abs, internal.absQ)
+      val abilities: OneStep = if(internal.step.contains(false) || internal.pause) {
+        val x = runOps(planningOps.updS, internal.abs, List(), internal.predicates, internal.forceState)
+        x.copy(updQ = internal.absQ)
+      } else
+          runOps(planningOps.updS, internal.abs, internal.absQ, internal.predicates, internal.forceState)
+      // we shouldn't "run paused" here, we need to be alive w.r.t abilities
+
       val absPredicates = evaluatePredicates(abilities.updS, internal.abs)
 
       // hacky map to old domain to make old frontend work...
@@ -106,23 +101,33 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
       val updOpState = internal.model.collect {
         case t: Thing if t.attributes.getAs[ID]("op").nonEmpty => (t.id, t.attributes.getAs[ID]("op").get)
       }.flatMap { case (tid,opid) =>
-        ns.get(tid).map(spval => (opid -> SPValue(toOldOpState(spval.as[String]))))
+          ns.get(tid).map{spval => (opid -> SPValue(toOldOpState(spval.as[String]))) }
       }.toMap
 
       internal = internal.copy(
         state = ns.next(updOpState),
+        step = internal.step.map(_ => false),
         opsQ = planningOps.updQ,
         absQ = abilities.updQ
       )
-
-      step = step.map(_ => false)
 
       val fired = planningOps.fired ++ abilities.fired // We should send this to someone nice
       if (planningOps.fired.nonEmpty) println(s"the following transition fired: ${planningOps.fired.map(_.name)}")
       // Maybe also send out if a que was changed?
       // Send out the state internal.predicates or maybe we should include them in the state?
 
-      sender() ! internal.state
+      // we love hacks :) send the current plan and goal with the state
+      val queueNames = if(plan.isEmpty) List("no plan found...")
+      else {
+        internal.absQ.flatMap { id =>
+          internal.abs.flatMap(a => a.controlled.find(_.id == id).map(_.name))
+        }
+      }
+      val goalStr = prettyPrint(internal.model)(newGoals)
+
+      val qs = (ID.newID -> SPAttributes("q" -> queueNames, "goal" -> goalStr))
+
+      sender() ! internal.state.next(qs)
 
 
     case x: PTMRunnerSetState =>
@@ -142,10 +147,10 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
       absQ = if (set.absQ.nonEmpty) set.absQ.get else internal.absQ,
       model = if (set.model.nonEmpty) set.model.get else internal.model,
       pause = if (set.pause.nonEmpty) set.pause.get else internal.pause,
+      step = if (set.step.nonEmpty) set.step.get else internal.step,
       forceState = if (set.forceState.nonEmpty) set.forceState.get else internal.forceState,
       predicates = List()
     )
-    step = set.step
     internal = internal.copy(predicates = (internal.ops ++ internal.abs).flatMap(_.predicates))
     internal = internal.copy(state = updState(internal.state, internal.predicates, internal.forceState))
   }
@@ -201,11 +206,11 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
 
   // Runs all transition in sequence
   def runOneStepSeq(state: SPState,
-                    controlled: List[PTMTransition],
-                    unControlled: List[PTMTransition],
-                    que: ControlQue,
-                    predicates: List[StatePredicate] = List(),
-                    forceState: Map[ID, SPValue] = Map()): (SPState, ControlQue, List[PTMTransition]) = {
+    controlled: List[PTMTransition],
+    unControlled: List[PTMTransition],
+    que: ControlQue,
+    predicates: List[StatePredicate] = List(),
+    forceState: Map[ID, SPValue] = Map()): (SPState, ControlQue, List[PTMTransition]) = {
 
     // Some initial test that we can remove or do something with later
     que.xs.foreach{t =>
@@ -226,24 +231,24 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
       if (t.condition.eval(sl._1)){
         (updState(t.condition.next(sl._1), predicates, forceState), sl._2 :+ t)
       } else
-        sl
+          sl
     }
 
     (stateAfterUncontrolled._1, updQue, stateAfterUncontrolled._2)
   }
 
   def runOneStepSeqWithoutQ(state: SPState,
-                    controlled: List[PTMTransition],
-                    unControlled: List[PTMTransition],
-                    predicates: List[StatePredicate] = List(),
-                    forceState: Map[ID, SPValue] = Map()): (SPState, List[PTMTransition]) = {
+    controlled: List[PTMTransition],
+    unControlled: List[PTMTransition],
+    predicates: List[StatePredicate] = List(),
+    forceState: Map[ID, SPValue] = Map()): (SPState, List[PTMTransition]) = {
 
 
     val stateAfterUncontrolled = (controlled ++ unControlled).foldLeft(state, List[PTMTransition]()){case (sl, t) =>
       if (t.condition.eval(sl._1)){
         (updState(t.condition.next(sl._1), predicates, forceState), sl._2 :+ t)
       } else
-        sl
+          sl
     }
 
     (stateAfterUncontrolled._1, stateAfterUncontrolled._2)
@@ -251,9 +256,9 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
 
 
   // returns only changed. Maybe better
-//  def next(c: Condition, s: SPState): Map[ID, SPValue] = {
-//    c.action.map(a => a.id -> a.nextValue(s)).toMap
-//  }
+  //  def next(c: Condition, s: SPState): Map[ID, SPValue] = {
+  //    c.action.map(a => a.id -> a.nextValue(s)).toMap
+  //  }
 
   def updState(s: SPState, predicates: List[StatePredicate], force: Map[ID, SPValue]): SPState = {
     val forceS = s.next(force)
@@ -298,16 +303,16 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     // a temporary dummy planner
     //val enabledOps =
 
-//    val absAsOps = abilities.map{a =>
-//
-//    }
-//
-//
-//    val (plan, ntrans, stdout, stderr) = computePlan(ids, state.state, 50, goal, "", "/tmp/runner.smv")
-//    println(plan)
-//    println(ntrans)
-//    println(stdout)
-//    println(stderr)
+    //    val absAsOps = abilities.map{a =>
+    //
+    //    }
+    //
+    //
+    //    val (plan, ntrans, stdout, stderr) = computePlan(ids, state.state, 50, goal, "", "/tmp/runner.smv")
+    //    println(plan)
+    //    println(ntrans)
+    //    println(stdout)
+    //    println(stderr)
   }
 
   def plansToLTL(plans: List[String]): String = {
@@ -315,7 +320,7 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     s"! ($s)"
   }
 
-  def findMeAPlanNuxmv(ops: List[PTMOperation], state: SPState, goal: Proposition, model: List[IDAble]): List[ID] = {
+  def findMeAPlanNuxmv(ops: List[PTMOperation], state: SPState, goal: Proposition, model: List[IDAble]): Option[List[ID]] = {
     val goalStr = SPpropTonuXmvSyntax(goal,
       model.collect{case v:Thing=>v}.map(v => v.copy(name = "v_"+v.name.replaceAll("\\.", "_"))),         /// TODO: terrible
       model.collect{case o:Operation=>o}.map(o => o.copy(name = "o_"+o.name.replaceAll("\\.", "_"))))
@@ -323,9 +328,12 @@ object PTM_Models extends sp.modelSupport.ExportNuXmvFile2 {
     val planSpec = s"! F ( $goalStr )"
     val (plan, ntrans, stdout, stderr) = computePlan(model, state.state, 50, AND(List()), planSpec, "/tmp/ptmrunner.smv")
 
-    plan.flatMap { name =>
-      ops.find(_.o.name == name).flatMap { o => o.controlled.headOption.map(_.id) }
-    }
+    if(ntrans == -1) None
+    else Some(
+      plan.flatMap { name =>
+        ops.find(_.o.name == name).flatMap { o => o.controlled.headOption.map(_.id) }
+      }
+    )
   }
 
   // DFS or BFS.

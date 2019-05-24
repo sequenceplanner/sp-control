@@ -37,6 +37,7 @@ object Widgets {
       ("MiniModel helper",                  widgets.MiniModelHelper.MiniModelHelperWidget(),        5, 5),
       ("HumanInstructions",           widgets.unification.HumanInstructionsWidget(),      5, 5),
       ("RunnerState",          widgets.examples.RunnerStateWidgetState(),          6, 6),
+      ("Restart",          widgets.restart.RestartWidget(),          4, 5),
       ("ROS2Widget",          widgets.examples.ROS2Widget(),          4, 5),
       ("URDemo",          widgets.examples.URDemoWidget(),          4, 5),
 

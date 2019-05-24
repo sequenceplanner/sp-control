@@ -177,10 +177,10 @@ class PTMRunnerInstanceOldModel(setup: API.SetupRunnerInstance) extends Actor
     .run()
 
 
-  import context.dispatcher
-  context.system.scheduler.scheduleOnce(5 seconds) {
-    runner.setRunnerData(PTMRunnerSetState(pause = Some(false)))
-  }
+  // import context.dispatcher
+  // context.system.scheduler.scheduleOnce(5 seconds) {
+  //   runner.setRunnerData(PTMRunnerSetState(pause = Some(false)))
+  // }
 
 
   override def receive = {
@@ -202,17 +202,29 @@ class PTMRunnerInstanceOldModel(setup: API.SetupRunnerInstance) extends Actor
             //runner.setPlan(plan)
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
+          case APIRunnerManager.StartAuto(instanceID) if instanceID == id =>
+            println("Starting auto")
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            runner.setRunnerData(PTMRunnerSetState(pause = Some(false)))
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.StopAuto(instanceID) if instanceID == id =>
             println("Stopping auto")
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
-            runner.setRunnerData(PTMRunnerSetState(step = Some(true)))
+            runner.setRunnerData(PTMRunnerSetState(pause = Some(true)))
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
-          case APIRunnerManager.StartAuto(instanceID) if instanceID == id =>
-            println("Starting auto")
+          case APIRunnerManager.TakeStep(instanceID) if instanceID == id =>
+            println("Taking control step")
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
-            runner.setRunnerData(PTMRunnerSetState(step = None))
+            runner.setRunnerData(PTMRunnerSetState(step = Some(Some(true))))
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
+          case APIRunnerManager.SetStepping(step, instanceID) if instanceID == id =>
+            val setStep = if(!step) None else Some(false)
+            println(s"Setting stepping to $step")
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            runner.setRunnerData(PTMRunnerSetState(step = Some(setStep)))
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
           case APIRunnerManager.SetForceTable(instanceID, force, events) if instanceID == id =>

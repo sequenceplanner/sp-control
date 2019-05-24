@@ -11,7 +11,7 @@ trait ExportNuXmvFile2 {
 
   def computePlan(model: List[IDAble], state: Map[ID, SPValue], bound: Int, goal: Proposition, ltl: String, filename: String = "/tmp/runner.smv"):
       (List[String], Int, String, String) = {
-    println("Running solver...")
+//    println("Running solver...")
     val t0 = System.nanoTime()
 
     exportNuXmv(model, filename, state, goal, ltl)
@@ -42,7 +42,7 @@ trait ExportNuXmvFile2 {
     val pio = new ProcessIO(input _, output _, error _)
     val result = Process(s"/home/martin/bin/nuxmv -int $filename").run(pio).exitValue()
     val t1 = System.nanoTime()
-    println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
+//    println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
 
     val stderrLines = stderr.get.mkString("\n")
 
@@ -55,11 +55,11 @@ trait ExportNuXmvFile2 {
       val ops = model.collect { case op: Operation => op }
       val opNames = ops.map(o => "o_"+o.name.replaceAll("\\.", "_") -> o.name).toMap
       val p = plan.flatMap( str => opNames.get(str.stripSuffix("_start = TRUE")))
-      println(s"New plan is, after $numberOfTransitions steps: " + p.mkString(","))
+//      println(s"New plan is, after $numberOfTransitions steps: " + p.mkString(","))
       (p, numberOfTransitions, stdoutLines.mkString("\n"), stderrLines)
     } else {
-      println("Failed to compute plan!")
-      println(stderrLines)
+//      println("Failed to compute plan!")
+//      println(stderrLines)
       (List(), 0, "", stderrLines)
     }
   }

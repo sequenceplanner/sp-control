@@ -28,6 +28,8 @@ package sp.runners {
     case object TerminatedAllRunnerInstances extends Response
 
     case class StateEvent(runnerInstance: ID, state: Map[ID, SPValue]) extends Response
+    case class TakeStep(runnerInstance: ID) extends Request
+    case class SetStepping(step: Boolean, instanceID: ID) extends Request
     case class StopAuto(runnerInstance: ID) extends Request
     case class StartAuto(runnerInstance: ID) extends Request
     case class SetForceTable(runnerInstance: ID, force: Map[ID, SPValue], events: Map[ID, SPValue]) extends Request
@@ -41,6 +43,8 @@ package sp.runners {
       implicit lazy val fTerminateAllVDs:     JSFormat[TerminateAllRunnerInstances.type ]     = deriveCaseObject[TerminateAllRunnerInstances.type]
       implicit lazy val fTerminatedAllVDs:     JSFormat[TerminatedAllRunnerInstances.type]     = deriveCaseObject[TerminatedAllRunnerInstances.type]
       implicit lazy val fStateEvent:     JSFormat[StateEvent]     = Json.format[StateEvent]
+      implicit lazy val fTakeStep:     JSFormat[TakeStep]     = Json.format[TakeStep]
+      implicit lazy val fSetStepping:     JSFormat[SetStepping]     = Json.format[SetStepping]
       implicit lazy val fStopAuto:     JSFormat[StopAuto]     = Json.format[StopAuto]
       implicit lazy val fStartAuto:     JSFormat[StartAuto]     = Json.format[StartAuto]
       implicit lazy val fSetForceTable:     JSFormat[SetForceTable]     = Json.format[SetForceTable]

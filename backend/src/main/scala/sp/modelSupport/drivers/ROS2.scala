@@ -73,7 +73,7 @@ trait ROSResource extends Resource {
 
       pub.via.via(toAttr).via(ticking).via(partialMessages).
         // debug
-        map(a=>{println("SENDING ATTR: " +a);a}).
+        // map(a=>{println("SENDING ATTR: " +a);a}).
         to(p)
     }
 
