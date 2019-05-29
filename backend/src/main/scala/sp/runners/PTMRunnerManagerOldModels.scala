@@ -233,6 +233,12 @@ class PTMRunnerInstanceOldModel(setup: API.SetupRunnerInstance) extends Actor
             runner.setRunnerData(PTMRunnerSetState(forceState = Some(force)))
             publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
 
+          case APIRunnerManager.SetForceGoal(instanceID, goal) if instanceID == id =>
+            println("Setting force goal: " + goal)
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
+            runner.setRunnerData(PTMRunnerSetState(forceGoal = Some(goal)))
+            publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPDone () ) )
+
           case APIRunnerManager.TerminateRunnerInstance(instanceID) if instanceID == id =>
             // publish (APIRunnerManager.topicResponse, SPMessage.makeJson (updH, APISP.SPACK () ) )
             // killSwitch.shutdown()

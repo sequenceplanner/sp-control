@@ -23,7 +23,7 @@ object RestartWidget {
 
   val typeFilters = List("type", "operation", "ability", "internal", "input", "output")
 
-  case class State(isAuto: Boolean = false, isStepping: Boolean = false)
+  case class State(isAuto: Boolean = false, isStepping: Boolean = false, forceGoal: String = "", forceGoalActive: Boolean = false)
 
   private class Backend($: BackendScope[Props, State]) {
 
@@ -45,6 +45,15 @@ object RestartWidget {
       }
     }
 
+    def toggleForceGoal(runnerID: ID) = {
+      $.modState{s =>
+        val newState = s.copy(forceGoalActive = !s.forceGoalActive)
+        val toSend = if(newState.forceGoalActive) Some(s.forceGoal) else None
+        send(api.SetForceGoal(runnerID, toSend))
+        newState
+      }
+    }
+
     def toggleButton(title: String, c: CallbackTo[Unit], isToggled: Boolean) = {
       val buttonCss =
         if (isToggled) css.activeModelButton.htmlClass
@@ -60,6 +69,11 @@ object RestartWidget {
         <.i(^.className := imageCss))
     }
 
+    def onForceGoalChange(e: ReactEventFromInput) = {
+      val newValue = e.target.value
+      $.modState(_.copy(forceGoal = newValue, forceGoalActive = false))
+    }
+
     def renderQueue(rid: ID, p: Props, s: State) = {
       val rows = for {
         state <- p.runnerStates.get(rid)
@@ -69,30 +83,41 @@ object RestartWidget {
       val tags = rows.toList.map { r =>
         val q = r.flatMap(v => v.getAs[List[String]]("q")).headOption.getOrElse(List("no active queue"))
         val g = r.flatMap(v => v.getAs[String]("goal")).headOption.getOrElse(List("no active goal"))
-        List(<.div(^.fontSize := "24px")("Current goal: " + g),
-          <.div(^.fontSize := "24px")("Current queue: " + q.mkString(",")))
+        List(<.div(^.fontSize := "18px")("Current goal: " + g),
+          <.div(^.fontSize := "12px")("Current queue: " + q.map(_.stripSuffix("_pre")).mkString(",")))
+        }
+        tags.flatten.toTagMod
       }
-      tags.flatten.toTagMod
-    }
 
-    def render(p: Props, s: State) = {
-      // TODO: show abilities so we can force run them...
-      val abilities = p.activeModel.flatMap(m => m.items.find(_.name == "abilities").
-        flatMap(_.attributes.getAs[List[Operation]]("modelAbilities"))).getOrElse(List())
+      def render(p: Props, s: State) = {
+        // TODO: show abilities so we can force run them...
+        val abilities = p.activeModel.flatMap(m => m.items.find(_.name == "abilities").
+          flatMap(_.attributes.getAs[List[Operation]]("modelAbilities"))).getOrElse(List())
 
-      <.div(
-        p.activeRunner.map { runnerID =>
-          <.div(^.fontSize := "24px")(
-            "Active runner: " + runnerID.toString,
-            <.br(),
-            <.b("Control in auto: "), toggleButton("Control in auto", toggleAuto(runnerID), s.isAuto),
-            <.br(),
-            <.b("Step abilities: "), toggleButton("Step abilities", toggleStepping(runnerID), s.isStepping),
-            <.button(
-              ^.className := "btn btn-small",
-              ^.onClick --> Callback(send(api.TakeStep(runnerID))), <.i(^.className := "fa fa-4x fa-play")
-            ).when(s.isStepping),
-            renderQueue(runnerID, p, s)
+        <.div(
+          p.activeRunner.map { runnerID =>
+            <.div(^.fontSize := "18px")(
+              "Active runner: " + runnerID.toString,
+
+              <.br(),
+              toggleButton("Control in auto", toggleAuto(runnerID), s.isAuto), <.b("Control in auto: "),
+
+              <.br(),
+              toggleButton("Step abilities", toggleStepping(runnerID), s.isStepping), <.b("Step abilities: "),
+              <.button(
+                ^.className := "btn btn-small",
+                ^.onClick --> Callback(send(api.TakeStep(runnerID))), <.i(^.className := "fa fa-4x fa-play")
+              ).when(s.isStepping),
+
+              <.br(),
+              toggleButton("Force goal", toggleForceGoal(runnerID), s.forceGoalActive),
+              <.label("Force goal:"),
+            <.input(
+              ^.width := "500px",
+              ^.value := s.forceGoal,
+              ^.onChange ==> onForceGoalChange
+            ),
+            renderQueue(runnerID, p, s),
           )
         }.toList.toTagMod,
       )

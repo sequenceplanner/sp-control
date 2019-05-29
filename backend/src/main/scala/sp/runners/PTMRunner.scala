@@ -5,6 +5,7 @@ import sp.domain.Logic._
 import akka.actor.{Actor, Props}
 import sp.runners.PTM_Models.StatePredicate
 
+import sp.domain.logic.PropositionParser
 
 case class PTMRunnerSetState(state: Option[SPState] = None,
                           ops: Option[List[PTM_Models.PTMOperation]] = None,
@@ -14,7 +15,8 @@ case class PTMRunnerSetState(state: Option[SPState] = None,
                           model: Option[List[IDAble]] = None,
                           pause: Option[Boolean] = None,
                           step: Option[Option[Boolean]] = None,
-                          forceState: Option[Map[ID, SPValue]] = None
+                          forceState: Option[Map[ID, SPValue]] = None,
+                          forceGoal: Option[Option[String]] = None,
                          )
 
 case class PTMRunnerState(state: SPState,
@@ -26,10 +28,11 @@ case class PTMRunnerState(state: SPState,
                           pause: Boolean = true,
                           step: Option[Boolean] = None,
                           forceState: Map[ID, SPValue],
-                          predicates: List[StatePredicate]
+                          forceGoal: Option[String] = None,
+                          predicates: List[StatePredicate],
                       )
 object PTMRunnerState {
-  def empty = PTMRunnerState(SPState("empty", Map()), List(), List(), List(), List(), List(), true, None, Map(), List())
+  def empty = PTMRunnerState(SPState("empty", Map()), List(), List(), List(), List(), List(), true, None, Map(), None, List())
 }
 
 
@@ -56,7 +59,17 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
         runPause(incomingState, internal.ops, internal.opsQ)
       val opsPredicates = evaluatePredicates(planningOps.updS, internal.ops)
 
-      val newGoals = makeGoal(opsPredicates)
+      val (newGoals, goalStr) = if(internal.forceGoal.nonEmpty) {
+        val gs = internal.forceGoal.get
+        println("Parsing goal: " + gs)
+        PropositionParser(internal.model).parseStr(gs) match {
+          case Right(p) => (p, prettyPrint(internal.model)(p))
+          case Left(err) => (AND(List()), s"Error: $err")
+        }
+      } else {
+        val g = makeGoal(opsPredicates)
+        (g, prettyPrint(internal.model)(g))
+      }
 
       val plan = if(newGoals != AND(List())) {
         // println("new goal: " + prettyPrint(internal.model)(newGoals))
@@ -123,7 +136,6 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
           internal.abs.flatMap(a => a.controlled.find(_.id == id).map(_.name))
         }
       }
-      val goalStr = prettyPrint(internal.model)(newGoals)
 
       val qs = (ID.newID -> SPAttributes("q" -> queueNames, "goal" -> goalStr))
 
@@ -149,6 +161,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
       pause = if (set.pause.nonEmpty) set.pause.get else internal.pause,
       step = if (set.step.nonEmpty) set.step.get else internal.step,
       forceState = if (set.forceState.nonEmpty) set.forceState.get else internal.forceState,
+      forceGoal = if (set.forceGoal.nonEmpty) set.forceGoal.get else internal.forceGoal,
       predicates = List()
     )
     internal = internal.copy(predicates = (internal.ops ++ internal.abs).flatMap(_.predicates))

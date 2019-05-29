@@ -7,6 +7,10 @@ import sp.domain.logic.{ActionParser, PropositionParser, SOPLogic}
 import scala.util.{Failure, Success, Try}
 import sp.supremica._
 
+object q {
+  var counter: Long = 0
+}
+
 trait ExportNuXmvFile2 {
 
   def computePlan(model: List[IDAble], state: Map[ID, SPValue], bound: Int, goal: Proposition, ltl: String, filename: String = "/tmp/runner.smv"):
@@ -14,7 +18,10 @@ trait ExportNuXmvFile2 {
 //    println("Running solver...")
     val t0 = System.nanoTime()
 
-    exportNuXmv(model, filename, state, goal, ltl)
+    q.counter = q.counter+1
+    val fn = s"$filename-${q.counter}"
+
+    exportNuXmv(model, fn, state, goal, ltl)
 
     import sys.process._
     import java.io.{InputStream,OutputStream,ByteArrayOutputStream,PrintWriter}
@@ -40,9 +47,9 @@ trait ExportNuXmvFile2 {
       stderr.put(lines)
     }
     val pio = new ProcessIO(input _, output _, error _)
-    val result = Process(s"/home/martin/bin/nuxmv -int $filename").run(pio).exitValue()
+    val result = Process(s"/home/martin/bin/nuxmv -int $fn").run(pio).exitValue()
     val t1 = System.nanoTime()
-//    println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
+    println("Time to solve: " + (t1 - t0) / 1e9d + " seconds. Error code: " + result)
 
     val stderrLines = stderr.get.mkString("\n")
 
@@ -55,11 +62,11 @@ trait ExportNuXmvFile2 {
       val ops = model.collect { case op: Operation => op }
       val opNames = ops.map(o => "o_"+o.name.replaceAll("\\.", "_") -> o.name).toMap
       val p = plan.flatMap( str => opNames.get(str.stripSuffix("_start = TRUE")))
-//      println(s"New plan is, after $numberOfTransitions steps: " + p.mkString(","))
+      println(s"New plan is [${q.counter}], after $numberOfTransitions steps: " + p.mkString(","))
       (p, numberOfTransitions, stdoutLines.mkString("\n"), stderrLines)
     } else {
-//      println("Failed to compute plan!")
-//      println(stderrLines)
+      println("Failed to compute plan!")
+      println(stderrLines)
       (List(), 0, "", stderrLines)
     }
   }
@@ -246,6 +253,8 @@ trait ExportNuXmvFile2 {
         ops.foreach { o =>
           val startEffects = getConds(o.conditions, "startEffect").map(_.action).flatten.filter(a=>a.id==v.id)
           val executingEffects = getConds(o.conditions, "executingEffect").map(_.action).flatten.filter(a=>a.id==v.id)
+          val immediateExecutingEffects = getConds(o.conditions, "immediateExecutingEffect").map(_.action).flatten.filter(a=>a.id==v.id)
+
 
           if(startEffects.nonEmpty) {
             val startString = startEffects.map(actionValTonuXmvSyntax).mkString(",")
@@ -255,6 +264,12 @@ trait ExportNuXmvFile2 {
           if(executingEffects.nonEmpty) {
             val executingString = executingEffects.map(actionValTonuXmvSyntax).mkString(",")
             lines += s"    ${o.name}_executing : {$executingString, ${v.name}} ;   --- sp executing effect\n"
+            //lines += s"    ${o.name}_executing : {$executingString} ;   --- sp executing effect\n"   /// think about adding immediate effects...
+          }
+
+          if(immediateExecutingEffects.nonEmpty) {
+            val executingString = immediateExecutingEffects.map(actionValTonuXmvSyntax).mkString(",")
+            lines += s"    ${o.name}_executing : {$executingString} ;   --- sp executing effect\n"
           }
         }
       } else {
