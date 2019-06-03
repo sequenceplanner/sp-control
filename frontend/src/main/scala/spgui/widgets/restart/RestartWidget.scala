@@ -69,9 +69,15 @@ object RestartWidget {
         <.i(^.className := imageCss))
     }
 
-    def onForceGoalChange(e: ReactEventFromInput) = {
+    def onForceGoalChange(runnerID: ID)(e: ReactEventFromInput) = {
       val newValue = e.target.value
-      $.modState(_.copy(forceGoal = newValue, forceGoalActive = false))
+      // send(api.SetForceGoal(runnerID, None))
+      // $.modState(_.copy(forceGoal = newValue, forceGoalActive = false))
+      $.modState{s =>
+        val toSend = if(s.forceGoalActive) Some(newValue) else None
+        send(api.SetForceGoal(runnerID, toSend))
+        s.copy(forceGoal = newValue)
+      }
     }
 
     def renderQueue(rid: ID, p: Props, s: State) = {
@@ -84,7 +90,7 @@ object RestartWidget {
         val q = r.flatMap(v => v.getAs[List[String]]("q")).headOption.getOrElse(List("no active queue"))
         val g = r.flatMap(v => v.getAs[String]("goal")).headOption.getOrElse(List("no active goal"))
         List(<.div(^.fontSize := "18px")("Current goal: " + g),
-          <.div(^.fontSize := "12px")("Current queue: " + q.map(_.stripSuffix("_pre")).mkString(",")))
+          <.div(^.fontSize := "12px")("Current queue: " + q.map(_.stripSuffix("_pre")).mkString(", ")))
         }
         tags.flatten.toTagMod
       }
@@ -115,7 +121,7 @@ object RestartWidget {
             <.input(
               ^.width := "500px",
               ^.value := s.forceGoal,
-              ^.onChange ==> onForceGoalChange
+              ^.onChange ==> onForceGoalChange(runnerID)
             ),
             renderQueue(runnerID, p, s),
           )

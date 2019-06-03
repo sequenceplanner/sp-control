@@ -161,17 +161,17 @@ object RunnerStateWidgetState {
         flatMap(_.attributes.getAs[List[Operation]]("modelAbilities"))).getOrElse(List())
 
       <.div(
-        p.activeRunner.map { runnerID =>
-          <.div(
-            <.button(
-              ^.className := "btn btn-small",
-              ^.onClick --> send(api.StartAuto(runnerID)), "start auto"
-            ),
-            <.button(
-              ^.className := "btn btn-small",
-              ^.onClick --> send(api.StopAuto(runnerID)), "stop auto"
-            ))
-        }.toList.toTagMod,
+        // p.activeRunner.map { runnerID =>
+        //   <.div(
+        //     <.button(
+        //       ^.className := "btn btn-small",
+        //       ^.onClick --> send(api.StartAuto(runnerID)), "start auto"
+        //     ),
+        //     <.button(
+        //       ^.className := "btn btn-small",
+        //       ^.onClick --> send(api.StopAuto(runnerID)), "stop auto"
+        //     ))
+        // }.toList.toTagMod,
         <.label("Filter: "),
         <.input(
           ^.width := "150px",

@@ -47,13 +47,16 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
   var internal = PTMRunnerState.empty
   setInternalState(initialRunnerState)
 
+  var prevState: Map[ID, SPValue] = Map()
+  var prevGoals: Proposition = AND(List())
+
   override def receive = {
 
     case s: SPState =>  // Only allowed to be called via the flow!
 
       val incomingState = updState(internal.state.next(s.state), internal.predicates, internal.forceState)
 
-      val planningOps = if (! internal.pause)
+      val planningOps = if (!internal.pause && internal.forceGoal.isEmpty)
         runOps(incomingState, internal.ops, internal.opsQ, internal.predicates, internal.forceState, true)
       else
         runPause(incomingState, internal.ops, internal.opsQ)
@@ -61,7 +64,6 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
 
       val (newGoals, goalStr) = if(internal.forceGoal.nonEmpty) {
         val gs = internal.forceGoal.get
-        println("Parsing goal: " + gs)
         PropositionParser(internal.model).parseStr(gs) match {
           case Right(p) => (p, prettyPrint(internal.model)(p))
           case Left(err) => (AND(List()), s"Error: $err")
@@ -71,7 +73,10 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
         (g, prettyPrint(internal.model)(g))
       }
 
-      val plan = if(newGoals != AND(List())) {
+      val stateChanged = planningOps.updS.state.toSet.diff(prevState.toSet).nonEmpty || newGoals != prevGoals
+
+      val plan = if(!stateChanged) Some(internal.absQ)
+      else if(newGoals != AND(List())){
         // println("new goal: " + prettyPrint(internal.model)(newGoals))
         // Send away new planning for abs and ops with fire and forget. Also send out internal.predicates
         // *** planning in sync for testing
@@ -81,7 +86,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
       }
       internal = internal.copy(absQ = plan.getOrElse(List()))
 
-      val abilities: OneStep = if(internal.step.contains(false) || internal.pause) {
+      val abilities: OneStep = if(internal.step.contains(false) || (internal.pause && internal.forceGoal.isEmpty)) {
         val x = runOps(planningOps.updS, internal.abs, List(), internal.predicates, internal.forceState)
         x.copy(updQ = internal.absQ)
       } else
@@ -131,6 +136,7 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
 
       // we love hacks :) send the current plan and goal with the state
       val queueNames = if(plan.isEmpty) List("no plan found...")
+      else if(plan.contains(List())) List("empty plan")
       else {
         internal.absQ.flatMap { id =>
           internal.abs.flatMap(a => a.controlled.find(_.id == id).map(_.name))
@@ -139,7 +145,13 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
 
       val qs = (ID.newID -> SPAttributes("q" -> queueNames, "goal" -> goalStr))
 
-      sender() ! internal.state.next(qs)
+      val newState = internal.state.next(qs)
+
+      // only replan when state has actually changed...
+      prevState = newState.state
+      prevGoals = newGoals
+
+      sender() ! newState
 
 
     case x: PTMRunnerSetState =>
@@ -160,7 +172,16 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
       model = if (set.model.nonEmpty) set.model.get else internal.model,
       pause = if (set.pause.nonEmpty) set.pause.get else internal.pause,
       step = if (set.step.nonEmpty) set.step.get else internal.step,
-      forceState = if (set.forceState.nonEmpty) set.forceState.get else internal.forceState,
+      forceState = if (set.forceState.nonEmpty) {
+        // hack to force operations from old frontend
+        val fs = set.forceState.get
+        val mapping = internal.model.collect {
+          case t: Thing if t.attributes.getAs[ID]("op").nonEmpty => (t.attributes.getAs[ID]("op").get, t.id)
+        }.toMap
+        fs.map { case (i,v) if mapping.contains(i) => mapping(i) -> v
+          case (i,v) => i -> v
+        }
+      }else internal.forceState,
       forceGoal = if (set.forceGoal.nonEmpty) set.forceGoal.get else internal.forceGoal,
       predicates = List()
     )
