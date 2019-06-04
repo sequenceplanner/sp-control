@@ -357,13 +357,15 @@ class RECU(override val system: ActorSystem) extends ROSResource {
 class Kinect(override val system: ActorSystem) extends ROSResource {
   val command1 = i("command1", false)
   val command2 = i("command2", false)
+  val command4 = i("command4", false)
+
   val clear = o("clear", false)
 
-  val subMapping = stringToIDMapper(Map("command1" -> command1, "command2" -> command2))
+  val subMapping = stringToIDMapper(Map("command1" -> command1, "command2" -> command2, "command4" -> command4))
 
   val commandMapping = Flow[Map[String, SPValue]].map{ state =>
     val data = state.get("data").getOrElse(SPValue("")).as[String]
-    Map("command1" -> SPValue(data.contains("COMMAND1")), "command2" -> SPValue(data.contains("COMMAND2")))
+    Map("command1" -> SPValue(data.contains("COMMAND1")), "command2" -> SPValue(data.contains("COMMAND2")), "command4" -> SPValue(data.contains("COMMAND4")))
   }
   val subFlow = commandMapping.via(subMapping)
 
@@ -381,10 +383,10 @@ class Kinect(override val system: ActorSystem) extends ROSResource {
   publish("/unification_roscontrol/gestures_sp_to_uni", "std_msgs/String", None, pubFlow)
 
   a("clear")(
-    c("pre", "(command1 || command2)", "clear := true"),
+    c("pre", "(command1 || command2 || command4)", "clear := true"),
     c("isExecuting", "clear"),
-    c("executingEffect", "true", "command1 := false", "command2 := false"),
-    c("isFinished", "!command1 && !command2", "clear := false"),
+    c("executingEffect", "true", "command1 := false", "command2 := false", "command4 := false"),
+    c("isFinished", "!command1 && !command2 && !command4", "clear := false"),
     c("reset", "true")
   )
 }
@@ -474,7 +476,9 @@ class NewModel(override val system: ActorSystem) extends MiniModel {
   )
 
   // gripper needs to be opened/closed during some moves
-  o("recu.open", "recu.open", "ur")()
+  o("recu.open", "recu.open", "ur")(
+    c("pre", s"pipe != byRobot"),
+  )
   o("recu.close", "recu.close", "ur")()
 
   val unlockRspWhenNotHoldingATool = o("unlockRSP", "recu.unlock", "ur")(
@@ -494,19 +498,17 @@ class NewModel(override val system: ActorSystem) extends MiniModel {
 
   o(s"ur.gotoPreAttachLFToolFarJOINTPose")(c("pre", "(recu.robot_connected_to_lf_tool && recu.rsp_is_locked && !recu.gripper_is_closed) || (!recu.rsp_is_locked && recu.robot_not_connected_to_tool)"))
 
+  // this is the problem. we need to (OR) the isExeucting guards to the original guards
+ /// DEFINE o_ur_gotoAttachLFToolTCPPose_executing := ((v_ur_moving = TRUE)|(v_ur_actPos != AttachLFToolTCPPose) | ! v_recu_robot_connected_to_lf_tool)&(v_ur_refPos = AttachLFToolTCPPose);
   o(s"ur.gotoAttachLFToolTCPPose")(
     c("pre", "(recu.robot_connected_to_lf_tool && recu.rsp_is_locked && recu.gripper_is_closed) || (!recu.rsp_is_locked && recu.robot_not_connected_to_tool)"),
+//    c("isExecuting", s"!recu.robot_connected_to_lf_tool"),
     c("executingEffect", "true", "recu.robot_connected_to_lf_tool := true"),
     c("isFinished", s"recu.robot_connected_to_lf_tool"),
   )
 
   // clear kinect commands
   o("kinect.clear", "kinect.clear", "kinect")()
-
-  val lfMagic = o("doLFMagic", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation", "domain" -> List(SPValue("i"), SPValue("e"))))(
-    c("pre", s"lf == onMir && kinect.command1"),
-    c("post", s"lf == onEngine")
-  )
 
 
 
@@ -524,7 +526,7 @@ class NewModel(override val system: ActorSystem) extends MiniModel {
 
   // either gripper is closed and we hold the part or the gripper is opened to grab the part
   o(s"ur.gotoAtPipeJOINTPose")(
-    c("pre", "recu.robot_connected_to_lf_tool && recu.rsp_is_locked && ((pipe != 'byRobot' && !recu.gripper_is_closed) || (pipe == 'byRobot' && recu.gripper_is_closed))"),
+    c("pre", "ur.actPos == 'AbovePipeJOINTPose' && recu.robot_connected_to_lf_tool && recu.rsp_is_locked && ((pipe == 'onMir' && !recu.gripper_is_closed) || (pipe == 'byRobot' && recu.gripper_is_closed))"),
   )
 
   o("recu.openToLeavePipe", "recu.open", "ur")(
@@ -538,17 +540,34 @@ class NewModel(override val system: ActorSystem) extends MiniModel {
   )
 
   o(s"ur.gotoPreHandoverJOINTPose")(
-    c("pre", "recu.robot_connected_to_lf_tool && recu.rsp_is_locked"),
+    c("pre", "!kinect.command1 && !kinect.command2 && !kinect.command4 && recu.robot_connected_to_lf_tool && recu.rsp_is_locked"),
   )
 
   // makes sure we clear gestures
   o(s"ur.gotohandover")(
-    c("pre", "!kinect.command1 && !kinect.command2 && recu.robot_connected_to_lf_tool && recu.rsp_is_locked && pipe == 'byRobot'"),
+    c("pre", "!kinect.command1 && !kinect.command2 && !kinect.command4 && recu.robot_connected_to_lf_tool && recu.rsp_is_locked && pipe == 'byRobot'"),
     c("isFinished", s"true", "pipe := byOperator"),
   )
 
-  val getPipe = o("doPipeMagic", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation", "domain" -> List(SPValue("i"), SPValue("e"))))(
-    c("pre", s"pipe == onMir && kinect.command2"),
+
+  // goto choice spot, midpoint 5
+  val gotoAboveMir = o("gotoAboveMir", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation", "domain" -> List(SPValue("i"), SPValue("e"))))(
+    c("pre", s"ur.actPos == 'PreAttachLFToolFarJOINTPose' && recu.robot_connected_to_lf_tool && recu.rsp_is_locked"),
+    c("post", s"ur.actPos == 'LFOperationMidpoint5JOINTPose'")
+  )
+
+  val lfMagic = o("doLFMagic", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation", "domain" -> List(SPValue("i"), SPValue("e"))))(
+    c("pre", s"lf == onMir && kinect.command1"),
+    c("post", s"lf == onEngine")
+  )
+
+  val getPipe = o("getPipe", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation", "domain" -> List(SPValue("i"), SPValue("e"))))(
+    c("pre", s"ur.actPos == 'LFOperationMidpoint5JOINTPose' && pipe == onMir && kinect.command2"),
+    c("post", s"ur.actPos == 'LFOperationMidpoint5JOINTPose' && pipe == byRobot")
+  )
+
+  val pipeToOper = o("pipeToOperator", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation", "domain" -> List(SPValue("i"), SPValue("e"))))(
+    c("pre", s"ur.actPos == 'LFOperationMidpoint5JOINTPose' && pipe == byRobot && kinect.command4"),
     c("post", s"pipe == byOperator")
   )
 
@@ -558,7 +577,7 @@ class NewModel(override val system: ActorSystem) extends MiniModel {
   )
 
   val leaveLFTool = o("leaveLFTool", attr = SPAttributes("notInModel" -> true, "hasGoal" -> true, "isa" -> "operation", "domain" -> List(SPValue("i"), SPValue("e"))))(
-    c("pre", s"recu.robot_connected_to_lf_tool && ur.actPos == 'PreAttachLFToolFarJOINTPose'"),   // HomeJOINTPose
+    c("pre", s"recu.robot_connected_to_lf_tool && ur.actPos == 'HomeJOINTPose'"),   // HomeJOINTPose
     c("post", s"recu.robot_not_connected_to_tool && ur.actPos == 'PreAttachLFToolFarJOINTPose'")
   )
 

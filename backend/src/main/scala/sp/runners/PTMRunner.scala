@@ -178,11 +178,15 @@ class PTMRunnerActor(initialRunnerState: PTMRunnerSetState) extends Actor {
         val mapping = internal.model.collect {
           case t: Thing if t.attributes.getAs[ID]("op").nonEmpty => (t.attributes.getAs[ID]("op").get, t.id)
         }.toMap
+        prevState = Map()
         fs.map { case (i,v) if mapping.contains(i) => mapping(i) -> v
           case (i,v) => i -> v
         }
       }else internal.forceState,
-      forceGoal = if (set.forceGoal.nonEmpty) set.forceGoal.get else internal.forceGoal,
+      forceGoal = if (set.forceGoal.nonEmpty) {
+        prevState = Map()
+        set.forceGoal.get
+      } else internal.forceGoal,
       predicates = List()
     )
     internal = internal.copy(predicates = (internal.ops ++ internal.abs).flatMap(_.predicates))
